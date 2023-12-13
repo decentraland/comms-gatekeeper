@@ -1,0 +1,12 @@
+name: CI/CD on PR
+
+on:
+  pull_request:
+
+jobs:
+  pr:
+    uses: decentraland/platform-actions/.github/workflows/apps-pr.yml@main
+    with:
+      service-name: comms-manager
+      dockerfile-url: https://raw.githubusercontent.com/decentraland/platform-actions/main/Dockerfile.alpine
+    secrets: inherit

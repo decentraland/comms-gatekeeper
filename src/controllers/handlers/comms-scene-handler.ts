@@ -1,0 +1,48 @@
+import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { HandlerContextWithPath, NotFoundError, UnauthorizedError, Permissions } from '../../types'
+import { validate } from './utils'
+
+export async function commsSceneHandler(
+  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'sceneFetcher', '/get-scene-adapter'>
+): Promise<IHttpServerComponent.IResponse> {
+  const {
+    components: { livekit, sceneFetcher }
+  } = context
+
+  const { realmName, sceneId, identity } = await validate(context)
+  let forPreview = false
+  let room: string
+  let permissions: Permissions | undefined
+
+  if (realmName === 'preview') {
+    room = `preview-${identity}`
+
+    forPreview = true
+    permissions = {
+      cast: [],
+      mute: []
+    }
+  } else if (realmName.endsWith('.eth')) {
+    permissions = await sceneFetcher.fetchWorldPermissions(realmName)
+    room = livekit.getWorldRoomName(realmName)
+  } else {
+    if (!sceneId) {
+      throw new UnauthorizedError('Access denied, invalid signed-fetch request, no sceneId')
+    }
+    permissions = await sceneFetcher.fetchScenePermissions(sceneId)
+    room = livekit.getSceneRoomName(realmName, sceneId)
+  }
+
+  if (!permissions) {
+    throw new NotFoundError('Realm or scene not found')
+  }
+
+  const credentials = await livekit.generateCredentials(identity, room, permissions, forPreview)
+
+  return {
+    status: 200,
+    body: {
+      adapter: `livekit:${credentials.url}?access_token=${credentials.token}`
+    }
+  }
+}

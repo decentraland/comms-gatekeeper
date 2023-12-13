@@ -1,0 +1,31 @@
+name: Manual deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment-environment:
+        required: true
+        type: string
+        options:
+          - 'dev'
+          - 'stg'
+          - 'prd'
+        description: 'Target environment'
+      docker-image:
+        required: true
+        type: string
+        description: 'Docker image to deploy: latest, next, <tag> or <commit>'
+    secrets:
+      QUAY_USERNAME:
+        required: true
+      QUAY_TOKEN:
+        required: true
+
+jobs:
+  pr:
+    uses: decentraland/platform-actions/.github/workflows/apps-docker-manual-deployment.yml@main
+    with:
+      service-name: comms-manager
+      deployment-environment: ${{ inputs.deployment-environment }}
+      quay-registry-path: quay.io/decentraland/comms-manager:${{ inputs.docker-image }}
+    secrets: inherit
