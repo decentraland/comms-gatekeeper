@@ -25,7 +25,7 @@ jobs:
   pr:
     uses: decentraland/platform-actions/.github/workflows/apps-docker-manual-deployment.yml@main
     with:
-      service-name: comms-manager
+      service-name: comms-gatekeeper
       deployment-environment: ${{ inputs.deployment-environment }}
-      quay-registry-path: quay.io/decentraland/comms-manager:${{ inputs.docker-image }}
+      quay-registry-path: quay.io/decentraland/comms-gatekeeper:${{ inputs.docker-image }}
     secrets: inherit

@@ -28,7 +28,7 @@ jobs:
         id: deploy
         uses: decentraland/dcl-deploy-action@main
         with:
-          dockerImage: "quay.io/decentraland/comms-manager:${{ inputs.tag }}"
-          serviceName: "comms-manager"
+          dockerImage: "quay.io/decentraland/comms-gatekeeper:${{ inputs.tag }}"
+          serviceName: "comms-gatekeeper"
           env: ${{ inputs.deployment-environment }}
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -9,7 +9,7 @@ jobs:
   cd:
     uses: decentraland/platform-actions/.github/workflows/apps-docker-release.yml@main
     with:
-      service-name: comms-manager
+      service-name: comms-gatekeeper
       deployment-environment: prd
       dockerfile-url: https://raw.githubusercontent.com/decentraland/platform-actions/main/Dockerfile.alpine
     secrets: inherit
