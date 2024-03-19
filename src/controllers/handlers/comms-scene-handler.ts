@@ -3,12 +3,13 @@ import { HandlerContextWithPath, NotFoundError, UnauthorizedError, Permissions }
 import { validate } from './utils'
 
 export async function commsSceneHandler(
-  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'sceneFetcher', '/get-scene-adapter'>
+  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'sceneFetcher' | 'logs', '/get-scene-adapter'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, sceneFetcher }
+    components: { livekit, sceneFetcher, logs }
   } = context
 
+  const logger = logs.getLogger('comms-scene-handler')
   const { realmName, sceneId, identity } = await validate(context)
   let forPreview = false
   let room: string
@@ -38,6 +39,7 @@ export async function commsSceneHandler(
   }
 
   const credentials = await livekit.generateCredentials(identity, room, permissions, forPreview)
+  logger.debug(`Token generated for ${identity} to join room ${room}`)
 
   return {
     status: 200,
