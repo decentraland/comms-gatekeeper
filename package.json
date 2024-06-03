@@ -9,7 +9,7 @@
     "lint:fix": "eslint '**/*.{js,ts}' --fix"
   },
   "devDependencies": {
-    "@dcl/eslint-config": "^1.1.13",
+    "@dcl/eslint-config": "^2.0.0",
     "@types/node": "^20.7.1",
     "@well-known-components/test-helpers": "^1.5.5",
     "typescript": "^5.2.2"
