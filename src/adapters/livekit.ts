@@ -69,6 +69,7 @@ export async function createLivekitComponent(
       canPublish: true,
       canSubscribe: true,
       canPublishData: true,
+      canUpdateOwnMetadata: true,	
       canPublishSources
     })
 
