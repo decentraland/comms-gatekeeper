@@ -15,6 +15,31 @@ export async function commsSceneHandler(
   let room: string
   let permissions: Permissions | undefined
 
+  async function fetchDenyList(): Promise<Set<string>> {
+    try {
+      const response = await fetch('https://config.decentraland.org/denylist.json')
+      if (!response.ok) {
+        throw new Error(`Failed to fetch deny list, status: ${response.status}`)
+      }
+      const data = await response.json()
+      if (data.users && Array.isArray(data.users)) {
+        return new Set(data.users.map((user: { wallet: string }) => user.wallet.toLocaleLowerCase()))
+      } else {
+        logger.warn('Deny list is missing "users" field or it is not an array.')
+        return new Set()
+      }
+    } catch (error) {
+      logger.error(`Error fetching deny list: ${(error as Error).message}`)
+      return new Set()
+    }
+  }
+
+  const denyList = await fetchDenyList()
+  if (denyList.has(identity)) {
+    logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
+    throw new UnauthorizedError('Access denied, deny-listed wallet')
+  }
+
   if (realmName === 'preview') {
     room = `preview-${identity}`
 
