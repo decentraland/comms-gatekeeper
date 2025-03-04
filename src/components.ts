@@ -7,6 +7,8 @@ import { metricDeclarations } from './metrics'
 import { createFetchComponent } from '@well-known-components/fetch-component'
 import { createSceneFetcherComponent } from './adapters/scene-fetcher'
 import { createLivekitComponent } from './adapters/livekit'
+import { createDatabaseComponent } from './adapters/database-component'
+import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -29,6 +31,9 @@ export async function initComponents(): Promise<AppComponents> {
   const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch })
   const livekit = await createLivekitComponent({ config, logs })
 
+  const database = await createDatabaseComponent({ config, logs, metrics })
+  const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
+
   return {
     config,
     logs,
@@ -37,6 +42,8 @@ export async function initComponents(): Promise<AppComponents> {
     fetch,
     metrics,
     sceneFetcher,
-    livekit
+    livekit,
+    database,
+    sceneAdminManager
   }
 }

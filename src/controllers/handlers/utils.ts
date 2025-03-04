@@ -1,5 +1,6 @@
 import { DecentralandSignatureData, verify } from '@dcl/platform-crypto-middleware'
 import { HandlerContextWithPath, UnauthorizedError } from '../../types'
+import * as Joi from 'joi'
 
 export type AuthData = { identity: string; realmName: string; sceneId?: string }
 
@@ -29,5 +30,31 @@ export async function validate<T extends string>(
     identity,
     realmName,
     sceneId
+  }
+}
+
+export function validateSceneAdminPayload(payload: any) {
+  const schema = Joi.object({
+    entity_id: Joi.string()
+      .pattern(/^bafkrei[a-zA-Z0-9]+$/, 'start with "bafkrei" followed by alphanumeric characters')
+      .required(),
+    admin: Joi.string()
+      .pattern(/^0x[a-fA-F0-9]{40}$/i, 'address must be a valid Ethereum address')
+      .lowercase()
+      .required()
+  })
+
+  const result = schema.validate(payload)
+
+  if (result.error) {
+    return {
+      success: false,
+      error: result.error.message
+    }
+  }
+
+  return {
+    success: true,
+    value: result.value
   }
 }

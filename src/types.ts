@@ -6,9 +6,12 @@ import type {
   IMetricsComponent,
   IFetchComponent
 } from '@well-known-components/interfaces'
+import { IPgComponent } from '@well-known-components/pg-component'
+import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
 import { ISceneFetcherComponent } from './adapters/scene-fetcher'
 import { ILivekitComponent } from './adapters/livekit'
+import { ISceneAdminManager } from './adapters/scene-admin-manager'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -23,6 +26,8 @@ export type BaseComponents = {
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
   sceneFetcher: ISceneFetcherComponent
   livekit: ILivekitComponent
+  database: IPgComponent
+  sceneAdminManager: ISceneAdminManager
 }
 
 // components used in runtime
@@ -45,7 +50,8 @@ export type HandlerContextWithPath<
     components: Pick<AppComponents, ComponentNames>
   }>,
   Path
->
+> &
+  DecentralandSignatureContext<any>
 
 export type Context<Path extends string = any> = IHttpServerComponent.PathAwareContext<GlobalContext, Path>
 

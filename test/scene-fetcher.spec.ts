@@ -20,9 +20,8 @@ describe('SceneFetcherComponent', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks()    
+    jest.clearAllMocks()
   })
-
 
   it('should return undefined if the world sceneId is not found', async () => {
     mockFetch.fetch.mockResolvedValueOnce({ json: async () => ({ configurations: { scenesUrn: [] } }) })
@@ -31,7 +30,6 @@ describe('SceneFetcherComponent', () => {
 
     expect(permissions).toBeUndefined()
   })
-
 
   it('should return default permissions on fetch error', async () => {
     mockFetch.fetch.mockRejectedValueOnce(new Error('Network error'))
@@ -44,7 +42,6 @@ describe('SceneFetcherComponent', () => {
   it('should use LRU cache for fetching scene IDs', async () => {
     const cacheSpy = jest.spyOn(LRUCache.prototype, 'fetch')
 
-    // Mock responses for cache logic
     mockFetch.fetch.mockResolvedValueOnce({
       json: async () => ({
         configurations: { scenesUrn: ['urn:decentraland:scene:world:cached-scene'] }
