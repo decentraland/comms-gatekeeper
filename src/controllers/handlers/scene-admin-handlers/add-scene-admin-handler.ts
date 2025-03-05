@@ -1,6 +1,6 @@
 import { InvalidRequestError } from '../../../types'
 import { HandlerContextWithPath } from '../../../types'
-import { validateSceneAdminPayload } from '../utils'
+import { validateSceneAdminPayload, fetchSceneAudit } from '../utils'
 import { Authenticator } from '@dcl/crypto'
 
 export async function addSceneAdminHandler(
@@ -35,30 +35,14 @@ export async function addSceneAdminHandler(
   try {
     const [catalystContentUrl] = await Promise.all([config.requireString('CATALYST_CONTENT_URL')])
 
-    if (typeof fetch !== 'function') {
-      throw new Error('Fetch is not available')
-    }
-
-    const response = await fetch(`${catalystContentUrl}/audit/scene/${entityId}`)
-
-    if (!response) {
-      throw new Error('No response received from server')
-    }
-
-    if (!response.ok) {
-      throw new Error(`Server responded with status: ${response.status}`)
-    }
-
-    const data = await response.json()
-
-    if (!data || !data.authChain) {
-      throw new Error('Invalid response format: missing authChain')
-    }
+    const sceneWithAuthChain = await fetchSceneAudit(catalystContentUrl, entityId)
 
     await sceneAdminManager.addAdmin({
       entity_id: entityId,
       admin: admin.toLowerCase(),
-      owner: data.authChain ? Authenticator.ownerAddress(data.authChain) : authAddress.toLowerCase(),
+      owner: sceneWithAuthChain.authChain
+        ? Authenticator.ownerAddress(sceneWithAuthChain.authChain)
+        : authAddress.toLowerCase(),
       added_by: authAddress.toLowerCase()
     })
 

@@ -58,3 +58,34 @@ export function validateSceneAdminPayload(payload: any) {
     value: result.value
   }
 }
+
+/**
+ * Fetches scene audit data from the Catalyst server
+ * @param catalystContentUrl Base URL for the Catalyst content server
+ * @param entityId ID of the scene entity to fetch
+ * @returns The scene audit data with authChain
+ * @throws Error if the fetch fails or response format is invalid
+ */
+export async function fetchSceneAudit(catalystContentUrl: string, entityId: string) {
+  if (typeof fetch !== 'function') {
+    throw new Error('Fetch is not available')
+  }
+
+  const response = await fetch(`${catalystContentUrl}/audit/scene/${entityId}`)
+
+  if (!response) {
+    throw new Error('No response received from server')
+  }
+
+  if (!response.ok) {
+    throw new Error(`Server responded with status: ${response.status}`)
+  }
+
+  const sceneWithAuthChain = await response.json()
+
+  if (!sceneWithAuthChain || !sceneWithAuthChain.authChain) {
+    throw new Error('Invalid response format: missing authChain')
+  }
+
+  return sceneWithAuthChain
+}
