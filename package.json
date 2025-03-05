@@ -12,7 +12,7 @@
     "migrate": "node-pg-migrate --database-url-var PG_COMPONENT_PSQL_CONNECTION_STRING --envPath .env -j ts --tsconfig tsconfig.json -m ./src/migrations"
   },
   "devDependencies": {
-    "@dcl/eslint-config": "^2.0.0",
+    "@dcl/eslint-config": "^2.2.1",
     "@types/joi": "^17.2.3",
     "@types/node": "^20.7.1",
     "@well-known-components/test-helpers": "^1.5.6",
