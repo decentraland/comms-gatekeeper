@@ -92,3 +92,87 @@ export type LivekitCredentials = {
   token: string
   url: string
 }
+
+export interface Land {
+  name: string | null
+  contractAddress: string
+  tokenId: string
+  category: 'estate' | 'parcel'
+  description?: string
+  price: string | null
+  image: string
+  x?: string
+  y?: string
+}
+
+export interface LandsResponse {
+  elements: Array<{
+    category: string
+    x: string
+    y: string
+    [key: string]: any
+  }>
+  totalAmount: number
+  pageNum: string
+  pageSize: string
+}
+
+export interface Name {
+  name: string
+  contractAddress: string
+  tokenId: string
+  price: string
+}
+
+export interface NamesResponse {
+  elements: Array<{
+    name: string
+    [key: string]: any
+  }>
+  totalAmount: number
+  pageNum: string
+  pageSize: string
+}
+
+export type AddressResource = 'lands' | 'names'
+export type AddressResourceResponse<T extends AddressResource> = T extends 'lands' ? LandsResponse : NamesResponse
+
+export type AuthData = {
+  identity: string
+  realmName: string
+  sceneId?: string
+  parcel: string
+  hostname: string
+}
+
+export type PlaceAttributes = {
+  id: string
+  title: string | null
+  description: string | null
+  image: string | null
+  highlighted_image: string | null
+  owner: string | null
+  positions: string[]
+  base_position: string
+  contact_name: string | null
+  contact_email: string | null
+  likes: number
+  dislikes: number
+  favorites: number
+  like_rate: number | null
+  like_score: number | null
+  highlighted: boolean
+  disabled: boolean
+  disabled_at: Date | null
+  created_at: Date
+  updated_at: Date
+  world: boolean
+  world_name: string | null
+  deployed_at: Date
+  categories: string[]
+  user_like: boolean
+  user_dislike: boolean
+  user_favorite: boolean
+  user_count?: number
+  user_visits?: number
+}

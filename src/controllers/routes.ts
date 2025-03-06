@@ -16,7 +16,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   const auth = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'decentraland-cooms-gatekeeper'
+    metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'decentraland-kernel-scene'
   })
 
   router.get('/ping', pingHandler)
@@ -27,7 +27,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   router.get('/scene-admin', auth, listSceneAdminsHandler)
   router.post('/scene-admin', auth, addSceneAdminHandler)
-  router.delete('/scene-admin/:entityId/:admin', auth, removeSceneAdminHandler)
+  router.delete('/scene-admin', auth, removeSceneAdminHandler)
 
   return router
 }

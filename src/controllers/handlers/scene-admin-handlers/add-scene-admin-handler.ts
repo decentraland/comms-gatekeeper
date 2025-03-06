@@ -1,12 +1,11 @@
 import { InvalidRequestError } from '../../../types'
 import { HandlerContextWithPath } from '../../../types'
-import { validateSceneAdminPayload, fetchSceneAudit } from '../utils'
-import { Authenticator } from '@dcl/crypto'
+import { validate, getPlace, hasLandPermission, hasWorldPermission, isPlaceAdmin, isValidAddress } from '../utils'
 
 export async function addSceneAdminHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneAdminManager' | 'logs' | 'config', '/scene-admin'>,
-    'components' | 'request' | 'verification'
+    HandlerContextWithPath<'fetch' | 'sceneAdminManager' | 'logs' | 'config', '/scene-admin'>,
+    'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
@@ -16,33 +15,50 @@ export async function addSceneAdminHandler(
   } = ctx
 
   const logger = logs.getLogger('add-scene-admin-handler')
+  const [placesApiUrl, lambdasUrl] = await Promise.all([
+    config.requireString('PLACES_API_URL'),
+    config.requireString('LAMBDAS_URL')
+  ])
 
   if (!verification?.auth) {
     throw new InvalidRequestError('Authentication required')
   }
 
-  const authAddress = verification.auth
-  const payload = await request.clone().json()
-
-  const validationResult = validateSceneAdminPayload(payload)
-  if (!validationResult.success) {
-    logger.warn(`Invalid scene admin payload: ${validationResult.error}`, payload)
-    throw new InvalidRequestError(`Invalid payload: ${validationResult.error}`)
+  const payload = await request.json()
+  if (!payload.admin || !isValidAddress(payload.admin)) {
+    logger.warn(`Invalid scene admin payload`, payload)
+    throw new InvalidRequestError(`Invalid payload`)
   }
 
-  const { entity_id: entityId, admin } = validationResult.value
+  const { parcel, hostname, realmName } = await validate(ctx)
+  const isWorlds = hostname!.includes('worlds-content-server')
+  const authAddress = verification.auth
 
   try {
-    const [catalystContentUrl] = await Promise.all([config.requireString('CATALYST_CONTENT_URL')])
+    const place = await getPlace(placesApiUrl, isWorlds, realmName, parcel)
 
-    const sceneWithAuthChain = await fetchSceneAudit(catalystContentUrl, entityId)
+    const isOwner = isWorlds
+      ? await hasWorldPermission(lambdasUrl, authAddress, place.world_name!)
+      : await hasLandPermission(lambdasUrl, authAddress, place.positions)
+
+    const isAdmin = await isPlaceAdmin(sceneAdminManager, place.id, authAddress)
+
+    if (!isOwner && !isAdmin) {
+      throw new InvalidRequestError('You do not have permission to add admins to this place')
+    }
+
+    if (place.owner && place.owner.toLowerCase() === payload.admin.toLowerCase()) {
+      throw new InvalidRequestError('Cannot add the owner as an admin')
+    }
+
+    const isAlreadyAdmin = await isPlaceAdmin(sceneAdminManager, place.id, payload.admin)
+    if (isAlreadyAdmin) {
+      throw new InvalidRequestError('This address is already an admin')
+    }
 
     await sceneAdminManager.addAdmin({
-      entity_id: entityId,
-      admin: admin.toLowerCase(),
-      owner: sceneWithAuthChain.authChain
-        ? Authenticator.ownerAddress(sceneWithAuthChain.authChain)
-        : authAddress.toLowerCase(),
+      place_id: place.id,
+      admin: payload.admin.toLowerCase(),
       added_by: authAddress.toLowerCase()
     })
 
@@ -51,6 +67,6 @@ export async function addSceneAdminHandler(
     }
   } catch (error) {
     logger.error(`Error adding scene admin: ${error}`)
-    throw new InvalidRequestError('Failed to add scene admin')
+    throw new InvalidRequestError(`Failed to add scene admin: ${error}`)
   }
 }

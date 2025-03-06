@@ -1,96 +1,199 @@
 import { test } from '../../components'
-import { getIdentity, makeRequest } from '../../utils'
+import { makeRequest, owner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
-import { setupFetchMock } from '../fetch-mock'
+import SQL from 'sql-template-strings'
+import * as handlersUtils from '../../../src/controllers/handlers/utils'
+import { PlaceAttributes } from '../../../src/types'
+import { admin, nonOwner } from '../../utils'
+import { AuthLinkType } from '@dcl/crypto'
 
-test('POST /scene-admin - adds a new administrator to a scene', ({ components }) => {
+test('POST /scene-admin - adds administrator access for a scene who can add other admins', ({ components }) => {
+  type Metadata = {
+    identity: string
+    realmName: string
+    parcel: string
+    hostname: string
+    sceneId: string
+  }
   let cleanup: TestCleanup
+  let metadataLand: Metadata
+  let metadataWorld: Metadata
 
-  const resetFetchMock = setupFetchMock()
+  beforeAll(async () => {
+    cleanup = new TestCleanup(components.database)
+  })
 
   beforeEach(async () => {
-    cleanup = new TestCleanup(components.database)
+    metadataLand = {
+      identity: owner.authChain[0].payload,
+      realmName: 'test-realm',
+      parcel: '-9,-9',
+      hostname: 'https://peer.decentraland.zone',
+      sceneId: 'test-scene'
+    }
+
+    metadataWorld = {
+      identity: owner.authChain[0].payload,
+      realmName: 'name.dcl.eth',
+      parcel: '20,20',
+      hostname: 'https://worlds-content-server.decentraland.org/',
+      sceneId: 'test-scene'
+    }
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
+
+    jest.spyOn(handlersUtils, 'getPlace').mockResolvedValue({
+      positions: [metadataLand.parcel],
+      id: 'place-id'
+    } as PlaceAttributes)
+
+    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValue(true)
+
+    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValue(false)
+
+    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValue(false)
   })
 
   afterEach(async () => {
     await cleanup.cleanup()
-    resetFetchMock()
   })
 
-  const payload = {
-    entity_id: 'bafkreihanfox3up5qaax5mffvkgca6cqyx6qbuiuxcirbwqt2bqlmxg65e',
-    admin: '0x1111111111111111111111111111111111111111'
-  }
-
-  it('returns 204 when successfully creating a scene admin', async () => {
+  it('returns 204 when successfully adding a scene admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(global, 'fetch').mockImplementationOnce(() => {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () =>
-          Promise.resolve({
-            authChain: [
-              {
-                type: 'SIGNER',
-                payload: '0x7949f9f239d1a0816ce5eb364a1f588ae9cc1bf5',
-                signature: ''
-              }
-            ]
-          })
-      }) as Promise<Response>
-    })
-
-    const response = await makeRequest(localFetch, '/scene-admin', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    })
-
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admin: admin.authChain[0].payload
+        }),
+        metadata: metadataLand
+      },
+      owner
+    )
     expect(response.status).toBe(204)
+
+    const result = await components.database.query(SQL`
+      SELECT * FROM scene_admin WHERE place_id = 'place-id' AND admin = ${admin.authChain[0].payload.toLowerCase()}
+    `)
+
+    if (result.rowCount > 0) {
+      cleanup.trackInsert('scene_admin', { id: result.rows[0].id })
+    }
+
+    expect(result.rowCount).toBe(1)
+    expect(result.rows[0].active).toBe(true)
+  })
+
+  it('returns 401 when authentication is provided but invalid', async () => {
+    const { localFetch } = components
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'POST',
+        body: JSON.stringify({ admin: admin.authChain[0].payload }),
+        metadata: metadataLand
+      },
+      { ...owner, authChain: [...owner.authChain, { type: AuthLinkType.SIGNER, payload: 'invalid-signature' }] }
+    )
+
+    expect(response.status).toBe(401)
   })
 
   it('returns 400 when no authentication is provided', async () => {
     const { localFetch } = components
 
     const response = await localFetch.fetch('/scene-admin', {
-      method: 'POST',
-      body: JSON.stringify(payload)
+      method: 'POST'
     })
 
     expect(response.status).toBe(400)
   })
 
-  it('returns 400 when payload is missing required fields', async () => {
+  it('returns 400 when invalid admin address is provided', async () => {
     const { localFetch } = components
 
-    const response = await makeRequest(localFetch, '/scene-admin', {
-      method: 'POST',
-      body: JSON.stringify({ ...payload, entity_id: undefined })
-    })
+    jest.spyOn(handlersUtils, 'isValidAddress').mockReturnValueOnce(false)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admin: 'invalid-address'
+        }),
+        metadata: metadataLand
+      },
+      owner
+    )
 
     expect(response.status).toBe(400)
   })
 
-  it('returns 400 when entity_id has an invalid format', async () => {
+  it('returns 400 when non-owner neither admin tries to add an admin', async () => {
     const { localFetch } = components
 
-    const response = await makeRequest(localFetch, '/scene-admin', {
-      method: 'POST',
-      body: JSON.stringify({ ...payload, entity_id: 'invalid-id' })
-    })
+    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValueOnce(false)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admin: admin.authChain[0].payload
+        }),
+        metadata: metadataLand
+      },
+      nonOwner
+    )
 
     expect(response.status).toBe(400)
   })
 
-  it('returns 400 when admin address has an invalid format', async () => {
+  it('returns 400 when admin already exists', async () => {
     const { localFetch } = components
 
-    const response = await makeRequest(localFetch, '/scene-admin', {
-      method: 'POST',
-      body: JSON.stringify({ ...payload, admin: '0xinvalid' })
-    })
+    await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admin: admin.authChain[0].payload
+        }),
+        metadata: metadataLand
+      },
+      owner
+    )
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admin: admin.authChain[0].payload
+        }),
+        metadata: metadataLand
+      },
+      owner
+    )
 
     expect(response.status).toBe(400)
+
+    const result = await components.database.query(SQL`
+      SELECT * FROM scene_admin WHERE place_id = 'place-id' AND admin = ${admin.authChain[0].payload.toLowerCase()}
+    `)
+
+    if (result.rowCount > 0) {
+      cleanup.trackInsert('scene_admin', { id: result.rows[0].id })
+    }
   })
 })
