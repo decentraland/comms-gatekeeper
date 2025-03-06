@@ -1,6 +1,5 @@
 import { AuthChain, AuthIdentity, AuthLinkType, Authenticator, IdentityType } from '@dcl/crypto'
 import { AUTH_CHAIN_HEADER_PREFIX, AUTH_METADATA_HEADER, AUTH_TIMESTAMP_HEADER } from '@dcl/platform-crypto-middleware'
-import { IFetchComponent } from '@well-known-components/interfaces'
 import { createUnsafeIdentity } from '@dcl/crypto/dist/crypto'
 
 export const owner: AuthIdentity = {

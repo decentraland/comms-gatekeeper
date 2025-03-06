@@ -29,11 +29,7 @@ async function initComponents(): Promise<TestComponents> {
   const config = await createDotEnvConfigComponent(
     { path: ['.env.default', '.env'] },
     {
-      PG_COMPONENT_PSQL_CONNECTION_STRING: 'postgresql://usr:pwd@localhost:5432/comms_gatekeeper_test',
-      HTTP_SERVER_PORT: '3001',
-      HTTP_SERVER_HOST: '127.0.0.1',
-      PLACES_API_URL: 'https://places.decentraland.org/api',
-      CATALYST_CONTENT_URL: 'https://catalyst.test'
+      PG_COMPONENT_PSQL_CONNECTION_STRING: 'postgresql://usr:pwd@localhost:5432/comms_gatekeeper_test'
     }
   )
 
