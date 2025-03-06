@@ -29,7 +29,7 @@ async function initComponents(): Promise<TestComponents> {
   const config = await createDotEnvConfigComponent(
     { path: ['.env.default', '.env'] },
     {
-      PG_COMPONENT_PSQL_CONNECTION_STRING: 'postgresql://usr:pwd@localhost:5432/comms_gatekeeper_test'
+      PG_COMPONENT_PSQL_CONNECTION_STRING: 'postgres://postgres:pass1234@localhost/db'
     }
   )
 
