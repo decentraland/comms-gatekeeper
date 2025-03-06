@@ -20,7 +20,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   let metadataWorld: Metadata
 
   beforeAll(async () => {
-    cleanup = new TestCleanup(components.database)
+    cleanup = new TestCleanup(components.pg)
   })
 
   beforeEach(async () => {
@@ -59,7 +59,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   })
 
   it('returns 204 when successfully adding a scene admin', async () => {
-    const { localFetch } = components
+    const { localFetch, sceneAdminManager } = components
 
     const response = await makeRequest(
       localFetch,
@@ -74,17 +74,17 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       owner
     )
     expect(response.status).toBe(204)
+    const result = await sceneAdminManager.listActiveAdmins({
+      place_id: 'place-id',
+      admin: admin.authChain[0].payload
+    })
 
-    const result = await components.database.query(SQL`
-      SELECT * FROM scene_admin WHERE place_id = 'place-id' AND admin = ${admin.authChain[0].payload.toLowerCase()}
-    `)
-
-    if (result.rowCount > 0) {
-      cleanup.trackInsert('scene_admin', { id: result.rows[0].id })
+    if (result.length > 0) {
+      cleanup.trackInsert('scene_admin', { id: result[0].id })
     }
 
-    expect(result.rowCount).toBe(1)
-    expect(result.rows[0].active).toBe(true)
+    expect(result.length).toBe(1)
+    expect(result[0].active).toBe(true)
   })
 
   it('returns 401 when authentication is provided but invalid', async () => {
@@ -158,7 +158,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   })
 
   it('returns 400 when admin already exists', async () => {
-    const { localFetch } = components
+    const { localFetch, sceneAdminManager } = components
 
     await makeRequest(
       localFetch,
@@ -188,12 +188,13 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     expect(response.status).toBe(400)
 
-    const result = await components.database.query(SQL`
-      SELECT * FROM scene_admin WHERE place_id = 'place-id' AND admin = ${admin.authChain[0].payload.toLowerCase()}
-    `)
+    const result = await sceneAdminManager.listActiveAdmins({
+      place_id: 'place-id',
+      admin: admin.authChain[0].payload
+    })
 
-    if (result.rowCount > 0) {
-      cleanup.trackInsert('scene_admin', { id: result.rows[0].id })
+    if (result.length > 0) {
+      cleanup.trackInsert('scene_admin', { id: result[0].id })
     }
   })
 })

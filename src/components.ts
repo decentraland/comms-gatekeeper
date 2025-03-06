@@ -7,8 +7,9 @@ import { metricDeclarations } from './metrics'
 import { createFetchComponent } from '@well-known-components/fetch-component'
 import { createSceneFetcherComponent } from './adapters/scene-fetcher'
 import { createLivekitComponent } from './adapters/livekit'
-import { createDatabaseComponent } from './adapters/database-component'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
+import { createPgComponent } from '@well-known-components/pg-component'
+import { resolve } from 'path'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -31,8 +32,14 @@ export async function initComponents(): Promise<AppComponents> {
   const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch })
   const livekit = await createLivekitComponent({ config, logs })
 
-  const database = await createDatabaseComponent({ config, logs, metrics })
-  const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
+  const databaseUrl = await config.getString('PG_COMPONENT_PSQL_CONNECTION_STRING')
+  if (!databaseUrl) {
+    throw new Error('Env var PG_COMPONENT_PSQL_CONNECTION_STRING is required. Set it up to point to a database.')
+  }
+
+  const pg = await createPgComponent({ logs, config, metrics })
+
+  const sceneAdminManager = await createSceneAdminManagerComponent({ pg, logs })
 
   return {
     config,
@@ -43,7 +50,7 @@ export async function initComponents(): Promise<AppComponents> {
     metrics,
     sceneFetcher,
     livekit,
-    database,
+    pg,
     sceneAdminManager
   }
 }

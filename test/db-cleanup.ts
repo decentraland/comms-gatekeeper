@@ -1,11 +1,10 @@
 import { IPgComponent } from '@well-known-components/pg-component'
-import SQL from 'sql-template-strings'
 
 export class TestCleanup {
   private placeIds: string[] = []
   private tableData: Record<string, any[]> = {}
 
-  constructor(private database: IPgComponent) {}
+  constructor(private pg: IPgComponent) {}
 
   trackInsert(tableName: string, data: Record<string, any>) {
     if (!this.tableData[tableName]) {
@@ -33,7 +32,7 @@ export class TestCleanup {
         .join(' AND ')
 
       const query = `DELETE FROM ${tableName} WHERE ${conditions}`
-      await this.database.query(query)
+      await this.pg.query(query)
     } catch (error) {
       console.error(` >>> Error cleaning data from ${tableName}:`, error)
     }
@@ -44,7 +43,7 @@ export class TestCleanup {
 
     try {
       const placeIdsString = this.placeIds.map((id) => `'${id}'`).join(', ')
-      await this.database.query(`DELETE FROM scene_admin WHERE place_id IN (${placeIdsString})`)
+      await this.pg.query(`DELETE FROM scene_admin WHERE place_id IN (${placeIdsString})`)
     } catch (error) {
       console.error(' >>>  Error cleaning scene administrators:', error)
     }

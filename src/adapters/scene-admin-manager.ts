@@ -70,18 +70,18 @@ export interface ISceneAdminManager {
 
 export class DuplicateAdminError extends Error {
   constructor() {
-    super('Admin already exists for this entity')
+    super('Admin already exists for this place')
   }
 }
 
 export async function createSceneAdminManagerComponent({
-  database,
+  pg,
   logs
-}: Pick<AppComponents, 'database' | 'logs'>): Promise<ISceneAdminManager> {
+}: Pick<AppComponents, 'pg' | 'logs'>): Promise<ISceneAdminManager> {
   const logger = logs.getLogger('scene-admin-manager')
 
   async function isAdmin(placeId: string, address: string): Promise<boolean> {
-    const result = await database.query(
+    const result = await pg.query(
       SQL`SELECT id FROM scene_admin WHERE place_id = ${placeId} AND admin = ${address.toLowerCase()} AND active = true LIMIT 1`
     )
 
@@ -103,7 +103,7 @@ export async function createSceneAdminManagerComponent({
       throw new DuplicateAdminError()
     }
 
-    const result = await database.query<SceneAdmin>(
+    const result = await pg.query<SceneAdmin>(
       SQL`INSERT INTO scene_admin (
             id,
             place_id, 
@@ -123,12 +123,12 @@ export async function createSceneAdminManagerComponent({
           RETURNING *`
     )
 
-    logger.info(`New admin created for entity ${input.place_id}`)
+    logger.info(`New admin created for place ${input.place_id}`)
     return result.rows[0]
   }
 
   async function removeAdmin(placeId: string, adminAddress: string): Promise<void> {
-    await database.query(
+    await pg.query(
       SQL`UPDATE scene_admin 
           SET active = false
           WHERE place_id = ${placeId} 
@@ -136,7 +136,7 @@ export async function createSceneAdminManagerComponent({
           AND active = true`
     )
 
-    logger.info(`Admin ${adminAddress} deactivated for entity ${placeId}`)
+    logger.info(`Admin ${adminAddress} deactivated for place ${placeId}`)
   }
 
   async function listActiveAdmins(filters: ListSceneAdminFilters): Promise<SceneAdmin[]> {
@@ -154,7 +154,7 @@ export async function createSceneAdminManagerComponent({
       query.append(SQL` AND admin = ${filters.admin.toLowerCase()}`)
     }
 
-    const result = await database.query<SceneAdmin>(query)
+    const result = await pg.query<SceneAdmin>(query)
     return result.rows
   }
 

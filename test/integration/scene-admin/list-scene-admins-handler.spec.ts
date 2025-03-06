@@ -21,30 +21,17 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   let metadataWorld: Metadata
 
   beforeEach(async () => {
-    cleanup = new TestCleanup(components.database)
+    cleanup = new TestCleanup(components.pg)
 
-    await components.database.query(SQL`
-      DELETE FROM scene_admin 
-      WHERE place_id = ${placeId} AND admin = ${admin.authChain[0].payload.toLowerCase()}
-    `)
+    const { sceneAdminManager } = components
 
-    await components.database.query(SQL`
-      INSERT INTO scene_admin (
-        id, 
-        place_id, 
-        admin, 
-        added_by,
-        created_at,
-        active
-      ) VALUES (
-        gen_random_uuid(),
-        ${placeId},
-        ${admin.authChain[0].payload.toLowerCase()},
-        ${owner.authChain[0].payload.toLowerCase()}, 
-        ${Date.now()},
-        true
-      )
-    `)
+    await sceneAdminManager.removeAdmin(placeId, admin.authChain[0].payload)
+
+    await sceneAdminManager.addAdmin({
+      place_id: placeId,
+      admin: admin.authChain[0].payload,
+      added_by: owner.authChain[0].payload
+    })
 
     metadataLand = {
       identity: owner.authChain[0].payload,

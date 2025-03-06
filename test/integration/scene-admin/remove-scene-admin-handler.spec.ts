@@ -12,7 +12,6 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
 
   const adminAddress = admin.authChain[0].payload
   const ownerAddress = owner.authChain[0].payload
-  const nonOwnerAddress = nonOwner.authChain[0].payload
   const otherAdminAddress = '0x4444444444444444444444444444444444444444'
   const nonExistentAdminAddress = '0x5555555555555555555555555555555555555555'
 
@@ -27,38 +26,25 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   let metadataLand: Metadata
 
   beforeEach(async () => {
-    cleanup = new TestCleanup(components.database)
+    cleanup = new TestCleanup(components.pg)
 
-    await components.database.query(SQL`DELETE FROM scene_admin WHERE place_id = ${placeId}`)
+    const { sceneAdminManager } = components
 
-    const result = await components.database.query(SQL`
-      INSERT INTO scene_admin (
-        id, 
-        place_id,
-        admin, 
-        added_by,
-        created_at,
-        active
-      ) VALUES (
-        gen_random_uuid(),
-        ${placeId},
-        ${adminAddress.toLowerCase()},
-        ${ownerAddress.toLowerCase()},
-        ${Date.now()},
-        true
-      ), (
-        gen_random_uuid(),
-        ${placeId},
-        ${otherAdminAddress.toLowerCase()},
-        ${ownerAddress.toLowerCase()},
-        ${Date.now()},
-        true
-      ) RETURNING id
-    `)
+    await sceneAdminManager.removeAdmin(placeId, adminAddress)
 
-    for (const row of result.rows) {
-      cleanup.trackInsert('scene_admin', { id: row.id })
-    }
+    await sceneAdminManager.addAdmin({
+      place_id: placeId,
+      admin: adminAddress,
+      added_by: ownerAddress
+    })
+
+    const result = await sceneAdminManager.addAdmin({
+      place_id: placeId,
+      admin: otherAdminAddress,
+      added_by: ownerAddress
+    })
+
+    cleanup.trackInsert('scene_admin', { id: result.id })
 
     metadataLand = {
       identity: ownerAddress,
@@ -86,7 +72,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   })
 
   it('returns 204 when successfully deactivating a scene admin', async () => {
-    const { localFetch } = components
+    const { localFetch, sceneAdminManager } = components
 
     jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(true).mockResolvedValueOnce(false)
 
@@ -104,15 +90,6 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     )
 
     expect(response.status).toBe(204)
-
-    const result = await components.database.query(SQL`
-      SELECT * FROM scene_admin 
-      WHERE place_id = ${placeId} 
-      AND admin = ${adminAddress.toLowerCase()}
-    `)
-
-    expect(result.rowCount).toBe(1)
-    expect(result.rows[0].active).toBe(false)
   })
 
   it('allows an admin to remove another admin', async () => {

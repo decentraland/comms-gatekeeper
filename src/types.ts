@@ -6,12 +6,12 @@ import type {
   IMetricsComponent,
   IFetchComponent
 } from '@well-known-components/interfaces'
-import { IPgComponent } from '@well-known-components/pg-component'
 import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
 import { ISceneFetcherComponent } from './adapters/scene-fetcher'
 import { ILivekitComponent } from './adapters/livekit'
 import { ISceneAdminManager } from './adapters/scene-admin-manager'
+import { IPgComponent } from '@well-known-components/pg-component'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -26,7 +26,7 @@ export type BaseComponents = {
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
   sceneFetcher: ISceneFetcherComponent
   livekit: ILivekitComponent
-  database: IPgComponent
+  pg: IPgComponent
   sceneAdminManager: ISceneAdminManager
 }
 
