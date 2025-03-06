@@ -14,11 +14,11 @@ describe('Scene Admin Migration', () => {
     expect(pgm.createTable).toHaveBeenCalledWith('scene_admin', SceneAdminColumns)
     expect(pgm.createIndex).toHaveBeenCalledWith(
       'scene_admin',
-      ['entity_id', 'admin'],
+      ['place_id', 'admin'],
       expect.objectContaining({
+        name: 'unique_active_scene_admin_place_id_admin',
         unique: true,
-        where: 'active = true',
-        name: 'unique_active_scene_admin_entity_id_admin'
+        where: 'active = true'
       })
     )
   })

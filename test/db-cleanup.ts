@@ -33,7 +33,6 @@ export class TestCleanup {
         .join(' AND ')
 
       const query = `DELETE FROM ${tableName} WHERE ${conditions}`
-      console.log(` >>> Executing cleanup: ${query}`)
       await this.database.query(query)
     } catch (error) {
       console.error(` >>> Error cleaning data from ${tableName}:`, error)
@@ -46,7 +45,6 @@ export class TestCleanup {
     try {
       const placeIdsString = this.placeIds.map((id) => `'${id}'`).join(', ')
       await this.database.query(`DELETE FROM scene_admin WHERE place_id IN (${placeIdsString})`)
-      console.log(` >>> Scene administrators removed for places: ${placeIdsString}`)
     } catch (error) {
       console.error(' >>>  Error cleaning scene administrators:', error)
     }

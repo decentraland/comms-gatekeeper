@@ -1,63 +1,74 @@
 import { HandlerContextWithPath, InvalidRequestError } from '../../../types'
-import { Authenticator } from '@dcl/crypto'
+import { getPlace, hasLandPermission, hasWorldPermission, isPlaceAdmin, isValidAddress, validate } from '../utils'
 
 export async function removeSceneAdminHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneAdminManager' | 'logs' | 'config', '/scene-admin/:entityId/:admin'>,
-    'components' | 'url' | 'params' | 'verification'
+    HandlerContextWithPath<'sceneAdminManager' | 'logs' | 'config' | 'fetch', '/scene-admin'>,
+    'components' | 'url' | 'params' | 'verification' | 'request'
   >
 ) {
   const {
     components: { logs, sceneAdminManager, config },
-    params: { entityId, admin },
+    request,
     verification
   } = ctx
 
   const logger = logs.getLogger('remove-scene-admin-handler')
 
+  const [placesApiUrl, lambdasUrl] = await Promise.all([
+    config.requireString('PLACES_API_URL'),
+    config.requireString('LAMBDAS_URL')
+  ])
+
   if (!verification?.auth) {
     throw new InvalidRequestError('Authentication required')
   }
-  const authAddress = verification.auth
-  const isAdminUser = await sceneAdminManager.isAdmin(entityId, authAddress)
+
+  const payload = await request.json()
+
+  if (!payload.admin) {
+    logger.warn(`Invalid scene admin payload`, payload)
+    throw new InvalidRequestError(`Invalid payload`)
+  }
+
+  const { parcel, hostname, realmName } = await validate(ctx)
+  const isWorlds = hostname.includes('worlds-content-server')
+  const authAddress = verification.auth.toLowerCase()
+
+  if (!isValidAddress(payload.admin)) {
+    throw new InvalidRequestError('Invalid admin address')
+  }
+
+  const place = await getPlace(placesApiUrl, isWorlds, realmName, parcel)
+  if (!place) {
+    throw new InvalidRequestError('Place not found')
+  }
+
+  const hasPermission =
+    (await hasLandPermission(lambdasUrl, authAddress, place.positions)) ||
+    (await isPlaceAdmin(sceneAdminManager, place.id, authAddress))
+
+  if (!hasPermission) {
+    logger.warn(`User ${authAddress} is not authorized to remove admins for entity ${place.id}`)
+    throw new InvalidRequestError('Only scene admins or the owner can remove admins')
+  }
+
+  const isAdminOwner = isWorlds
+    ? await hasWorldPermission(lambdasUrl, payload.admin, place.world_name!)
+    : await hasLandPermission(lambdasUrl, payload.admin, place.positions)
+
+  if (isAdminOwner) {
+    logger.warn(`Attempt to remove owner ${payload.admin} from entity ${place.id} by ${authAddress}`)
+    throw new InvalidRequestError('Cannot remove the owner of the scene')
+  }
+
+  const isTargetAdminActive = await sceneAdminManager.isAdmin(place.id, payload.admin)
+  if (!isTargetAdminActive) {
+    throw new InvalidRequestError('The specified admin does not exist or is already inactive')
+  }
 
   try {
-    const [catalystContentUrl] = await Promise.all([config.requireString('CATALYST_CONTENT_URL')])
-
-    if (typeof fetch !== 'function') {
-      throw new Error('Fetch is not available')
-    }
-
-    const response = await fetch(`${catalystContentUrl}/audit/scene/${entityId}`)
-
-    if (!response) {
-      throw new Error('No response received from server')
-    }
-
-    if (!response.ok) {
-      throw new Error(`Server responded with status: ${response.status}`)
-    }
-
-    const data = await response.json()
-
-    if (!data || !data.authChain) {
-      throw new Error('Invalid response format: missing authChain')
-    }
-
-    const owner = Authenticator.ownerAddress(data.authChain)
-
-    if (admin.toLowerCase() === owner.toLowerCase()) {
-      logger.warn(`Attempt to remove owner ${admin} from entity ${entityId} by ${authAddress}`)
-      throw new InvalidRequestError('Cannot remove the owner of the scene')
-    }
-
-    const isAuthOwner = authAddress.toLowerCase() === owner.toLowerCase()
-    if (!isAdminUser && !isAuthOwner) {
-      logger.warn(`User ${authAddress} is not authorized to remove admins for entity ${entityId}`)
-      throw new InvalidRequestError('Only scene admins or the owner can remove admins')
-    }
-
-    await sceneAdminManager.removeAdmin(entityId, admin)
+    await sceneAdminManager.removeAdmin(place.id, payload.admin)
     return {
       status: 204
     }
