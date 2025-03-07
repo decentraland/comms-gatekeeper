@@ -8,5 +8,4 @@ jobs:
     uses: decentraland/platform-actions/.github/workflows/apps-pr.yml@main
     with:
       service-name: comms-gatekeeper
-      dockerfile-url: https://raw.githubusercontent.com/decentraland/platform-actions/main/Dockerfile.alpine
     secrets: inherit
