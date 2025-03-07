@@ -26,12 +26,7 @@ async function initComponents(): Promise<TestComponents> {
 
   const { logs, database } = components
 
-  const config = await createDotEnvConfigComponent(
-    { path: ['.env.default', '.env'] },
-    {
-      PG_COMPONENT_PSQL_CONNECTION_STRING: 'postgres://postgres:pass1234@localhost/db'
-    }
-  )
+  const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
 
   const fetch = {
     async fetch(url: nodeFetch.RequestInfo, init?: nodeFetch.RequestInit): Promise<nodeFetch.Response> {

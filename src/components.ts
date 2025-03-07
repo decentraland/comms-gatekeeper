@@ -32,9 +32,14 @@ export async function initComponents(): Promise<AppComponents> {
   const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch })
   const livekit = await createLivekitComponent({ config, logs })
 
-  const databaseUrl = await config.getString('PG_COMPONENT_PSQL_CONNECTION_STRING')
+  let databaseUrl: string | undefined = await config.getString('PG_COMPONENT_PSQL_CONNECTION_STRING')
   if (!databaseUrl) {
-    throw new Error('Env var PG_COMPONENT_PSQL_CONNECTION_STRING is required. Set it up to point to a database.')
+    const dbUser = await config.requireString('PG_COMPONENT_PSQL_USER')
+    const dbDatabaseName = await config.requireString('PG_COMPONENT_PSQL_DATABASE')
+    const dbPort = await config.requireString('PG_COMPONENT_PSQL_PORT')
+    const dbHost = await config.requireString('PG_COMPONENT_PSQL_HOST')
+    const dbPassword = await config.requireString('PG_COMPONENT_PSQL_PASSWORD')
+    databaseUrl = `postgres://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbDatabaseName}`
   }
 
   const database = await createPgComponent(
