@@ -6,8 +6,9 @@ import * as handlersUtils from '../../../src/controllers/handlers/utils'
 import { PlaceAttributes } from '../../../src/types'
 
 test('GET /scene-admin - lists all active administrators for scenes', ({ components }) => {
+  const testPlaceId = `place-id-list`
   let cleanup: TestCleanup
-  const placeId = 'place-id'
+  const placeId = testPlaceId
 
   type Metadata = {
     identity: string
@@ -27,11 +28,13 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     await sceneAdminManager.removeAdmin(placeId, admin.authChain[0].payload)
 
-    await sceneAdminManager.addAdmin({
+    const result = await sceneAdminManager.addAdmin({
       place_id: placeId,
       admin: admin.authChain[0].payload,
       added_by: owner.authChain[0].payload
     })
+
+    cleanup.trackInsert('scene_admin', { id: result.id })
 
     metadataLand = {
       identity: owner.authChain[0].payload,

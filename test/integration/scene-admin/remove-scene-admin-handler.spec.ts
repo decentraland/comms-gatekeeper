@@ -7,8 +7,9 @@ import { PlaceAttributes } from '../../../src/types'
 import { AuthLinkType } from '@dcl/crypto'
 
 test('DELETE /scene-admin - removes administrator access for a scene', ({ components }) => {
+  const testPlaceId = `place-id-remove`
   let cleanup: TestCleanup
-  const placeId = 'place-id'
+  const placeId = testPlaceId
 
   const adminAddress = admin.authChain[0].payload
   const ownerAddress = owner.authChain[0].payload
@@ -32,19 +33,21 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
 
     await sceneAdminManager.removeAdmin(placeId, adminAddress)
 
-    await sceneAdminManager.addAdmin({
+    const adminResult = await sceneAdminManager.addAdmin({
       place_id: placeId,
       admin: adminAddress,
       added_by: ownerAddress
     })
 
-    const result = await sceneAdminManager.addAdmin({
+    cleanup.trackInsert('scene_admin', { id: adminResult.id })
+
+    const otherAdminResult = await sceneAdminManager.addAdmin({
       place_id: placeId,
       admin: otherAdminAddress,
       added_by: ownerAddress
     })
 
-    cleanup.trackInsert('scene_admin', { id: result.id })
+    cleanup.trackInsert('scene_admin', { id: otherAdminResult.id })
 
     metadataLand = {
       identity: ownerAddress,

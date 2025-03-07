@@ -8,6 +8,8 @@ import { admin, nonOwner } from '../../utils'
 import { AuthLinkType } from '@dcl/crypto'
 
 test('POST /scene-admin - adds administrator access for a scene who can add other admins', ({ components }) => {
+  const testPlaceId = `place-id-add`
+
   type Metadata = {
     identity: string
     realmName: string
@@ -44,7 +46,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(handlersUtils, 'getPlace').mockResolvedValue({
       positions: [metadataLand.parcel],
-      id: 'place-id'
+      id: testPlaceId
     } as PlaceAttributes)
 
     jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValue(true)
@@ -75,7 +77,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     )
     expect(response.status).toBe(204)
     const result = await sceneAdminManager.listActiveAdmins({
-      place_id: 'place-id',
+      place_id: testPlaceId,
       admin: admin.authChain[0].payload
     })
 
@@ -189,7 +191,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     expect(response.status).toBe(400)
 
     const result = await sceneAdminManager.listActiveAdmins({
-      place_id: 'place-id',
+      place_id: testPlaceId,
       admin: admin.authChain[0].payload
     })
 
