@@ -28,26 +28,9 @@ async function initComponents(): Promise<TestComponents> {
 
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
 
-  const fetch = {
-    async fetch(url: nodeFetch.RequestInfo, init?: nodeFetch.RequestInit): Promise<nodeFetch.Response> {
-      return nodeFetch.default(url, init).then(async (response: nodeFetch.Response) => {
-        if (response.ok) {
-          // response.status >= 200 && response.status < 300
-          return response
-        }
-
-        throw new Error(await response.text())
-      })
-    }
-  }
-
-  const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
-
   return {
     ...components,
     config,
-    fetch,
-    sceneAdminManager,
     localFetch: await createLocalFetchCompoment(config)
   }
 }

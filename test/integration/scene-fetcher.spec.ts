@@ -3,13 +3,6 @@ import { Permissions } from '../../src/types'
 import { LRUCache } from 'lru-cache'
 
 describe('SceneFetcherComponent', () => {
-  const mockSceneAdminManager = {
-    isAdmin: jest.fn(),
-    addAdmin: jest.fn(),
-    removeAdmin: jest.fn(),
-    listActiveAdmins: jest.fn()
-  }
-
   const mockConfig = {
     requireString: jest.fn().mockImplementation((key) => {
       const values = {
@@ -41,8 +34,7 @@ describe('SceneFetcherComponent', () => {
     sceneFetcher = await createSceneFetcherComponent({
       config: mockConfig,
       fetch: mockFetch,
-      logs: mockLogs,
-      sceneAdminManager: mockSceneAdminManager
+      logs: mockLogs
     })
   })
 
@@ -173,33 +165,6 @@ describe('SceneFetcherComponent', () => {
     it('should return false when name does not match any user name', async () => {
       const result = await sceneFetcher.hasWorldPermission('authAddress', 'unknownworld')
       expect(result).toBe(false)
-    })
-  })
-
-  describe('isPlaceAdmin', () => {
-    it('should return true when user is admin', async () => {
-      mockSceneAdminManager.isAdmin.mockResolvedValueOnce(true)
-      const result = await sceneFetcher.isPlaceAdmin('place123', '0x123')
-      expect(result).toBe(true)
-      expect(mockSceneAdminManager.isAdmin).toHaveBeenCalledWith('place123', '0x123')
-    })
-
-    it('should return false when user is not admin', async () => {
-      mockSceneAdminManager.isAdmin.mockResolvedValueOnce(false)
-      const result = await sceneFetcher.isPlaceAdmin('place123', '0x123')
-      expect(result).toBe(false)
-    })
-
-    it('should handle errors and return false', async () => {
-      mockSceneAdminManager.isAdmin.mockRejectedValueOnce(new Error('Database error'))
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
-
-      const result = await sceneFetcher.isPlaceAdmin('place123', '0x123')
-
-      expect(result).toBe(false)
-      expect(consoleErrorSpy).toHaveBeenCalled()
-
-      consoleErrorSpy.mockRestore()
     })
   })
 })

@@ -62,8 +62,6 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       owner: ownerAddress
     } as PlaceAttributes)
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(false)
-    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValue(false)
-    jest.spyOn(handlersUtils, 'isValidAddress').mockReturnValue(true)
     jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValue(true)
   })
 
@@ -97,7 +95,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     const { localFetch } = components
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(true)
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
 
     const response = await makeRequest(
@@ -143,7 +141,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     const { localFetch } = components
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(true)
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true)
 
@@ -167,8 +165,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     const { localFetch } = components
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-
-    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
 
     const response = await makeRequest(
       localFetch,
@@ -183,7 +180,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       nonOwner
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
   })
 
   it('returns 400 when scene is not found', async () => {

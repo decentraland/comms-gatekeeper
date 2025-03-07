@@ -8,40 +8,44 @@ import type {
 } from '@well-known-components/interfaces'
 import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
-import { ISceneFetcherComponent } from './adapters/scene-fetcher'
 import { ILivekitComponent } from './adapters/livekit'
-import { ISceneAdminManager } from './adapters/scene-admin-manager'
 import { IPgComponent } from '@well-known-components/pg-component'
+
+export type ISceneFetcherComponent = IBaseComponent & {
+  fetchWorldPermissions(worldName: string): Promise<Permissions | undefined>
+  fetchScenePermissions: (sceneId: string) => Promise<Permissions | undefined>
+  getPlaceByParcel(parcel: string): Promise<PlaceAttributes>
+  getWorldByName(worldName: string): Promise<PlaceAttributes>
+  getPlace(isWorlds: boolean, realmName: string, parcel: string): Promise<PlaceAttributes>
+  getAddressResources<T extends AddressResource>(address: string, resource: T): Promise<AddressResourceResponse<T>>
+  hasLandPermission(authAddress: string, placePositions: string[]): Promise<boolean>
+  hasWorldPermission(authAddress: string, worldName: string): Promise<boolean>
+}
 
 export type GlobalContext = {
   components: BaseComponents
 }
 
-// components used in every environment
 export type BaseComponents = {
   config: IConfigComponent
   logs: ILoggerComponent
   server: IHttpServerComponent<GlobalContext>
   fetch: IFetchComponent
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
-  sceneFetcher: ISceneFetcherComponent
   livekit: ILivekitComponent
   database: IPgComponent
   sceneAdminManager: ISceneAdminManager
+  sceneFetcher: ISceneFetcherComponent
 }
 
-// components used in runtime
 export type AppComponents = BaseComponents & {
   statusChecks: IBaseComponent
 }
 
-// components used in tests
 export type TestComponents = BaseComponents & {
-  // A fetch component that only hits the test server
   localFetch: IFetchComponent
 }
 
-// this type simplifies the typings of http handlers
 export type HandlerContextWithPath<
   ComponentNames extends keyof AppComponents,
   Path extends string = any
@@ -175,4 +179,37 @@ export type PlaceAttributes = {
   user_favorite: boolean
   user_count?: number
   user_visits?: number
+}
+
+export type SceneAdmin = {
+  id: string
+  place_id: string
+  admin: string
+  added_by: string
+  created_at: number
+  active: boolean
+}
+
+export interface AddSceneAdminInput {
+  place_id: string
+  admin: string
+  added_by: string
+}
+
+export type ListSceneAdminFilters = {
+  place_id: string
+  admin?: string
+}
+
+export interface ISceneAdminManager {
+  addAdmin(input: AddSceneAdminInput): Promise<SceneAdmin>
+  removeAdmin(placeId: string, adminAddress: string): Promise<void>
+  listActiveAdmins(filters: ListSceneAdminFilters): Promise<SceneAdmin[]>
+  isAdmin(placeId: string, address: string): Promise<boolean>
+}
+
+export class DuplicateAdminError extends Error {
+  constructor() {
+    super('Admin already exists for this place')
+  }
 }

@@ -59,7 +59,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     } as PlaceAttributes)
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(true)
     jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValue(false)
-    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValue(false)
   })
 
   afterEach(async () => {
@@ -110,10 +109,12 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(Array.isArray(body)).toBe(true)
   })
 
-  it('returns 200 when user is admin and has land permission', async () => {
+  it('returns 200 with a list of scene admins when user is an admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(true)
 
     const response = await makeRequest(
       localFetch,
@@ -130,11 +131,12 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(Array.isArray(body)).toBe(true)
   })
 
-  it('returns 400 when user has no permission', async () => {
+  it('returns 403 when user is not owner or admin', async () => {
     const { localFetch } = components
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
 
     const response = await makeRequest(
       localFetch,
@@ -146,7 +148,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       nonOwner
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
   })
 
   it('returns 200 and a filtered list when using query parameters', async () => {

@@ -25,11 +25,13 @@ describe('Scene Admin Migration', () => {
 
   it('should drop table on migration down', async () => {
     const pgm = {
-      dropTable: jest.fn()
+      dropTable: jest.fn(),
+      dropIndex: jest.fn()
     }
 
     await down(pgm as unknown as MigrationBuilder)
 
+    expect(pgm.dropIndex).toHaveBeenCalledWith('scene_admin', 'unique_active_scene_admin_place_id_admin')
     expect(pgm.dropTable).toHaveBeenCalledWith('scene_admin')
   })
 })

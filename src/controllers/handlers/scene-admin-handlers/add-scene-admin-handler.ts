@@ -1,6 +1,7 @@
-import { InvalidRequestError } from '../../../types'
+import { EthAddress } from '@dcl/schemas'
+import { InvalidRequestError, UnauthorizedError } from '../../../types'
 import { HandlerContextWithPath } from '../../../types'
-import { validate, isValidAddress } from '../utils'
+import { validate } from '../utils'
 
 export async function addSceneAdminHandler(
   ctx: Pick<
@@ -14,7 +15,7 @@ export async function addSceneAdminHandler(
     verification
   } = ctx
 
-  const { getPlace, hasLandPermission, hasWorldPermission, isPlaceAdmin } = sceneFetcher
+  const { getPlace, hasLandPermission, hasWorldPermission } = sceneFetcher
 
   const logger = logs.getLogger('add-scene-admin-handler')
 
@@ -23,7 +24,7 @@ export async function addSceneAdminHandler(
   }
 
   const payload = await request.json()
-  if (!payload.admin || !isValidAddress(payload.admin)) {
+  if (!payload.admin || !EthAddress.validate(payload.admin)) {
     logger.warn(`Invalid scene admin payload`, payload)
     throw new InvalidRequestError(`Invalid payload`)
   }
@@ -39,17 +40,17 @@ export async function addSceneAdminHandler(
       ? await hasWorldPermission(authAddress, place.world_name!)
       : await hasLandPermission(authAddress, place.positions)
 
-    const isAdmin = await isPlaceAdmin(place.id, authAddress)
+    const isAdmin = await sceneAdminManager.isAdmin(place.id, authAddress)
 
     if (!isOwner && !isAdmin) {
-      throw new InvalidRequestError('You do not have permission to add admins to this place')
+      throw new UnauthorizedError('You do not have permission to add admins to this place')
     }
 
     if (place.owner && place.owner.toLowerCase() === payload.admin.toLowerCase()) {
       throw new InvalidRequestError('Cannot add the owner as an admin')
     }
 
-    const isAlreadyAdmin = await isPlaceAdmin(place.id, payload.admin)
+    const isAlreadyAdmin = await sceneAdminManager.isAdmin(place.id, payload.admin)
     if (isAlreadyAdmin) {
       throw new InvalidRequestError('This address is already an admin')
     }

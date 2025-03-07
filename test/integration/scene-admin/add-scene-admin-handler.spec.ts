@@ -51,8 +51,6 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(true)
 
     jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValue(false)
-
-    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValue(false)
   })
 
   afterEach(async () => {
@@ -115,10 +113,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     expect(response.status).toBe(400)
   })
 
-  it('returns 400 when invalid admin address is provided', async () => {
+  it('returns 400 when admin address is invalid', async () => {
     const { localFetch } = components
-
-    jest.spyOn(handlersUtils, 'isValidAddress').mockReturnValueOnce(false)
 
     const response = await makeRequest(
       localFetch,
@@ -136,11 +132,12 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     expect(response.status).toBe(400)
   })
 
-  it('returns 400 when non-owner neither admin tries to add an admin', async () => {
+  it('returns 400 when user is not owner or admin', async () => {
     const { localFetch } = components
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
 
     const response = await makeRequest(
       localFetch,

@@ -19,5 +19,6 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
 }
 
 export async function down(pgm: MigrationBuilder): Promise<void> {
+  pgm.dropIndex('scene_admin', 'unique_active_scene_admin_place_id_admin')
   pgm.dropTable('scene_admin')
 }

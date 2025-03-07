@@ -1,77 +1,41 @@
-import { AppComponents } from '../types'
+import {
+  AppComponents,
+  SceneAdmin,
+  AddSceneAdminInput,
+  ListSceneAdminFilters,
+  ISceneAdminManager,
+  DuplicateAdminError
+} from '../types'
 import SQL from 'sql-template-strings'
 
-export type SceneAdmin = {
-  id: string
-  place_id: string
-  admin: string
-  added_by: string
-  created_at: number
-  active: boolean
-}
-
-export interface AddSceneAdminInput {
-  place_id: string
-  admin: string
-  added_by: string
-}
-
-export type ListSceneAdminFilters = {
-  place_id: string
-  admin?: string
-}
-
 export function validateAddSceneAdmin(input: any): { valid: boolean; error?: string } {
+  const errors: string[] = []
+
   if (!input || typeof input !== 'object') {
-    return { valid: false, error: 'Input must be an object' }
+    errors.push('Input must be an object')
   }
-
-  if (!input.place_id) {
-    return { valid: false, error: 'place_id is required' }
-  }
-
   if (typeof input.place_id !== 'string') {
-    return { valid: false, error: 'place_id must be a string' }
+    errors.push('place_id is required and must be a string')
   }
-
-  if (!input.admin) {
-    return { valid: false, error: 'admin is required' }
-  }
-
   if (typeof input.admin !== 'string') {
-    return { valid: false, error: 'admin must be a string' }
+    errors.push('admin is required and must be a string')
   }
-
-  return { valid: true }
+  return { valid: errors.length === 0, error: errors.join(', ') }
 }
 
 export function validateListSceneAdminFilters(filters: any): { valid: boolean; error?: string } {
+  const errors: string[] = []
+
   if (!filters || typeof filters !== 'object') {
-    return { valid: false, error: 'Filters must be an object' }
+    errors.push('Filters must be an object')
   }
-
   if (filters.place_id !== undefined && typeof filters.place_id !== 'string') {
-    return { valid: false, error: 'place_id must be a string' }
+    errors.push('place_id must be a string')
   }
-
   if (filters.admin !== undefined && typeof filters.admin !== 'string') {
-    return { valid: false, error: 'admin must be a string' }
+    errors.push('admin must be a string')
   }
-
-  return { valid: true }
-}
-
-export interface ISceneAdminManager {
-  addAdmin(input: AddSceneAdminInput): Promise<SceneAdmin>
-  removeAdmin(placeId: string, adminAddress: string): Promise<void>
-  listActiveAdmins(filters: ListSceneAdminFilters): Promise<SceneAdmin[]>
-  isAdmin(placeId: string, address: string): Promise<boolean>
-}
-
-export class DuplicateAdminError extends Error {
-  constructor() {
-    super('Admin already exists for this place')
-  }
+  return { valid: errors.length === 0, error: errors.join(', ') }
 }
 
 export async function createSceneAdminManagerComponent({
@@ -94,37 +58,50 @@ export async function createSceneAdminManagerComponent({
       throw new Error(validation.error)
     }
 
-    const existingAdmin = await listActiveAdmins({
-      place_id: input.place_id,
-      admin: input.admin
-    })
-
-    if (existingAdmin.length > 0) {
-      throw new DuplicateAdminError()
-    }
+    const adminLowercase = input.admin.toLowerCase()
+    const addedByLowercase = input.added_by.toLowerCase()
 
     const result = await database.query<SceneAdmin>(
-      SQL`INSERT INTO scene_admin (
-            id,
-            place_id, 
-            admin, 
-            added_by,
-            created_at,
-            active
-          )
-          VALUES (
-            gen_random_uuid(),
-            ${input.place_id},
-            ${input.admin.toLowerCase()},
-            ${input.added_by.toLowerCase()},
-            ${Date.now()},
-            true
-          )
-          RETURNING *`
+      SQL`
+        INSERT INTO scene_admin (
+          id,
+          place_id, 
+          admin, 
+          added_by,
+          created_at,
+          active
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${input.place_id},
+          ${adminLowercase},
+          ${addedByLowercase},
+          ${Date.now()},
+          true
+        )
+        ON CONFLICT (place_id, admin) WHERE active = true
+        DO NOTHING
+        RETURNING *;
+      `
     )
 
-    logger.info(`New admin created for place ${input.place_id}`)
-    return result.rows[0]
+    if (result.rowCount > 0) {
+      logger.info(`New admin created for place ${input.place_id}`)
+      return result.rows[0]
+    }
+
+    const existingAdmin = await database.query<SceneAdmin>(
+      SQL`
+        SELECT * FROM scene_admin 
+        WHERE place_id = ${input.place_id} 
+        AND admin = ${adminLowercase} 
+        AND active = true
+        LIMIT 1
+      `
+    )
+
+    logger.info(`Admin already exists for place ${input.place_id}`)
+    return existingAdmin.rows[0]
   }
 
   async function removeAdmin(placeId: string, adminAddress: string): Promise<void> {

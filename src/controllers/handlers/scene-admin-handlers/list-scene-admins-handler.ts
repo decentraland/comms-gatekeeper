@@ -1,5 +1,5 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { HandlerContextWithPath, InvalidRequestError } from '../../../types'
+import { HandlerContextWithPath, InvalidRequestError, UnauthorizedError } from '../../../types'
 import { validate, validateFilters } from '../utils'
 
 export async function listSceneAdminsHandler(
@@ -14,13 +14,13 @@ export async function listSceneAdminsHandler(
     verification
   } = ctx
 
-  const { getPlace, hasLandPermission, hasWorldPermission, isPlaceAdmin } = sceneFetcher
+  const { getPlace, hasLandPermission, hasWorldPermission } = sceneFetcher
 
   const logger = logs.getLogger('list-scene-admins-handler')
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
-    throw new InvalidRequestError('Authentication required')
+    throw new UnauthorizedError('Authentication required')
   }
 
   const authAddress = verification.auth.toLowerCase()
@@ -39,11 +39,12 @@ export async function listSceneAdminsHandler(
 
   const hasPermission = isWorlds
     ? await hasWorldPermission(authAddress, place.world_name!)
-    : (await hasLandPermission(authAddress, place.positions)) || (await isPlaceAdmin(place.id, authAddress))
+    : (await hasLandPermission(authAddress, place.positions)) ||
+      (await sceneAdminManager.isAdmin(place.id, authAddress))
 
   if (!hasPermission) {
-    logger.warn(`Usuario ${authAddress} no está autorizado para listar administradores de la entidad ${place.id}`)
-    throw new InvalidRequestError('Solo los administradores o el propietario pueden listar los administradores')
+    logger.warn(`User ${authAddress} is not authorized to list administrators of entity ${place.id}`)
+    throw new UnauthorizedError('Only administrators or the owner can list administrators')
   }
 
   const searchParams = url.searchParams
@@ -60,32 +61,15 @@ export async function listSceneAdminsHandler(
     throw new InvalidRequestError(`Invalid parameters: ${validationResult.error}`)
   }
 
-  try {
-    const { parcel, hostname, realmName } = await validate(ctx)
-    const isWorlds = hostname.includes('worlds-content-server')
+  const sceneAdminFilters = {
+    place_id: place.id,
+    admin: validationResult.value.admin
+  }
 
-    const place = await getPlace(isWorlds, realmName, parcel)
-    if (!place) {
-      logger.warn(`Place not found for parcel: ${parcel}`)
-      return {
-        status: 404,
-        body: { error: 'Place not found' }
-      }
-    }
+  const admins = await sceneAdminManager.listActiveAdmins(sceneAdminFilters)
 
-    const sceneAdminFilters = {
-      place_id: place.id,
-      admin: validationResult.value.admin
-    }
-
-    const admins = await sceneAdminManager.listActiveAdmins(sceneAdminFilters)
-
-    return {
-      status: 200,
-      body: admins
-    }
-  } catch (error) {
-    logger.error(`Error listing scene admins: ${error}`)
-    throw new InvalidRequestError('Failed to list scene admins')
+  return {
+    status: 200,
+    body: admins
   }
 }

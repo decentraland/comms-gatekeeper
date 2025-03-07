@@ -1,5 +1,6 @@
-import { HandlerContextWithPath, InvalidRequestError } from '../../../types'
-import { validate, isValidAddress } from '../utils'
+import { EthAddress } from '@dcl/schemas'
+import { HandlerContextWithPath, InvalidRequestError, UnauthorizedError } from '../../../types'
+import { validate } from '../utils'
 
 export async function removeSceneAdminHandler(
   ctx: Pick<
@@ -15,10 +16,10 @@ export async function removeSceneAdminHandler(
 
   const logger = logs.getLogger('remove-scene-admin-handler')
 
-  const { getPlace, hasLandPermission, hasWorldPermission, isPlaceAdmin } = sceneFetcher
+  const { getPlace, hasLandPermission, hasWorldPermission } = sceneFetcher
 
   if (!verification?.auth) {
-    throw new InvalidRequestError('Authentication required')
+    throw new UnauthorizedError('Authentication required')
   }
 
   const payload = await request.json()
@@ -32,8 +33,8 @@ export async function removeSceneAdminHandler(
   const isWorlds = hostname.includes('worlds-content-server')
   const authAddress = verification.auth.toLowerCase()
 
-  if (!isValidAddress(payload.admin)) {
-    throw new InvalidRequestError('Invalid admin address')
+  if (!EthAddress.validate(payload.admin)) {
+    throw new UnauthorizedError('Invalid admin address')
   }
 
   const place = await getPlace(isWorlds, realmName, parcel)
@@ -42,11 +43,14 @@ export async function removeSceneAdminHandler(
   }
 
   const hasPermission =
-    (await hasLandPermission(authAddress, place.positions)) || (await isPlaceAdmin(place.id, authAddress))
+    (isWorlds
+      ? await hasWorldPermission(authAddress, place.world_name!)
+      : await hasLandPermission(authAddress, place.positions)) ||
+    (await sceneAdminManager.isAdmin(place.id, authAddress))
 
   if (!hasPermission) {
     logger.warn(`User ${authAddress} is not authorized to remove admins for entity ${place.id}`)
-    throw new InvalidRequestError('Only scene admins or the owner can remove admins')
+    throw new UnauthorizedError('Only scene admins or the owner can remove admins')
   }
 
   const isAdminOwner = isWorlds

@@ -32,14 +32,9 @@ export async function validate<T extends string>(
   }
 }
 
-export function formatUrl(url: string): string {
-  if (!url) return '/'
+export function ensureSlashAtTheEnd(url: string): string | undefined {
+  if (!url) return undefined
   return url.endsWith('/') ? url : `${url}/`
-}
-
-export function isValidAddress(address: string): boolean {
-  if (typeof address !== 'string' || !address) return false
-  return /^0x[a-fA-F0-9]{40}$/i.test(address)
 }
 
 export function validateFilters(filters: { admin?: string }): {
@@ -63,9 +58,9 @@ export function validateFilters(filters: { admin?: string }): {
   }
 }
 
-export async function fetchDenyList(): Promise<Set<string>> {
+export async function fetchBlacklistedWallets(blackListJson: string): Promise<Set<string>> {
   try {
-    const response = await fetch('https://config.decentraland.org/denylist.json')
+    const response = await fetch(blackListJson)
     if (!response.ok) {
       throw new Error(`Failed to fetch deny list, status: ${response.status}`)
     }

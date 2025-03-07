@@ -9,7 +9,7 @@
     "test": "jest --forceExit --detectOpenHandles --coverage --verbose --passWithNoTests",
     "lint:check": "eslint '**/*.{js,ts}'",
     "lint:fix": "eslint '**/*.{js,ts}' --fix",
-    "migrate": "node-pg-migrate --database-url-var PG_COMPONENT_PSQL_CONNECTION_STRING --envPath .env -j ts --tsconfig tsconfig.json -m ./src/migrations"
+    "migrate": "node-pg-migrate --tsconfig ./tsconfig.json --migrations-dir ./src/migrations"
   },
   "devDependencies": {
     "@dcl/eslint-config": "^2.2.1",

@@ -56,7 +56,7 @@ export async function initComponents(): Promise<AppComponents> {
 
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
 
-  const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch, sceneAdminManager })
+  const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch })
 
   return {
     config,
