@@ -1,7 +1,6 @@
 import { test } from '../../components'
 import { makeRequest, owner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
-import SQL from 'sql-template-strings'
 import * as handlersUtils from '../../../src/controllers/handlers/utils'
 import { PlaceAttributes } from '../../../src/types'
 import { admin, nonOwner } from '../../utils'
@@ -44,16 +43,16 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    jest.spyOn(handlersUtils, 'getPlace').mockResolvedValue({
+    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValue({
       positions: [metadataLand.parcel],
       id: testPlaceId
     } as PlaceAttributes)
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValue(true)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(true)
 
-    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValue(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValue(false)
 
-    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValue(false)
+    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValue(false)
   })
 
   afterEach(async () => {
@@ -140,8 +139,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 400 when non-owner neither admin tries to add an admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(false)
 
     const response = await makeRequest(
       localFetch,

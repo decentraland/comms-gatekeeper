@@ -1,10 +1,8 @@
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
-import SQL from 'sql-template-strings'
 import * as handlersUtils from '../../../src/controllers/handlers/utils'
 import { PlaceAttributes } from '../../../src/types'
-import { AuthLinkType } from '@dcl/crypto'
 
 test('DELETE /scene-admin - removes administrator access for a scene', ({ components }) => {
   const testPlaceId = `place-id-remove`
@@ -58,13 +56,13 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    jest.spyOn(handlersUtils, 'getPlace').mockResolvedValue({
+    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValue({
       id: placeId,
       positions: ['10,20'],
       owner: ownerAddress
     } as PlaceAttributes)
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValue(false)
-    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValue(false)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(false)
+    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValue(false)
     jest.spyOn(handlersUtils, 'isValidAddress').mockReturnValue(true)
     jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValue(true)
   })
@@ -77,7 +75,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 204 when successfully deactivating a scene admin', async () => {
     const { localFetch, sceneAdminManager } = components
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true).mockResolvedValueOnce(false)
 
     const response = await makeRequest(
       localFetch,
@@ -98,9 +96,9 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('allows an admin to remove another admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValueOnce(true)
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
 
     const response = await makeRequest(
       localFetch,
@@ -121,8 +119,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when trying to remove a non-existent admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(true)
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
     jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
 
     const response = await makeRequest(
@@ -144,10 +142,10 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when trying to remove the owner', async () => {
     const { localFetch } = components
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(true)
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true)
 
     const response = await makeRequest(
       localFetch,
@@ -168,9 +166,9 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 403 when non-owner/non-admin tries to remove an admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
 
-    jest.spyOn(handlersUtils, 'isPlaceAdmin').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'isPlaceAdmin').mockResolvedValueOnce(false)
 
     const response = await makeRequest(
       localFetch,
@@ -191,7 +189,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when scene is not found', async () => {
     const { localFetch } = components
 
-    jest.spyOn(handlersUtils, 'getPlace').mockResolvedValueOnce(null)
+    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValueOnce(null)
 
     const response = await makeRequest(
       localFetch,
@@ -231,9 +229,9 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when owner tries to remove themselves', async () => {
     const { localFetch } = components
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true)
 
-    jest.spyOn(handlersUtils, 'hasLandPermission').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true)
 
     const response = await makeRequest(
       localFetch,
