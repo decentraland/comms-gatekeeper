@@ -20,7 +20,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   let metadataWorld: Metadata
 
   beforeAll(async () => {
-    cleanup = new TestCleanup(components.pg)
+    cleanup = new TestCleanup(components.database)
   })
 
   beforeEach(async () => {

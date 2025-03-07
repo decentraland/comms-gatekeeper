@@ -26,7 +26,7 @@ export type BaseComponents = {
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
   sceneFetcher: ISceneFetcherComponent
   livekit: ILivekitComponent
-  pg: IPgComponent
+  database: IPgComponent
   sceneAdminManager: ISceneAdminManager
 }
 

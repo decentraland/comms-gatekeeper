@@ -75,13 +75,13 @@ export class DuplicateAdminError extends Error {
 }
 
 export async function createSceneAdminManagerComponent({
-  pg,
+  database,
   logs
-}: Pick<AppComponents, 'pg' | 'logs'>): Promise<ISceneAdminManager> {
+}: Pick<AppComponents, 'database' | 'logs'>): Promise<ISceneAdminManager> {
   const logger = logs.getLogger('scene-admin-manager')
 
   async function isAdmin(placeId: string, address: string): Promise<boolean> {
-    const result = await pg.query(
+    const result = await database.query(
       SQL`SELECT id FROM scene_admin WHERE place_id = ${placeId} AND admin = ${address.toLowerCase()} AND active = true LIMIT 1`
     )
 
@@ -103,7 +103,7 @@ export async function createSceneAdminManagerComponent({
       throw new DuplicateAdminError()
     }
 
-    const result = await pg.query<SceneAdmin>(
+    const result = await database.query<SceneAdmin>(
       SQL`INSERT INTO scene_admin (
             id,
             place_id, 
@@ -128,7 +128,7 @@ export async function createSceneAdminManagerComponent({
   }
 
   async function removeAdmin(placeId: string, adminAddress: string): Promise<void> {
-    await pg.query(
+    await database.query(
       SQL`UPDATE scene_admin 
           SET active = false
           WHERE place_id = ${placeId} 
@@ -154,7 +154,7 @@ export async function createSceneAdminManagerComponent({
       query.append(SQL` AND admin = ${filters.admin.toLowerCase()}`)
     }
 
-    const result = await pg.query<SceneAdmin>(query)
+    const result = await database.query<SceneAdmin>(query)
     return result.rows
   }
 

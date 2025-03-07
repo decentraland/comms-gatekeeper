@@ -37,9 +37,20 @@ export async function initComponents(): Promise<AppComponents> {
     throw new Error('Env var PG_COMPONENT_PSQL_CONNECTION_STRING is required. Set it up to point to a database.')
   }
 
-  const pg = await createPgComponent({ logs, config, metrics })
+  const database = await createPgComponent(
+    { logs, config, metrics },
+    {
+      migration: {
+        databaseUrl,
+        dir: resolve(__dirname, 'migrations'),
+        migrationsTable: 'pgmigrations',
+        ignorePattern: '.*\\.DS_Store|.*\\.map',
+        direction: 'up'
+      }
+    }
+  )
 
-  const sceneAdminManager = await createSceneAdminManagerComponent({ pg, logs })
+  const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
 
   return {
     config,
@@ -50,7 +61,7 @@ export async function initComponents(): Promise<AppComponents> {
     metrics,
     sceneFetcher,
     livekit,
-    pg,
+    database,
     sceneAdminManager
   }
 }

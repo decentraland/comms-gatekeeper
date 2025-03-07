@@ -21,7 +21,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   let metadataWorld: Metadata
 
   beforeEach(async () => {
-    cleanup = new TestCleanup(components.pg)
+    cleanup = new TestCleanup(components.database)
 
     const { sceneAdminManager } = components
 

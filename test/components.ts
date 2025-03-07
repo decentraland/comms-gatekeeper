@@ -24,7 +24,7 @@ export const test = createRunner<TestComponents>({
 async function initComponents(): Promise<TestComponents> {
   const components = await originalInitComponents()
 
-  const { logs, pg } = components
+  const { logs, database } = components
 
   const config = await createDotEnvConfigComponent(
     { path: ['.env.default', '.env'] },
@@ -46,7 +46,7 @@ async function initComponents(): Promise<TestComponents> {
     }
   }
 
-  const sceneAdminManager = await createSceneAdminManagerComponent({ pg, logs })
+  const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
 
   return {
     ...components,

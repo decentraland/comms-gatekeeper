@@ -26,7 +26,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   let metadataLand: Metadata
 
   beforeEach(async () => {
-    cleanup = new TestCleanup(components.pg)
+    cleanup = new TestCleanup(components.database)
 
     const { sceneAdminManager } = components
 
