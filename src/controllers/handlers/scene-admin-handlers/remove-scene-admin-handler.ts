@@ -1,24 +1,21 @@
 import { HandlerContextWithPath, InvalidRequestError } from '../../../types'
-import { getPlace, hasLandPermission, hasWorldPermission, isPlaceAdmin, isValidAddress, validate } from '../utils'
+import { validate, isValidAddress } from '../utils'
 
 export async function removeSceneAdminHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneAdminManager' | 'logs' | 'config' | 'fetch', '/scene-admin'>,
+    HandlerContextWithPath<'sceneAdminManager' | 'sceneFetcher' | 'logs' | 'config' | 'fetch', '/scene-admin'>,
     'components' | 'url' | 'params' | 'verification' | 'request'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, config },
+    components: { logs, sceneFetcher, sceneAdminManager },
     request,
     verification
   } = ctx
 
   const logger = logs.getLogger('remove-scene-admin-handler')
 
-  const [placesApiUrl, lambdasUrl] = await Promise.all([
-    config.requireString('PLACES_API_URL'),
-    config.requireString('LAMBDAS_URL')
-  ])
+  const { getPlace, hasLandPermission, hasWorldPermission, isPlaceAdmin } = sceneFetcher
 
   if (!verification?.auth) {
     throw new InvalidRequestError('Authentication required')
@@ -39,14 +36,13 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError('Invalid admin address')
   }
 
-  const place = await getPlace(placesApiUrl, isWorlds, realmName, parcel)
+  const place = await getPlace(isWorlds, realmName, parcel)
   if (!place) {
     throw new InvalidRequestError('Place not found')
   }
 
   const hasPermission =
-    (await hasLandPermission(lambdasUrl, authAddress, place.positions)) ||
-    (await isPlaceAdmin(sceneAdminManager, place.id, authAddress))
+    (await hasLandPermission(authAddress, place.positions)) || (await isPlaceAdmin(place.id, authAddress))
 
   if (!hasPermission) {
     logger.warn(`User ${authAddress} is not authorized to remove admins for entity ${place.id}`)
@@ -54,8 +50,8 @@ export async function removeSceneAdminHandler(
   }
 
   const isAdminOwner = isWorlds
-    ? await hasWorldPermission(lambdasUrl, payload.admin, place.world_name!)
-    : await hasLandPermission(lambdasUrl, payload.admin, place.positions)
+    ? await hasWorldPermission(payload.admin, place.world_name!)
+    : await hasLandPermission(payload.admin, place.positions)
 
   if (isAdminOwner) {
     logger.warn(`Attempt to remove owner ${payload.admin} from entity ${place.id} by ${authAddress}`)

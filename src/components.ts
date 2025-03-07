@@ -29,7 +29,6 @@ export async function initComponents(): Promise<AppComponents> {
 
   await instrumentHttpServerWithMetrics({ metrics, server, config })
 
-  const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch })
   const livekit = await createLivekitComponent({ config, logs })
 
   let databaseUrl: string | undefined = await config.getString('PG_COMPONENT_PSQL_CONNECTION_STRING')
@@ -56,6 +55,8 @@ export async function initComponents(): Promise<AppComponents> {
   )
 
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
+
+  const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch, sceneAdminManager })
 
   return {
     config,

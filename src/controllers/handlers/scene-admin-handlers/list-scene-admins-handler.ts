@@ -1,18 +1,20 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, InvalidRequestError } from '../../../types'
-import { getPlace, hasLandPermission, isPlaceAdmin, validate, validateFilters, hasWorldPermission } from '../utils'
+import { validate, validateFilters } from '../utils'
 
 export async function listSceneAdminsHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneAdminManager' | 'logs' | 'config' | 'fetch', '/scene-admin'>,
+    HandlerContextWithPath<'sceneAdminManager' | 'sceneFetcher' | 'logs' | 'config' | 'fetch', '/scene-admin'>,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { sceneAdminManager, logs, config },
+    components: { sceneFetcher, logs, sceneAdminManager },
     url,
     verification
   } = ctx
+
+  const { getPlace, hasLandPermission, hasWorldPermission, isPlaceAdmin } = sceneFetcher
 
   const logger = logs.getLogger('list-scene-admins-handler')
 
@@ -20,17 +22,13 @@ export async function listSceneAdminsHandler(
     logger.warn('Request without authentication')
     throw new InvalidRequestError('Authentication required')
   }
-  const [placesApiUrl, lambdasUrl] = await Promise.all([
-    config.requireString('PLACES_API_URL'),
-    config.requireString('LAMBDAS_URL')
-  ])
 
   const authAddress = verification.auth.toLowerCase()
 
   const { parcel, hostname, realmName } = await validate(ctx)
   const isWorlds = hostname.includes('worlds-content-server')
 
-  const place = await getPlace(placesApiUrl, isWorlds, realmName, parcel)
+  const place = await getPlace(isWorlds, realmName, parcel)
   if (!place) {
     logger.warn(`Place not found for parcel: ${parcel}`)
     return {
@@ -40,9 +38,8 @@ export async function listSceneAdminsHandler(
   }
 
   const hasPermission = isWorlds
-    ? await hasWorldPermission(lambdasUrl, authAddress, place.world_name!)
-    : (await hasLandPermission(lambdasUrl, authAddress, place.positions)) ||
-      (await isPlaceAdmin(sceneAdminManager, place.id, authAddress))
+    ? await hasWorldPermission(authAddress, place.world_name!)
+    : (await hasLandPermission(authAddress, place.positions)) || (await isPlaceAdmin(place.id, authAddress))
 
   if (!hasPermission) {
     logger.warn(`Usuario ${authAddress} no está autorizado para listar administradores de la entidad ${place.id}`)
@@ -64,11 +61,10 @@ export async function listSceneAdminsHandler(
   }
 
   try {
-    const placesApiUrl = await config.requireString('PLACES_API_URL')
     const { parcel, hostname, realmName } = await validate(ctx)
     const isWorlds = hostname.includes('worlds-content-server')
 
-    const place = await getPlace(placesApiUrl, isWorlds, realmName, parcel)
+    const place = await getPlace(isWorlds, realmName, parcel)
     if (!place) {
       logger.warn(`Place not found for parcel: ${parcel}`)
       return {
