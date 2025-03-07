@@ -4,14 +4,18 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node --trace-warnings --abort-on-uncaught-exception --unhandled-rejections=strict dist/index.js",
+    "start:dev": "yarn build && yarn start",
+    "start:dev:clean": "yarn migrate down 10 && yarn migrate up && yarn build && yarn start",
     "test": "jest --forceExit --detectOpenHandles --coverage --verbose --passWithNoTests",
     "lint:check": "eslint '**/*.{js,ts}'",
-    "lint:fix": "eslint '**/*.{js,ts}' --fix"
+    "lint:fix": "eslint '**/*.{js,ts}' --fix",
+    "migrate": "node-pg-migrate --tsconfig ./tsconfig.json --migrations-dir ./src/migrations"
   },
   "devDependencies": {
     "@dcl/eslint-config": "^2.2.1",
     "@types/node": "^20.7.1",
     "@well-known-components/test-helpers": "^1.5.8",
+    "ts-node": "^10.9.2",
     "typescript": "^5.2.2"
   },
   "prettier": {
@@ -22,6 +26,7 @@
     "tabWidth": 2
   },
   "dependencies": {
+    "@dcl/crypto": "^3.4.5",
     "@dcl/platform-crypto-middleware": "^1.1.0",
     "@well-known-components/env-config-provider": "^1.1.1",
     "@well-known-components/fetch-component": "^2.0.0",
@@ -29,7 +34,9 @@
     "@well-known-components/interfaces": "^1.4.1",
     "@well-known-components/logger": "^3.1.2",
     "@well-known-components/metrics": "^2.0.1-20220909150423.commit-8f7e5bc",
+    "@well-known-components/pg-component": "^1.1.0",
     "livekit-server-sdk": "^1.2.7",
-    "lru-cache": "^10.1.0"
+    "lru-cache": "^10.1.0",
+    "sql-template-strings": "^2.2.2"
   }
 }
