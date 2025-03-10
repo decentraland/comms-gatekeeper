@@ -1,7 +1,5 @@
 import { DecentralandSignatureData, verify } from '@dcl/platform-crypto-middleware'
-import { HandlerContextWithPath, UnauthorizedError } from '../../types'
-
-export type AuthData = { identity: string; realmName: string; sceneId?: string }
+import { HandlerContextWithPath, UnauthorizedError, AuthData } from '../../types'
 
 export async function validate<T extends string>(
   context: HandlerContextWithPath<'fetch' | 'config', T>
@@ -18,7 +16,7 @@ export async function validate<T extends string>(
     throw new UnauthorizedError('Access denied, invalid signed-fetch request')
   }
 
-  const { realmName, sceneId } = verification.authMetadata
+  const { realmName, sceneId, parcel, hostname } = verification.authMetadata
   if (!realmName) {
     throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realmName')
   }
@@ -28,6 +26,46 @@ export async function validate<T extends string>(
   return {
     identity,
     realmName,
-    sceneId
+    sceneId,
+    parcel,
+    hostname
   }
+}
+
+export function ensureSlashAtTheEnd(url: string): string | undefined {
+  if (!url) return undefined
+  return url.endsWith('/') ? url : `${url}/`
+}
+
+export function validateFilters(filters: { admin?: string }): {
+  valid: boolean
+  error?: string
+  value: { admin?: string }
+} {
+  if (filters.admin !== undefined && typeof filters.admin !== 'string') {
+    return {
+      valid: false,
+      error: 'admin must be a string',
+      value: {}
+    }
+  }
+
+  return {
+    valid: true,
+    value: {
+      admin: filters.admin ? filters.admin.toLowerCase() : undefined
+    }
+  }
+}
+
+export async function fetchBlacklistedWallets(blackListJson: string): Promise<Set<string>> {
+  const response = await fetch(blackListJson)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch deny list, status: ${response.status}`)
+  }
+  const data = await response.json()
+  if (data.users && Array.isArray(data.users)) {
+    return new Set(data.users.map((user: { wallet: string }) => user.wallet.toLocaleLowerCase()))
+  }
+  return new Set()
 }
