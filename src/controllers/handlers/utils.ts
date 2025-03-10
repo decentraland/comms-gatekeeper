@@ -59,20 +59,13 @@ export function validateFilters(filters: { admin?: string }): {
 }
 
 export async function fetchBlacklistedWallets(blackListJson: string): Promise<Set<string>> {
-  try {
-    const response = await fetch(blackListJson)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch deny list, status: ${response.status}`)
-    }
-    const data = await response.json()
-    if (data.users && Array.isArray(data.users)) {
-      return new Set(data.users.map((user: { wallet: string }) => user.wallet.toLocaleLowerCase()))
-    } else {
-      console.warn('Deny list is missing "users" field or it is not an array.')
-      return new Set()
-    }
-  } catch (error) {
-    console.error(`Error fetching deny list: ${(error as Error).message}`)
-    return new Set()
+  const response = await fetch(blackListJson)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch deny list, status: ${response.status}`)
   }
+  const data = await response.json()
+  if (data.users && Array.isArray(data.users)) {
+    return new Set(data.users.map((user: { wallet: string }) => user.wallet.toLocaleLowerCase()))
+  }
+  return new Set()
 }

@@ -1,5 +1,4 @@
 import { createSceneFetcherComponent } from '../../src/adapters/scene-fetcher'
-import { Permissions } from '../../src/types'
 import { LRUCache } from 'lru-cache'
 
 describe('SceneFetcherComponent', () => {

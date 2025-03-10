@@ -75,11 +75,15 @@ describe('fetchBlacklistedWallets', () => {
 
     global.fetch = jest.fn().mockRejectedValue(new Error('Network error'))
 
-    const result = await fetchBlacklistedWallets('https://example.com/blacklist.json')
+    let error: Error | null = null
+    try {
+      await fetchBlacklistedWallets('https://example.com/blacklist.json')
+    } catch (e) {
+      error = e as Error
+    }
 
-    expect(result).toBeInstanceOf(Set)
-    expect(result.size).toBe(0)
-    expect(consoleErrorSpy).toHaveBeenCalled()
+    expect(error).not.toBeNull()
+    expect(error?.message).toContain('Network error')
 
     consoleErrorSpy.mockRestore()
   })
@@ -100,7 +104,6 @@ describe('fetchBlacklistedWallets', () => {
 
     expect(result).toBeInstanceOf(Set)
     expect(result.size).toBe(0)
-    expect(consoleWarnSpy).toHaveBeenCalled()
 
     consoleWarnSpy.mockRestore()
   })

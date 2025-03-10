@@ -53,11 +53,11 @@ export async function removeSceneAdminHandler(
     throw new UnauthorizedError('Only scene admins or the owner can remove admins')
   }
 
-  const isAdminOwner = isWorlds
+  const isOwnerOrAdmin = isWorlds
     ? await hasWorldPermission(payload.admin, place.world_name!)
     : await hasLandPermission(payload.admin, place.positions)
 
-  if (isAdminOwner) {
+  if (isOwnerOrAdmin) {
     logger.warn(`Attempt to remove owner ${payload.admin} from entity ${place.id} by ${authAddress}`)
     throw new InvalidRequestError('Cannot remove the owner of the scene')
   }

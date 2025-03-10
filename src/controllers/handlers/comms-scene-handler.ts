@@ -15,9 +15,9 @@ export async function commsSceneHandler(
   let room: string
   let permissions: Permissions | undefined
 
-  const blackListJson = await config.requireString('BLACKLIST_JSON_URL')
+  const blacklistUrl = await config.requireString('BLACKLIST_JSON_URL')
 
-  const denyList = await fetchBlacklistedWallets(blackListJson)
+  const denyList = await fetchBlacklistedWallets(blacklistUrl)
   if (denyList.has(identity)) {
     logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
     throw new UnauthorizedError('Access denied, deny-listed wallet')
