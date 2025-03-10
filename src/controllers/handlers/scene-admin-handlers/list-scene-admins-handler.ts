@@ -23,7 +23,7 @@ export async function listSceneAdminsHandler(
     throw new UnauthorizedError('Authentication required')
   }
 
-  const authAddress = verification.auth.toLowerCase()
+  const authenticatedAddress = verification.auth.toLowerCase()
 
   const { parcel, hostname, realmName } = await validate(ctx)
   const isWorlds = hostname.includes('worlds-content-server')
@@ -38,12 +38,12 @@ export async function listSceneAdminsHandler(
   }
 
   const hasPermission = isWorlds
-    ? await hasWorldPermission(authAddress, place.world_name!)
-    : (await hasLandPermission(authAddress, place.positions)) ||
-      (await sceneAdminManager.isAdmin(place.id, authAddress))
+    ? await hasWorldPermission(authenticatedAddress, place.world_name!)
+    : (await hasLandPermission(authenticatedAddress, place.positions)) ||
+      (await sceneAdminManager.isAdmin(place.id, authenticatedAddress))
 
   if (!hasPermission) {
-    logger.warn(`User ${authAddress} is not authorized to list administrators of entity ${place.id}`)
+    logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
     throw new UnauthorizedError('Only administrators or the owner can list administrators')
   }
 

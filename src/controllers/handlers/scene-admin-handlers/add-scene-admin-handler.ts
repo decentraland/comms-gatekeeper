@@ -24,39 +24,40 @@ export async function addSceneAdminHandler(
   }
 
   const payload = await request.json()
-  if (!payload.admin || !EthAddress.validate(payload.admin)) {
+  const adminToAdd = payload.admin
+  if (!adminToAdd || !EthAddress.validate(adminToAdd)) {
     logger.warn(`Invalid scene admin payload`, payload)
     throw new InvalidRequestError(`Invalid payload`)
   }
 
   const { parcel, hostname, realmName } = await validate(ctx)
   const isWorlds = hostname!.includes('worlds-content-server')
-  const authAddress = verification.auth
+  const authenticatedAddress = verification.auth
   const place = await getPlace(isWorlds, realmName, parcel)
 
   const isOwner = isWorlds
-    ? await hasWorldPermission(authAddress, place.world_name!)
-    : await hasLandPermission(authAddress, place.positions)
+    ? await hasWorldPermission(authenticatedAddress, place.world_name!)
+    : await hasLandPermission(authenticatedAddress, place.positions)
 
-  const isAdmin = await sceneAdminManager.isAdmin(place.id, authAddress)
+  const isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)
 
   if (!isOwner && !isAdmin) {
     throw new UnauthorizedError('You do not have permission to add admins to this place')
   }
 
-  if (place.owner && place.owner.toLowerCase() === payload.admin.toLowerCase()) {
+  if (place.owner && place.owner.toLowerCase() === adminToAdd.toLowerCase()) {
     throw new InvalidRequestError('Cannot add the owner as an admin')
   }
 
-  const isAlreadyAdmin = await sceneAdminManager.isAdmin(place.id, payload.admin)
+  const isAlreadyAdmin = await sceneAdminManager.isAdmin(place.id, adminToAdd)
   if (isAlreadyAdmin) {
     throw new InvalidRequestError('This address is already an admin')
   }
 
   await sceneAdminManager.addAdmin({
     place_id: place.id,
-    admin: payload.admin.toLowerCase(),
-    added_by: authAddress.toLowerCase()
+    admin: adminToAdd.toLowerCase(),
+    added_by: authenticatedAddress.toLowerCase()
   })
 
   return {

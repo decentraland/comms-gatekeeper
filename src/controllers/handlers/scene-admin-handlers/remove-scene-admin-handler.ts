@@ -24,16 +24,18 @@ export async function removeSceneAdminHandler(
 
   const payload = await request.json()
 
-  if (!payload.admin) {
+  const adminToRemove = payload.adminpayload.admin
+
+  if (!adminToRemove) {
     logger.warn(`Invalid scene admin payload`, payload)
     throw new InvalidRequestError(`Invalid payload`)
   }
 
   const { parcel, hostname, realmName } = await validate(ctx)
   const isWorlds = hostname.includes('worlds-content-server')
-  const authAddress = verification.auth.toLowerCase()
+  const authenticatedAddress = verification.auth.toLowerCase()
 
-  if (!EthAddress.validate(payload.admin)) {
+  if (!EthAddress.validate(adminToRemove)) {
     throw new UnauthorizedError('Invalid admin address')
   }
 
@@ -42,32 +44,28 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError('Place not found')
   }
 
-  const hasPermission =
-    (isWorlds
-      ? await hasWorldPermission(authAddress, place.world_name!)
-      : await hasLandPermission(authAddress, place.positions)) ||
-    (await sceneAdminManager.isAdmin(place.id, authAddress))
+  const isOwner = isWorlds
+    ? await hasWorldPermission(adminToRemove, place.world_name!)
+    : await hasLandPermission(adminToRemove, place.positions)
+
+  const hasPermission = isOwner || (await sceneAdminManager.isAdmin(place.id, authenticatedAddress))
 
   if (!hasPermission) {
-    logger.warn(`User ${authAddress} is not authorized to remove admins for entity ${place.id}`)
+    logger.warn(`User ${authenticatedAddress} is not authorized to remove admins for entity ${place.id}`)
     throw new UnauthorizedError('Only scene admins or the owner can remove admins')
   }
 
-  const isOwnerOrAdmin = isWorlds
-    ? await hasWorldPermission(payload.admin, place.world_name!)
-    : await hasLandPermission(payload.admin, place.positions)
-
-  if (isOwnerOrAdmin) {
-    logger.warn(`Attempt to remove owner ${payload.admin} from entity ${place.id} by ${authAddress}`)
+  if (isOwner) {
+    logger.warn(`Attempt to remove owner ${adminToRemove} from entity ${place.id} by ${authenticatedAddress}`)
     throw new InvalidRequestError('Cannot remove the owner of the scene')
   }
 
-  const isTargetAdminActive = await sceneAdminManager.isAdmin(place.id, payload.admin)
+  const isTargetAdminActive = await sceneAdminManager.isAdmin(place.id, adminToRemove)
   if (!isTargetAdminActive) {
     throw new InvalidRequestError('The specified admin does not exist or is already inactive')
   }
 
-  await sceneAdminManager.removeAdmin(place.id, payload.admin)
+  await sceneAdminManager.removeAdmin(place.id, adminToRemove)
   return {
     status: 204
   }
