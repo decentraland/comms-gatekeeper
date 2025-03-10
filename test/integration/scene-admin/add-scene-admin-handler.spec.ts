@@ -132,7 +132,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     expect(response.status).toBe(400)
   })
 
-  it('returns 400 when user is not owner or admin', async () => {
+  it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
@@ -152,7 +152,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       nonOwner
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
   })
 
   it('returns 400 when admin already exists', async () => {

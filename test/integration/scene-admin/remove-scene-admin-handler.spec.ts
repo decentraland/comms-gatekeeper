@@ -31,21 +31,35 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
 
     await sceneAdminManager.removeAdmin(placeId, adminAddress)
 
-    const adminResult = await sceneAdminManager.addAdmin({
+    await sceneAdminManager.addAdmin({
       place_id: placeId,
       admin: adminAddress,
       added_by: ownerAddress
     })
 
-    cleanup.trackInsert('scene_admin', { id: adminResult.id })
+    const adminResults = await sceneAdminManager.listActiveAdmins({
+      place_id: placeId,
+      admin: adminAddress
+    })
 
-    const otherAdminResult = await sceneAdminManager.addAdmin({
+    if (adminResults.length > 0) {
+      cleanup.trackInsert('scene_admin', { id: adminResults[0].id })
+    }
+
+    await sceneAdminManager.addAdmin({
       place_id: placeId,
       admin: otherAdminAddress,
       added_by: ownerAddress
     })
 
-    cleanup.trackInsert('scene_admin', { id: otherAdminResult.id })
+    const otherAdminResults = await sceneAdminManager.listActiveAdmins({
+      place_id: placeId,
+      admin: otherAdminAddress
+    })
+
+    if (otherAdminResults.length > 0) {
+      cleanup.trackInsert('scene_admin', { id: otherAdminResults[0].id })
+    }
 
     metadataLand = {
       identity: ownerAddress,

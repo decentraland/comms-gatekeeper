@@ -27,13 +27,20 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     await sceneAdminManager.removeAdmin(placeId, admin.authChain[0].payload)
 
-    const result = await sceneAdminManager.addAdmin({
+    await sceneAdminManager.addAdmin({
       place_id: placeId,
       admin: admin.authChain[0].payload,
       added_by: owner.authChain[0].payload
     })
 
-    cleanup.trackInsert('scene_admin', { id: result.id })
+    const adminResults = await sceneAdminManager.listActiveAdmins({
+      place_id: placeId,
+      admin: admin.authChain[0].payload
+    })
+
+    if (adminResults.length > 0) {
+      cleanup.trackInsert('scene_admin', { id: adminResults[0].id })
+    }
 
     metadataLand = {
       identity: owner.authChain[0].payload,

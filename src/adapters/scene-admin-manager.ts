@@ -1,11 +1,4 @@
-import {
-  AppComponents,
-  SceneAdmin,
-  AddSceneAdminInput,
-  ListSceneAdminFilters,
-  ISceneAdminManager,
-  DuplicateAdminError
-} from '../types'
+import { AppComponents, SceneAdmin, AddSceneAdminInput, ListSceneAdminFilters, ISceneAdminManager } from '../types'
 import SQL from 'sql-template-strings'
 
 export function validateAddSceneAdmin(input: any): { valid: boolean; error?: string } {
@@ -52,7 +45,7 @@ export async function createSceneAdminManagerComponent({
     return result.rowCount > 0
   }
 
-  async function addAdmin(input: AddSceneAdminInput): Promise<SceneAdmin> {
+  async function addAdmin(input: AddSceneAdminInput): Promise<void> {
     const validation = validateAddSceneAdmin(input)
     if (!validation.valid) {
       throw new Error(validation.error)
@@ -85,23 +78,10 @@ export async function createSceneAdminManagerComponent({
       `
     )
 
-    if (result.rowCount > 0) {
-      logger.info(`New admin created for place ${input.place_id}`)
-      return result.rows[0]
-    }
-
-    const existingAdmin = await database.query<SceneAdmin>(
-      SQL`
-        SELECT * FROM scene_admin 
-        WHERE place_id = ${input.place_id} 
-        AND admin = ${adminLowercase} 
-        AND active = true
-        LIMIT 1
-      `
-    )
-
-    logger.info(`Admin already exists for place ${input.place_id}`)
-    return existingAdmin.rows[0]
+    result.rowCount > 0
+      ? logger.info(`New admin created for place ${input.place_id}`)
+      : logger.info(`Admin already exists for place ${input.place_id}`)
+    return
   }
 
   async function removeAdmin(placeId: string, adminAddress: string): Promise<void> {

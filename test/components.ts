@@ -6,8 +6,6 @@ import { main } from '../src/service'
 import { TestComponents } from '../src/types'
 import { initComponents as originalInitComponents } from '../src/components'
 import { createDotEnvConfigComponent } from '@well-known-components/env-config-provider'
-import * as nodeFetch from 'node-fetch'
-import { createSceneAdminManagerComponent } from '../src/adapters/scene-admin-manager'
 
 /**
  * Behaves like Jest "describe" function, used to describe a test for a

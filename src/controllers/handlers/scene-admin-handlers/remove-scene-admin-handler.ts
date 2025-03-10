@@ -67,13 +67,8 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError('The specified admin does not exist or is already inactive')
   }
 
-  try {
-    await sceneAdminManager.removeAdmin(place.id, payload.admin)
-    return {
-      status: 204
-    }
-  } catch (error) {
-    logger.error(`Error in scene admin operation: ${error}`)
-    throw new InvalidRequestError('Failed to complete the operation')
+  await sceneAdminManager.removeAdmin(place.id, payload.admin)
+  return {
+    status: 204
   }
 }

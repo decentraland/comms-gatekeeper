@@ -202,7 +202,7 @@ export type ListSceneAdminFilters = {
 }
 
 export interface ISceneAdminManager {
-  addAdmin(input: AddSceneAdminInput): Promise<SceneAdmin>
+  addAdmin(input: AddSceneAdminInput): Promise<void>
   removeAdmin(placeId: string, adminAddress: string): Promise<void>
   listActiveAdmins(filters: ListSceneAdminFilters): Promise<SceneAdmin[]>
   isAdmin(placeId: string, address: string): Promise<boolean>

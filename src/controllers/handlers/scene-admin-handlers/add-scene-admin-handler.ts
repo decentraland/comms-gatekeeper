@@ -32,40 +32,34 @@ export async function addSceneAdminHandler(
   const { parcel, hostname, realmName } = await validate(ctx)
   const isWorlds = hostname!.includes('worlds-content-server')
   const authAddress = verification.auth
+  const place = await getPlace(isWorlds, realmName, parcel)
 
-  try {
-    const place = await getPlace(isWorlds, realmName, parcel)
+  const isOwner = isWorlds
+    ? await hasWorldPermission(authAddress, place.world_name!)
+    : await hasLandPermission(authAddress, place.positions)
 
-    const isOwner = isWorlds
-      ? await hasWorldPermission(authAddress, place.world_name!)
-      : await hasLandPermission(authAddress, place.positions)
+  const isAdmin = await sceneAdminManager.isAdmin(place.id, authAddress)
 
-    const isAdmin = await sceneAdminManager.isAdmin(place.id, authAddress)
+  if (!isOwner && !isAdmin) {
+    throw new UnauthorizedError('You do not have permission to add admins to this place')
+  }
 
-    if (!isOwner && !isAdmin) {
-      throw new UnauthorizedError('You do not have permission to add admins to this place')
-    }
+  if (place.owner && place.owner.toLowerCase() === payload.admin.toLowerCase()) {
+    throw new InvalidRequestError('Cannot add the owner as an admin')
+  }
 
-    if (place.owner && place.owner.toLowerCase() === payload.admin.toLowerCase()) {
-      throw new InvalidRequestError('Cannot add the owner as an admin')
-    }
+  const isAlreadyAdmin = await sceneAdminManager.isAdmin(place.id, payload.admin)
+  if (isAlreadyAdmin) {
+    throw new InvalidRequestError('This address is already an admin')
+  }
 
-    const isAlreadyAdmin = await sceneAdminManager.isAdmin(place.id, payload.admin)
-    if (isAlreadyAdmin) {
-      throw new InvalidRequestError('This address is already an admin')
-    }
+  await sceneAdminManager.addAdmin({
+    place_id: place.id,
+    admin: payload.admin.toLowerCase(),
+    added_by: authAddress.toLowerCase()
+  })
 
-    await sceneAdminManager.addAdmin({
-      place_id: place.id,
-      admin: payload.admin.toLowerCase(),
-      added_by: authAddress.toLowerCase()
-    })
-
-    return {
-      status: 204
-    }
-  } catch (error) {
-    logger.error(`Error adding scene admin: ${error}`)
-    throw new InvalidRequestError(`Failed to add scene admin: ${error}`)
+  return {
+    status: 204
   }
 }
