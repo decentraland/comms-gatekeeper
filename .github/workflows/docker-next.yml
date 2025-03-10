@@ -3,7 +3,7 @@ name: CI/CD on main branch
 on:
   push:
     branches:
-      - "main"
+      - 'main'
 
 jobs:
   cd:
@@ -11,5 +11,4 @@ jobs:
     with:
       service-name: comms-gatekeeper
       deployment-environment: dev
-      dockerfile-url: https://raw.githubusercontent.com/decentraland/platform-actions/main/Dockerfile.alpine
     secrets: inherit
