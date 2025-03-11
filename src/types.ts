@@ -9,6 +9,7 @@ import type {
 import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
 import { ILivekitComponent } from './adapters/livekit'
+import { IBlockListComponent } from './adapters/blocklist'
 import { IPgComponent } from '@well-known-components/pg-component'
 
 export type ISceneFetcherComponent = IBaseComponent & {
@@ -28,6 +29,7 @@ export type GlobalContext = {
 
 export type BaseComponents = {
   config: IConfigComponent
+  blockList: IBlockListComponent
   logs: ILoggerComponent
   server: IHttpServerComponent<GlobalContext>
   fetch: IFetchComponent

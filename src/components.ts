@@ -10,6 +10,7 @@ import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
 import { createPgComponent } from '@well-known-components/pg-component'
 import { resolve } from 'path'
+import { createBlockListComponent } from './adapters/blocklist'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -26,6 +27,7 @@ export async function initComponents(): Promise<AppComponents> {
   )
   const statusChecks = await createStatusCheckComponent({ server, config })
   const fetch = createFetchComponent()
+  const blockList = await createBlockListComponent({ config, fetch })
 
   await instrumentHttpServerWithMetrics({ metrics, server, config })
 
@@ -59,6 +61,7 @@ export async function initComponents(): Promise<AppComponents> {
   const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch })
 
   return {
+    blockList,
     config,
     logs,
     server,
