@@ -1,12 +1,15 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, NotFoundError, UnauthorizedError, Permissions } from '../../types'
-import { validate, fetchBlacklistedWallets } from './utils'
+import { validate } from './utils'
 
 export async function commsSceneHandler(
-  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'sceneFetcher' | 'logs', '/get-scene-adapter'>
+  context: HandlerContextWithPath<
+    'fetch' | 'config' | 'livekit' | 'sceneFetcher' | 'logs' | 'blockList',
+    '/get-scene-adapter'
+  >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, sceneFetcher, logs, config }
+    components: { livekit, sceneFetcher, logs, blockList }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -15,10 +18,8 @@ export async function commsSceneHandler(
   let room: string
   let permissions: Permissions | undefined
 
-  const blacklistUrl = await config.requireString('BLACKLIST_JSON_URL')
-
-  const denyList = await fetchBlacklistedWallets(blacklistUrl)
-  if (denyList.has(identity)) {
+  const isBlacklisted = await blockList.isBlacklisted(identity)
+  if (isBlacklisted) {
     logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
