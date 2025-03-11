@@ -5,6 +5,7 @@ export async function pingHandler(context: Pick<HandlerContextWithPath<'metrics'
   const { url } = context
 
   return {
+    status: 200,
     body: url.pathname
   }
 }

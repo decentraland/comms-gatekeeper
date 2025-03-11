@@ -1089,13 +1089,21 @@
   dependencies:
     dotenv "^16.0.1"
 
-"@well-known-components/fetch-component@^2.0.0", "@well-known-components/fetch-component@^2.0.2":
+"@well-known-components/fetch-component@^2.0.2":
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/@well-known-components/fetch-component/-/fetch-component-2.0.2.tgz#02260611f9d05551efe825c4358cbc628a71c4c0"
   integrity sha512-LdY+6n9kuyACg3fcU4qMrNhLZuG7eqPxLSqzDgQyoHKeNjlzggoUqTVJKtIyi6vjPs8pSQ/Fx1xdLuBhOKCgww==
   dependencies:
     "@well-known-components/interfaces" "^1.4.1"
     cross-fetch "^3.1.5"
+
+"@well-known-components/http-requests-logger-component@^2.1.0":
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/@well-known-components/http-requests-logger-component/-/http-requests-logger-component-2.1.0.tgz#09b963912cd7008da332f8d4ab4336043dc2c9a8"
+  integrity sha512-mh5tc1g6XOhQSFiQWaWMPqeH/r0S1Lz5BZtqUfV0HxtpzKqgctUlgVO0S6a6IxHCDX/sfZBHb9LMcRsdUwE5XQ==
+  dependencies:
+    "@well-known-components/interfaces" "^1.2.0"
+    tslib "^2.5.0"
 
 "@well-known-components/http-server@^2.0.0":
   version "2.0.0"
@@ -1111,19 +1119,27 @@
     on-finished "^2.4.1"
     path-to-regexp "^6.2.1"
 
-"@well-known-components/interfaces@^1.4.1", "@well-known-components/interfaces@^1.4.2":
-  version "1.4.2"
-  resolved "https://registry.yarnpkg.com/@well-known-components/interfaces/-/interfaces-1.4.2.tgz#e37eb296280abfcab14f0608b3bdfc84d5a21929"
-  integrity sha512-1tkr/OhZ4UmnQiST2svKznEiJ86crV2S+AIhokhowR4MexAKWgYlmZpoP6VIcgDVPf7nu8hOtIPMQaCZ+COC0A==
+"@well-known-components/http-tracer-component@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@well-known-components/http-tracer-component/-/http-tracer-component-1.1.0.tgz#cadbc14f488ff814fa10cfcac6ea10bd842bfd93"
+  integrity sha512-ubFU1fBrhFVmKWXFXrNzuO+nFafzaLwQ7uOQPOIwvTF0dOO0TptTwvRH4sA4hwciTPdMXYjZfQZGhb41cyd3ZA==
+  dependencies:
+    "@well-known-components/interfaces" "^1.2.0"
+    tslib "^2.5.0"
+
+"@well-known-components/interfaces@^1.2.0", "@well-known-components/interfaces@^1.4.3":
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/@well-known-components/interfaces/-/interfaces-1.5.1.tgz#3d6a42ed409fbd8cdf5d75d818fcc84a7c47948e"
+  integrity sha512-2/8/xSOGXB8UsC4P5ORqxox+zCep35ShvW8i660YrqO57jeElfUVKOtekYEZDH0TaebP4ek35bJUW+WbAw/d0w==
   dependencies:
     "@types/node" "^20.3.1"
     "@types/node-fetch" "^2.5.12"
     typed-url-params "^1.0.1"
 
-"@well-known-components/interfaces@^1.4.3":
-  version "1.5.1"
-  resolved "https://registry.yarnpkg.com/@well-known-components/interfaces/-/interfaces-1.5.1.tgz#3d6a42ed409fbd8cdf5d75d818fcc84a7c47948e"
-  integrity sha512-2/8/xSOGXB8UsC4P5ORqxox+zCep35ShvW8i660YrqO57jeElfUVKOtekYEZDH0TaebP4ek35bJUW+WbAw/d0w==
+"@well-known-components/interfaces@^1.4.1", "@well-known-components/interfaces@^1.4.2":
+  version "1.4.2"
+  resolved "https://registry.yarnpkg.com/@well-known-components/interfaces/-/interfaces-1.4.2.tgz#e37eb296280abfcab14f0608b3bdfc84d5a21929"
+  integrity sha512-1tkr/OhZ4UmnQiST2svKznEiJ86crV2S+AIhokhowR4MexAKWgYlmZpoP6VIcgDVPf7nu8hOtIPMQaCZ+COC0A==
   dependencies:
     "@types/node" "^20.3.1"
     "@types/node-fetch" "^2.5.12"
@@ -1165,6 +1181,14 @@
     node-fetch "2.x"
     sinon "^18.0.0"
     ts-jest "^29.1.0"
+
+"@well-known-components/tracer-component@^1.2.0":
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/@well-known-components/tracer-component/-/tracer-component-1.2.0.tgz#fb849356546caa56477457f3d67649f8cefa0c06"
+  integrity sha512-yoXk/DhX6vy0mydkW+w0I1ekXZfIjCm3RFyxTgbx+LPYKF/OnDWstF4+SqozoRYo6wxsCbPmMmG7LIOM1tfBEQ==
+  dependencies:
+    "@well-known-components/interfaces" "^1.2.0"
+    tslib "^2.5.0"
 
 acorn-jsx@^5.3.2:
   version "5.3.2"
@@ -3833,6 +3857,11 @@ ts-node@^10.9.2:
     make-error "^1.1.1"
     v8-compile-cache-lib "^3.0.1"
     yn "3.1.1"
+
+tslib@^2.5.0:
+  version "2.8.1"
+  resolved "https://registry.yarnpkg.com/tslib/-/tslib-2.8.1.tgz#612efe4ed235d567e8aba5f2a5fab70280ade83f"
+  integrity sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==
 
 tslib@^2.6.2:
   version "2.6.2"

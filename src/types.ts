@@ -4,6 +4,7 @@ import type {
   IHttpServerComponent,
   IBaseComponent,
   IMetricsComponent,
+  ITracerComponent,
   IFetchComponent
 } from '@well-known-components/interfaces'
 import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
@@ -28,6 +29,7 @@ export type GlobalContext = {
 
 export type BaseComponents = {
   config: IConfigComponent
+  tracer: ITracerComponent
   logs: ILoggerComponent
   server: IHttpServerComponent<GlobalContext>
   fetch: IFetchComponent
