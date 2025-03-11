@@ -36,6 +36,7 @@ export type BaseComponents = {
   database: IPgComponent
   sceneAdminManager: ISceneAdminManager
   sceneFetcher: ISceneFetcherComponent
+  sceneStreamAccessManager: ISceneStreamAccessManager
 }
 
 export type AppComponents = BaseComponents & {
@@ -190,10 +191,25 @@ export type SceneAdmin = {
   active: boolean
 }
 
+export type SceneStreamAccess = {
+  id: string
+  place_id: string
+  streaming_key: string
+  streaming_url: string
+  created_at: number
+  active: boolean
+}
+
 export interface AddSceneAdminInput {
   place_id: string
   admin: string
   added_by: string
+}
+
+export interface AddSceneStreamAccessInput {
+  place_id: string
+  streaming_url: string
+  streaming_key: string
 }
 
 export type ListSceneAdminFilters = {
@@ -206,6 +222,12 @@ export interface ISceneAdminManager {
   removeAdmin(placeId: string, adminAddress: string): Promise<void>
   listActiveAdmins(filters: ListSceneAdminFilters): Promise<SceneAdmin[]>
   isAdmin(placeId: string, address: string): Promise<boolean>
+}
+
+export interface ISceneStreamAccessManager {
+  addAccess(input: AddSceneStreamAccessInput): Promise<void>
+  removeAccess(placeId: string, adminAddress: string): Promise<void>
+  getAccess(placeId: string): Promise<SceneStreamAccess>
 }
 
 export class DuplicateAdminError extends Error {

@@ -8,6 +8,7 @@ import { createFetchComponent } from '@well-known-components/fetch-component'
 import { createSceneFetcherComponent } from './adapters/scene-fetcher'
 import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
+import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream-access-manager'
 import { createPgComponent } from '@well-known-components/pg-component'
 import { resolve } from 'path'
 
@@ -56,6 +57,8 @@ export async function initComponents(): Promise<AppComponents> {
 
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
 
+  const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
+
   const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch })
 
   return {
@@ -68,6 +71,7 @@ export async function initComponents(): Promise<AppComponents> {
     sceneFetcher,
     livekit,
     database,
-    sceneAdminManager
+    sceneAdminManager,
+    sceneStreamAccessManager
   }
 }
