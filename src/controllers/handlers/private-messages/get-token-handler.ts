@@ -1,7 +1,7 @@
 import { HandlerContextWithPath, UnauthorizedError } from '../../../types'
 
-export async function getPrivateConversationsTokenHandler(
-  context: HandlerContextWithPath<'fetch' | 'livekit' | 'logs' | 'blockList' | 'config', '/private-conversations/token'>
+export async function getPrivateMessagesTokenHandler(
+  context: HandlerContextWithPath<'fetch' | 'livekit' | 'logs' | 'blockList' | 'config', '/private-messages/token'>
 ) {
   const {
     components: { livekit, logs, blockList, config }
@@ -12,8 +12,8 @@ export async function getPrivateConversationsTokenHandler(
   if (!identity) {
     throw new UnauthorizedError('Access denied, invalid identity')
   }
-  const logger = logs.getLogger('get-private-conversations-token-handler')
-  const PRIVATE_CONVERSATIONS_ROOM_ID = await config.requireString('PRIVATE_CONVERSATIONS_ROOM_ID')
+  const logger = logs.getLogger('get-private-messages-token-handler')
+  const PRIVATE_MESSAGES_ROOM_ID = await config.requireString('PRIVATE_MESSAGES_ROOM_ID')
 
   const isBlacklisted = await blockList.isBlacklisted(identity)
   if (isBlacklisted) {
@@ -23,7 +23,7 @@ export async function getPrivateConversationsTokenHandler(
 
   const credentials = await livekit.generateCredentials(
     identity,
-    PRIVATE_CONVERSATIONS_ROOM_ID,
+    PRIVATE_MESSAGES_ROOM_ID,
     {
       cast: [],
       canPublish: false,

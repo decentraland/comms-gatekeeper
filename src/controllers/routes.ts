@@ -7,7 +7,7 @@ import { statusHandler } from './handlers/status-handler'
 import { commsSceneHandler } from './handlers/comms-scene-handler'
 import { muteHandler } from './handlers/mute-handler'
 import { addSceneAdminHandler, removeSceneAdminHandler, listSceneAdminsHandler } from './handlers/scene-admin-handlers'
-import { getPrivateConversationsTokenHandler } from './handlers/private-conversations/get-token-handler'
+import { getPrivateMessagesTokenHandler } from './handlers/private-messages/get-token-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -30,7 +30,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post('/scene-admin', auth, addSceneAdminHandler)
   router.delete('/scene-admin', auth, removeSceneAdminHandler)
 
-  router.get('/private-conversations/token', auth, getPrivateConversationsTokenHandler)
+  router.get('/private-messages/token', auth, getPrivateMessagesTokenHandler)
 
   return router
 }
