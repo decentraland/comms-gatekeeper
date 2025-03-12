@@ -1,22 +1,29 @@
+import { resolve } from 'path'
 import { createDotEnvConfigComponent } from '@well-known-components/env-config-provider'
 import { createServerComponent, createStatusCheckComponent } from '@well-known-components/http-server'
 import { createLogComponent } from '@well-known-components/logger'
 import { createMetricsComponent, instrumentHttpServerWithMetrics } from '@well-known-components/metrics'
+import { createTracerComponent } from '@well-known-components/tracer-component'
+import { instrumentHttpServerWithRequestLogger } from '@well-known-components/http-requests-logger-component'
+import { createHttpTracerComponent } from '@well-known-components/http-tracer-component'
+import { createPgComponent } from '@well-known-components/pg-component'
 import { AppComponents, GlobalContext } from './types'
 import { metricDeclarations } from './metrics'
-import { createFetchComponent } from '@well-known-components/fetch-component'
 import { createSceneFetcherComponent } from './adapters/scene-fetcher'
 import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
 import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream-access-manager'
 import { createPgComponent } from '@well-known-components/pg-component'
 import { resolve } from 'path'
+import { createTracedFetchComponent } from './adapters/traced-fetch'
+import { createBlockListComponent } from './adapters/blocklist'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
   const metrics = await createMetricsComponent(metricDeclarations, { config })
-  const logs = await createLogComponent({ metrics })
+  const tracer = createTracerComponent()
+  const logs = await createLogComponent({ metrics, tracer })
   const server = await createServerComponent<GlobalContext>(
     { config, logs },
     {
@@ -26,8 +33,11 @@ export async function initComponents(): Promise<AppComponents> {
     }
   )
   const statusChecks = await createStatusCheckComponent({ server, config })
-  const fetch = createFetchComponent()
+  const tracedFetch = createTracedFetchComponent({ tracer })
+  const blockList = await createBlockListComponent({ config, fetch: tracedFetch })
 
+  createHttpTracerComponent({ server, tracer })
+  instrumentHttpServerWithRequestLogger({ server, logger: logs })
   await instrumentHttpServerWithMetrics({ metrics, server, config })
 
   const livekit = await createLivekitComponent({ config, logs })
@@ -59,14 +69,16 @@ export async function initComponents(): Promise<AppComponents> {
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
-  const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch })
+  const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch: tracedFetch })
 
   return {
+    blockList,
     config,
     logs,
     server,
+    tracer,
     statusChecks,
-    fetch,
+    fetch: tracedFetch,
     metrics,
     sceneFetcher,
     livekit,
