@@ -1,6 +1,6 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
 import { AppComponents, LivekitCredentials, Permissions } from '../types'
-import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk'
+import { AccessToken, RoomServiceClient, TrackSource, WebhookEvent, WebhookReceiver } from 'livekit-server-sdk'
 
 export type LivekitSettings = {
   host: string
@@ -18,6 +18,7 @@ export type ILivekitComponent = IBaseComponent & {
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
   getWorldRoomName: (worldName: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
+  getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
 }
 
 export async function createLivekitComponent(
@@ -75,7 +76,7 @@ export async function createLivekitComponent(
 
     return {
       url: `wss://${settings.host}`,
-      token: token.toJwt()
+      token: await token.toJwt()
     }
   }
 
@@ -95,10 +96,17 @@ export async function createLivekitComponent(
     })
   }
 
+  const receiver = new WebhookReceiver(prodApiKey, prodSecret)
+
+  async function getWebhookEvent(body: string, authorization: string) {
+    return receiver.receive(body, authorization)
+  }
+
   return {
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
-    muteParticipant
+    muteParticipant,
+    getWebhookEvent
   }
 }
