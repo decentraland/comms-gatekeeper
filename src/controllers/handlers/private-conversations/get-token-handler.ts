@@ -6,7 +6,12 @@ export async function getPrivateConversationsTokenHandler(
   const {
     components: { livekit, logs, blockList, config }
   } = context
-  const identity: string = context.verification?.auth.toLowerCase() ?? '0x0000000000000000000000000000000000000000'
+
+  const identity: string | undefined = context.verification?.auth.toLowerCase()
+  // Not having an identity should not ever happen
+  if (!identity) {
+    throw new UnauthorizedError('Access denied, invalid identity')
+  }
   const logger = logs.getLogger('get-private-conversations-token-handler')
   const PRIVATE_CONVERSATIONS_ROOM_ID = await config.requireString('PRIVATE_CONVERSATIONS_ROOM_ID')
 
@@ -22,7 +27,6 @@ export async function getPrivateConversationsTokenHandler(
     {
       cast: [],
       canPublish: false,
-      canSubscribe: false,
       canUpdateOwnMetadata: false
     },
     false
