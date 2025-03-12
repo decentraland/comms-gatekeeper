@@ -13,6 +13,8 @@ import { createSceneFetcherComponent } from './adapters/scene-fetcher'
 import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
 import { createTracedFetchComponent } from './adapters/traced-fetch'
+import { createBlockListComponent } from './adapters/blocklist'
+
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
@@ -29,6 +31,7 @@ export async function initComponents(): Promise<AppComponents> {
   )
   const statusChecks = await createStatusCheckComponent({ server, config })
   const tracedFetch = createTracedFetchComponent({ tracer })
+  const blockList = await createBlockListComponent({ config, fetch: tracedFetch })
 
   createHttpTracerComponent({ server, tracer })
   instrumentHttpServerWithRequestLogger({ server, logger: logs })
@@ -64,6 +67,7 @@ export async function initComponents(): Promise<AppComponents> {
   const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch: tracedFetch })
 
   return {
+    blockList,
     config,
     logs,
     server,
