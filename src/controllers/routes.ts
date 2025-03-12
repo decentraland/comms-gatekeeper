@@ -1,4 +1,5 @@
 import { Router } from '@well-known-components/http-server'
+import { wellKnownComponents as authVerificationMiddleware } from '@dcl/platform-crypto-middleware'
 import { GlobalContext } from '../types'
 import { errorHandler } from './handlers/error-handler'
 import { pingHandler } from './handlers/ping-handler'
@@ -6,7 +7,7 @@ import { statusHandler } from './handlers/status-handler'
 import { commsSceneHandler } from './handlers/comms-scene-handler'
 import { muteHandler } from './handlers/mute-handler'
 import { addSceneAdminHandler, removeSceneAdminHandler, listSceneAdminsHandler } from './handlers/scene-admin-handlers'
-import { wellKnownComponents as authVerificationMiddleware } from '@dcl/platform-crypto-middleware'
+import { getPrivateMessagesTokenHandler } from './handlers/private-messages/get-token-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -28,6 +29,8 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.get('/scene-admin', auth, listSceneAdminsHandler)
   router.post('/scene-admin', auth, addSceneAdminHandler)
   router.delete('/scene-admin', auth, removeSceneAdminHandler)
+
+  router.get('/private-messages/token', auth, getPrivateMessagesTokenHandler)
 
   return router
 }
