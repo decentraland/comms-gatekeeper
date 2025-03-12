@@ -13,8 +13,6 @@ import { createSceneFetcherComponent } from './adapters/scene-fetcher'
 import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
 import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream-access-manager'
-import { createPgComponent } from '@well-known-components/pg-component'
-import { resolve } from 'path'
 import { createTracedFetchComponent } from './adapters/traced-fetch'
 import { createBlockListComponent } from './adapters/blocklist'
 
