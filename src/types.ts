@@ -95,6 +95,9 @@ export class ServiceUnavailableError extends Error {
 export type Permissions = {
   cast: string[]
   mute: string[]
+  canPublish?: boolean
+  canSubscribe?: boolean
+  canUpdateOwnMetadata?: boolean
 }
 
 export type LivekitCredentials = {

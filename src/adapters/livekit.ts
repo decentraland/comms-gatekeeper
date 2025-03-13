@@ -1,6 +1,6 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
 import { AppComponents, LivekitCredentials, Permissions } from '../types'
-import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk'
+import { AccessToken, RoomServiceClient, TrackSource, WebhookEvent, WebhookReceiver } from 'livekit-server-sdk'
 
 export type LivekitSettings = {
   host: string
@@ -12,12 +12,13 @@ export type ILivekitComponent = IBaseComponent & {
   generateCredentials: (
     identity: string,
     roomId: string,
-    permissons: Permissions,
+    permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
   getWorldRoomName: (worldName: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
+  getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
 }
 
 export async function createLivekitComponent(
@@ -51,11 +52,11 @@ export async function createLivekitComponent(
   async function generateCredentials(
     identity: string,
     roomId: string,
-    permissons: Permissions,
+    permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean
   ): Promise<LivekitCredentials> {
     const settings = forPreview ? previewSettings : prodSettings
-    const allSources = permissons.cast.includes(identity)
+    const allSources = permissions.cast.includes(identity)
     const token = new AccessToken(settings.apiKey, settings.secret, {
       identity,
       ttl: 5 * 60 // 5 minutes
@@ -66,16 +67,16 @@ export async function createLivekitComponent(
       roomJoin: true,
       room: roomId,
       roomList: false,
-      canPublish: true,
-      canSubscribe: true,
+      canPublish: permissions.canPublish ?? true,
+      canSubscribe: permissions.canSubscribe ?? true,
       canPublishData: true,
-      canUpdateOwnMetadata: true,
+      canUpdateOwnMetadata: permissions.canUpdateOwnMetadata ?? true,
       canPublishSources
     })
 
     return {
       url: `wss://${settings.host}`,
-      token: token.toJwt()
+      token: await token.toJwt()
     }
   }
 
@@ -95,10 +96,17 @@ export async function createLivekitComponent(
     })
   }
 
+  const receiver = new WebhookReceiver(prodApiKey, prodSecret)
+
+  async function getWebhookEvent(body: string, authorization: string) {
+    return receiver.receive(body, authorization)
+  }
+
   return {
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
-    muteParticipant
+    muteParticipant,
+    getWebhookEvent
   }
 }
