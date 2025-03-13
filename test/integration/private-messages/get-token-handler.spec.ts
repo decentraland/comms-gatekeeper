@@ -8,7 +8,9 @@ test('GET /private-messages/token', ({ components, stubComponents }) => {
     })
 
     it('should respond with a 401', async () => {
-      const response = await makeRequest(components.localFetch, '/private-messages/token')
+      const response = await makeRequest(components.localFetch, '/private-messages/token', {
+        metadata: { signer: 'dcl:explorer' }
+      })
 
       expect(response.status).toBe(401)
       expect(response.json()).resolves.toEqual({ error: 'Access denied, deny-listed wallet' })
@@ -29,7 +31,9 @@ test('GET /private-messages/token', ({ components, stubComponents }) => {
       })
 
       it('should respond with a 200 and a valid LiveKit token', async () => {
-        const response = await makeRequest(components.localFetch, '/private-messages/token')
+        const response = await makeRequest(components.localFetch, '/private-messages/token', {
+          metadata: { signer: 'dcl:explorer' }
+        })
 
         expect(response.status).toBe(200)
         expect(response.json()).resolves.toEqual({ adapter: 'livekit:https://livekit.io?access_token=valid-token' })
@@ -42,7 +46,9 @@ test('GET /private-messages/token', ({ components, stubComponents }) => {
       })
 
       it('should respond with a 500', async () => {
-        const response = await makeRequest(components.localFetch, '/private-messages/token')
+        const response = await makeRequest(components.localFetch, '/private-messages/token', {
+          metadata: { signer: 'dcl:explorer' }
+        })
 
         expect(response.status).toBe(500)
         expect(response.json()).resolves.toEqual({ error: 'Internal Server Error' })

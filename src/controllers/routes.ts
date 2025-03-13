@@ -20,6 +20,12 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'decentraland-kernel-scene'
   })
 
+  const authExplorer = authVerificationMiddleware({
+    fetcher: components.fetch,
+    optional: false,
+    metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'dcl:explorer'
+  })
+
   router.get('/ping', pingHandler)
   router.get('/status', statusHandler)
 
@@ -30,7 +36,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post('/scene-admin', auth, addSceneAdminHandler)
   router.delete('/scene-admin', auth, removeSceneAdminHandler)
 
-  router.get('/private-messages/token', auth, getPrivateMessagesTokenHandler)
+  router.get('/private-messages/token', authExplorer, getPrivateMessagesTokenHandler)
 
   return router
 }
