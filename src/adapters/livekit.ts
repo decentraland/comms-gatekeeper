@@ -12,7 +12,7 @@ export type ILivekitComponent = IBaseComponent & {
   generateCredentials: (
     identity: string,
     roomId: string,
-    permissons: Permissions,
+    permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
@@ -52,11 +52,11 @@ export async function createLivekitComponent(
   async function generateCredentials(
     identity: string,
     roomId: string,
-    permissons: Permissions,
+    permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean
   ): Promise<LivekitCredentials> {
     const settings = forPreview ? previewSettings : prodSettings
-    const allSources = permissons.cast.includes(identity)
+    const allSources = permissions.cast.includes(identity)
     const token = new AccessToken(settings.apiKey, settings.secret, {
       identity,
       ttl: 5 * 60 // 5 minutes
@@ -67,10 +67,10 @@ export async function createLivekitComponent(
       roomJoin: true,
       room: roomId,
       roomList: false,
-      canPublish: true,
-      canSubscribe: true,
+      canPublish: permissions.canPublish ?? true,
+      canSubscribe: permissions.canSubscribe ?? true,
       canPublishData: true,
-      canUpdateOwnMetadata: true,
+      canUpdateOwnMetadata: permissions.canUpdateOwnMetadata ?? true,
       canPublishSources
     })
 
