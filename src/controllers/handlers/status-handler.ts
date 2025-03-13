@@ -11,6 +11,7 @@ export async function statusHandler(context: Pick<HandlerContextWithPath<'config
   ])
 
   return {
+    status: 200,
     body: {
       version: version ?? '',
       currentTime: Date.now(),
