@@ -1,4 +1,10 @@
-import { AppComponents, AddSceneStreamAccessInput, ISceneStreamAccessManager, SceneStreamAccess } from '../types'
+import {
+  AppComponents,
+  AddSceneStreamAccessInput,
+  ISceneStreamAccessManager,
+  SceneStreamAccess,
+  StreamingAccessUnavailableError
+} from '../types'
 import SQL from 'sql-template-strings'
 
 export async function createSceneStreamAccessManagerComponent({
@@ -20,9 +26,9 @@ export async function createSceneStreamAccessManagerComponent({
 
     await database.query(
       SQL`INSERT INTO scene_stream_access 
-          (id, place_id, streaming_key, streaming_url, created_at, active) 
+          (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active) 
           VALUES 
-          (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${now}, true)`
+          (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true)`
     )
   }
 
@@ -40,14 +46,14 @@ export async function createSceneStreamAccessManagerComponent({
     logger.debug('Getting stream access', { placeId })
 
     const result = await database.query<SceneStreamAccess>(
-      SQL`SELECT id, place_id, streaming_key, streaming_url, created_at, active 
+      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active 
           FROM scene_stream_access 
           WHERE place_id = ${placeId} AND active = true 
           LIMIT 1`
     )
 
     if (result.rowCount === 0) {
-      throw new Error(`No active streaming access found for place ${placeId}`)
+      throw new StreamingAccessUnavailableError(`No active streaming access found for place ${placeId}`)
     }
 
     return result.rows[0]

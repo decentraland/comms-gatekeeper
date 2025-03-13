@@ -9,9 +9,10 @@ import type {
 } from '@well-known-components/interfaces'
 import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
-import { ILivekitComponent } from './adapters/livekit'
 import { IBlockListComponent } from './adapters/blocklist'
 import { IPgComponent } from '@well-known-components/pg-component'
+import { Room } from 'livekit-server-sdk'
+import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 
 export type ISceneFetcherComponent = IBaseComponent & {
   fetchWorldPermissions(worldName: string): Promise<Permissions | undefined>
@@ -86,6 +87,13 @@ export class UnauthorizedError extends Error {
 }
 
 export class ServiceUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
+export class StreamingAccessUnavailableError extends Error {
   constructor(message: string) {
     super(message)
     Error.captureStackTrace(this, this.constructor)
@@ -214,6 +222,7 @@ export interface AddSceneStreamAccessInput {
   place_id: string
   streaming_url: string
   streaming_key: string
+  ingress_id: string
 }
 
 export type ListSceneAdminFilters = {
@@ -238,4 +247,25 @@ export class DuplicateAdminError extends Error {
   constructor() {
     super('Admin already exists for this place')
   }
+}
+
+export type LivekitSettings = {
+  host: string
+  apiKey: string
+  secret: string
+}
+
+export type ILivekitComponent = IBaseComponent & {
+  generateCredentials: (
+    identity: string,
+    roomId: string,
+    permissons: Permissions,
+    forPreview: boolean
+  ) => Promise<LivekitCredentials>
+  muteParticipant: (roomId: string, participantId: string) => Promise<void>
+  getWorldRoomName: (worldName: string) => string
+  getSceneRoomName: (realmName: string, sceneId: string) => string
+  getRoom: (roomName: string) => Promise<Room>
+  getOrCreateIngress: (roomName: string) => Promise<IngressInfo>
+  removeIngress: (ingressId: string) => Promise<IngressInfo>
 }

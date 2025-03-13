@@ -5,6 +5,7 @@ export const SceneStreamAccessColumns: ColumnDefinitions = {
   place_id: { type: 'text', notNull: true },
   streaming_url: { type: 'text', notNull: true },
   streaming_key: { type: 'text', notNull: true },
+  ingress_id: { type: 'text', notNull: true },
   created_at: { type: 'bigint', notNull: true },
   active: { type: 'boolean', notNull: true, default: true }
 }
