@@ -21,8 +21,13 @@ export async function livekitWebhookHandler(
 
   const webhookEvent = await livekit.getWebhookEvent(body, authorization)
 
-  logger.debug(` >>> webhookEvent`)
-  logger.debug(JSON.stringify(webhookEvent))
+  if (
+    webhookEvent &&
+    (webhookEvent.room?.name === 'dev-brai.dcl.eth' || webhookEvent.event?.toLowerCase().includes('ingress'))
+  ) {
+    logger.debug(` >>> webhookEvent`)
+    logger.debug(JSON.stringify(webhookEvent))
+  }
 
   return {
     status: 200,
