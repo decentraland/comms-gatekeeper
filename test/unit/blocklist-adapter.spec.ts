@@ -1,10 +1,11 @@
-import { IConfigComponent, IFetchComponent, Response } from '@well-known-components/interfaces'
+import { IConfigComponent, IFetchComponent, ILoggerComponent, Response } from '@well-known-components/interfaces'
 import { createBlockListComponent, IBlockListComponent } from '../../src/adapters/blocklist'
 
 let blockList: IBlockListComponent
 let config: IConfigComponent
 let fetch: IFetchComponent
 let fetchMock: jest.MockedFunction<typeof fetch.fetch>
+let logs: ILoggerComponent
 
 beforeEach(async () => {
   fetchMock = jest.fn()
@@ -17,7 +18,12 @@ beforeEach(async () => {
   fetch = {
     fetch: fetchMock
   }
-  blockList = await createBlockListComponent({ config, fetch })
+  logs = {
+    getLogger: jest.fn().mockReturnValue({
+      warn: jest.fn()
+    })
+  }
+  blockList = await createBlockListComponent({ config, fetch, logs })
 })
 
 describe('when checking if a wallet is blacklisted', () => {
@@ -26,8 +32,8 @@ describe('when checking if a wallet is blacklisted', () => {
       fetchMock.mockRejectedValueOnce(new Error('Network error'))
     })
 
-    it('should reject, propagating the error', async () => {
-      await expect(blockList.isBlacklisted('0x123')).rejects.toThrow('Network error')
+    it('should resolve to be false', async () => {
+      await expect(blockList.isBlacklisted('0x123')).resolves.toBe(false)
     })
   })
 
@@ -36,8 +42,8 @@ describe('when checking if a wallet is blacklisted', () => {
       fetchMock.mockResolvedValueOnce({ ok: false, status: 404 } as Response)
     })
 
-    it('should reject with an error saying that the deny list could not be fetched', async () => {
-      await expect(blockList.isBlacklisted('0x123')).rejects.toThrow('Failed to fetch deny list, status: 404')
+    it('should resolve to be false', async () => {
+      await expect(blockList.isBlacklisted('0x123')).resolves.toBe(false)
     })
   })
 
@@ -47,8 +53,7 @@ describe('when checking if a wallet is blacklisted', () => {
     })
 
     it('should resolve to false', async () => {
-      const isBlacklisted = await blockList.isBlacklisted('0x123')
-      expect(isBlacklisted).toBe(false)
+      expect(blockList.isBlacklisted('0x123')).resolves.toBe(false)
     })
   })
 
@@ -58,8 +63,7 @@ describe('when checking if a wallet is blacklisted', () => {
     })
 
     it('should resolve to true', async () => {
-      const isBlacklisted = await blockList.isBlacklisted('0x123')
-      expect(isBlacklisted).toBe(true)
+      await expect(blockList.isBlacklisted('0x123')).resolves.toBe(true)
     })
   })
 })

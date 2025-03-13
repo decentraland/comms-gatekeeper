@@ -31,7 +31,7 @@ export async function initComponents(): Promise<AppComponents> {
   )
   const statusChecks = await createStatusCheckComponent({ server, config })
   const tracedFetch = createTracedFetchComponent({ tracer })
-  const blockList = await createBlockListComponent({ config, fetch: tracedFetch })
+  const blockList = await createBlockListComponent({ config, fetch: tracedFetch, logs })
 
   createHttpTracerComponent({ server, tracer })
   instrumentHttpServerWithRequestLogger({ server, logger: logs })
