@@ -10,8 +10,6 @@ export async function livekitWebhookHandler(
     request
   } = ctx
 
-  const logger = logs.getLogger('livekit-webhook')
-
   const body = await request.text()
   const authorization = request.headers.get('Authorization') || ''
 
@@ -25,6 +23,7 @@ export async function livekitWebhookHandler(
     webhookEvent &&
     (webhookEvent.room?.name === 'dev-brai.dcl.eth' || webhookEvent.event?.toLowerCase().includes('ingress'))
   ) {
+    const logger = logs.getLogger('livekit-webhook')
     logger.debug(` >>> webhookEvent`)
     logger.debug(JSON.stringify(webhookEvent))
   }
