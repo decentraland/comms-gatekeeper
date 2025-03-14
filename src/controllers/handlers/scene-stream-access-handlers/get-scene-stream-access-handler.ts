@@ -30,7 +30,11 @@ export async function getSceneStreamAccessHandler(
   const { getPlace, hasWorldPermission, hasLandPermission } = sceneFetcher
 
   const { parcel, hostname, realmName, sceneId } = await validate(ctx)
-  const isWorlds = hostname!.includes('worlds-content-server')
+  const isWorlds = !!hostname?.includes('worlds-content-server')
+
+  if (!isWorlds && !sceneId) {
+    throw new UnauthorizedError('Access denied, invalid signed-fetch request, no sceneId')
+  }
 
   const place = await getPlace(isWorlds, realmName, parcel)
 
@@ -41,14 +45,8 @@ export async function getSceneStreamAccessHandler(
   const isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)
 
   if (!isOwner && !isAdmin) {
-    logger.error(
-      `Access denied, you are not authorized to access this scene. Wallet ${authenticatedAddress}, Place ${place.id}`
-    )
+    logger.info(`Wallet ${authenticatedAddress} is not owner nor admin of the scene. Place ${place.id}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
-  }
-
-  if (!isWorlds && !sceneId) {
-    throw new UnauthorizedError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
   let roomName: string
@@ -64,13 +62,12 @@ export async function getSceneStreamAccessHandler(
   } catch (error) {
     if (error instanceof StreamingAccessUnavailableError) {
       const ingress = await livekit.getOrCreateIngress(roomName)
-      await sceneStreamAccessManager.addAccess({
+      access = await sceneStreamAccessManager.addAccess({
         place_id: place.id,
         streaming_url: ingress.url!,
         streaming_key: ingress.streamKey!,
         ingress_id: ingress.ingressId!
       })
-      access = await sceneStreamAccessManager.getAccess(place.id)
     } else {
       logger.error('Error getting stream access: ', { error: JSON.stringify(error) })
       throw error

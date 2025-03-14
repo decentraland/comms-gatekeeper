@@ -39,6 +39,9 @@ export async function createLivekitComponent(
   const prodSettings: LivekitSettings = { host: prodHost, apiKey: prodApiKey, secret: prodSecret }
   const previewSettings: LivekitSettings = { host: previewHost, apiKey: previewApiKey, secret: previewSecret }
 
+  const roomClient = new RoomServiceClient(prodHost, prodApiKey, prodSecret)
+  const ingressClient = new IngressClient(prodHost, prodApiKey, prodSecret)
+
   async function generateCredentials(
     identity: string,
     roomId: string,
@@ -78,8 +81,6 @@ export async function createLivekitComponent(
     return `${sceneRoomPrefix}${realmName}:${sceneId}`
   }
 
-  const roomClient = new RoomServiceClient(prodHost, prodApiKey, prodSecret)
-
   async function muteParticipant(roomId: string, participantId: string): Promise<void> {
     await roomClient.updateParticipant(roomId, participantId, undefined, {
       canPublishSources: []
@@ -100,8 +101,6 @@ export async function createLivekitComponent(
 
     return room
   }
-
-  const ingressClient = new IngressClient(prodHost, prodApiKey, prodSecret)
 
   async function getOrCreateIngress(roomName: string): Promise<IngressInfo> {
     const ingresses = await ingressClient.listIngress({

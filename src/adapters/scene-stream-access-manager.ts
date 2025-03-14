@@ -13,7 +13,7 @@ export async function createSceneStreamAccessManagerComponent({
 }: Pick<AppComponents, 'database' | 'logs'>): Promise<ISceneStreamAccessManager> {
   const logger = logs.getLogger('scene-stream-access-manager')
 
-  async function addAccess(input: AddSceneStreamAccessInput): Promise<void> {
+  async function addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess> {
     logger.debug('Adding stream access', { place_id: input.place_id })
 
     await database.query(
@@ -24,12 +24,15 @@ export async function createSceneStreamAccessManagerComponent({
 
     const now = Date.now()
 
-    await database.query(
+    const result = await database.query<SceneStreamAccess>(
       SQL`INSERT INTO scene_stream_access 
           (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active) 
           VALUES 
-          (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true)`
+          (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true)
+          RETURNING *`
     )
+
+    return result.rows[0]
   }
 
   async function removeAccess(placeId: string, adminAddress: string): Promise<void> {

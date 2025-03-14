@@ -5,7 +5,7 @@ import * as handlersUtils from '../../../src/controllers/handlers/utils'
 import { PlaceAttributes, StreamingAccessUnavailableError } from '../../../src/types'
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 
-test('GET /scene-stream-access - gets streaming access for scenes', ({ components }) => {
+test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
   const testPlaceId = `place-id-stream-access`
   let cleanup: TestCleanup
   const placeId = testPlaceId
@@ -61,19 +61,19 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValue({
+    stubComponents.sceneFetcher.getPlace.resolves({
       id: placeId,
       positions: ['10,20'],
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(true)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValue(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValue(false)
-    jest.spyOn(components.livekit, 'getSceneRoomName').mockReturnValue(`test-realm:test-scene`)
-    jest.spyOn(components.livekit, 'getWorldRoomName').mockReturnValue(`name.dcl.eth`)
-    jest.spyOn(components.livekit, 'getOrCreateIngress').mockResolvedValue(mockIngress)
-    jest.spyOn(components.sceneStreamAccessManager, 'getAccess').mockResolvedValue(mockSceneStreamAccess)
-    jest.spyOn(components.sceneStreamAccessManager, 'addAccess').mockResolvedValue(undefined)
+    stubComponents.sceneFetcher.hasLandPermission.resolves(true)
+    stubComponents.sceneFetcher.hasWorldPermission.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(false)
+    stubComponents.livekit.getSceneRoomName.resolves(`test-realm:test-scene`)
+    stubComponents.livekit.getWorldRoomName.resolves(`name.dcl.eth`)
+    stubComponents.livekit.getOrCreateIngress.resolves(mockIngress)
+    stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
+    stubComponents.sceneStreamAccessManager.addAccess.resolves(mockSceneStreamAccess)
   })
 
   afterEach(async () => {
@@ -95,23 +95,23 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     )
 
     expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body).toHaveProperty('streaming_url')
-    expect(body).toHaveProperty('streaming_key')
-    expect(body.streaming_url).toBe(mockSceneStreamAccess.streaming_url)
-    expect(body.streaming_key).toBe(mockSceneStreamAccess.streaming_key)
+
+    expect(response.json).resolves.toEqual({
+      streaming_url: mockSceneStreamAccess.streaming_url,
+      streaming_key: mockSceneStreamAccess.streaming_key
+    })
   })
 
   it('returns 200 with streaming access when user has world permission', async () => {
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValueOnce({
+    stubComponents.sceneFetcher.getPlace.resolves({
       id: placeId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(true)
+    stubComponents.sceneFetcher.hasLandPermission.resolves(false)
+    stubComponents.sceneFetcher.hasWorldPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -124,9 +124,10 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     )
 
     expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body).toHaveProperty('streaming_url')
-    expect(body).toHaveProperty('streaming_key')
+    expect(response.json).resolves.toEqual({
+      streaming_url: mockSceneStreamAccess.streaming_url,
+      streaming_key: mockSceneStreamAccess.streaming_key
+    })
   })
 
   it('returns 200 with streaming access when user is an admin', async () => {
@@ -147,18 +148,14 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     )
 
     expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body).toHaveProperty('streaming_url')
-    expect(body).toHaveProperty('streaming_key')
+    expect(response.json).resolves.toEqual({
+      streaming_url: mockSceneStreamAccess.streaming_url,
+      streaming_key: mockSceneStreamAccess.streaming_key
+    })
   })
 
   it('creates a new ingress when streaming access does not exist', async () => {
-    const { localFetch } = components
-
-    jest
-      .spyOn(components.sceneStreamAccessManager, 'getAccess')
-      .mockRejectedValueOnce(new StreamingAccessUnavailableError('No access'))
-      .mockResolvedValueOnce(mockSceneStreamAccess)
+    const { localFetch, livekit, sceneStreamAccessManager } = components
 
     const response = await makeRequest(
       localFetch,
@@ -170,8 +167,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       owner
     )
 
-    expect(components.livekit.getOrCreateIngress).toHaveBeenCalled()
-    expect(components.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith({
+    expect(livekit.getOrCreateIngress).toHaveBeenCalled()
+    expect(sceneStreamAccessManager.addAccess).toHaveBeenCalledWith({
       place_id: placeId,
       streaming_url: mockIngress.url,
       streaming_key: mockIngress.streamKey,
