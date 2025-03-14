@@ -31,7 +31,7 @@ export async function addSceneAdminHandler(
   }
 
   const { parcel, hostname, realmName } = await validate(ctx)
-  const isWorlds = hostname!.includes('worlds-content-server')
+  const isWorlds = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
   const place = await getPlace(isWorlds, realmName, parcel)
 

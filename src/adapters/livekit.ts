@@ -1,29 +1,20 @@
-import { IBaseComponent } from '@well-known-components/interfaces'
-import { AppComponents, LivekitCredentials, Permissions } from '../types'
-import { AccessToken, RoomServiceClient, TrackSource } from 'livekit-server-sdk'
-
-export type LivekitSettings = {
-  host: string
-  apiKey: string
-  secret: string
-}
-
-export type ILivekitComponent = IBaseComponent & {
-  generateCredentials: (
-    identity: string,
-    roomId: string,
-    permissions: Omit<Permissions, 'mute'>,
-    forPreview: boolean
-  ) => Promise<LivekitCredentials>
-  muteParticipant: (roomId: string, participantId: string) => Promise<void>
-  getWorldRoomName: (worldName: string) => string
-  getSceneRoomName: (realmName: string, sceneId: string) => string
-}
+import { AppComponents, ILivekitComponent, LivekitCredentials, LivekitSettings, Permissions } from '../types'
+import {
+  AccessToken,
+  CreateIngressOptions,
+  IngressClient,
+  Room,
+  RoomServiceClient,
+  TrackSource
+} from 'livekit-server-sdk'
+import { IngressInfo, IngressInput } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 
 export async function createLivekitComponent(
   components: Pick<AppComponents, 'config' | 'logs'>
 ): Promise<ILivekitComponent> {
-  const { config } = components
+  const { config, logs } = components
+
+  const logger = logs.getLogger('livekit-adapter')
 
   const [
     worldRoomPrefix,
@@ -47,6 +38,9 @@ export async function createLivekitComponent(
 
   const prodSettings: LivekitSettings = { host: prodHost, apiKey: prodApiKey, secret: prodSecret }
   const previewSettings: LivekitSettings = { host: previewHost, apiKey: previewApiKey, secret: previewSecret }
+
+  const roomClient = new RoomServiceClient(prodHost, prodApiKey, prodSecret)
+  const ingressClient = new IngressClient(prodHost, prodApiKey, prodSecret)
 
   async function generateCredentials(
     identity: string,
@@ -87,18 +81,67 @@ export async function createLivekitComponent(
     return `${sceneRoomPrefix}${realmName}:${sceneId}`
   }
 
-  const client = new RoomServiceClient(prodHost, prodApiKey, prodSecret)
-
   async function muteParticipant(roomId: string, participantId: string): Promise<void> {
-    await client.updateParticipant(roomId, participantId, undefined, {
+    await roomClient.updateParticipant(roomId, participantId, undefined, {
       canPublishSources: []
     })
+  }
+
+  async function getRoom(roomName: string): Promise<Room> {
+    const existingRoom = await roomClient.listRooms([roomName])
+
+    let room
+    if (existingRoom.length > 0) {
+      room = existingRoom[0]
+    } else {
+      room = await roomClient.createRoom({
+        name: roomName
+      })
+    }
+
+    return room
+  }
+
+  async function getOrCreateIngress(roomName: string): Promise<IngressInfo> {
+    const ingresses = await ingressClient.listIngress({
+      roomName: roomName
+    })
+
+    const ingressOptions: CreateIngressOptions = {
+      name: `${roomName}-ingress`,
+      roomName: roomName
+    }
+
+    let ingress: IngressInfo
+    if (ingresses.length > 0) {
+      ingress = ingresses[0]
+    } else {
+      ingress = await ingressClient.createIngress(IngressInput.RTMP_INPUT, ingressOptions)
+      logger.info(`Ingress created for room ${roomName}.`, { ingress: JSON.stringify(ingress) })
+    }
+
+    return ingress
+  }
+
+  async function removeIngress(ingressId: string): Promise<IngressInfo> {
+    const ingresses = await ingressClient.listIngress({
+      ingressId: ingressId
+    })
+
+    if (ingresses.length === 0) {
+      logger.error(`No ingress found with ID ${ingressId}`)
+      throw new Error(`No ingress found with ID ${ingressId}`)
+    }
+    return ingressClient.deleteIngress(ingressId)
   }
 
   return {
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
-    muteParticipant
+    muteParticipant,
+    getRoom,
+    getOrCreateIngress,
+    removeIngress
   }
 }

@@ -12,6 +12,7 @@ import { metricDeclarations } from './metrics'
 import { createSceneFetcherComponent } from './adapters/scene-fetcher'
 import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
+import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream-access-manager'
 import { createTracedFetchComponent } from './adapters/traced-fetch'
 import { createBlockListComponent } from './adapters/blocklist'
 
@@ -64,6 +65,8 @@ export async function initComponents(): Promise<AppComponents> {
 
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
 
+  const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
+
   const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch: tracedFetch })
 
   return {
@@ -78,6 +81,7 @@ export async function initComponents(): Promise<AppComponents> {
     sceneFetcher,
     livekit,
     database,
-    sceneAdminManager
+    sceneAdminManager,
+    sceneStreamAccessManager
   }
 }
