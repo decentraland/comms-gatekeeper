@@ -103,6 +103,9 @@ export class StreamingAccessUnavailableError extends Error {
 export type Permissions = {
   cast: string[]
   mute: string[]
+  canPublish?: boolean
+  canSubscribe?: boolean
+  canUpdateOwnMetadata?: boolean
 }
 
 export type LivekitCredentials = {
@@ -259,7 +262,7 @@ export type ILivekitComponent = IBaseComponent & {
   generateCredentials: (
     identity: string,
     roomId: string,
-    permissons: Permissions,
+    permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
