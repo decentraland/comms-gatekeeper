@@ -211,6 +211,7 @@ export type SceneStreamAccess = {
   place_id: string
   streaming_key: string
   streaming_url: string
+  ingress_id: string
   created_at: number
   active: boolean
 }
