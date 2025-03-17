@@ -9,9 +9,10 @@ import type {
 } from '@well-known-components/interfaces'
 import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
-import { ILivekitComponent } from './adapters/livekit'
 import { IBlockListComponent } from './adapters/blocklist'
 import { IPgComponent } from '@well-known-components/pg-component'
+import { Room } from 'livekit-server-sdk'
+import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 
 export type ISceneFetcherComponent = IBaseComponent & {
   fetchWorldPermissions(worldName: string): Promise<Permissions | undefined>
@@ -40,6 +41,7 @@ export type BaseComponents = {
   database: IPgComponent
   sceneAdminManager: ISceneAdminManager
   sceneFetcher: ISceneFetcherComponent
+  sceneStreamAccessManager: ISceneStreamAccessManager
 }
 
 export type AppComponents = BaseComponents & {
@@ -85,6 +87,13 @@ export class UnauthorizedError extends Error {
 }
 
 export class ServiceUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
+export class StreamingAccessUnavailableError extends Error {
   constructor(message: string) {
     super(message)
     Error.captureStackTrace(this, this.constructor)
@@ -197,10 +206,27 @@ export type SceneAdmin = {
   active: boolean
 }
 
+export type SceneStreamAccess = {
+  id: string
+  place_id: string
+  streaming_key: string
+  streaming_url: string
+  ingress_id: string
+  created_at: number
+  active: boolean
+}
+
 export interface AddSceneAdminInput {
   place_id: string
   admin: string
   added_by: string
+}
+
+export interface AddSceneStreamAccessInput {
+  place_id: string
+  streaming_url: string
+  streaming_key: string
+  ingress_id: string
 }
 
 export type ListSceneAdminFilters = {
@@ -215,8 +241,35 @@ export interface ISceneAdminManager {
   isAdmin(placeId: string, address: string): Promise<boolean>
 }
 
+export interface ISceneStreamAccessManager {
+  addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess>
+  removeAccess(placeId: string, adminAddress: string): Promise<void>
+  getAccess(placeId: string): Promise<SceneStreamAccess>
+}
+
 export class DuplicateAdminError extends Error {
   constructor() {
     super('Admin already exists for this place')
   }
+}
+
+export type LivekitSettings = {
+  host: string
+  apiKey: string
+  secret: string
+}
+
+export type ILivekitComponent = IBaseComponent & {
+  generateCredentials: (
+    identity: string,
+    roomId: string,
+    permissions: Omit<Permissions, 'mute'>,
+    forPreview: boolean
+  ) => Promise<LivekitCredentials>
+  muteParticipant: (roomId: string, participantId: string) => Promise<void>
+  getWorldRoomName: (worldName: string) => string
+  getSceneRoomName: (realmName: string, sceneId: string) => string
+  getRoom: (roomName: string) => Promise<Room>
+  getOrCreateIngress: (roomName: string) => Promise<IngressInfo>
+  removeIngress: (ingressId: string) => Promise<IngressInfo>
 }
