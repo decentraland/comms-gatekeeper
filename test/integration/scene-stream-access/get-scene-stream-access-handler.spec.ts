@@ -4,6 +4,7 @@ import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/controllers/handlers/utils'
 import { InvalidRequestError, PlaceAttributes, StreamingAccessUnavailableError } from '../../../src/types'
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
+import { resolveSoa } from 'dns'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
   const placeId = `place-id-stream-access`
@@ -163,9 +164,9 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 200 with streaming access when user is an admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(true)
+    stubComponents.sceneFetcher.hasLandPermission.resolves(false)
+    stubComponents.sceneFetcher.hasWorldPermission.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -235,9 +236,9 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
+    stubComponents.sceneFetcher.hasLandPermission.resolves(false)
+    stubComponents.sceneFetcher.hasWorldPermission.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
