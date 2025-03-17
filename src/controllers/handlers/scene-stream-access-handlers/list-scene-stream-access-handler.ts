@@ -1,23 +1,18 @@
-import {
-  InvalidRequestError,
-  SceneStreamAccess,
-  StreamingAccessUnavailableError,
-  UnauthorizedError
-} from '../../../types'
+import { InvalidRequestError, UnauthorizedError } from '../../../types'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../utils'
 
-export async function getSceneStreamAccessHandler(
+export async function listSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneAdminManager' | 'sceneStreamAccessManager' | 'sceneFetcher' | 'livekit' | 'logs' | 'config',
+      'fetch' | 'sceneAdminManager' | 'sceneStreamAccessManager' | 'sceneFetcher' | 'logs' | 'config',
       '/scene-stream-access'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneStreamAccessManager, sceneFetcher, livekit },
+    components: { logs, sceneAdminManager, sceneStreamAccessManager, sceneFetcher },
     verification
   } = ctx
   const logger = logs.getLogger('get-scene-stream-access-handler')
@@ -49,36 +44,15 @@ export async function getSceneStreamAccessHandler(
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
   }
 
-  let roomName: string
-  if (isWorlds) {
-    roomName = livekit.getWorldRoomName(realmName)
-  } else {
-    roomName = livekit.getSceneRoomName(realmName, sceneId!)
-  }
-
-  let access: SceneStreamAccess
-  try {
-    access = await sceneStreamAccessManager.getAccess(place.id)
-  } catch (error) {
-    if (error instanceof StreamingAccessUnavailableError) {
-      const ingress = await livekit.getOrCreateIngress(roomName)
-      access = await sceneStreamAccessManager.addAccess({
-        place_id: place.id,
-        streaming_url: ingress.url!,
-        streaming_key: ingress.streamKey!,
-        ingress_id: ingress.ingressId!
-      })
-    } else {
-      logger.error('Error getting stream access: ', { error: JSON.stringify(error) })
-      throw error
-    }
-  }
+  const access = await sceneStreamAccessManager.getAccess(place.id)
 
   return {
     status: 200,
     body: {
       streaming_url: access.streaming_url,
-      streaming_key: access.streaming_key
+      streaming_key: access.streaming_key,
+      created_at: access.created_at,
+      ends_at: access.created_at + 4 * 24 * 60 * 60
     }
   }
 }

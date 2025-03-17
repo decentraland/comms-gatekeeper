@@ -8,7 +8,8 @@ import { commsSceneHandler } from './handlers/comms-scene-handler'
 import { muteHandler } from './handlers/mute-handler'
 import { addSceneAdminHandler, removeSceneAdminHandler, listSceneAdminsHandler } from './handlers/scene-admin-handlers'
 import { getPrivateMessagesTokenHandler } from './handlers/private-messages/get-token-handler'
-import { getSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/get-scene-stream-access-handler'
+import { addSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/add-scene-stream-access-handler'
+import { listSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/list-scene-stream-access-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -37,7 +38,8 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post('/scene-admin', auth, addSceneAdminHandler)
   router.delete('/scene-admin', auth, removeSceneAdminHandler)
 
-  router.get('/scene-stream-access', auth, getSceneStreamAccessHandler)
+  router.get('/scene-stream-access', auth, listSceneStreamAccessHandler)
+  router.post('/scene-stream-access', auth, addSceneStreamAccessHandler)
 
   router.get('/private-messages/token', authExplorer, getPrivateMessagesTokenHandler)
 

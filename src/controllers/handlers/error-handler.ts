@@ -1,5 +1,11 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { InvalidRequestError, NotFoundError, ServiceUnavailableError, UnauthorizedError } from '../../types'
+import {
+  InvalidRequestError,
+  NotFoundError,
+  ServiceUnavailableError,
+  StreamingAccessUnavailableError,
+  UnauthorizedError
+} from '../../types'
 
 export async function errorHandler(
   _ctx: IHttpServerComponent.DefaultContext<object>,
@@ -17,7 +23,7 @@ export async function errorHandler(
       }
     }
 
-    if (error instanceof NotFoundError) {
+    if (error instanceof NotFoundError || error instanceof StreamingAccessUnavailableError) {
       return {
         status: 404,
         body: {
