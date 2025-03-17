@@ -2,7 +2,7 @@ import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/controllers/handlers/utils'
-import { PlaceAttributes, StreamingAccessUnavailableError } from '../../../src/types'
+import { InvalidRequestError, PlaceAttributes, StreamingAccessUnavailableError } from '../../../src/types'
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
@@ -250,6 +250,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     )
 
     expect(response.status).toBe(401)
+    const body = await response.json()
+    expect(body.error).toBe('Access denied, you are not authorized to access this scene')
   })
 
   it('returns 401 if no sceneId in a land request', async () => {
@@ -269,12 +271,16 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     )
 
     expect(response.status).toBe(401)
+    const body = await response.json()
+    expect(body.error).toBe('Access denied, invalid signed-fetch request, no sceneId')
   })
 
-  it('returns 500 when place is not found', async () => {
+  it('returns 400 when place is not found', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValueOnce(null)
+    jest
+      .spyOn(components.sceneFetcher, 'getPlace')
+      .mockRejectedValueOnce(new InvalidRequestError('Could not find scene information'))
 
     const response = await makeRequest(
       localFetch,
@@ -286,7 +292,9 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       owner
     )
 
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toBe('Could not find scene information')
   })
 
   it('returns 400 when no authentication is provided', async () => {
@@ -297,5 +305,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     })
 
     expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.message).toBe('Invalid Auth Chain')
   })
 })
