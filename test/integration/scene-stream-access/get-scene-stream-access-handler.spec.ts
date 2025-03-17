@@ -6,9 +6,10 @@ import { PlaceAttributes, StreamingAccessUnavailableError } from '../../../src/t
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
-  const testPlaceId = `place-id-stream-access`
+  const placeId = `place-id-stream-access`
+  const anotherPlaceId = `another-place-id-stream-access`
+  const placeWorldId = `place-id-world-stream-access`
   let cleanup: TestCleanup
-  const placeId = testPlaceId
 
   type Metadata = {
     identity: string
@@ -22,10 +23,10 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   let metadataWorld: Metadata
   let mockIngress: IngressInfo
   let mockSceneStreamAccess: any
-
-  beforeEach(async () => {
+  beforeAll(async () => {
     cleanup = new TestCleanup(components.database)
-
+  })
+  beforeEach(async () => {
     mockIngress = {
       id: 'mock-ingress-id',
       name: 'mock-ingress',
@@ -72,8 +73,6 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.livekit.getSceneRoomName.resolves(`test-realm:test-scene`)
     stubComponents.livekit.getWorldRoomName.resolves(`name.dcl.eth`)
     stubComponents.livekit.getOrCreateIngress.resolves(mockIngress)
-    stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
-    stubComponents.sceneStreamAccessManager.addAccess.resolves(mockSceneStreamAccess)
   })
 
   afterEach(async () => {
@@ -82,7 +81,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   })
 
   it('returns 200 with streaming access when user has land permission', async () => {
-    const { localFetch } = components
+    const { localFetch, database } = components
 
     const response = await makeRequest(
       localFetch,
@@ -95,19 +94,34 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     )
 
     expect(response.status).toBe(200)
+    const body = await response.json()
 
-    expect(response.json).resolves.toEqual({
+    const accessResult = await database.query(`
+      SELECT * FROM scene_stream_access 
+      WHERE place_id = '${placeId}' AND active = true
+    `)
+
+    expect(accessResult.rowCount).toBe(1)
+    const savedAccess = accessResult.rows[0]
+    expect(savedAccess.streaming_url).toBe(mockIngress.url)
+    expect(savedAccess.streaming_key).toBe(mockIngress.streamKey)
+
+    if (body) {
+      cleanup.trackInsert('scene_stream_access', body)
+    }
+
+    expect(body).toEqual({
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key
     })
   })
 
   it('returns 200 with streaming access when user has world permission', async () => {
-    const { localFetch } = components
+    const { localFetch, database } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
     stubComponents.sceneFetcher.getPlace.resolves({
-      id: placeId,
+      id: placeWorldId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
     stubComponents.sceneFetcher.hasLandPermission.resolves(false)
@@ -124,7 +138,23 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     )
 
     expect(response.status).toBe(200)
-    expect(response.json).resolves.toEqual({
+    const body = await response.json()
+
+    const accessResult = await database.query(`
+      SELECT * FROM scene_stream_access 
+      WHERE place_id = '${placeWorldId}' AND active = true
+    `)
+
+    expect(accessResult.rowCount).toBe(1)
+    const savedAccess = accessResult.rows[0]
+    expect(savedAccess.streaming_url).toBe(mockIngress.url)
+    expect(savedAccess.streaming_key).toBe(mockIngress.streamKey)
+
+    if (body) {
+      cleanup.trackInsert('scene_stream_access', body)
+    }
+
+    expect(body).toEqual({
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key
     })
@@ -148,35 +178,56 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     )
 
     expect(response.status).toBe(200)
-    expect(response.json).resolves.toEqual({
+    const body = await response.json()
+
+    if (body) {
+      cleanup.trackInsert('scene_stream_access', body)
+    }
+
+    expect(body).toEqual({
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key
     })
   })
 
-  it('creates a new ingress when streaming access does not exist', async () => {
-    const { localFetch, livekit, sceneStreamAccessManager } = components
+  it('returns 200 with a new streaming access when it does not exist', async () => {
+    const { localFetch, livekit, database } = components
+
+    stubComponents.sceneFetcher.getPlace.resolves({
+      id: anotherPlaceId,
+      positions: ['11,22'],
+      owner: owner.authChain[0].payload
+    } as PlaceAttributes)
+    stubComponents.livekit.getSceneRoomName.resolves(`another-test-realm:another-test-scene`)
+    stubComponents.livekit.getOrCreateIngress.resolves(mockIngress)
 
     const response = await makeRequest(
       localFetch,
       '/scene-stream-access',
       {
         method: 'GET',
-        metadata: metadataLand
+        metadata: { ...metadataLand, sceneId: 'another-test-scene', parcel: '11,22' }
       },
       owner
     )
 
-    expect(livekit.getOrCreateIngress).toHaveBeenCalled()
-    expect(sceneStreamAccessManager.addAccess).toHaveBeenCalledWith({
-      place_id: placeId,
-      streaming_url: mockIngress.url,
-      streaming_key: mockIngress.streamKey,
-      ingress_id: mockIngress.ingressId
-    })
+    const accessResult = await database.query(`
+      SELECT * FROM scene_stream_access 
+      WHERE place_id = '${anotherPlaceId}' AND active = true
+    `)
+
+    expect(accessResult.rowCount).toBe(1)
+    const savedAccess = accessResult.rows[0]
+    expect(savedAccess.streaming_url).toBe(mockIngress.url)
+    expect(savedAccess.streaming_key).toBe(mockIngress.streamKey)
 
     expect(response.status).toBe(200)
     const body = await response.json()
+
+    if (body) {
+      cleanup.trackInsert('scene_stream_access', body)
+    }
+
     expect(body).toHaveProperty('streaming_url')
     expect(body).toHaveProperty('streaming_key')
   })

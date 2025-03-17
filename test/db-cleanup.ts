@@ -15,7 +15,6 @@ export class TestCleanup {
 
   async cleanup() {
     await this.cleanupTableData()
-    await this.cleanupSceneAdmins()
     this.resetCollections()
   }
 
@@ -38,19 +37,7 @@ export class TestCleanup {
     }
   }
 
-  private async cleanupSceneAdmins() {
-    if (this.placeIds.length === 0) return
-
-    try {
-      const placeIdsString = this.placeIds.map((id) => `'${id}'`).join(', ')
-      await this.pg.query(`DELETE FROM scene_admin WHERE place_id IN (${placeIdsString})`)
-    } catch (error) {
-      console.error(' >>>  Error cleaning scene administrators:', error)
-    }
-  }
-
   private resetCollections() {
-    this.placeIds = []
     this.tableData = {}
   }
 }
