@@ -100,6 +100,13 @@ export class StreamingAccessUnavailableError extends Error {
   }
 }
 
+export class PlaceNotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
 export type Permissions = {
   cast: string[]
   mute: string[]
