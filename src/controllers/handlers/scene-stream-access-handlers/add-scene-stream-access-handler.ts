@@ -63,7 +63,7 @@ export async function addSceneStreamAccessHandler(
     access = await sceneStreamAccessManager.getAccess(place.id)
   } catch (error) {
     if (error instanceof StreamingAccessUnavailableError) {
-      const ingress = await livekit.getOrCreateIngress(roomName)
+      const ingress = await livekit.getOrCreateIngress(roomName, authenticatedAddress)
       access = await sceneStreamAccessManager.addAccess({
         place_id: place.id,
         streaming_url: ingress.url!,
