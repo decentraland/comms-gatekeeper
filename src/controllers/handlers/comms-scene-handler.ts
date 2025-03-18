@@ -1,6 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, NotFoundError, UnauthorizedError, Permissions } from '../../types'
-import { validate } from './utils'
+import { validate } from '../../logic/utils'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<

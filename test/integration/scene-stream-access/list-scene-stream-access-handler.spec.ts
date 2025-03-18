@@ -1,10 +1,11 @@
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
-import * as handlersUtils from '../../../src/controllers/handlers/utils'
+import * as handlersUtils from '../../../src/logic/utils'
 import { InvalidRequestError, PlaceAttributes, StreamingAccessUnavailableError } from '../../../src/types'
 
 test('GET /scene-stream-access - lists streaming access for scenes', ({ components, stubComponents }) => {
+  const FOUR_DAYS = 4 * 24 * 60 * 60
   const placeId = `place-id-stream-access-list`
   const placeWorldId = `place-id-world-stream-access-list`
   let cleanup: TestCleanup
@@ -89,7 +90,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: body.created_at,
-      ends_at: body.created_at + 4 * 24 * 60 * 60
+      ends_at: body.created_at + FOUR_DAYS
     })
   })
 
@@ -121,7 +122,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: body.created_at,
-      ends_at: body.created_at + 4 * 24 * 60 * 60
+      ends_at: body.created_at + FOUR_DAYS
     })
   })
 
@@ -149,7 +150,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: body.created_at,
-      ends_at: body.created_at + 4 * 24 * 60 * 60
+      ends_at: body.created_at + FOUR_DAYS
     })
   })
 

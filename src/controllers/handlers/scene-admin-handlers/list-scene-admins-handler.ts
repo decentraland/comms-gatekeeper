@@ -1,6 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, InvalidRequestError, UnauthorizedError } from '../../../types'
-import { validate, validateFilters } from '../utils'
+import { validate, validateFilters } from '../../../logic/utils'
 
 export async function listSceneAdminsHandler(
   ctx: Pick<

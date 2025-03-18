@@ -1,11 +1,12 @@
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
-import * as handlersUtils from '../../../src/controllers/handlers/utils'
+import * as handlersUtils from '../../../src/logic/utils'
 import { InvalidRequestError, PlaceAttributes } from '../../../src/types'
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
+  const FOUR_DAYS = 4 * 24 * 60 * 60
   const placeId = `place-id-stream-access`
   const anotherPlaceId = `another-place-id-stream-access`
   const placeWorldId = `place-id-world-stream-access`
@@ -115,7 +116,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: body.created_at,
-      ends_at: body.created_at + 4 * 24 * 60 * 60
+      ends_at: body.created_at + FOUR_DAYS
     })
 
     const created = Number(body.created_at)
@@ -166,7 +167,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: body.created_at,
-      ends_at: body.created_at + 4 * 24 * 60 * 60
+      ends_at: body.created_at + FOUR_DAYS
     })
   })
 
@@ -199,7 +200,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: body.created_at,
-      ends_at: body.created_at + 4 * 24 * 60 * 60
+      ends_at: body.created_at + FOUR_DAYS
     })
   })
 

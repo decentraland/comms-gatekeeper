@@ -1,7 +1,7 @@
 import { EthAddress } from '@dcl/schemas'
 import { InvalidRequestError, UnauthorizedError } from '../../../types'
 import { HandlerContextWithPath } from '../../../types'
-import { validate } from '../utils'
+import { validate } from '../../../logic/utils'
 
 export async function addSceneAdminHandler(
   ctx: Pick<

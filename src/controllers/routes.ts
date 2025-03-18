@@ -7,9 +7,8 @@ import { statusHandler } from './handlers/status-handler'
 import { commsSceneHandler } from './handlers/comms-scene-handler'
 import { muteHandler } from './handlers/mute-handler'
 import { addSceneAdminHandler, removeSceneAdminHandler, listSceneAdminsHandler } from './handlers/scene-admin-handlers'
+import { addSceneStreamAccessHandler, listSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers'
 import { getPrivateMessagesTokenHandler } from './handlers/private-messages/get-token-handler'
-import { addSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/add-scene-stream-access-handler'
-import { listSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/list-scene-stream-access-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {

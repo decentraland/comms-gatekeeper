@@ -1,6 +1,8 @@
 import { InvalidRequestError, UnauthorizedError } from '../../../types'
 import { HandlerContextWithPath } from '../../../types'
-import { validate } from '../utils'
+import { validate } from '../../../logic/utils'
+
+const FOUR_DAYS = 4 * 24 * 60 * 60
 
 export async function listSceneStreamAccessHandler(
   ctx: Pick<
@@ -52,7 +54,7 @@ export async function listSceneStreamAccessHandler(
       streaming_url: access.streaming_url,
       streaming_key: access.streaming_key,
       created_at: access.created_at,
-      ends_at: access.created_at + 4 * 24 * 60 * 60
+      ends_at: access.created_at + FOUR_DAYS
     }
   }
 }
