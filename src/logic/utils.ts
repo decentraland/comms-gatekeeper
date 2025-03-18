@@ -1,5 +1,5 @@
 import { DecentralandSignatureData, verify } from '@dcl/platform-crypto-middleware'
-import { HandlerContextWithPath, UnauthorizedError, AuthData } from '../../types'
+import { HandlerContextWithPath, UnauthorizedError, AuthData } from '../types'
 
 export async function validate<T extends string>(
   context: HandlerContextWithPath<'fetch' | 'config', T>
