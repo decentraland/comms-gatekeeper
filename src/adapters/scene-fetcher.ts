@@ -2,11 +2,11 @@ import {
   AddressResource,
   AddressResourceResponse,
   AppComponents,
-  InvalidRequestError,
   LandsResponse,
   Permissions,
   PlaceAttributes,
-  ISceneFetcherComponent
+  ISceneFetcherComponent,
+  PlaceNotFoundError
 } from '../types'
 import { LRUCache } from 'lru-cache'
 import { ensureSlashAtTheEnd } from '../logic/utils'
@@ -109,18 +109,20 @@ export async function createSceneFetcherComponent(
     const response = await fetch.fetch(`${placesApiUrl}/worlds?names=${worldName}`)
 
     if (!response.ok) {
-      throw new Error(`Error getting world information: ${response.status}`)
+      throw new PlaceNotFoundError(`Error getting world information: ${response.status}`)
     }
 
     const data = await response.json()
 
     if (!data?.data?.length) {
-      throw new Error(`No world found with name ${worldName}`)
+      throw new PlaceNotFoundError(`No world found with name ${worldName}`)
     }
 
     const worldInfo = data.data[0]
     if (worldInfo.world_name !== worldName) {
-      throw new Error(`The world_name ${worldInfo.world_name} does not match the requested realmName ${worldName}`)
+      throw new PlaceNotFoundError(
+        `The world_name ${worldInfo.world_name} does not match the requested realmName ${worldName}`
+      )
     }
 
     return worldInfo
@@ -130,14 +132,14 @@ export async function createSceneFetcherComponent(
     if (isWorlds) {
       const worldInfo = await getWorldByName(realmName)
       if (!worldInfo) {
-        throw new InvalidRequestError('Could not find world information')
+        throw new PlaceNotFoundError('Could not find world information')
       }
       return worldInfo
     }
 
     const sceneInfo = await getPlaceByParcel(parcel)
     if (!sceneInfo) {
-      throw new InvalidRequestError('Could not find scene information')
+      throw new PlaceNotFoundError('Could not find scene information')
     }
     return sceneInfo
   }

@@ -2,6 +2,7 @@ import { IHttpServerComponent } from '@well-known-components/interfaces'
 import {
   InvalidRequestError,
   NotFoundError,
+  PlaceNotFoundError,
   ServiceUnavailableError,
   StreamingAccessUnavailableError,
   UnauthorizedError
@@ -23,7 +24,11 @@ export async function errorHandler(
       }
     }
 
-    if (error instanceof NotFoundError || error instanceof StreamingAccessUnavailableError) {
+    if (
+      error instanceof NotFoundError ||
+      error instanceof StreamingAccessUnavailableError ||
+      error instanceof PlaceNotFoundError
+    ) {
       return {
         status: 404,
         body: {
