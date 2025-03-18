@@ -15,7 +15,7 @@ export async function addSceneAdminHandler(
     verification
   } = ctx
 
-  const { getPlace, hasLandPermission, hasWorldPermission } = sceneFetcher
+  const { getPlace, hasLandPermission, hasWorldOwnerPermission } = sceneFetcher
 
   const logger = logs.getLogger('add-scene-admin-handler')
 
@@ -36,10 +36,18 @@ export async function addSceneAdminHandler(
   const place = await getPlace(isWorlds, realmName, parcel)
 
   const isOwner = isWorlds
-    ? await hasWorldPermission(authenticatedAddress, place.world_name!)
+    ? await hasWorldOwnerPermission(authenticatedAddress, place.world_name!)
     : await hasLandPermission(authenticatedAddress, place.positions)
 
-  const isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)
+  const hasStreamPermissionsOnWorld =
+    isWorlds && (await sceneFetcher.hasWorldStreamingPermission(authenticatedAddress, realmName))
+
+  let isAdmin = false
+  if (hasStreamPermissionsOnWorld) {
+    isAdmin = true
+  } else {
+    isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)
+  }
 
   if (!isOwner && !isAdmin) {
     throw new UnauthorizedError('You do not have permission to add admins to this place')

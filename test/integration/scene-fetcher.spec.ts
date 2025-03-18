@@ -63,7 +63,6 @@ describe('SceneFetcherComponent', () => {
     expect(cacheSpy).toHaveBeenCalledWith('cached-world')
   })
 
-  // Tests migrados de utils.spec.ts
   describe('hasLandPermission', () => {
     beforeEach(() => {
       mockFetch.fetch.mockImplementation(() =>
@@ -110,7 +109,7 @@ describe('SceneFetcherComponent', () => {
     })
   })
 
-  describe('hasWorldPermission', () => {
+  describe('hasWorldOwnerPermission', () => {
     beforeEach(() => {
       mockFetch.fetch.mockImplementation(() =>
         Promise.resolve({
@@ -124,7 +123,7 @@ describe('SceneFetcherComponent', () => {
     })
 
     it('should return false when no world name is provided', async () => {
-      const result = await sceneFetcher.hasWorldPermission('authAddress', '')
+      const result = await sceneFetcher.hasWorldOwnerPermission('authAddress', '')
       expect(result).toBe(false)
     })
 
@@ -137,32 +136,144 @@ describe('SceneFetcherComponent', () => {
         })
       )
 
-      const result = await sceneFetcher.hasWorldPermission('authAddress', 'myworld')
+      const result = await sceneFetcher.hasWorldOwnerPermission('authAddress', 'myworld')
       expect(result).toBe(false)
     })
 
     it('should return true when world name exactly matches a user name', async () => {
-      const result = await sceneFetcher.hasWorldPermission('authAddress', 'myworld')
+      const result = await sceneFetcher.hasWorldOwnerPermission('authAddress', 'myworld')
       expect(result).toBe(true)
     })
 
     it('should be case insensitive when matching names', async () => {
-      const result = await sceneFetcher.hasWorldPermission('authAddress', 'MyWorld')
+      const result = await sceneFetcher.hasWorldOwnerPermission('authAddress', 'MyWorld')
       expect(result).toBe(true)
     })
 
     it('should strip .dcl.eth suffix when matching names', async () => {
-      const result = await sceneFetcher.hasWorldPermission('authAddress', 'myworld.dcl.eth')
+      const result = await sceneFetcher.hasWorldOwnerPermission('authAddress', 'myworld.dcl.eth')
       expect(result).toBe(true)
     })
 
     it('should strip .eth suffix when matching names', async () => {
-      const result = await sceneFetcher.hasWorldPermission('authAddress', 'myworld.eth')
+      const result = await sceneFetcher.hasWorldOwnerPermission('authAddress', 'myworld.eth')
       expect(result).toBe(true)
     })
 
     it('should return false when name does not match any user name', async () => {
-      const result = await sceneFetcher.hasWorldPermission('authAddress', 'unknownworld')
+      const result = await sceneFetcher.hasWorldOwnerPermission('authAddress', 'unknownworld')
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('fetchOnWorldActionPermissions', () => {
+    it('should fetch world permissions correctly', async () => {
+      const mockPermissions = {
+        permissions: {
+          access: {
+            type: 'allow-list',
+            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
+          },
+          deployment: {
+            type: 'allow-list',
+            wallets: []
+          },
+          streaming: {
+            type: 'allow-list',
+            wallets: ['0x123456']
+          }
+        }
+      }
+
+      mockFetch.fetch.mockResolvedValueOnce({
+        json: async () => mockPermissions
+      })
+
+      const permissions = await sceneFetcher.fetchOnWorldActionPermissions('test-world')
+      expect(permissions).toEqual(mockPermissions.permissions)
+      expect(mockFetch.fetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+    })
+  })
+
+  describe('hasWorldStreamingPermission', () => {
+    it('should return true when user is in streaming allowlist', async () => {
+      mockFetch.fetch.mockResolvedValueOnce({
+        json: async () => ({
+          permissions: {
+            access: {
+              type: 'allow-list',
+              wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
+            },
+            deployment: {
+              type: 'allow-list',
+              wallets: []
+            },
+            streaming: {
+              type: 'allow-list',
+              wallets: ['0xUserAddress', '0xOtherAddress']
+            }
+          }
+        })
+      })
+
+      const result = await sceneFetcher.hasWorldStreamingPermission('0xUserAddress', 'test-world')
+      expect(result).toBe(true)
+    })
+
+    it('should return false when user is not in streaming allowlist', async () => {
+      mockFetch.fetch.mockResolvedValueOnce({
+        json: async () => ({
+          permissions: {
+            access: {
+              type: 'allow-list',
+              wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
+            },
+            deployment: {
+              type: 'allow-list',
+              wallets: []
+            },
+            streaming: {
+              type: 'allow-list',
+              wallets: ['0xOtherAddress']
+            }
+          }
+        })
+      })
+
+      const result = await sceneFetcher.hasWorldStreamingPermission('0xUserAddress', 'test-world')
+      expect(result).toBe(false)
+    })
+
+    it('should return false when streaming permissions are not allowlist type', async () => {
+      mockFetch.fetch.mockResolvedValueOnce({
+        json: async () => ({
+          permissions: {
+            access: {
+              type: 'allow-list',
+              wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
+            },
+            deployment: {
+              type: 'allow-list',
+              wallets: []
+            },
+            streaming: {
+              type: 'other-type',
+              wallets: ['0xUserAddress']
+            }
+          }
+        })
+      })
+
+      const result = await sceneFetcher.hasWorldStreamingPermission('0xUserAddress', 'test-world')
+      expect(result).toBe(false)
+    })
+
+    it('should return false when permissions are not available', async () => {
+      mockFetch.fetch.mockResolvedValueOnce({
+        json: async () => ({})
+      })
+
+      const result = await sceneFetcher.hasWorldStreamingPermission('0xUserAddress', 'test-world')
       expect(result).toBe(false)
     })
   })

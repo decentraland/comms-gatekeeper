@@ -6,7 +6,9 @@ import {
   Permissions,
   PlaceAttributes,
   ISceneFetcherComponent,
-  PlaceNotFoundError
+  PlaceNotFoundError,
+  PermissionsOverWorld,
+  PermissionType
 } from '../types'
 import { LRUCache } from 'lru-cache'
 import { ensureSlashAtTheEnd } from '../logic/utils'
@@ -82,6 +84,12 @@ export async function createSceneFetcherComponent(
 
   async function fetchScenePermissions(sceneId: string): Promise<Permissions | undefined> {
     return permissionsCache.fetch(`${catalystContentUrl}/contents/${sceneId}`)
+  }
+
+  async function fetchOnWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined> {
+    const response = await fetch.fetch(`${worldContentUrl}/world/${worldName}/permissions`)
+    const data = await response.json()
+    return data.permissions
   }
 
   async function getPlaceByParcel(parcel: string): Promise<PlaceAttributes> {
@@ -176,7 +184,7 @@ export async function createSceneFetcherComponent(
     return placePositions.some((pos) => userParcelPositions.includes(pos))
   }
 
-  async function hasWorldPermission(authAddress: string, worldName: string): Promise<boolean> {
+  async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
     if (!worldName) return false
 
     let nameToValidate = worldName.toLowerCase()
@@ -194,14 +202,26 @@ export async function createSceneFetcherComponent(
     return namesResponse.elements.some((element) => element.name.toLowerCase() === nameToValidate)
   }
 
+  async function hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean> {
+    const permissionsOverWorld = await fetchOnWorldActionPermissions(worldName)
+    let hasStreamingPermission = false
+    if (permissionsOverWorld?.streaming.type === PermissionType.AllowList) {
+      hasStreamingPermission = permissionsOverWorld.streaming.wallets.includes(authAddress)
+    }
+
+    return hasStreamingPermission
+  }
+
   return {
     fetchWorldPermissions,
     fetchScenePermissions,
+    fetchOnWorldActionPermissions,
     getPlaceByParcel,
     getWorldByName,
     getPlace,
     getAddressResources,
     hasLandPermission,
-    hasWorldPermission
+    hasWorldOwnerPermission,
+    hasWorldStreamingPermission
   }
 }

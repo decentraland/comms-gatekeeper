@@ -50,7 +50,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(true)
 
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValue(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldOwnerPermission').mockResolvedValue(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldStreamingPermission').mockResolvedValue(false)
   })
 
   afterEach(async () => {
@@ -136,7 +137,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     const { localFetch } = components
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldOwnerPermission').mockResolvedValueOnce(false)
     jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
 
     const response = await makeRequest(
@@ -153,6 +154,47 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     )
 
     expect(response.status).toBe(401)
+  })
+
+  it('returns 204 when user has world streaming permission', async () => {
+    const { localFetch, sceneAdminManager } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValueOnce({
+      id: testPlaceId,
+      world_name: 'name.dcl.eth'
+    } as PlaceAttributes)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldOwnerPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldStreamingPermission').mockResolvedValueOnce(true)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admin: admin.authChain[0].payload
+        }),
+        metadata: metadataWorld
+      },
+      nonOwner
+    )
+
+    expect(response.status).toBe(204)
+
+    const result = await sceneAdminManager.listActiveAdmins({
+      place_id: testPlaceId,
+      admin: admin.authChain[0].payload
+    })
+
+    if (result.length > 0) {
+      cleanup.trackInsert('scene_admin', { id: result[0].id })
+    }
+
+    expect(result.length).toBe(1)
+    expect(result[0].active).toBe(true)
   })
 
   it('returns 400 when admin already exists', async () => {

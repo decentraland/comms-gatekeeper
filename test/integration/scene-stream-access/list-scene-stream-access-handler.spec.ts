@@ -60,7 +60,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
     stubComponents.sceneFetcher.hasLandPermission.resolves(true)
-    stubComponents.sceneFetcher.hasWorldPermission.resolves(false)
+    stubComponents.sceneFetcher.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
   })
@@ -103,7 +103,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
     stubComponents.sceneFetcher.hasLandPermission.resolves(false)
-    stubComponents.sceneFetcher.hasWorldPermission.resolves(true)
+    stubComponents.sceneFetcher.hasWorldOwnerPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -130,7 +130,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     const { localFetch } = components
 
     stubComponents.sceneFetcher.hasLandPermission.resolves(false)
-    stubComponents.sceneFetcher.hasWorldPermission.resolves(false)
+    stubComponents.sceneFetcher.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
     const response = await makeRequest(
@@ -158,7 +158,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     const { localFetch } = components
 
     stubComponents.sceneFetcher.hasLandPermission.resolves(false)
-    stubComponents.sceneFetcher.hasWorldPermission.resolves(false)
+    stubComponents.sceneFetcher.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(

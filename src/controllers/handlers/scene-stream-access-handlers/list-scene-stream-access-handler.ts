@@ -24,7 +24,7 @@ export async function listSceneStreamAccessHandler(
   }
   const authenticatedAddress = verification.auth
 
-  const { getPlace, hasWorldPermission, hasLandPermission } = sceneFetcher
+  const { getPlace, hasWorldOwnerPermission, hasLandPermission } = sceneFetcher
 
   const { parcel, hostname, realmName, sceneId } = await validate(ctx)
   const isWorlds = !!hostname?.includes('worlds-content-server')
@@ -36,7 +36,7 @@ export async function listSceneStreamAccessHandler(
   const place = await getPlace(isWorlds, realmName, parcel)
 
   const isOwner = isWorlds
-    ? await hasWorldPermission(authenticatedAddress, place.world_name!)
+    ? await hasWorldOwnerPermission(authenticatedAddress, place.world_name!)
     : await hasLandPermission(authenticatedAddress, place.positions)
 
   const isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)

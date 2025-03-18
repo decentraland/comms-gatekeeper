@@ -65,7 +65,8 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(true)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValue(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldOwnerPermission').mockResolvedValue(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldStreamingPermission').mockResolvedValue(false)
   })
 
   afterEach(async () => {
@@ -99,7 +100,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       id: placeId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(true)
+    jest.spyOn(components.sceneFetcher, 'hasWorldOwnerPermission').mockResolvedValueOnce(true)
 
     const response = await makeRequest(
       localFetch,
@@ -116,11 +117,39 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(Array.isArray(body)).toBe(true)
   })
 
+  it('returns 200 with a list of scene admins when user has world streaming permission', async () => {
+    const { localFetch } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValueOnce({
+      id: placeId,
+      world_name: 'name.dcl.eth'
+    } as PlaceAttributes)
+    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldOwnerPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldStreamingPermission').mockResolvedValueOnce(true)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataWorld
+      },
+      nonOwner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+  })
+
   it('returns 200 with a list of scene admins when user is an admin', async () => {
     const { localFetch } = components
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldOwnerPermission').mockResolvedValueOnce(false)
     jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(true)
 
     const response = await makeRequest(
@@ -142,7 +171,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(false)
+    jest.spyOn(components.sceneFetcher, 'hasWorldOwnerPermission').mockResolvedValueOnce(false)
     jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
 
     const response = await makeRequest(

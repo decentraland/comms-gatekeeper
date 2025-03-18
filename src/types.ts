@@ -17,12 +17,14 @@ import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 export type ISceneFetcherComponent = IBaseComponent & {
   fetchWorldPermissions(worldName: string): Promise<Permissions | undefined>
   fetchScenePermissions: (sceneId: string) => Promise<Permissions | undefined>
+  fetchOnWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined>
   getPlaceByParcel(parcel: string): Promise<PlaceAttributes>
   getWorldByName(worldName: string): Promise<PlaceAttributes>
   getPlace(isWorlds: boolean, realmName: string, parcel: string): Promise<PlaceAttributes>
   getAddressResources<T extends AddressResource>(address: string, resource: T): Promise<AddressResourceResponse<T>>
   hasLandPermission(authAddress: string, placePositions: string[]): Promise<boolean>
-  hasWorldPermission(authAddress: string, worldName: string): Promise<boolean>
+  hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean>
+  hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean>
 }
 
 export type GlobalContext = {
@@ -279,4 +281,42 @@ export type ILivekitComponent = IBaseComponent & {
   getRoom: (roomName: string) => Promise<Room>
   getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
   removeIngress: (ingressId: string) => Promise<IngressInfo>
+}
+
+export enum PermissionType {
+  Unrestricted = 'unrestricted',
+  SharedSecret = 'shared-secret',
+  NFTOwnership = 'nft-ownership',
+  AllowList = 'allow-list'
+}
+
+export type UnrestrictedPermissionSetting = {
+  type: PermissionType.Unrestricted
+}
+
+export type SharedSecretPermissionSetting = {
+  type: PermissionType.SharedSecret
+  secret: string
+}
+
+export type NftOwnershipPermissionSetting = {
+  type: PermissionType.NFTOwnership
+  nft: string
+}
+
+export type AllowListPermissionSetting = {
+  type: PermissionType.AllowList
+  wallets: string[]
+}
+
+export type AccessPermissionSetting =
+  | UnrestrictedPermissionSetting
+  | SharedSecretPermissionSetting
+  | NftOwnershipPermissionSetting
+  | AllowListPermissionSetting
+
+export type PermissionsOverWorld = {
+  deployment: AllowListPermissionSetting
+  access: AccessPermissionSetting
+  streaming: UnrestrictedPermissionSetting | AllowListPermissionSetting
 }

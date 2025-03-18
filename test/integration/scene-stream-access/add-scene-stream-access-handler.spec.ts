@@ -69,7 +69,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
     stubComponents.sceneFetcher.hasLandPermission.resolves(true)
-    stubComponents.sceneFetcher.hasWorldPermission.resolves(false)
+    stubComponents.sceneFetcher.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.livekit.getSceneRoomName.resolves(`test-realm:test-scene`)
     stubComponents.livekit.getWorldRoomName.resolves(`name.dcl.eth`)
@@ -133,7 +133,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
     stubComponents.sceneFetcher.hasLandPermission.resolves(false)
-    stubComponents.sceneFetcher.hasWorldPermission.resolves(true)
+    stubComponents.sceneFetcher.hasWorldOwnerPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -175,7 +175,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     const { localFetch } = components
 
     stubComponents.sceneFetcher.hasLandPermission.resolves(false)
-    stubComponents.sceneFetcher.hasWorldPermission.resolves(false)
+    stubComponents.sceneFetcher.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
     const response = await makeRequest(
@@ -253,7 +253,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     const { localFetch } = components
 
     stubComponents.sceneFetcher.hasLandPermission.resolves(false)
-    stubComponents.sceneFetcher.hasWorldPermission.resolves(false)
+    stubComponents.sceneFetcher.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(

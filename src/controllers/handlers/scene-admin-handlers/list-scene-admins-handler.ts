@@ -14,7 +14,7 @@ export async function listSceneAdminsHandler(
     verification
   } = ctx
 
-  const { getPlace, hasLandPermission, hasWorldPermission } = sceneFetcher
+  const { getPlace, hasLandPermission, hasWorldOwnerPermission } = sceneFetcher
 
   const logger = logs.getLogger('list-scene-admins-handler')
 
@@ -37,12 +37,15 @@ export async function listSceneAdminsHandler(
     }
   }
 
-  const hasPermission = isWorlds
-    ? await hasWorldPermission(authenticatedAddress, place.world_name!)
-    : (await hasLandPermission(authenticatedAddress, place.positions)) ||
-      (await sceneAdminManager.isAdmin(place.id, authenticatedAddress))
+  const isOwner = isWorlds
+    ? await hasWorldOwnerPermission(authenticatedAddress, place.world_name!)
+    : await hasLandPermission(authenticatedAddress, place.positions)
 
-  if (!hasPermission) {
+  const isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)
+  const hasWorldStreamingPermission =
+    isWorlds && (await sceneFetcher.hasWorldStreamingPermission(authenticatedAddress, realmName))
+
+  if (!isOwner && !isAdmin && !hasWorldStreamingPermission) {
     logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
     throw new UnauthorizedError('Only administrators or the owner can list administrators')
   }
