@@ -1,7 +1,7 @@
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
-import * as handlersUtils from '../../../src/controllers/handlers/utils'
+import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types'
 
 test('DELETE /scene-admin - removes administrator access for a scene', ({ components }) => {

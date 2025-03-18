@@ -1,12 +1,12 @@
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
-import * as handlersUtils from '../../../src/controllers/handlers/utils'
-import { InvalidRequestError, PlaceAttributes, StreamingAccessUnavailableError } from '../../../src/types'
+import * as handlersUtils from '../../../src/logic/utils'
+import { InvalidRequestError, PlaceAttributes } from '../../../src/types'
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
-import { resolveSoa } from 'dns'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
+  const FOUR_DAYS = 4 * 24 * 60 * 60
   const placeId = `place-id-stream-access`
   const anotherPlaceId = `another-place-id-stream-access`
   const placeWorldId = `place-id-world-stream-access`
@@ -88,7 +88,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       localFetch,
       '/scene-stream-access',
       {
-        method: 'GET',
+        method: 'POST',
         metadata: metadataLand
       },
       owner
@@ -108,13 +108,20 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     expect(savedAccess.streaming_key).toBe(mockIngress.streamKey)
 
     if (body) {
-      cleanup.trackInsert('scene_stream_access', body)
+      const { ends_at, ...dbFields } = body
+      cleanup.trackInsert('scene_stream_access', dbFields)
     }
 
     expect(body).toEqual({
       streaming_url: mockSceneStreamAccess.streaming_url,
-      streaming_key: mockSceneStreamAccess.streaming_key
+      streaming_key: mockSceneStreamAccess.streaming_key,
+      created_at: body.created_at,
+      ends_at: body.created_at + FOUR_DAYS
     })
+
+    const created = Number(body.created_at)
+    const ends = Number(body.ends_at)
+    expect(ends).toBeGreaterThan(created)
   })
 
   it('returns 200 with streaming access when user has world permission', async () => {
@@ -132,7 +139,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       localFetch,
       '/scene-stream-access',
       {
-        method: 'GET',
+        method: 'POST',
         metadata: metadataWorld
       },
       owner
@@ -152,12 +159,15 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     expect(savedAccess.streaming_key).toBe(mockIngress.streamKey)
 
     if (body) {
-      cleanup.trackInsert('scene_stream_access', body)
+      const { ends_at, ...dbFields } = body
+      cleanup.trackInsert('scene_stream_access', dbFields)
     }
 
     expect(body).toEqual({
       streaming_url: mockSceneStreamAccess.streaming_url,
-      streaming_key: mockSceneStreamAccess.streaming_key
+      streaming_key: mockSceneStreamAccess.streaming_key,
+      created_at: body.created_at,
+      ends_at: body.created_at + FOUR_DAYS
     })
   })
 
@@ -172,7 +182,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       localFetch,
       '/scene-stream-access',
       {
-        method: 'GET',
+        method: 'POST',
         metadata: metadataLand
       },
       admin
@@ -182,17 +192,20 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     const body = await response.json()
 
     if (body) {
-      cleanup.trackInsert('scene_stream_access', body)
+      const { ends_at, ...dbFields } = body
+      cleanup.trackInsert('scene_stream_access', dbFields)
     }
 
     expect(body).toEqual({
       streaming_url: mockSceneStreamAccess.streaming_url,
-      streaming_key: mockSceneStreamAccess.streaming_key
+      streaming_key: mockSceneStreamAccess.streaming_key,
+      created_at: body.created_at,
+      ends_at: body.created_at + FOUR_DAYS
     })
   })
 
   it('returns 200 with a new streaming access when it does not exist', async () => {
-    const { localFetch, livekit, database } = components
+    const { localFetch, database } = components
 
     stubComponents.sceneFetcher.getPlace.resolves({
       id: anotherPlaceId,
@@ -206,7 +219,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       localFetch,
       '/scene-stream-access',
       {
-        method: 'GET',
+        method: 'POST',
         metadata: { ...metadataLand, sceneId: 'another-test-scene', parcel: '11,22' }
       },
       owner
@@ -226,11 +239,14 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     const body = await response.json()
 
     if (body) {
-      cleanup.trackInsert('scene_stream_access', body)
+      const { ends_at, ...dbFields } = body
+      cleanup.trackInsert('scene_stream_access', dbFields)
     }
 
     expect(body).toHaveProperty('streaming_url')
     expect(body).toHaveProperty('streaming_key')
+    expect(body).toHaveProperty('created_at')
+    expect(body).toHaveProperty('ends_at')
   })
 
   it('returns 401 when user is not owner or admin', async () => {
@@ -244,7 +260,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       localFetch,
       '/scene-stream-access',
       {
-        method: 'GET',
+        method: 'POST',
         metadata: metadataLand
       },
       nonOwner
@@ -265,7 +281,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       localFetch,
       '/scene-stream-access',
       {
-        method: 'GET',
+        method: 'POST',
         metadata: metadataNoSceneId
       },
       owner
@@ -287,7 +303,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       localFetch,
       '/scene-stream-access',
       {
-        method: 'GET',
+        method: 'POST',
         metadata: metadataLand
       },
       owner
@@ -302,7 +318,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     const { localFetch } = components
 
     const response = await localFetch.fetch('/scene-stream-access', {
-      method: 'GET'
+      method: 'POST'
     })
 
     expect(response.status).toBe(400)

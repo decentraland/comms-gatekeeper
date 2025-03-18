@@ -1,4 +1,4 @@
-import { validateFilters, ensureSlashAtTheEnd } from '../../src/controllers/handlers/utils'
+import { validateFilters, ensureSlashAtTheEnd } from '../../src/logic/utils'
 
 describe('ensureSlashAtTheEnd', () => {
   it('should add a trailing slash if not present', () => {

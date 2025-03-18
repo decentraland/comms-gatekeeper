@@ -9,7 +9,7 @@ import {
   ISceneFetcherComponent
 } from '../types'
 import { LRUCache } from 'lru-cache'
-import { ensureSlashAtTheEnd } from '../controllers/handlers/utils'
+import { ensureSlashAtTheEnd } from '../logic/utils'
 
 export async function createSceneFetcherComponent(
   components: Pick<AppComponents, 'config' | 'fetch' | 'logs'>

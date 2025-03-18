@@ -1,6 +1,6 @@
 import { EthAddress } from '@dcl/schemas'
 import { HandlerContextWithPath, InvalidRequestError, UnauthorizedError } from '../../../types'
-import { validate } from '../utils'
+import { validate } from '../../../logic/utils'
 
 export async function removeSceneAdminHandler(
   ctx: Pick<
