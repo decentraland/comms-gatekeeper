@@ -277,6 +277,6 @@ export type ILivekitComponent = IBaseComponent & {
   getWorldRoomName: (worldName: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
   getRoom: (roomName: string) => Promise<Room>
-  getOrCreateIngress: (roomName: string) => Promise<IngressInfo>
+  getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
   removeIngress: (ingressId: string) => Promise<IngressInfo>
 }

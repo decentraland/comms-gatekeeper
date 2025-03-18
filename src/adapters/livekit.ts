@@ -102,14 +102,15 @@ export async function createLivekitComponent(
     return room
   }
 
-  async function getOrCreateIngress(roomName: string): Promise<IngressInfo> {
+  async function getOrCreateIngress(roomName: string, participantIdentity: string): Promise<IngressInfo> {
     const ingresses = await ingressClient.listIngress({
       roomName: roomName
     })
 
     const ingressOptions: CreateIngressOptions = {
       name: `${roomName}-ingress`,
-      roomName: roomName
+      roomName: roomName,
+      participantIdentity
     }
 
     let ingress: IngressInfo
