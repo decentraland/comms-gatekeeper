@@ -90,7 +90,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: body.created_at,
-      ends_at: body.created_at + FOUR_DAYS
+      ends_at: Number(body.created_at) + FOUR_DAYS
     })
   })
 
@@ -122,7 +122,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: body.created_at,
-      ends_at: body.created_at + FOUR_DAYS
+      ends_at: Number(body.created_at) + FOUR_DAYS
     })
   })
 
@@ -150,7 +150,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: body.created_at,
-      ends_at: body.created_at + FOUR_DAYS
+      ends_at: Number(body.created_at) + FOUR_DAYS
     })
   })
 
