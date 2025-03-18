@@ -54,7 +54,7 @@ export async function listSceneStreamAccessHandler(
       streaming_url: access.streaming_url,
       streaming_key: access.streaming_key,
       created_at: access.created_at,
-      ends_at: access.created_at + FOUR_DAYS
+      ends_at: Number(access.created_at) + FOUR_DAYS
     }
   }
 }
