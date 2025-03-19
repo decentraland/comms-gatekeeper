@@ -4,19 +4,23 @@ import { validate } from '../../../logic/utils'
 
 export async function removeSceneAdminHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneAdminManager' | 'sceneFetcher' | 'logs' | 'config' | 'fetch', '/scene-admin'>,
+    HandlerContextWithPath<
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'world',
+      '/scene-admin'
+    >,
     'components' | 'url' | 'params' | 'verification' | 'request'
   >
 ) {
   const {
-    components: { logs, sceneFetcher, sceneAdminManager },
+    components: { logs, sceneAdminManager, sceneManager, places, world },
     request,
     verification
   } = ctx
 
+  const { getPlace } = places
+  const { hasPermissionPrivilege, isSceneOwner } = sceneManager
+  const { hasWorldStreamingPermission } = world
   const logger = logs.getLogger('remove-scene-admin-handler')
-
-  const { getPlace, hasLandPermission, hasWorldOwnerPermission } = sceneFetcher
 
   if (!verification?.auth) {
     throw new UnauthorizedError('Authentication required')
@@ -44,23 +48,13 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError('Place not found')
   }
 
-  const isOwner = isWorlds
-    ? await hasWorldOwnerPermission(authenticatedAddress, place.world_name!)
-    : await hasLandPermission(authenticatedAddress, place.positions)
-
-  const hasWorldStreamingPermission =
-    isWorlds && (await sceneFetcher.hasWorldStreamingPermission(authenticatedAddress, realmName))
-
-  const isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)
-
-  if (!isOwner && !isAdmin && !hasWorldStreamingPermission) {
+  const canRemove = await hasPermissionPrivilege(place, authenticatedAddress)
+  if (!canRemove) {
     logger.warn(`User ${authenticatedAddress} is not authorized to remove admins for entity ${place.id}`)
     throw new UnauthorizedError('Only scene admins or the owner can remove admins')
   }
 
-  const isOwnerToRemove = isWorlds
-    ? await hasWorldOwnerPermission(adminToRemove, place.world_name!)
-    : await hasLandPermission(adminToRemove, place.positions)
+  const isOwnerToRemove = await isSceneOwner(place, adminToRemove)
 
   if (isOwnerToRemove) {
     logger.warn(`Attempt to remove owner ${adminToRemove} from entity ${place.id} by ${authenticatedAddress}`)
@@ -68,7 +62,7 @@ export async function removeSceneAdminHandler(
   }
 
   const isWorldStreamingPermissionToRemove =
-    isWorlds && (await sceneFetcher.hasWorldStreamingPermission(adminToRemove, realmName))
+    place.world && (await hasWorldStreamingPermission(adminToRemove, realmName))
 
   if (isWorldStreamingPermissionToRemove) {
     logger.warn(

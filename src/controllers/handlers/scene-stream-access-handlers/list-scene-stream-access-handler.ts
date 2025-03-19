@@ -7,24 +7,24 @@ const FOUR_DAYS = 4 * 24 * 60 * 60
 export async function listSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneAdminManager' | 'sceneStreamAccessManager' | 'sceneFetcher' | 'logs' | 'config',
+      'fetch' | 'sceneAdminManager' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'logs' | 'config',
       '/scene-stream-access'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneStreamAccessManager, sceneFetcher },
+    components: { logs, sceneAdminManager, sceneStreamAccessManager, sceneManager, places },
     verification
   } = ctx
   const logger = logs.getLogger('get-scene-stream-access-handler')
+  const { getPlace } = places
+  const { hasPermissionPrivilege } = sceneManager
   if (!verification?.auth) {
     logger.error('Authentication required')
     throw new InvalidRequestError('Authentication required')
   }
   const authenticatedAddress = verification.auth
-
-  const { getPlace, hasWorldOwnerPermission, hasLandPermission } = sceneFetcher
 
   const { parcel, hostname, realmName, sceneId } = await validate(ctx)
   const isWorlds = !!hostname?.includes('worlds-content-server')
@@ -35,13 +35,8 @@ export async function listSceneStreamAccessHandler(
 
   const place = await getPlace(isWorlds, realmName, parcel)
 
-  const isOwner = isWorlds
-    ? await hasWorldOwnerPermission(authenticatedAddress, place.world_name!)
-    : await hasLandPermission(authenticatedAddress, place.positions)
-
-  const isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)
-
-  if (!isOwner && !isAdmin) {
+  const canListStreamKeys = await hasPermissionPrivilege(place, authenticatedAddress)
+  if (!canListStreamKeys) {
     logger.info(`Wallet ${authenticatedAddress} is not owner nor admin of the scene. Place ${place.id}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
   }

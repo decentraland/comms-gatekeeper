@@ -9,12 +9,16 @@ import { createHttpTracerComponent } from '@well-known-components/http-tracer-co
 import { createPgComponent } from '@well-known-components/pg-component'
 import { AppComponents, GlobalContext } from './types'
 import { metricDeclarations } from './metrics'
-import { createSceneFetcherComponent } from './adapters/scene-fetcher'
 import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
 import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream-access-manager'
 import { createTracedFetchComponent } from './adapters/traced-fetch'
 import { createBlockListComponent } from './adapters/blocklist'
+import { cachedFetchComponent } from './adapters/fetch'
+import { createWorldComponent } from './adapters/world'
+import { createPlacesComponent } from './adapters/places'
+import { createLandComponent } from './adapters/land'
+import { createSceneManagerComponent } from './adapters/scene-manager'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -65,9 +69,13 @@ export async function initComponents(): Promise<AppComponents> {
 
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
 
-  const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
+  const cachedFetch = await cachedFetchComponent({ fetch: tracedFetch, logs })
+  const world = await createWorldComponent({ config, logs, cachedFetch })
+  const places = await createPlacesComponent({ config, logs, cachedFetch })
+  const land = await createLandComponent({ config, logs, cachedFetch })
+  const sceneManager = await createSceneManagerComponent({ world, land, sceneAdminManager })
 
-  const sceneFetcher = await createSceneFetcherComponent({ config, logs, fetch: tracedFetch })
+  const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
   return {
     blockList,
@@ -78,7 +86,11 @@ export async function initComponents(): Promise<AppComponents> {
     statusChecks,
     fetch: tracedFetch,
     metrics,
-    sceneFetcher,
+    cachedFetch,
+    world,
+    places,
+    land,
+    sceneManager,
     livekit,
     database,
     sceneAdminManager,
