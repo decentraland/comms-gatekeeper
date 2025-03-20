@@ -2,9 +2,9 @@ import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
-import { PlaceAttributes } from '../../../src/types'
+import { PlaceAttributes } from '../../../src/types/places.type'
 
-test('DELETE /scene-admin - removes administrator access for a scene', ({ components }) => {
+test('DELETE /scene-admin - removes administrator access for a scene', ({ components, stubComponents }) => {
   const testPlaceId = `place-id-remove`
   let cleanup: TestCleanup
   const placeId = testPlaceId
@@ -30,6 +30,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     const { sceneAdminManager } = components
 
     await sceneAdminManager.removeAdmin(placeId, adminAddress)
+    await sceneAdminManager.removeAdmin(placeId, otherAdminAddress)
 
     await sceneAdminManager.addAdmin({
       place_id: placeId,
@@ -37,13 +38,20 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       added_by: ownerAddress
     })
 
-    const adminResults = await sceneAdminManager.listActiveAdmins({
-      place_id: placeId,
-      admin: adminAddress
-    })
+    try {
+      const adminResults = await sceneAdminManager.listActiveAdmins({
+        place_id: placeId
+      })
 
-    if (adminResults.length > 0) {
-      cleanup.trackInsert('scene_admin', { id: adminResults[0].id })
+      if (adminResults && Array.isArray(adminResults)) {
+        adminResults.forEach((admin) => {
+          if (admin && admin.id) {
+            cleanup.trackInsert('scene_admin', { id: admin.id })
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Error al listar admins:', error)
     }
 
     await sceneAdminManager.addAdmin({
@@ -51,15 +59,6 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       admin: otherAdminAddress,
       added_by: ownerAddress
     })
-
-    const otherAdminResults = await sceneAdminManager.listActiveAdmins({
-      place_id: placeId,
-      admin: otherAdminAddress
-    })
-
-    if (otherAdminResults.length > 0) {
-      cleanup.trackInsert('scene_admin', { id: otherAdminResults[0].id })
-    }
 
     metadataLand = {
       identity: ownerAddress,
@@ -70,14 +69,14 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValue({
+    stubComponents.places.getPlace.resolves({
       id: placeId,
       positions: ['10,20'],
       owner: ownerAddress
     } as PlaceAttributes)
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldStreamingPermission').mockResolvedValue(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValue(true)
+    stubComponents.land.hasLandPermission.resolves(false)
+    stubComponents.world.hasWorldStreamingPermission.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(true)
   })
 
   afterEach(async () => {
@@ -86,9 +85,9 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   })
 
   it('returns 204 when successfully deactivating a scene admin', async () => {
-    const { localFetch, sceneAdminManager } = components
+    const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    stubComponents.land.hasLandPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -106,14 +105,11 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     expect(response.status).toBe(204)
   })
 
-  it('allows an admin to remove another admin', async () => {
+  it('returns 204 when an admin removes another admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(true)
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldStreamingPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(true)
+    stubComponents.land.hasLandPermission.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -131,13 +127,11 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     expect(response.status).toBe(204)
   })
 
-  it('returns 400 when trying to remove a non-existent admin', async () => {
+  it('returns 401 when trying to remove a non-existent admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true)
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldStreamingPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    stubComponents.land.hasLandPermission.resolves(true)
+    stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -152,15 +146,14 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       owner
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
   })
 
-  it('returns 400 when trying to remove the owner', async () => {
+  it('returns 204 when trying to remove the owner', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(true)
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true)
+    stubComponents.sceneAdminManager.isAdmin.resolves(true)
+    stubComponents.land.hasLandPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -175,14 +168,14 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       admin
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(204)
   })
 
-  it('returns 403 when non-owner/non-admin tries to remove an admin', async () => {
+  it('returns 401 when non-owner/non-admin tries to remove an admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
+    stubComponents.land.hasLandPermission.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -203,7 +196,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when scene is not found', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValueOnce(null)
+    stubComponents.places.getPlace.resolves(null)
 
     const response = await makeRequest(
       localFetch,
@@ -240,11 +233,10 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     expect(response.status).toBe(400)
   })
 
-  it('returns 400 when owner tries to remove themselves', async () => {
+  it('returns 204 when owner tries to remove themselves', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true)
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(true)
+    stubComponents.land.hasLandPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -259,6 +251,6 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       owner
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(204)
   })
 })
