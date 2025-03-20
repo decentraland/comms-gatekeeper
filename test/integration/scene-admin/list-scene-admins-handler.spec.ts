@@ -84,7 +84,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: false
     } as PlaceAttributes)
 
-    // stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
     stubComponents.land.hasLandPermission.resolves(false)
     stubComponents.world.hasWorldOwnerPermission.resolves(false)
     stubComponents.world.hasWorldStreamingPermission.resolves(false)
@@ -234,7 +233,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const body = await response.json()
     expect(Array.isArray(body)).toBe(true)
     expect(body.length).toBe(1)
-    // Comprobamos que la respuesta contenga un administrador con el ID correcto
     expect(body[0].admin).toBe(nonOwner.authChain[0].payload.toLowerCase())
   })
 

@@ -3,13 +3,11 @@ import { PlaceAttributes } from '../../src/types/places.type'
 import { ISceneManager } from '../../src/types/scene-manager.type'
 
 describe('SceneManagerComponent', () => {
-  // Definimos mocks simples sin dependencias de tipos
   const mockWorldOwnerPermission = jest.fn()
   const mockWorldStreamingPermission = jest.fn()
   const mockLandPermission = jest.fn()
   const mockIsAdmin = jest.fn()
 
-  // Creamos componentes con funciones mock
   const mockWorld = {
     fetchWorldActionPermissions: jest.fn(),
     hasWorldOwnerPermission: mockWorldOwnerPermission,
