@@ -7,14 +7,14 @@ const FOUR_DAYS = 4 * 24 * 60 * 60
 export async function listSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneAdminManager' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'logs' | 'config',
+      'fetch' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'logs' | 'config',
       '/scene-stream-access'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneStreamAccessManager, sceneManager, places },
+    components: { logs, sceneStreamAccessManager, sceneManager, places },
     verification
   } = ctx
   const logger = logs.getLogger('get-scene-stream-access-handler')
