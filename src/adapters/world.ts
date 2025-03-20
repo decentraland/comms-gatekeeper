@@ -15,7 +15,7 @@ export async function createWorldComponent(
 
   async function fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined> {
     const fetchFromCache = cachedFetch.cache<{ permissions: PermissionsOverWorld }>()
-    const response = await fetchFromCache.fetch(`${worldContentUrl}/world/${worldName}/permissions`)
+    const response = await fetchFromCache.fetch(`${worldContentUrl}/world/${worldName.toLowerCase()}/permissions`)
     return response?.permissions
   }
 
