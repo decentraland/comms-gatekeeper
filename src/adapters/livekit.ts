@@ -68,7 +68,7 @@ export async function createLivekitComponent(
     })
 
     return {
-      url: `wss://${settings.host}`,
+      url: settings.host,
       token: token.toJwt()
     }
   }
