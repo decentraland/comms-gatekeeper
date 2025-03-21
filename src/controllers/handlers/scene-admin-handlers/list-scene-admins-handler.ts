@@ -32,13 +32,6 @@ export async function listSceneAdminsHandler(
   const isWorlds = hostname.includes('worlds-content-server')
 
   const place = await getPlace(isWorlds, realmName, parcel)
-  if (!place) {
-    logger.warn(`Place not found for parcel: ${parcel}`)
-    return {
-      status: 404,
-      body: { error: 'Place not found' }
-    }
-  }
 
   const canList = await hasPermissionPrivilege(place, authenticatedAddress)
   if (!canList) {

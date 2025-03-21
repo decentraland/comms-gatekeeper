@@ -8,7 +8,7 @@ export async function createLandComponent(
   const { config, cachedFetch, logs } = components
   const logger = logs.getLogger('land-component')
 
-  const [lambdasUrl] = await Promise.all([config.requireString('LAMBDAS_URL')])
+  const lambdasUrl = await config.requireString('LAMBDAS_URL')
 
   async function hasLandPermission(authAddress: string, placePositions: string[]): Promise<boolean> {
     if (!placePositions?.length) return false

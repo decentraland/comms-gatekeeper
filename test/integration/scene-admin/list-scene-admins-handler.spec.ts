@@ -3,7 +3,7 @@ import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
-import { SceneAdmin } from '../../../src/types'
+import { PlaceNotFoundError, SceneAdmin } from '../../../src/types'
 
 test('GET /scene-admin - lists all active administrators for scenes', ({ components, stubComponents }) => {
   let cleanup: TestCleanup
@@ -259,7 +259,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 404 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlace.resolves(null)
+    stubComponents.places.getPlace.rejects(new PlaceNotFoundError('Could not find scene information'))
 
     const response = await makeRequest(
       localFetch,

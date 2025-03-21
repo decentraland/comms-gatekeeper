@@ -47,12 +47,11 @@ export async function createWorldComponent(
 
   async function hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean> {
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
-    let hasStreamingPermission = false
-    if (permissionsOverWorld?.streaming.type === PermissionType.AllowList) {
-      hasStreamingPermission = permissionsOverWorld.streaming.wallets.includes(authAddress)
-    }
 
-    return hasStreamingPermission
+    return (
+      permissionsOverWorld?.streaming.type === PermissionType.AllowList &&
+      permissionsOverWorld.streaming.wallets.includes(authAddress)
+    )
   }
 
   return {

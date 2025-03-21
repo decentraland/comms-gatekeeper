@@ -8,20 +8,13 @@ export async function createPlacesComponent(
 
   const logger = logs.getLogger('places-component')
 
-  const [placesApiUrl] = await Promise.all([config.requireString('PLACES_API_URL')])
+  const placesApiUrl = await config.requireString('PLACES_API_URL')
 
   const fetchFromCache = cachedFetch.cache<PlaceResponse>()
   async function getPlaceByParcel(parcel: string): Promise<PlaceAttributes> {
-    cachedFetch.cache
-
     const response = await fetchFromCache.fetch(`${placesApiUrl}/places?positions=${parcel}`)
 
-    if (!response?.ok) {
-      logger.info(`Error getting place information: ${parcel}`)
-      throw new Error(`Error getting place information: ${parcel}`)
-    }
-
-    if (!response.data?.length) {
+    if (!response?.data?.length) {
       logger.info(`No place found with parcel ${parcel}`)
       throw new Error(`No place found with parcel ${parcel}`)
     }
@@ -38,12 +31,7 @@ export async function createPlacesComponent(
   async function getWorldByName(worldName: string): Promise<PlaceAttributes> {
     const response = await fetchFromCache.fetch(`${placesApiUrl}/worlds?names=${worldName}`)
 
-    if (!response?.ok) {
-      logger.info(`Error getting world information: ${worldName}`)
-      throw new PlaceNotFoundError(`Error getting world information: ${worldName}`)
-    }
-
-    if (!response.data?.length) {
+    if (!response?.data?.length) {
       logger.info(`No world found with name ${worldName}`)
       throw new PlaceNotFoundError(`No world found with name ${worldName}`)
     }
