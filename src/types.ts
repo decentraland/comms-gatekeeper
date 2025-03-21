@@ -13,17 +13,11 @@ import { IBlockListComponent } from './adapters/blocklist'
 import { IPgComponent } from '@well-known-components/pg-component'
 import { Room } from 'livekit-server-sdk'
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
-
-export type ISceneFetcherComponent = IBaseComponent & {
-  fetchWorldPermissions(worldName: string): Promise<Permissions | undefined>
-  fetchScenePermissions: (sceneId: string) => Promise<Permissions | undefined>
-  getPlaceByParcel(parcel: string): Promise<PlaceAttributes>
-  getWorldByName(worldName: string): Promise<PlaceAttributes>
-  getPlace(isWorlds: boolean, realmName: string, parcel: string): Promise<PlaceAttributes>
-  getAddressResources<T extends AddressResource>(address: string, resource: T): Promise<AddressResourceResponse<T>>
-  hasLandPermission(authAddress: string, placePositions: string[]): Promise<boolean>
-  hasWorldPermission(authAddress: string, worldName: string): Promise<boolean>
-}
+import { ICachedFetchComponent } from './types/fetch.type'
+import { IPlacesComponent } from './types/places.type'
+import { IWorldComponent } from './types/world.type'
+import { ILandComponent } from './types/land.type'
+import { ISceneManager } from './types/scene-manager.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -40,8 +34,12 @@ export type BaseComponents = {
   livekit: ILivekitComponent
   database: IPgComponent
   sceneAdminManager: ISceneAdminManager
-  sceneFetcher: ISceneFetcherComponent
   sceneStreamAccessManager: ISceneStreamAccessManager
+  cachedFetch: ICachedFetchComponent
+  places: IPlacesComponent
+  world: IWorldComponent
+  land: ILandComponent
+  sceneManager: ISceneManager
 }
 
 export type AppComponents = BaseComponents & {
@@ -172,38 +170,6 @@ export type AuthData = {
   hostname: string
 }
 
-export type PlaceAttributes = {
-  id: string
-  title: string | null
-  description: string | null
-  image: string | null
-  highlighted_image: string | null
-  owner: string | null
-  positions: string[]
-  base_position: string
-  contact_name: string | null
-  contact_email: string | null
-  likes: number
-  dislikes: number
-  favorites: number
-  like_rate: number | null
-  like_score: number | null
-  highlighted: boolean
-  disabled: boolean
-  disabled_at: Date | null
-  created_at: Date
-  updated_at: Date
-  world: boolean
-  world_name: string | null
-  deployed_at: Date
-  categories: string[]
-  user_like: boolean
-  user_dislike: boolean
-  user_favorite: boolean
-  user_count?: number
-  user_visits?: number
-}
-
 export type SceneAdmin = {
   id: string
   place_id: string
@@ -279,4 +245,42 @@ export type ILivekitComponent = IBaseComponent & {
   getRoom: (roomName: string) => Promise<Room>
   getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
   removeIngress: (ingressId: string) => Promise<IngressInfo>
+}
+
+export enum PermissionType {
+  Unrestricted = 'unrestricted',
+  SharedSecret = 'shared-secret',
+  NFTOwnership = 'nft-ownership',
+  AllowList = 'allow-list'
+}
+
+export type UnrestrictedPermissionSetting = {
+  type: PermissionType.Unrestricted
+}
+
+export type SharedSecretPermissionSetting = {
+  type: PermissionType.SharedSecret
+  secret: string
+}
+
+export type NftOwnershipPermissionSetting = {
+  type: PermissionType.NFTOwnership
+  nft: string
+}
+
+export type AllowListPermissionSetting = {
+  type: PermissionType.AllowList
+  wallets: string[]
+}
+
+export type AccessPermissionSetting =
+  | UnrestrictedPermissionSetting
+  | SharedSecretPermissionSetting
+  | NftOwnershipPermissionSetting
+  | AllowListPermissionSetting
+
+export type PermissionsOverWorld = {
+  deployment: AllowListPermissionSetting
+  access: AccessPermissionSetting
+  streaming: UnrestrictedPermissionSetting | AllowListPermissionSetting
 }

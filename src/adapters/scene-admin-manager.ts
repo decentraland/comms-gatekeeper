@@ -79,8 +79,8 @@ export async function createSceneAdminManagerComponent({
     )
 
     result.rowCount > 0
-      ? logger.info(`New admin created for place ${input.place_id}`)
-      : logger.info(`Admin already exists for place ${input.place_id}`)
+      ? logger.info(`New admin created (${adminLowercase}) for place ${input.place_id}`)
+      : logger.info(`Admin already exists (${adminLowercase}) for place ${input.place_id}`)
     return
   }
 
@@ -98,6 +98,7 @@ export async function createSceneAdminManagerComponent({
 
   async function listActiveAdmins(filters: ListSceneAdminFilters): Promise<SceneAdmin[]> {
     const validation = validateListSceneAdminFilters(filters)
+
     if (!validation.valid) {
       throw new Error(validation.error)
     }
@@ -112,6 +113,7 @@ export async function createSceneAdminManagerComponent({
     }
 
     const result = await database.query<SceneAdmin>(query)
+
     return result.rows
   }
 

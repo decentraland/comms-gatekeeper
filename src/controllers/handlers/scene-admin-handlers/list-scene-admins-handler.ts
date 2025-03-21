@@ -4,19 +4,22 @@ import { validate, validateFilters } from '../../../logic/utils'
 
 export async function listSceneAdminsHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneAdminManager' | 'sceneFetcher' | 'logs' | 'config' | 'fetch', '/scene-admin'>,
+    HandlerContextWithPath<
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places',
+      '/scene-admin'
+    >,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { sceneFetcher, logs, sceneAdminManager },
+    components: { logs, sceneAdminManager, sceneManager, places },
     url,
     verification
   } = ctx
 
-  const { getPlace, hasLandPermission, hasWorldPermission } = sceneFetcher
-
   const logger = logs.getLogger('list-scene-admins-handler')
+  const { getPlace } = places
+  const { hasPermissionPrivilege } = sceneManager
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
@@ -29,20 +32,9 @@ export async function listSceneAdminsHandler(
   const isWorlds = hostname.includes('worlds-content-server')
 
   const place = await getPlace(isWorlds, realmName, parcel)
-  if (!place) {
-    logger.warn(`Place not found for parcel: ${parcel}`)
-    return {
-      status: 404,
-      body: { error: 'Place not found' }
-    }
-  }
 
-  const hasPermission = isWorlds
-    ? await hasWorldPermission(authenticatedAddress, place.world_name!)
-    : (await hasLandPermission(authenticatedAddress, place.positions)) ||
-      (await sceneAdminManager.isAdmin(place.id, authenticatedAddress))
-
-  if (!hasPermission) {
+  const canList = await hasPermissionPrivilege(place, authenticatedAddress)
+  if (!canList) {
     logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
     throw new UnauthorizedError('Only administrators or the owner can list administrators')
   }
