@@ -37,7 +37,10 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError(`Invalid payload`)
   }
 
-  const { parcel, hostname, realmName } = await validate(ctx)
+  const {
+    parcel,
+    realm: { hostname, serverName }
+  } = await validate(ctx)
   const isWorlds = hostname.includes('worlds-content-server')
   const authenticatedAddress = verification.auth.toLowerCase()
 
@@ -47,7 +50,7 @@ export async function removeSceneAdminHandler(
 
   let place: PlaceAttributes
   if (isWorlds) {
-    place = await getPlaceByWorldName(realmName)
+    place = await getPlaceByWorldName(serverName)
   } else {
     place = await getPlaceByParcel(parcel)
   }
@@ -69,7 +72,7 @@ export async function removeSceneAdminHandler(
   }
 
   const isWorldStreamingPermissionToRemove =
-    place.world && (await hasWorldStreamingPermission(adminToRemove, realmName))
+    place.world && (await hasWorldStreamingPermission(adminToRemove, serverName))
 
   if (isWorldStreamingPermissionToRemove) {
     logger.warn(

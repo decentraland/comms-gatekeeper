@@ -15,10 +15,13 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
   type Metadata = {
     identity: string
-    realmName: string
-    parcel: string
-    hostname: string
+    realm: {
+      serverName: string
+      hostname: string
+      protocol: string
+    }
     sceneId: string
+    parcel: string
   }
 
   let metadataLand: Metadata
@@ -49,18 +52,24 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
     metadataLand = {
       identity: owner.authChain[0].payload,
-      realmName: 'test-realm',
-      parcel: '10,20',
-      hostname: 'https://peer.decentraland.zone',
-      sceneId: 'test-scene'
+      realm: {
+        serverName: 'test-realm',
+        hostname: 'https://peer.decentraland.zone',
+        protocol: 'https'
+      },
+      sceneId: 'test-scene',
+      parcel: '10,20'
     }
 
     metadataWorld = {
       identity: owner.authChain[0].payload,
-      realmName: 'name.dcl.eth',
-      parcel: '20,20',
-      hostname: 'https://worlds-content-server.decentraland.org/',
-      sceneId: 'test-scene'
+      realm: {
+        serverName: 'name.dcl.eth',
+        hostname: 'https://worlds-content-server.decentraland.org/',
+        protocol: 'https'
+      },
+      sceneId: 'test-scene',
+      parcel: '20,20'
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)

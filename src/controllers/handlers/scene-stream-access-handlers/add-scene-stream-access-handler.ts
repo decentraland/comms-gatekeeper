@@ -27,7 +27,11 @@ export async function addSceneStreamAccessHandler(
   }
   const authenticatedAddress = verification.auth
 
-  const { parcel, hostname, realmName, sceneId } = await validate(ctx)
+  const {
+    parcel,
+    realm: { hostname, serverName },
+    sceneId
+  } = await validate(ctx)
   const isWorlds = !!hostname?.includes('worlds-content-server')
 
   if (!isWorlds && !sceneId) {
@@ -36,7 +40,7 @@ export async function addSceneStreamAccessHandler(
 
   let place: PlaceAttributes
   if (isWorlds) {
-    place = await getPlaceByWorldName(realmName)
+    place = await getPlaceByWorldName(serverName)
   } else {
     place = await getPlaceByParcel(parcel)
   }
@@ -50,9 +54,9 @@ export async function addSceneStreamAccessHandler(
 
   let roomName: string
   if (isWorlds) {
-    roomName = livekit.getWorldRoomName(realmName)
+    roomName = livekit.getWorldRoomName(serverName)
   } else {
-    roomName = livekit.getSceneRoomName(realmName, sceneId!)
+    roomName = livekit.getSceneRoomName(serverName, sceneId!)
   }
 
   let access: SceneStreamAccess

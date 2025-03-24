@@ -14,10 +14,13 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   type Metadata = {
     identity: string
-    realmName: string
     parcel: string
-    hostname: string
     sceneId: string
+    realm: {
+      serverName: string
+      hostname: string
+      protocol: string
+    }
   }
   let cleanup: TestCleanup
   let metadataLand: Metadata
@@ -30,18 +33,24 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   beforeEach(async () => {
     metadataLand = {
       identity: owner.authChain[0].payload,
-      realmName: 'test-realm',
       parcel: '-9,-9',
-      hostname: 'https://peer.decentraland.zone',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      realm: {
+        serverName: 'test-realm',
+        hostname: 'https://peer.decentraland.zone',
+        protocol: 'https'
+      }
     }
 
     metadataWorld = {
       identity: owner.authChain[0].payload,
-      realmName: 'name.dcl.eth',
       parcel: '20,20',
-      hostname: 'https://worlds-content-server.decentraland.org/',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      realm: {
+        serverName: 'name.dcl.eth',
+        hostname: 'https://worlds-content-server.decentraland.org/',
+        protocol: 'https'
+      }
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)

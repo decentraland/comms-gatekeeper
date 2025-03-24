@@ -26,7 +26,11 @@ export async function listSceneStreamAccessHandler(
   }
   const authenticatedAddress = verification.auth
 
-  const { parcel, hostname, realmName, sceneId } = await validate(ctx)
+  const {
+    parcel,
+    realm: { hostname, serverName },
+    sceneId
+  } = await validate(ctx)
   const isWorlds = !!hostname?.includes('worlds-content-server')
 
   if (!isWorlds && !sceneId) {
@@ -35,7 +39,7 @@ export async function listSceneStreamAccessHandler(
 
   let place: PlaceAttributes
   if (isWorlds) {
-    place = await getPlaceByWorldName(realmName)
+    place = await getPlaceByWorldName(serverName)
   } else {
     place = await getPlaceByParcel(parcel)
   }

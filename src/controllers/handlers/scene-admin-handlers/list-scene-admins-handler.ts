@@ -29,12 +29,15 @@ export async function listSceneAdminsHandler(
 
   const authenticatedAddress = verification.auth.toLowerCase()
 
-  const { parcel, hostname, realmName } = await validate(ctx)
+  const {
+    parcel,
+    realm: { hostname, serverName }
+  } = await validate(ctx)
   const isWorlds = hostname.includes('worlds-content-server')
 
   let place: PlaceAttributes
   if (isWorlds) {
-    place = await getPlaceByWorldName(realmName)
+    place = await getPlaceByWorldName(serverName)
   } else {
     place = await getPlaceByParcel(parcel)
   }

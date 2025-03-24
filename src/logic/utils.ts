@@ -17,19 +17,18 @@ export async function validate<T extends string>(
     throw new UnauthorizedError('Access denied, invalid signed-fetch request')
   }
 
-  const { realmName, sceneId, parcel, hostname } = verification.authMetadata
-  if (!realmName) {
-    throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realmName')
+  const { realm, sceneId, parcel } = verification.authMetadata
+  if (!realm) {
+    throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realm')
   }
 
   const identity = verification.auth
 
   return {
     identity,
-    realmName,
     sceneId,
     parcel,
-    hostname
+    realm
   }
 }
 

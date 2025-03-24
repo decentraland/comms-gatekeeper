@@ -35,18 +35,22 @@ export async function addSceneAdminHandler(
     throw new InvalidRequestError(`Invalid payload`)
   }
 
-  const { parcel, hostname, realmName } = await validate(ctx)
+  const {
+    parcel,
+    realm: { serverName, hostname }
+  } = await validate(ctx)
   const isWorlds = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
   let place: PlaceAttributes
 
   if (isWorlds) {
-    place = await getPlaceByWorldName(realmName)
+    place = await getPlaceByWorldName(serverName)
   } else {
     place = await getPlaceByParcel(parcel)
   }
 
   const canAdd = await hasPermissionPrivilege(place, authenticatedAddress)
+
   if (!canAdd) {
     throw new UnauthorizedError('You do not have permission to add admins to this place')
   }
