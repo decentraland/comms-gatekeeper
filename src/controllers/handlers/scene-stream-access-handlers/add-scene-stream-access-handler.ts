@@ -31,14 +31,18 @@ export async function addSceneStreamAccessHandler(
 
   const { getPlace, hasWorldPermission, hasLandPermission } = sceneFetcher
 
-  const { parcel, hostname, realmName, sceneId } = await validate(ctx)
+  const {
+    parcel,
+    realm: { hostname, serverName },
+    sceneId
+  } = await validate(ctx)
   const isWorlds = !!hostname?.includes('worlds-content-server')
 
   if (!isWorlds && !sceneId) {
     throw new UnauthorizedError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  const place = await getPlace(isWorlds, realmName, parcel)
+  const place = await getPlace(isWorlds, serverName, parcel)
 
   const isOwner = isWorlds
     ? await hasWorldPermission(authenticatedAddress, place.world_name!)
@@ -53,9 +57,9 @@ export async function addSceneStreamAccessHandler(
 
   let roomName: string
   if (isWorlds) {
-    roomName = livekit.getWorldRoomName(realmName)
+    roomName = livekit.getWorldRoomName(serverName)
   } else {
-    roomName = livekit.getSceneRoomName(realmName, sceneId!)
+    roomName = livekit.getSceneRoomName(serverName, sceneId!)
   }
 
   let access: SceneStreamAccess

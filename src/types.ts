@@ -164,12 +164,17 @@ export interface NamesResponse {
 export type AddressResource = 'lands' | 'names'
 export type AddressResourceResponse<T extends AddressResource> = T extends 'lands' ? LandsResponse : NamesResponse
 
+export type RealmAuthMetadata = {
+  hostname: string
+  protocol: string
+  serverName: string
+}
+
 export type AuthData = {
   identity: string
-  realmName: string
   sceneId?: string
   parcel: string
-  hostname: string
+  realm: RealmAuthMetadata
 }
 
 export type PlaceAttributes = {
