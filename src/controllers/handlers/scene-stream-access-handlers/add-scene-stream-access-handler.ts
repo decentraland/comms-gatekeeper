@@ -1,12 +1,8 @@
 import { validate } from '../../../logic/utils'
-import {
-  InvalidRequestError,
-  SceneStreamAccess,
-  StreamingAccessUnavailableError,
-  UnauthorizedError
-} from '../../../types'
 import { HandlerContextWithPath } from '../../../types'
-
+import { InvalidRequestError, StreamingAccessUnavailableError, UnauthorizedError } from '../../../types/errors'
+import { SceneStreamAccess } from '../../../types'
+import { PlaceAttributes } from '../../../types/places.type'
 const FOUR_DAYS = 4 * 24 * 60 * 60
 
 export async function addSceneStreamAccessHandler(
@@ -23,7 +19,7 @@ export async function addSceneStreamAccessHandler(
     verification
   } = ctx
   const logger = logs.getLogger('get-scene-stream-access-handler')
-  const { getPlace } = places
+  const { getPlaceByWorldName, getPlaceByParcel } = places
   const { hasPermissionPrivilege } = sceneManager
   if (!verification?.auth) {
     logger.error('Authentication required')
@@ -35,10 +31,15 @@ export async function addSceneStreamAccessHandler(
   const isWorlds = !!hostname?.includes('worlds-content-server')
 
   if (!isWorlds && !sceneId) {
-    throw new UnauthorizedError('Access denied, invalid signed-fetch request, no sceneId')
+    throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  const place = await getPlace(isWorlds, realmName, parcel)
+  let place: PlaceAttributes
+  if (isWorlds) {
+    place = await getPlaceByWorldName(realmName)
+  } else {
+    place = await getPlaceByParcel(parcel)
+  }
 
   const canCreateStreamKey = await hasPermissionPrivilege(place, authenticatedAddress)
 

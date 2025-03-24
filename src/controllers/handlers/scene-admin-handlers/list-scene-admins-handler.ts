@@ -1,7 +1,8 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { HandlerContextWithPath, InvalidRequestError, UnauthorizedError } from '../../../types'
+import { HandlerContextWithPath } from '../../../types'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate, validateFilters } from '../../../logic/utils'
-
+import { PlaceAttributes } from '../../../types/places.type'
 export async function listSceneAdminsHandler(
   ctx: Pick<
     HandlerContextWithPath<
@@ -18,7 +19,7 @@ export async function listSceneAdminsHandler(
   } = ctx
 
   const logger = logs.getLogger('list-scene-admins-handler')
-  const { getPlace } = places
+  const { getPlaceByWorldName, getPlaceByParcel } = places
   const { hasPermissionPrivilege } = sceneManager
 
   if (!verification || verification?.auth === undefined) {
@@ -31,7 +32,12 @@ export async function listSceneAdminsHandler(
   const { parcel, hostname, realmName } = await validate(ctx)
   const isWorlds = hostname.includes('worlds-content-server')
 
-  const place = await getPlace(isWorlds, realmName, parcel)
+  let place: PlaceAttributes
+  if (isWorlds) {
+    place = await getPlaceByWorldName(realmName)
+  } else {
+    place = await getPlaceByParcel(parcel)
+  }
 
   const canList = await hasPermissionPrivilege(place, authenticatedAddress)
   if (!canList) {

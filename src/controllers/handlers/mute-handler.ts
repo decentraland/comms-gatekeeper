@@ -1,6 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { InvalidRequestError } from '../../types'
+import { NotFoundError } from '../../types/errors'
 
 export async function muteHandler(): Promise<IHttpServerComponent.IResponse> {
-  throw new InvalidRequestError('Deprecated endpoint')
+  throw new NotFoundError('Deprecated endpoint')
 }

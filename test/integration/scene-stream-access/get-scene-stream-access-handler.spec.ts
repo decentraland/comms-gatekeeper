@@ -2,7 +2,7 @@ import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
-import { InvalidRequestError, StreamingAccessUnavailableError } from '../../../src/types'
+import { InvalidRequestError } from '../../../src/types/errors'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 
@@ -67,12 +67,17 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    stubComponents.places.getPlace.resolves({
+    stubComponents.places.getPlaceByParcel.resolves({
       id: placeId,
       positions: ['10,20'],
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
-    stubComponents.lands.hasLandPermission.resolves(true)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: placeWorldId,
+      world_name: 'name.dcl.eth',
+      owner: owner.authChain[0].payload
+    } as PlaceAttributes)
+    stubComponents.lands.hasLandUpdatePermission.resolves(true)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
@@ -121,11 +126,11 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlace.resolves({
+    stubComponents.places.getPlaceByWorldName.resolves({
       id: placeWorldId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
-    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
 
     const response = await makeRequest(
@@ -157,7 +162,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 200 with streaming access when user is an admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
@@ -190,7 +195,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 200 with a new streaming access when it does not exist', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlace.resolves({
+    stubComponents.places.getPlaceByParcel.resolves({
       id: anotherPlaceId,
       positions: ['15,20'],
       owner: owner.authChain[0].payload
@@ -218,13 +223,13 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     }
   })
 
-  it('returns 200 when user is not owner or admin', async () => {
+  it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -236,13 +241,10 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       nonOwner
     )
 
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body).toHaveProperty('streaming_url')
-    expect(body).toHaveProperty('streaming_key')
+    expect(response.status).toBe(401)
   })
 
-  it('returns 401 if no sceneId in a land request', async () => {
+  it('returns 400 if no sceneId in a land request', async () => {
     const { localFetch } = components
 
     const metadataNoSceneId = { ...metadataLand, sceneId: '' }
@@ -258,7 +260,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       owner
     )
 
-    expect(response.status).toBe(401)
+    expect(response.status).toBe(400)
     const body = await response.json()
     expect(body.error).toBe('Access denied, invalid signed-fetch request, no sceneId')
   })
@@ -266,7 +268,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 400 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlace.rejects(new InvalidRequestError('Could not find scene information'))
+    stubComponents.places.getPlaceByParcel.rejects(new InvalidRequestError('Could not find scene information'))
 
     const response = await makeRequest(
       localFetch,

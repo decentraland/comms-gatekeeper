@@ -1,4 +1,5 @@
-import { HandlerContextWithPath, UnauthorizedError } from '../../../types'
+import { HandlerContextWithPath } from '../../../types'
+import { UnauthorizedError } from '../../../types/errors'
 
 export async function getPrivateMessagesTokenHandler(
   context: HandlerContextWithPath<'fetch' | 'livekit' | 'logs' | 'blockList' | 'config', '/private-messages/token'>

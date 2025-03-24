@@ -1,5 +1,5 @@
 import { createPlacesComponent } from '../../src/adapters/places'
-import { PlaceNotFoundError } from '../../src/types'
+import { PlaceNotFoundError } from '../../src/types/errors'
 
 describe('PlacesComponent', () => {
   let placesComponent: Awaited<ReturnType<typeof createPlacesComponent>>
@@ -45,7 +45,7 @@ describe('PlacesComponent', () => {
   })
 
   describe('getPlaceByParcel', () => {
-    it('should return place when found by parcel', async () => {
+    it('should return a place when found by parcel', async () => {
       const mockPlaceResponse = {
         data: [
           {
@@ -62,7 +62,7 @@ describe('PlacesComponent', () => {
       mockFetch.mockResolvedValueOnce(mockPlaceResponse)
 
       const result = await placesComponent.getPlaceByParcel('1,2')
-      expect(result.id).toBe('some-id')
+      expect(result).toBe(mockPlaceResponse.data[0])
       expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places?positions=1,2')
     })
 
@@ -75,7 +75,7 @@ describe('PlacesComponent', () => {
     })
   })
 
-  describe('getWorldByName', () => {
+  describe('getPlaceByWorldName', () => {
     it('should return world data when found', async () => {
       const mockWorldResponse = {
         data: [
@@ -93,8 +93,8 @@ describe('PlacesComponent', () => {
 
       mockFetch.mockResolvedValueOnce(mockWorldResponse)
 
-      const result = await placesComponent.getWorldByName('test-world')
-      expect(result.id).toBe('world-id')
+      const result = await placesComponent.getPlaceByWorldName('test-world')
+      expect(result).toBe(mockWorldResponse.data[0])
       expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds?names=test-world')
     })
 
@@ -102,60 +102,7 @@ describe('PlacesComponent', () => {
       const mockEmptyResponse = { data: [], ok: true }
       mockFetch.mockResolvedValueOnce(mockEmptyResponse)
 
-      await expect(placesComponent.getWorldByName('nonexistent-world')).rejects.toThrow(PlaceNotFoundError)
-      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds?names=nonexistent-world')
-    })
-  })
-
-  describe('getPlace', () => {
-    it('should return place data when world is requested', async () => {
-      const mockWorldResponse = {
-        data: [
-          {
-            id: 'world-detail-id',
-            title: 'Test World',
-            owner: '0xWorldOwner',
-            description: 'Detailed World',
-            positions: [],
-            world_name: 'test-world'
-          }
-        ],
-        ok: true
-      }
-
-      mockFetch.mockResolvedValueOnce(mockWorldResponse)
-
-      const result = await placesComponent.getPlace(true, 'test-world', '0,0')
-      expect(result.id).toBe('world-detail-id')
-      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds?names=test-world')
-    })
-
-    it('should return place data when parcel is requested', async () => {
-      const mockPlaceResponse = {
-        data: [
-          {
-            id: 'place-detail-id',
-            title: 'Test Place Detail',
-            owner: '0xDetailOwner',
-            description: 'Detailed Place',
-            positions: ['5,6']
-          }
-        ],
-        ok: true
-      }
-
-      mockFetch.mockResolvedValueOnce(mockPlaceResponse)
-
-      const result = await placesComponent.getPlace(false, 'realm', '5,6')
-      expect(result.id).toBe('place-detail-id')
-      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places?positions=5,6')
-    })
-
-    it('should throw PlaceNotFoundError when world not found', async () => {
-      const mockEmptyResponse = { data: [], ok: true }
-      mockFetch.mockResolvedValueOnce(mockEmptyResponse)
-
-      await expect(placesComponent.getPlace(true, 'nonexistent-world', '0,0')).rejects.toThrow(PlaceNotFoundError)
+      await expect(placesComponent.getPlaceByWorldName('nonexistent-world')).rejects.toThrow(PlaceNotFoundError)
       expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds?names=nonexistent-world')
     })
   })

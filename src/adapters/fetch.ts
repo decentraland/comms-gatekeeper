@@ -21,9 +21,7 @@ export async function cachedFetchComponent(
             throw new Error(`Error getting ${url}`)
           }
 
-          const data = await response.json()
-          logger.log(data)
-          return data
+          return response.json()
         } catch (err: any) {
           logger.warn(err)
           throw err

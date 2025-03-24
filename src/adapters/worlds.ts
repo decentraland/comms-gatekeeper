@@ -1,6 +1,7 @@
 import { AppComponents, PermissionsOverWorld, PermissionType, NamesResponse } from '../types'
 import { ensureSlashAtTheEnd } from '../logic/utils'
 import { IWorldComponent } from '../types/world.type'
+import { InvalidRequestError } from '../types/errors'
 
 export async function createWorldsComponent(
   components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
@@ -20,8 +21,6 @@ export async function createWorldsComponent(
   }
 
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
-    if (!worldName) return false
-
     let nameToValidate = worldName.toLowerCase()
 
     if (nameToValidate.endsWith('.dcl.eth')) {
@@ -30,7 +29,7 @@ export async function createWorldsComponent(
       nameToValidate = nameToValidate.slice(0, -4)
     } else {
       logger.info(`Invalid world name: ${worldName}, should end with .dcl.eth or .eth`)
-      throw new Error(`Invalid world name: ${worldName}, should end with .dcl.eth or .eth`)
+      throw new InvalidRequestError(`Invalid world name: ${worldName}, should end with .dcl.eth or .eth`)
     }
 
     const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
@@ -55,7 +54,6 @@ export async function createWorldsComponent(
   }
 
   return {
-    fetchWorldActionPermissions,
     hasWorldOwnerPermission,
     hasWorldStreamingPermission
   }

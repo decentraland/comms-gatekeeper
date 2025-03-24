@@ -63,48 +63,6 @@ export type HandlerContextWithPath<
 
 export type Context<Path extends string = any> = IHttpServerComponent.PathAwareContext<GlobalContext, Path>
 
-export class InvalidRequestError extends Error {
-  constructor(message: string) {
-    super(message)
-    Error.captureStackTrace(this, this.constructor)
-  }
-}
-
-export class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message)
-    Error.captureStackTrace(this, this.constructor)
-  }
-}
-
-export class UnauthorizedError extends Error {
-  constructor(message: string) {
-    super(message)
-    Error.captureStackTrace(this, this.constructor)
-  }
-}
-
-export class ServiceUnavailableError extends Error {
-  constructor(message: string) {
-    super(message)
-    Error.captureStackTrace(this, this.constructor)
-  }
-}
-
-export class StreamingAccessUnavailableError extends Error {
-  constructor(message: string) {
-    super(message)
-    Error.captureStackTrace(this, this.constructor)
-  }
-}
-
-export class PlaceNotFoundError extends Error {
-  constructor(message: string) {
-    super(message)
-    Error.captureStackTrace(this, this.constructor)
-  }
-}
-
 export type Permissions = {
   cast: string[]
   mute: string[]
@@ -218,12 +176,6 @@ export interface ISceneStreamAccessManager {
   addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess>
   removeAccess(placeId: string, adminAddress: string): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
-}
-
-export class DuplicateAdminError extends Error {
-  constructor() {
-    super('Admin already exists for this place')
-  }
 }
 
 export type LivekitSettings = {

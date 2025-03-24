@@ -46,13 +46,19 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlace.resolves({
+    stubComponents.places.getPlaceByParcel.resolves({
       positions: [metadataLand.parcel],
       id: testPlaceId,
       world: false
     } as PlaceAttributes)
 
-    stubComponents.lands.hasLandPermission.resolves(true)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: testPlaceId,
+      world_name: 'name.dcl.eth',
+      world: true
+    } as PlaceAttributes)
+
+    stubComponents.lands.hasLandUpdatePermission.resolves(true)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
@@ -95,7 +101,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     const { localFetch, sceneAdminManager } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlace.resolves({
+    stubComponents.places.getPlaceByWorldName.resolves({
       id: testPlaceId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
@@ -177,7 +183,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
@@ -206,7 +212,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     stubComponents.sceneManager.isSceneOwner.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
-    stubComponents.places.getPlace.resolves({
+    stubComponents.places.getPlaceByParcel.resolves({
       positions: [metadataLand.parcel],
       id: testPlaceId,
       world: false

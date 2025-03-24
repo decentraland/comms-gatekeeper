@@ -4,9 +4,9 @@ import {
   NotFoundError,
   PlaceNotFoundError,
   ServiceUnavailableError,
-  StreamingAccessUnavailableError,
+  StreamingAccessNotFoundError,
   UnauthorizedError
-} from '../../types'
+} from '../../types/errors'
 
 export async function errorHandler(
   _ctx: IHttpServerComponent.DefaultContext<object>,
@@ -26,8 +26,8 @@ export async function errorHandler(
 
     if (
       error instanceof NotFoundError ||
-      error instanceof StreamingAccessUnavailableError ||
-      error instanceof PlaceNotFoundError
+      error instanceof PlaceNotFoundError ||
+      error instanceof StreamingAccessNotFoundError
     ) {
       return {
         status: 404,

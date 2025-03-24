@@ -2,8 +2,7 @@ import { IBaseComponent } from '@well-known-components/interfaces'
 
 export type IPlacesComponent = IBaseComponent & {
   getPlaceByParcel(parcel: string): Promise<PlaceAttributes>
-  getWorldByName(worldName: string): Promise<PlaceAttributes>
-  getPlace(isWorlds: boolean, realmName: string, parcel: string): Promise<PlaceAttributes>
+  getPlaceByWorldName(worldName: string): Promise<PlaceAttributes>
 }
 
 export type PlaceAttributes = {

@@ -3,7 +3,9 @@ import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
-import { PlaceNotFoundError, SceneAdmin } from '../../../src/types'
+import { PlaceNotFoundError } from '../../../src/types/errors'
+import { SceneAdmin } from '../../../src/types'
+import { InvalidRequestError } from '../../../src/types/errors'
 
 test('GET /scene-admin - lists all active administrators for scenes', ({ components, stubComponents }) => {
   let cleanup: TestCleanup
@@ -78,13 +80,19 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    stubComponents.places.getPlace.resolves({
+    stubComponents.places.getPlaceByParcel.resolves({
       id: placeId,
       positions: ['10,20'],
       world: false
     } as PlaceAttributes)
 
-    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: placeId,
+      world_name: 'name.dcl.eth',
+      world: true
+    } as PlaceAttributes)
+
+    stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
@@ -100,7 +108,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 200 with a list of scene admins when user has land permission', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandPermission.resolves(true)
+    stubComponents.lands.hasLandUpdatePermission.resolves(true)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
 
     const response = await makeRequest(
@@ -123,16 +131,12 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlace.resolves({
+    stubComponents.places.getPlaceByWorldName.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
     } as PlaceAttributes)
-    stubComponents.places.getPlace.resolves({
-      id: placeId,
-      world_name: 'name.dcl.eth',
-      world: true
-    } as PlaceAttributes)
+
     stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
 
@@ -156,7 +160,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlace.resolves({
+    stubComponents.places.getPlaceByParcel.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -259,7 +263,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 404 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlace.rejects(new PlaceNotFoundError('Could not find scene information'))
+    stubComponents.places.getPlaceByParcel.rejects(new PlaceNotFoundError('Could not find scene information'))
 
     const response = await makeRequest(
       localFetch,
@@ -282,5 +286,107 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     })
 
     expect(response.status).toBe(400)
+  })
+
+  it('returns 200 with only active scene admins for land owner', async () => {
+    const { localFetch } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataLand)
+    stubComponents.places.getPlaceByParcel.resolves({
+      id: placeId,
+      positions: ['10,20']
+    } as PlaceAttributes)
+    stubComponents.lands.hasLandUpdatePermission.resolves(true)
+    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataLand
+      },
+      owner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toEqual(allAdminResults)
+  })
+
+  it('returns 200 with only active scene admins for the world owner', async () => {
+    const { localFetch } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: placeId,
+      world_name: 'name.dcl.eth'
+    } as PlaceAttributes)
+
+    stubComponents.lands.hasLandUpdatePermission.resolves(false)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
+    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataWorld
+      },
+      owner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toEqual(allAdminResults)
+  })
+
+  it('returns 404 when the scene is not found', async () => {
+    const { localFetch } = components
+
+    stubComponents.places.getPlaceByParcel.rejects(new PlaceNotFoundError('Could not find scene information'))
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataLand
+      },
+      owner
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  it('returns 200 with a list of scene admins when user is streaming admin', async () => {
+    const { localFetch } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: placeId,
+      world_name: 'name.dcl.eth',
+      world: true
+    } as PlaceAttributes)
+    stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
+    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataWorld
+      },
+      nonOwner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toEqual(allAdminResults)
   })
 })

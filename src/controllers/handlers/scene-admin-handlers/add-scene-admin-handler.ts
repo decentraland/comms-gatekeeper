@@ -1,7 +1,8 @@
 import { EthAddress } from '@dcl/schemas'
-import { InvalidRequestError, UnauthorizedError } from '../../../types'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
+import { PlaceAttributes } from '../../../types/places.type'
 
 export async function addSceneAdminHandler(
   ctx: Pick<
@@ -20,7 +21,7 @@ export async function addSceneAdminHandler(
 
   const logger = logs.getLogger('add-scene-admin-handler')
 
-  const { getPlace } = places
+  const { getPlaceByWorldName, getPlaceByParcel } = places
   const { isSceneOwner, hasPermissionPrivilege } = sceneManager
 
   if (!verification?.auth) {
@@ -37,7 +38,13 @@ export async function addSceneAdminHandler(
   const { parcel, hostname, realmName } = await validate(ctx)
   const isWorlds = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
-  const place = await getPlace(isWorlds, realmName, parcel)
+  let place: PlaceAttributes
+
+  if (isWorlds) {
+    place = await getPlaceByWorldName(realmName)
+  } else {
+    place = await getPlaceByParcel(parcel)
+  }
 
   const canAdd = await hasPermissionPrivilege(place, authenticatedAddress)
   if (!canAdd) {

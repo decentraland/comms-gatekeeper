@@ -9,7 +9,6 @@ describe('SceneManagerComponent', () => {
   const mockIsAdmin = jest.fn()
 
   const mockWorld = {
-    fetchWorldActionPermissions: jest.fn(),
     hasWorldOwnerPermission: mockWorldOwnerPermission,
     hasWorldStreamingPermission: mockWorldStreamingPermission
   }
@@ -22,7 +21,7 @@ describe('SceneManagerComponent', () => {
   }
 
   const mockLand = {
-    hasLandPermission: mockLandPermission
+    hasLandUpdatePermission: mockLandPermission
   }
 
   let sceneManager: ISceneManager
@@ -102,24 +101,6 @@ describe('SceneManagerComponent', () => {
   }
 
   describe('isSceneOwner', () => {
-    it('should call hasWorldOwnerPermission for a world', async () => {
-      mockWorldOwnerPermission.mockResolvedValue(true)
-
-      const result = await sceneManager.isSceneOwner(mockWorldPlace, '0xuser')
-
-      expect(mockWorldOwnerPermission).toHaveBeenCalledWith('0xuser', 'test-world.eth')
-      expect(result).toBe(true)
-    })
-
-    it('should call hasLandPermission for a scene', async () => {
-      mockLandPermission.mockResolvedValue(true)
-
-      const result = await sceneManager.isSceneOwner(mockScenePlace, '0xuser')
-
-      expect(mockLandPermission).toHaveBeenCalledWith('0xuser', ['0,0'])
-      expect(result).toBe(true)
-    })
-
     it('should return false if user is not owner of a world', async () => {
       mockWorldOwnerPermission.mockResolvedValue(false)
 

@@ -1,5 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { HandlerContextWithPath, NotFoundError, UnauthorizedError, Permissions } from '../../types'
+import { HandlerContextWithPath, Permissions } from '../../types'
+import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
 import { validate } from '../../logic/utils'
 
 export async function commsSceneHandler(
@@ -32,7 +33,7 @@ export async function commsSceneHandler(
     room = livekit.getWorldRoomName(realmName)
   } else {
     if (!sceneId) {
-      throw new UnauthorizedError('Access denied, invalid signed-fetch request, no sceneId')
+      throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
     }
     room = livekit.getSceneRoomName(realmName, sceneId)
   }

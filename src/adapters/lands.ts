@@ -10,7 +10,7 @@ export async function createLandsComponent(
 
   const lambdasUrl = await config.requireString('LAMBDAS_URL')
 
-  async function hasLandPermission(authAddress: string, placePositions: string[]): Promise<boolean> {
+  async function hasLandUpdatePermission(authAddress: string, placePositions: string[]): Promise<boolean> {
     if (!placePositions?.length) return false
 
     const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
@@ -31,6 +31,6 @@ export async function createLandsComponent(
   }
 
   return {
-    hasLandPermission
+    hasLandUpdatePermission
   }
 }

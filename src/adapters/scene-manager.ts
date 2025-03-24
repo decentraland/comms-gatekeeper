@@ -8,7 +8,7 @@ export async function createSceneManagerComponent(
   const { worlds, lands, sceneAdminManager } = components
 
   const { hasWorldOwnerPermission, hasWorldStreamingPermission } = worlds
-  const { hasLandPermission } = lands
+  const { hasLandUpdatePermission } = lands
 
   async function isSceneOwner(place: PlaceAttributes, address: string): Promise<boolean> {
     const isWorlds = place.world
@@ -16,7 +16,7 @@ export async function createSceneManagerComponent(
       return await hasWorldOwnerPermission(address, place.world_name!)
     }
 
-    return await hasLandPermission(address, place.positions)
+    return await hasLandUpdatePermission(address, place.positions)
   }
 
   async function hasPermissionPrivilege(place: PlaceAttributes, address: string): Promise<boolean> {

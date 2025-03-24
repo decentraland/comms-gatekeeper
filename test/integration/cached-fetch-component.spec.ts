@@ -45,6 +45,26 @@ describe('CachedFetchComponent', () => {
       expect(mockNodeFetch).toHaveBeenCalledWith('https://test-url.com')
     })
 
+    it('should reuse cached results for repeated requests', async () => {
+      const mockResponse = { data: 'test data' }
+      mockNodeFetch.mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue(mockResponse)
+      })
+
+      const cachedFunction = cachedComponent.cache()
+
+      const result1 = await cachedFunction.fetch('https://test-url.com')
+      expect(result1).toEqual(mockResponse)
+      expect(mockNodeFetch).toHaveBeenCalledTimes(1)
+
+      const result2 = await cachedFunction.fetch('https://test-url.com')
+      expect(result2).toEqual(mockResponse)
+
+      expect(mockNodeFetch).toHaveBeenCalledTimes(1)
+      expect(mockNodeFetch).toHaveBeenCalledWith('https://test-url.com')
+    })
+
     it('should handle fetch errors', async () => {
       const mockError = new Error('Fetch error')
       mockNodeFetch.mockRejectedValueOnce(mockError)

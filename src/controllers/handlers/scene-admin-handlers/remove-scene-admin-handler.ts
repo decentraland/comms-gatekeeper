@@ -1,6 +1,8 @@
 import { EthAddress } from '@dcl/schemas'
-import { HandlerContextWithPath, InvalidRequestError, UnauthorizedError } from '../../../types'
+import { HandlerContextWithPath } from '../../../types'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate } from '../../../logic/utils'
+import { PlaceAttributes } from '../../../types/places.type'
 
 export async function removeSceneAdminHandler(
   ctx: Pick<
@@ -17,7 +19,7 @@ export async function removeSceneAdminHandler(
     verification
   } = ctx
 
-  const { getPlace } = places
+  const { getPlaceByWorldName, getPlaceByParcel } = places
   const { hasPermissionPrivilege, isSceneOwner } = sceneManager
   const { hasWorldStreamingPermission } = worlds
   const logger = logs.getLogger('remove-scene-admin-handler')
@@ -43,7 +45,12 @@ export async function removeSceneAdminHandler(
     throw new UnauthorizedError('Invalid admin address')
   }
 
-  const place = await getPlace(isWorlds, realmName, parcel)
+  let place: PlaceAttributes
+  if (isWorlds) {
+    place = await getPlaceByWorldName(realmName)
+  } else {
+    place = await getPlaceByParcel(parcel)
+  }
   if (!place) {
     throw new InvalidRequestError('Place not found')
   }
@@ -66,7 +73,7 @@ export async function removeSceneAdminHandler(
 
   if (isWorldStreamingPermissionToRemove) {
     logger.warn(
-      `Attempt to remove world streaming permission ${adminToRemove} from from World Contente Server. Wrong endpoint`
+      `Attempt to remove world streaming permission ${adminToRemove} from from World Content Server. Wrong endpoint`
     )
     throw new InvalidRequestError('Cannot remove world streaming permission from World Content Server. Wrong endpoint')
   }
