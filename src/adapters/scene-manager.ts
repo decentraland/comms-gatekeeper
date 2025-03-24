@@ -3,12 +3,12 @@ import { ISceneManager } from '../types/scene-manager.type'
 import { PlaceAttributes } from '../types/places.type'
 
 export async function createSceneManagerComponent(
-  components: Pick<AppComponents, 'world' | 'land' | 'sceneAdminManager'>
+  components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager'>
 ): Promise<ISceneManager> {
-  const { world, land, sceneAdminManager } = components
+  const { worlds, lands, sceneAdminManager } = components
 
-  const { hasWorldOwnerPermission, hasWorldStreamingPermission } = world
-  const { hasLandPermission } = land
+  const { hasWorldOwnerPermission, hasWorldStreamingPermission } = worlds
+  const { hasLandPermission } = lands
 
   async function isSceneOwner(place: PlaceAttributes, address: string): Promise<boolean> {
     const isWorlds = place.world

@@ -2,7 +2,7 @@ import { ensureSlashAtTheEnd } from '../logic/utils'
 import { AppComponents, LandsResponse } from '../types'
 import { ILandComponent } from '../types/land.type'
 
-export async function createLandComponent(
+export async function createLandsComponent(
   components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
 ): Promise<ILandComponent> {
   const { config, cachedFetch, logs } = components

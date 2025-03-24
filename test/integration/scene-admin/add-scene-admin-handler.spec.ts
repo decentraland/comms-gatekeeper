@@ -52,10 +52,10 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       world: false
     } as PlaceAttributes)
 
-    stubComponents.land.hasLandPermission.resolves(true)
+    stubComponents.lands.hasLandPermission.resolves(true)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
-    stubComponents.world.hasWorldOwnerPermission.resolves(false)
-    stubComponents.world.hasWorldStreamingPermission.resolves(false)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
+    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
   })
 
   afterEach(async () => {
@@ -177,8 +177,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.land.hasLandPermission.resolves(false)
-    stubComponents.world.hasWorldOwnerPermission.resolves(false)
+    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(
@@ -198,7 +198,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   })
 
   it('returns 400 when admin already exists', async () => {
-    const { localFetch, sceneAdminManager } = components
+    const { localFetch } = components
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
     stubComponents.sceneManager.isSceneOwner.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)

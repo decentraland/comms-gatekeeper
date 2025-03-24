@@ -2,7 +2,7 @@ import { AppComponents, PermissionsOverWorld, PermissionType, NamesResponse } fr
 import { ensureSlashAtTheEnd } from '../logic/utils'
 import { IWorldComponent } from '../types/world.type'
 
-export async function createWorldComponent(
+export async function createWorldsComponent(
   components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
 ): Promise<IWorldComponent> {
   const { config, cachedFetch, logs } = components

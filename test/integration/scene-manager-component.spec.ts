@@ -31,8 +31,8 @@ describe('SceneManagerComponent', () => {
     jest.clearAllMocks()
 
     sceneManager = await createSceneManagerComponent({
-      land: mockLand,
-      world: mockWorld as any,
+      lands: mockLand,
+      worlds: mockWorld as any,
       sceneAdminManager: mockSceneAdminManager as any
     })
   })

@@ -54,8 +54,8 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       positions: ['10,20'],
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
-    stubComponents.land.hasLandPermission.resolves(true)
-    stubComponents.world.hasWorldOwnerPermission.resolves(false)
+    stubComponents.lands.hasLandPermission.resolves(true)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
@@ -93,8 +93,8 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       id: placeWorldId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
-    stubComponents.land.hasLandPermission.resolves(false)
-    stubComponents.world.hasWorldOwnerPermission.resolves(true)
+    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -120,8 +120,8 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
   it('returns 200 with streaming access when user is an admin', async () => {
     const { localFetch } = components
 
-    stubComponents.land.hasLandPermission.resolves(false)
-    stubComponents.world.hasWorldOwnerPermission.resolves(false)
+    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
     const response = await makeRequest(
@@ -148,8 +148,8 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.land.hasLandPermission.resolves(false)
-    stubComponents.world.hasWorldOwnerPermission.resolves(false)
+    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
 

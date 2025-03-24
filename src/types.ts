@@ -37,8 +37,8 @@ export type BaseComponents = {
   sceneStreamAccessManager: ISceneStreamAccessManager
   cachedFetch: ICachedFetchComponent
   places: IPlacesComponent
-  world: IWorldComponent
-  land: ILandComponent
+  worlds: IWorldComponent
+  lands: ILandComponent
   sceneManager: ISceneManager
 }
 

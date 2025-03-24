@@ -84,9 +84,9 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: false
     } as PlaceAttributes)
 
-    stubComponents.land.hasLandPermission.resolves(false)
-    stubComponents.world.hasWorldOwnerPermission.resolves(false)
-    stubComponents.world.hasWorldStreamingPermission.resolves(false)
+    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
+    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves(allAdminResults)
@@ -100,7 +100,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 200 with a list of scene admins when user has land permission', async () => {
     const { localFetch } = components
 
-    stubComponents.land.hasLandPermission.resolves(true)
+    stubComponents.lands.hasLandPermission.resolves(true)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
 
     const response = await makeRequest(
@@ -133,7 +133,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world_name: 'name.dcl.eth',
       world: true
     } as PlaceAttributes)
-    stubComponents.world.hasWorldOwnerPermission.resolves(true)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
 
     const response = await makeRequest(
@@ -161,7 +161,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world_name: 'name.dcl.eth',
       world: true
     } as PlaceAttributes)
-    stubComponents.world.hasWorldStreamingPermission.resolves(true)
+    stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
 
     const response = await makeRequest(

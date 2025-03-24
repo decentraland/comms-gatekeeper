@@ -74,8 +74,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       positions: ['10,20'],
       owner: ownerAddress
     } as PlaceAttributes)
-    stubComponents.land.hasLandPermission.resolves(false)
-    stubComponents.world.hasWorldStreamingPermission.resolves(false)
+    stubComponents.lands.hasLandPermission.resolves(false)
+    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
   })
 
@@ -87,7 +87,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 204 when successfully deactivating a scene admin', async () => {
     const { localFetch } = components
 
-    stubComponents.land.hasLandPermission.resolves(true)
+    stubComponents.lands.hasLandPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -108,7 +108,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 204 when an admin removes another admin', async () => {
     const { localFetch } = components
 
-    stubComponents.land.hasLandPermission.resolves(false)
+    stubComponents.lands.hasLandPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
     const response = await makeRequest(
@@ -130,7 +130,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 401 when trying to remove a non-existent admin', async () => {
     const { localFetch } = components
 
-    stubComponents.land.hasLandPermission.resolves(true)
+    stubComponents.lands.hasLandPermission.resolves(true)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(
@@ -153,7 +153,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     const { localFetch } = components
 
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.land.hasLandPermission.resolves(true)
+    stubComponents.lands.hasLandPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -174,7 +174,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 401 when non-owner/non-admin tries to remove an admin', async () => {
     const { localFetch } = components
 
-    stubComponents.land.hasLandPermission.resolves(false)
+    stubComponents.lands.hasLandPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(
@@ -236,7 +236,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 204 when owner tries to remove themselves', async () => {
     const { localFetch } = components
 
-    stubComponents.land.hasLandPermission.resolves(true)
+    stubComponents.lands.hasLandPermission.resolves(true)
 
     const response = await makeRequest(
       localFetch,

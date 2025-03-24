@@ -15,9 +15,9 @@ import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream
 import { createTracedFetchComponent } from './adapters/traced-fetch'
 import { createBlockListComponent } from './adapters/blocklist'
 import { cachedFetchComponent } from './adapters/fetch'
-import { createWorldComponent } from './adapters/world'
+import { createWorldsComponent } from './adapters/worlds'
 import { createPlacesComponent } from './adapters/places'
-import { createLandComponent } from './adapters/land'
+import { createLandsComponent } from './adapters/lands'
 import { createSceneManagerComponent } from './adapters/scene-manager'
 
 // Initialize all the components of the app
@@ -70,10 +70,10 @@ export async function initComponents(): Promise<AppComponents> {
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
 
   const cachedFetch = await cachedFetchComponent({ fetch: tracedFetch, logs })
-  const world = await createWorldComponent({ config, logs, cachedFetch })
+  const worlds = await createWorldsComponent({ config, logs, cachedFetch })
   const places = await createPlacesComponent({ config, logs, cachedFetch })
-  const land = await createLandComponent({ config, logs, cachedFetch })
-  const sceneManager = await createSceneManagerComponent({ world, land, sceneAdminManager })
+  const lands = await createLandsComponent({ config, logs, cachedFetch })
+  const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
@@ -87,9 +87,9 @@ export async function initComponents(): Promise<AppComponents> {
     fetch: tracedFetch,
     metrics,
     cachedFetch,
-    world,
+    worlds,
     places,
-    land,
+    lands,
     sceneManager,
     livekit,
     database,

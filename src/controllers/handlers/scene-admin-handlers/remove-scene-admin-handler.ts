@@ -5,21 +5,21 @@ import { validate } from '../../../logic/utils'
 export async function removeSceneAdminHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'world',
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'worlds',
       '/scene-admin'
     >,
     'components' | 'url' | 'params' | 'verification' | 'request'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places, world },
+    components: { logs, sceneAdminManager, sceneManager, places, worlds },
     request,
     verification
   } = ctx
 
   const { getPlace } = places
   const { hasPermissionPrivilege, isSceneOwner } = sceneManager
-  const { hasWorldStreamingPermission } = world
+  const { hasWorldStreamingPermission } = worlds
   const logger = logs.getLogger('remove-scene-admin-handler')
 
   if (!verification?.auth) {

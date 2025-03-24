@@ -1,7 +1,7 @@
-import { createLandComponent } from '../../src/adapters/land'
+import { createLandsComponent } from '../../src/adapters/lands'
 
-describe('LandComponent', () => {
-  let landComponent: Awaited<ReturnType<typeof createLandComponent>>
+describe('LandsComponent', () => {
+  let landsComponent: Awaited<ReturnType<typeof createLandsComponent>>
   let mockFetch: jest.Mock
 
   beforeEach(async () => {
@@ -36,7 +36,7 @@ describe('LandComponent', () => {
       }))
     }
 
-    landComponent = await createLandComponent({
+    landsComponent = await createLandsComponent({
       config: mockConfig,
       cachedFetch: mockCachedFetch,
       logs: mockLogs
@@ -54,7 +54,7 @@ describe('LandComponent', () => {
 
       mockFetch.mockResolvedValueOnce(mockLandResponse)
 
-      const result = await landComponent.hasLandPermission('0xUserAddress', ['10,20', '99,99'])
+      const result = await landsComponent.hasLandPermission('0xUserAddress', ['10,20', '99,99'])
       expect(result).toBe(true)
       expect(mockFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/users/0xUserAddress/lands')
     })
@@ -69,7 +69,7 @@ describe('LandComponent', () => {
 
       mockFetch.mockResolvedValueOnce(mockLandResponse)
 
-      const result = await landComponent.hasLandPermission('0xUserAddress', ['50,60', '99,99'])
+      const result = await landsComponent.hasLandPermission('0xUserAddress', ['50,60', '99,99'])
       expect(result).toBe(false)
       expect(mockFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/users/0xUserAddress/lands')
     })
@@ -81,13 +81,13 @@ describe('LandComponent', () => {
 
       mockFetch.mockResolvedValueOnce(mockEmptyResponse)
 
-      const result = await landComponent.hasLandPermission('0xUserAddress', ['10,20'])
+      const result = await landsComponent.hasLandPermission('0xUserAddress', ['10,20'])
       expect(result).toBe(false)
       expect(mockFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/users/0xUserAddress/lands')
     })
 
     it('should return false when positions array is empty', async () => {
-      const result = await landComponent.hasLandPermission('0xUserAddress', [])
+      const result = await landsComponent.hasLandPermission('0xUserAddress', [])
       expect(result).toBe(false)
       expect(mockFetch).not.toHaveBeenCalled()
     })
@@ -100,7 +100,7 @@ describe('LandComponent', () => {
         requireNumber: jest.fn()
       }
 
-      const component = await createLandComponent({
+      const component = await createLandsComponent({
         config: mockConfig,
         cachedFetch: {
           cache: jest.fn().mockReturnValue({

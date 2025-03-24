@@ -1,9 +1,9 @@
-import { createWorldComponent } from '../../src/adapters/world'
+import { createWorldsComponent } from '../../src/adapters/worlds'
 import { PermissionType } from '../../src/types'
 
 describe('WorldComponent', () => {
   const mockFetch = jest.fn()
-  let worldComponent: Awaited<ReturnType<typeof createWorldComponent>>
+  let worldsComponent: Awaited<ReturnType<typeof createWorldsComponent>>
 
   beforeEach(async () => {
     jest.clearAllMocks()
@@ -35,7 +35,7 @@ describe('WorldComponent', () => {
       }))
     }
 
-    worldComponent = await createWorldComponent({
+    worldsComponent = await createWorldsComponent({
       config: mockConfig,
       cachedFetch: mockCachedFetch,
       logs: mockLogs
@@ -63,7 +63,7 @@ describe('WorldComponent', () => {
 
       mockFetch.mockResolvedValueOnce(mockPermissions)
 
-      const permissions = await worldComponent.fetchWorldActionPermissions('test-world')
+      const permissions = await worldsComponent.fetchWorldActionPermissions('test-world')
       expect(permissions).toEqual(mockPermissions.permissions)
       expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
     })
@@ -79,37 +79,37 @@ describe('WorldComponent', () => {
     })
 
     it('should return false when no world name is provided', async () => {
-      const result = await worldComponent.hasWorldOwnerPermission('authAddress', '')
+      const result = await worldsComponent.hasWorldOwnerPermission('authAddress', '')
       expect(result).toBe(false)
     })
 
     it("should throw an error when world name doesn't end with .eth", async () => {
-      await expect(worldComponent.hasWorldOwnerPermission('authAddress', 'myworld')).rejects.toThrow()
+      await expect(worldsComponent.hasWorldOwnerPermission('authAddress', 'myworld')).rejects.toThrow()
     })
 
     it('should return false when user has no name elements', async () => {
       mockFetch.mockResolvedValueOnce({ elements: [] })
-      const result = await worldComponent.hasWorldOwnerPermission('authAddress', 'myworld.eth')
+      const result = await worldsComponent.hasWorldOwnerPermission('authAddress', 'myworld.eth')
       expect(result).toBe(false)
     })
 
     it('should return true when world name exactly matches a user name', async () => {
-      const result = await worldComponent.hasWorldOwnerPermission('authAddress', 'myworld.eth')
+      const result = await worldsComponent.hasWorldOwnerPermission('authAddress', 'myworld.eth')
       expect(result).toBe(true)
     })
 
     it('should be case insensitive when matching names', async () => {
-      const result = await worldComponent.hasWorldOwnerPermission('authAddress', 'MyWorld.eth')
+      const result = await worldsComponent.hasWorldOwnerPermission('authAddress', 'MyWorld.eth')
       expect(result).toBe(true)
     })
 
     it('should strip .dcl.eth suffix when matching names', async () => {
-      const result = await worldComponent.hasWorldOwnerPermission('authAddress', 'myworld.dcl.eth')
+      const result = await worldsComponent.hasWorldOwnerPermission('authAddress', 'myworld.dcl.eth')
       expect(result).toBe(true)
     })
 
     it('should return false when name does not match any user name', async () => {
-      const result = await worldComponent.hasWorldOwnerPermission('authAddress', 'unknownworld.eth')
+      const result = await worldsComponent.hasWorldOwnerPermission('authAddress', 'unknownworld.eth')
       expect(result).toBe(false)
     })
   })
@@ -135,7 +135,7 @@ describe('WorldComponent', () => {
 
       mockFetch.mockResolvedValueOnce(mockPermissionsWithAllowList)
 
-      const result = await worldComponent.hasWorldStreamingPermission('0xUserAddress', 'test-world')
+      const result = await worldsComponent.hasWorldStreamingPermission('0xUserAddress', 'test-world')
       expect(result).toBe(true)
     })
 
@@ -159,7 +159,7 @@ describe('WorldComponent', () => {
 
       mockFetch.mockResolvedValueOnce(mockPermissionsWithoutUser)
 
-      const result = await worldComponent.hasWorldStreamingPermission('0xUserAddress', 'test-world')
+      const result = await worldsComponent.hasWorldStreamingPermission('0xUserAddress', 'test-world')
       expect(result).toBe(false)
     })
 
@@ -183,13 +183,13 @@ describe('WorldComponent', () => {
 
       mockFetch.mockResolvedValueOnce(mockPermissionsWithOtherType)
 
-      const result = await worldComponent.hasWorldStreamingPermission('0xUserAddress', 'test-world')
+      const result = await worldsComponent.hasWorldStreamingPermission('0xUserAddress', 'test-world')
       expect(result).toBe(false)
     })
 
     it('should return false when permissions are not available', async () => {
       mockFetch.mockResolvedValueOnce({})
-      const result = await worldComponent.hasWorldStreamingPermission('0xUserAddress', 'test-world')
+      const result = await worldsComponent.hasWorldStreamingPermission('0xUserAddress', 'test-world')
       expect(result).toBe(false)
     })
   })
