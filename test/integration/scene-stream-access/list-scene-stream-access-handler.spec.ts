@@ -57,7 +57,16 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       parcel: '20,20'
     }
 
-    jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValue({
+      identity: owner.authChain[0].payload,
+      realm: {
+        serverName: 'test-realm',
+        hostname: 'https://peer.decentraland.zone',
+        protocol: 'https'
+      },
+      parcel: '10,20',
+      sceneId: 'test-scene'
+    })
     stubComponents.places.getPlaceByParcel.resolves({
       id: placeId,
       positions: ['10,20'],
@@ -102,7 +111,16 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
   it('returns 200 with streaming access when user has world permission', async () => {
     const { localFetch } = components
 
-    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce({
+      identity: owner.authChain[0].payload,
+      realm: {
+        serverName: 'name.dcl.eth',
+        hostname: 'https://worlds-content-server.decentraland.org/',
+        protocol: 'https'
+      },
+      parcel: '20,20',
+      sceneId: 'test-scene'
+    })
     stubComponents.places.getPlaceByWorldName.resolves({
       id: placeWorldId,
       world_name: 'name.dcl.eth'
@@ -186,7 +204,16 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     const { localFetch } = components
 
     const metadataNoSceneId = { ...metadataLand, sceneId: '' }
-    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataNoSceneId)
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce({
+      identity: owner.authChain[0].payload,
+      realm: {
+        serverName: 'test-realm',
+        hostname: 'https://peer.decentraland.zone',
+        protocol: 'https'
+      },
+      parcel: '10,20',
+      sceneId: ''
+    })
 
     const response = await makeRequest(
       localFetch,

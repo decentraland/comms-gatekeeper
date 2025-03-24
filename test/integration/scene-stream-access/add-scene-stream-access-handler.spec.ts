@@ -318,9 +318,12 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
 
   type Metadata = {
     identity: string
-    realmName: string
+    realm: {
+      serverName: string
+      hostname: string
+      protocol: string
+    }
     parcel: string
-    hostname: string
     sceneId: string
   }
 
@@ -345,17 +348,23 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
 
     metadataLand = {
       identity: owner.authChain[0].payload,
-      realmName: 'test-realm',
+      realm: {
+        serverName: 'test-realm',
+        hostname: 'https://peer.decentraland.zone',
+        protocol: 'https'
+      },
       parcel: '10,20',
-      hostname: 'https://peer.decentraland.zone',
       sceneId: 'test-scene'
     }
 
     metadataWorld = {
       identity: owner.authChain[0].payload,
-      realmName: 'name.dcl.eth',
+      realm: {
+        serverName: 'name.dcl.eth',
+        hostname: 'https://worlds-content-server.decentraland.org/',
+        protocol: 'https'
+      },
       parcel: '20,20',
-      hostname: 'https://worlds-content-server.decentraland.org/',
       sceneId: 'test-scene'
     }
 
