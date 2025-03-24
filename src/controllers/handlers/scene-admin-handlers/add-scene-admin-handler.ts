@@ -30,10 +30,13 @@ export async function addSceneAdminHandler(
     throw new InvalidRequestError(`Invalid payload`)
   }
 
-  const { parcel, hostname, realmName } = await validate(ctx)
+  const {
+    parcel,
+    realm: { serverName, hostname }
+  } = await validate(ctx)
   const isWorlds = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
-  const place = await getPlace(isWorlds, realmName, parcel)
+  const place = await getPlace(isWorlds, serverName, parcel)
 
   const isOwner = isWorlds
     ? await hasWorldPermission(authenticatedAddress, place.world_name!)

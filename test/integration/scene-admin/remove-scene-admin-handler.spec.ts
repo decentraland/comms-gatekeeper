@@ -16,10 +16,13 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
 
   type Metadata = {
     identity: string
-    realmName: string
-    parcel: string
-    hostname: string
+    realm: {
+      serverName: string
+      hostname: string
+      protocol: string
+    }
     sceneId: string
+    parcel: string
   }
 
   let metadataLand: Metadata
@@ -63,10 +66,13 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
 
     metadataLand = {
       identity: ownerAddress,
-      realmName: 'test-realm',
-      parcel: '10,20',
-      hostname: 'https://peer.decentraland.zone',
-      sceneId: 'test-scene'
+      realm: {
+        serverName: 'test-realm',
+        hostname: 'https://peer.decentraland.zone',
+        protocol: 'https'
+      },
+      sceneId: 'test-scene',
+      parcel: '10,20'
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)

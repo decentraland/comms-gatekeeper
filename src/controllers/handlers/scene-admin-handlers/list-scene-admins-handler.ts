@@ -25,10 +25,13 @@ export async function listSceneAdminsHandler(
 
   const authenticatedAddress = verification.auth.toLowerCase()
 
-  const { parcel, hostname, realmName } = await validate(ctx)
+  const {
+    parcel,
+    realm: { hostname, serverName }
+  } = await validate(ctx)
   const isWorlds = hostname.includes('worlds-content-server')
 
-  const place = await getPlace(isWorlds, realmName, parcel)
+  const place = await getPlace(isWorlds, serverName, parcel)
   if (!place) {
     logger.warn(`Place not found for parcel: ${parcel}`)
     return {

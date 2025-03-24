@@ -13,7 +13,11 @@ export async function commsSceneHandler(
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
-  const { realmName, sceneId, identity } = await validate(context)
+  const {
+    realm: { serverName },
+    sceneId,
+    identity
+  } = await validate(context)
   let forPreview = false
   let room: string
   let permissions: Permissions | undefined
@@ -24,7 +28,7 @@ export async function commsSceneHandler(
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
 
-  if (realmName === 'preview') {
+  if (serverName === 'preview') {
     room = `preview-${identity}`
 
     forPreview = true
@@ -32,15 +36,15 @@ export async function commsSceneHandler(
       cast: [],
       mute: []
     }
-  } else if (realmName.endsWith('.eth')) {
-    permissions = await sceneFetcher.fetchWorldPermissions(realmName)
-    room = livekit.getWorldRoomName(realmName)
+  } else if (serverName.endsWith('.eth')) {
+    permissions = await sceneFetcher.fetchWorldPermissions(serverName)
+    room = livekit.getWorldRoomName(serverName)
   } else {
     if (!sceneId) {
       throw new UnauthorizedError('Access denied, invalid signed-fetch request, no sceneId')
     }
     permissions = await sceneFetcher.fetchScenePermissions(sceneId)
-    room = livekit.getSceneRoomName(realmName, sceneId)
+    room = livekit.getSceneRoomName(serverName, sceneId)
   }
 
   if (!permissions) {

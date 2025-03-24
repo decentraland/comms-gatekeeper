@@ -31,7 +31,10 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError(`Invalid payload`)
   }
 
-  const { parcel, hostname, realmName } = await validate(ctx)
+  const {
+    parcel,
+    realm: { hostname, serverName }
+  } = await validate(ctx)
   const isWorlds = hostname.includes('worlds-content-server')
   const authenticatedAddress = verification.auth.toLowerCase()
 
@@ -39,7 +42,7 @@ export async function removeSceneAdminHandler(
     throw new UnauthorizedError('Invalid admin address')
   }
 
-  const place = await getPlace(isWorlds, realmName, parcel)
+  const place = await getPlace(isWorlds, serverName, parcel)
   if (!place) {
     throw new InvalidRequestError('Place not found')
   }
