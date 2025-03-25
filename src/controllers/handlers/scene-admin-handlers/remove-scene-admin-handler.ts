@@ -21,7 +21,7 @@ export async function removeSceneAdminHandler(
 
   const { getPlaceByWorldName, getPlaceByParcel } = places
   const { hasPermissionPrivilege, isSceneOwner } = sceneManager
-  const { hasWorldStreamingPermission } = worlds
+  const { hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
   const logger = logs.getLogger('remove-scene-admin-handler')
 
   if (!verification?.auth) {
@@ -72,7 +72,9 @@ export async function removeSceneAdminHandler(
   }
 
   const isWorldStreamingPermissionToRemove =
-    place.world && (await hasWorldStreamingPermission(adminToRemove, serverName))
+    place.world &&
+    ((await hasWorldStreamingPermission(adminToRemove, serverName)) ||
+      (await hasWorldDeployPermission(adminToRemove, serverName)))
 
   if (isWorldStreamingPermissionToRemove) {
     logger.warn(

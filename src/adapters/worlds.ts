@@ -53,8 +53,18 @@ export async function createWorldsComponent(
     )
   }
 
+  async function hasWorldDeployPermission(authAddress: string, worldName: string): Promise<boolean> {
+    const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
+
+    return (
+      permissionsOverWorld?.deployment.type === PermissionType.AllowList &&
+      permissionsOverWorld.deployment.wallets.includes(authAddress)
+    )
+  }
+
   return {
     hasWorldOwnerPermission,
-    hasWorldStreamingPermission
+    hasWorldStreamingPermission,
+    hasWorldDeployPermission
   }
 }

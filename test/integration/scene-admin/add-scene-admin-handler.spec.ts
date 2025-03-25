@@ -71,6 +71,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
+    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
   })
 
   afterEach(async () => {

@@ -5,12 +5,14 @@ import { ISceneManager } from '../../src/types/scene-manager.type'
 describe('SceneManagerComponent', () => {
   const mockWorldOwnerPermission = jest.fn()
   const mockWorldStreamingPermission = jest.fn()
+  const mockWorldDeployPermission = jest.fn()
   const mockLandPermission = jest.fn()
   const mockIsAdmin = jest.fn()
 
   const mockWorld = {
     hasWorldOwnerPermission: mockWorldOwnerPermission,
-    hasWorldStreamingPermission: mockWorldStreamingPermission
+    hasWorldStreamingPermission: mockWorldStreamingPermission,
+    hasWorldDeployPermission: mockWorldDeployPermission
   }
 
   const mockSceneAdminManager = {
@@ -147,6 +149,16 @@ describe('SceneManagerComponent', () => {
       expect(result).toBe(true)
     })
 
+    it('should return true if user has deploy permission for a world', async () => {
+      mockWorldOwnerPermission.mockResolvedValue(false)
+      mockIsAdmin.mockResolvedValue(false)
+      mockWorldDeployPermission.mockResolvedValue(true)
+
+      const result = await sceneManager.hasPermissionPrivilege(mockWorldPlace, '0xuser')
+
+      expect(result).toBe(true)
+    })
+
     it('should return true if user is the owner of a scene', async () => {
       mockLandPermission.mockResolvedValue(true)
       mockIsAdmin.mockResolvedValue(false)
@@ -178,7 +190,7 @@ describe('SceneManagerComponent', () => {
       mockWorldOwnerPermission.mockResolvedValue(false)
       mockIsAdmin.mockResolvedValue(false)
       mockWorldStreamingPermission.mockResolvedValue(false)
-
+      mockWorldDeployPermission.mockResolvedValue(false)
       const result = await sceneManager.hasPermissionPrivilege(mockWorldPlace, '0xuser')
 
       expect(result).toBe(false)

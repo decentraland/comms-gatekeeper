@@ -179,4 +179,84 @@ describe('WorldComponent', () => {
       expect(result).toBe(false)
     })
   })
+
+  describe('hasWorldDeployPermission', () => {
+    it('should return true when user is in deploy allowlist', async () => {
+      const mockPermissionsWithAllowList = {
+        permissions: {
+          access: {
+            type: 'allow-list',
+            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
+          },
+          deployment: {
+            type: PermissionType.AllowList,
+            wallets: ['0xuseraddress', '0xotheraddress']
+          },
+          streaming: {
+            type: PermissionType.AllowList,
+            wallets: []
+          }
+        }
+      }
+
+      mockFetch.mockResolvedValueOnce(mockPermissionsWithAllowList)
+
+      const result = await worldsComponent.hasWorldDeployPermission('0xuseraddress', 'test-world')
+      expect(result).toBe(true)
+    })
+
+    it('should return false when user is not in deploy allowlist', async () => {
+      const mockPermissionsWithoutUser = {
+        permissions: {
+          access: {
+            type: 'allow-list',
+            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
+          },
+          deployment: {
+            type: 'allow-list',
+            wallets: []
+          },
+          streaming: {
+            type: PermissionType.AllowList,
+            wallets: []
+          }
+        }
+      }
+
+      mockFetch.mockResolvedValueOnce(mockPermissionsWithoutUser)
+
+      const result = await worldsComponent.hasWorldDeployPermission('0xuseraddress', 'test-world')
+      expect(result).toBe(false)
+    })
+
+    it('should return false when permissions are not available', async () => {
+      mockFetch.mockResolvedValueOnce({})
+      const result = await worldsComponent.hasWorldDeployPermission('0xUserAddress', 'test-world')
+      expect(result).toBe(false)
+    })
+
+    it('should return false when permissions are not allowlist type', async () => {
+      const mockPermissionsWithOtherType = {
+        permissions: {
+          access: {
+            type: 'allow-list',
+            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
+          },
+          deployment: {
+            type: 'other-type',
+            wallets: ['0xUserAddress']
+          },
+          streaming: {
+            type: PermissionType.AllowList,
+            wallets: []
+          }
+        }
+      }
+
+      mockFetch.mockResolvedValueOnce(mockPermissionsWithOtherType)
+
+      const result = await worldsComponent.hasWorldDeployPermission('0xUserAddress', 'test-world')
+      expect(result).toBe(false)
+    })
+  })
 })

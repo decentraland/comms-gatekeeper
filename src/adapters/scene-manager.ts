@@ -7,7 +7,7 @@ export async function createSceneManagerComponent(
 ): Promise<ISceneManager> {
   const { worlds, lands, sceneAdminManager } = components
 
-  const { hasWorldOwnerPermission, hasWorldStreamingPermission } = worlds
+  const { hasWorldOwnerPermission, hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
   const { hasLandUpdatePermission } = lands
 
   async function isSceneOwner(place: PlaceAttributes, address: string): Promise<boolean> {
@@ -23,7 +23,9 @@ export async function createSceneManagerComponent(
     const isOwner = await isSceneOwner(place, address)
     let isAdmin = await sceneAdminManager.isAdmin(place.id, address)
     if (!isAdmin && place.world) {
-      isAdmin = await hasWorldStreamingPermission(address, place.world_name!)
+      isAdmin =
+        (await hasWorldStreamingPermission(address, place.world_name!)) ||
+        (await hasWorldDeployPermission(address, place.world_name!))
     }
 
     return isOwner || isAdmin

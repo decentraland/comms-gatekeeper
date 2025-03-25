@@ -98,6 +98,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.lands.hasLandUpdatePermission.resolves(true)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
+    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.livekit.getSceneRoomName.resolves(`test-realm:test-scene`)
     stubComponents.livekit.getWorldRoomName.resolves(`name.dcl.eth`)

@@ -104,6 +104,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
+    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves(allAdminResults)
@@ -175,6 +176,34 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
+    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataWorld
+      },
+      nonOwner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toEqual(allAdminResults)
+  })
+
+  it('returns 200 with a list of scene admins when user has world deploy permission', async () => {
+    const { localFetch } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: placeId,
+      world_name: 'name.dcl.eth',
+      world: true
+    } as PlaceAttributes)
+    stubComponents.worlds.hasWorldDeployPermission.resolves(true)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
 
     const response = await makeRequest(
@@ -381,6 +410,34 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
+    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataWorld
+      },
+      nonOwner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toEqual(allAdminResults)
+  })
+
+  it('returns 200 with a list of scene admins when user has world deploy permission', async () => {
+    const { localFetch } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: placeId,
+      world_name: 'name.dcl.eth',
+      world: true
+    } as PlaceAttributes)
+    stubComponents.worlds.hasWorldDeployPermission.resolves(true)
     stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
 
     const response = await makeRequest(
