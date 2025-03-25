@@ -1,23 +1,28 @@
 import { EthAddress } from '@dcl/schemas'
-import { InvalidRequestError, UnauthorizedError } from '../../../types'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
+import { PlaceAttributes } from '../../../types/places.type'
 
 export async function addSceneAdminHandler(
   ctx: Pick<
-    HandlerContextWithPath<'fetch' | 'sceneAdminManager' | 'sceneFetcher' | 'logs' | 'config', '/scene-admin'>,
+    HandlerContextWithPath<
+      'fetch' | 'sceneAdminManager' | 'logs' | 'config' | 'sceneManager' | 'places',
+      '/scene-admin'
+    >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneFetcher },
+    components: { logs, sceneAdminManager, sceneManager, places },
     request,
     verification
   } = ctx
 
-  const { getPlace, hasLandPermission, hasWorldPermission } = sceneFetcher
-
   const logger = logs.getLogger('add-scene-admin-handler')
+
+  const { getPlaceByWorldName, getPlaceByParcel } = places
+  const { isSceneOwner, isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
     throw new InvalidRequestError('Authentication required')
@@ -36,19 +41,23 @@ export async function addSceneAdminHandler(
   } = await validate(ctx)
   const isWorlds = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
-  const place = await getPlace(isWorlds, serverName, parcel)
+  let place: PlaceAttributes
 
-  const isOwner = isWorlds
-    ? await hasWorldPermission(authenticatedAddress, place.world_name!)
-    : await hasLandPermission(authenticatedAddress, place.positions)
+  if (isWorlds) {
+    place = await getPlaceByWorldName(serverName)
+  } else {
+    place = await getPlaceByParcel(parcel)
+  }
 
-  const isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)
+  const canAdd = await isSceneOwnerOrAdmin(place, authenticatedAddress)
 
-  if (!isOwner && !isAdmin) {
+  if (!canAdd) {
     throw new UnauthorizedError('You do not have permission to add admins to this place')
   }
 
-  if (place.owner && place.owner.toLowerCase() === adminToAdd.toLowerCase()) {
+  const isAddingOwnerAsAdmin = await isSceneOwner(place, adminToAdd.toLowerCase())
+
+  if (isAddingOwnerAsAdmin) {
     throw new InvalidRequestError('Cannot add the owner as an admin')
   }
 

@@ -1,15 +1,13 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { HandlerContextWithPath, NotFoundError, UnauthorizedError, Permissions } from '../../types'
+import { HandlerContextWithPath, Permissions } from '../../types'
+import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
 import { validate } from '../../logic/utils'
 
 export async function commsSceneHandler(
-  context: HandlerContextWithPath<
-    'fetch' | 'config' | 'livekit' | 'sceneFetcher' | 'logs' | 'blockList',
-    '/get-scene-adapter'
-  >
+  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'logs' | 'blockList', '/get-scene-adapter'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, sceneFetcher, logs, blockList }
+    components: { livekit, logs, blockList }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -20,7 +18,10 @@ export async function commsSceneHandler(
   } = await validate(context)
   let forPreview = false
   let room: string
-  let permissions: Permissions | undefined
+  const permissions: Permissions = {
+    cast: [],
+    mute: []
+  }
 
   const isBlacklisted = await blockList.isBlacklisted(identity)
   if (isBlacklisted) {
@@ -32,18 +33,12 @@ export async function commsSceneHandler(
     room = `preview-${identity}`
 
     forPreview = true
-    permissions = {
-      cast: [],
-      mute: []
-    }
   } else if (serverName.endsWith('.eth')) {
-    permissions = await sceneFetcher.fetchWorldPermissions(serverName)
     room = livekit.getWorldRoomName(serverName)
   } else {
     if (!sceneId) {
-      throw new UnauthorizedError('Access denied, invalid signed-fetch request, no sceneId')
+      throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
     }
-    permissions = await sceneFetcher.fetchScenePermissions(sceneId)
     room = livekit.getSceneRoomName(serverName, sceneId)
   }
 

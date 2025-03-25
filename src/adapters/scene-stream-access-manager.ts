@@ -1,10 +1,5 @@
-import {
-  AppComponents,
-  AddSceneStreamAccessInput,
-  ISceneStreamAccessManager,
-  SceneStreamAccess,
-  StreamingAccessUnavailableError
-} from '../types'
+import { AppComponents, AddSceneStreamAccessInput, ISceneStreamAccessManager, SceneStreamAccess } from '../types'
+import { StreamingAccessNotFoundError } from '../types/errors'
 import SQL from 'sql-template-strings'
 
 export async function createSceneStreamAccessManagerComponent({
@@ -56,7 +51,7 @@ export async function createSceneStreamAccessManagerComponent({
     )
 
     if (result.rowCount === 0) {
-      throw new StreamingAccessUnavailableError(`No active streaming access found for place ${placeId}`)
+      throw new StreamingAccessNotFoundError(`No active streaming access found for place ${placeId}`)
     }
 
     return result.rows[0]

@@ -1,22 +1,28 @@
 import { EthAddress } from '@dcl/schemas'
-import { HandlerContextWithPath, InvalidRequestError, UnauthorizedError } from '../../../types'
+import { HandlerContextWithPath } from '../../../types'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate } from '../../../logic/utils'
+import { PlaceAttributes } from '../../../types/places.type'
 
 export async function removeSceneAdminHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneAdminManager' | 'sceneFetcher' | 'logs' | 'config' | 'fetch', '/scene-admin'>,
+    HandlerContextWithPath<
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'worlds',
+      '/scene-admin'
+    >,
     'components' | 'url' | 'params' | 'verification' | 'request'
   >
 ) {
   const {
-    components: { logs, sceneFetcher, sceneAdminManager },
+    components: { logs, sceneAdminManager, sceneManager, places, worlds },
     request,
     verification
   } = ctx
 
+  const { getPlaceByWorldName, getPlaceByParcel } = places
+  const { isSceneOwnerOrAdmin, isSceneOwner } = sceneManager
+  const { hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
   const logger = logs.getLogger('remove-scene-admin-handler')
-
-  const { getPlace, hasLandPermission, hasWorldPermission } = sceneFetcher
 
   if (!verification?.auth) {
     throw new UnauthorizedError('Authentication required')
@@ -42,29 +48,39 @@ export async function removeSceneAdminHandler(
     throw new UnauthorizedError('Invalid admin address')
   }
 
-  const place = await getPlace(isWorlds, serverName, parcel)
+  let place: PlaceAttributes
+  if (isWorlds) {
+    place = await getPlaceByWorldName(serverName)
+  } else {
+    place = await getPlaceByParcel(parcel)
+  }
   if (!place) {
     throw new InvalidRequestError('Place not found')
   }
 
-  const hasPermission =
-    (isWorlds
-      ? await hasWorldPermission(authenticatedAddress, place.world_name!)
-      : await hasLandPermission(authenticatedAddress, place.positions)) ||
-    (await sceneAdminManager.isAdmin(place.id, authenticatedAddress))
-
-  if (!hasPermission) {
+  const canRemove = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  if (!canRemove) {
     logger.warn(`User ${authenticatedAddress} is not authorized to remove admins for entity ${place.id}`)
     throw new UnauthorizedError('Only scene admins or the owner can remove admins')
   }
 
-  const isOwnerToRemove = isWorlds
-    ? await hasWorldPermission(adminToRemove, place.world_name!)
-    : await hasLandPermission(adminToRemove, place.positions)
+  const isOwnerToRemove = await isSceneOwner(place, adminToRemove)
 
   if (isOwnerToRemove) {
     logger.warn(`Attempt to remove owner ${adminToRemove} from entity ${place.id} by ${authenticatedAddress}`)
     throw new InvalidRequestError('Cannot remove the owner of the scene')
+  }
+
+  const isWorldStreamingPermissionToRemove =
+    place.world &&
+    ((await hasWorldStreamingPermission(adminToRemove, serverName)) ||
+      (await hasWorldDeployPermission(adminToRemove, serverName)))
+
+  if (isWorldStreamingPermissionToRemove) {
+    logger.warn(
+      `Attempt to remove world streaming permission ${adminToRemove} from from World Content Server. Wrong endpoint`
+    )
+    throw new InvalidRequestError('Cannot remove world streaming permission from World Content Server. Wrong endpoint')
   }
 
   const isTargetAdminActive = await sceneAdminManager.isAdmin(place.id, adminToRemove)

@@ -2,11 +2,14 @@ import { test } from '../../components'
 import { makeRequest, owner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
-import { PlaceAttributes } from '../../../src/types'
+import { PlaceAttributes } from '../../../src/types/places.type'
 import { admin, nonOwner } from '../../utils'
 import { AuthLinkType } from '@dcl/crypto'
 
-test('POST /scene-admin - adds administrator access for a scene who can add other admins', ({ components }) => {
+test('POST /scene-admin - adds administrator access for a scene who can add other admins', ({
+  components,
+  stubComponents
+}) => {
   const testPlaceId = `place-id-add`
 
   type Metadata = {
@@ -52,14 +55,23 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    jest.spyOn(components.sceneFetcher, 'getPlace').mockResolvedValue({
+    stubComponents.places.getPlaceByParcel.resolves({
       positions: [metadataLand.parcel],
-      id: testPlaceId
+      id: testPlaceId,
+      world: false
     } as PlaceAttributes)
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValue(true)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: testPlaceId,
+      world_name: 'name.dcl.eth',
+      world: true
+    } as PlaceAttributes)
 
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValue(false)
+    stubComponents.lands.hasLandUpdatePermission.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
+    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
+    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
   })
 
   afterEach(async () => {
@@ -68,7 +80,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   it('returns 204 when successfully adding a scene admin', async () => {
     const { localFetch, sceneAdminManager } = components
-
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -82,6 +94,43 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       owner
     )
     expect(response.status).toBe(204)
+    const result = await sceneAdminManager.listActiveAdmins({
+      place_id: testPlaceId,
+      admin: admin.authChain[0].payload
+    })
+
+    if (result.length > 0) {
+      cleanup.trackInsert('scene_admin', { id: result[0].id })
+    }
+
+    expect(result.length).toBe(1)
+    expect(result[0].active).toBe(true)
+  })
+
+  it('returns 204 when user has world streaming permission', async () => {
+    const { localFetch, sceneAdminManager } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: testPlaceId,
+      world_name: 'name.dcl.eth'
+    } as PlaceAttributes)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admin: admin.authChain[0].payload
+        }),
+        metadata: metadataWorld
+      },
+      nonOwner
+    )
+
+    expect(response.status).toBe(204)
+
     const result = await sceneAdminManager.listActiveAdmins({
       place_id: testPlaceId,
       admin: admin.authChain[0].payload
@@ -144,9 +193,9 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    jest.spyOn(components.sceneFetcher, 'hasLandPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneFetcher, 'hasWorldPermission').mockResolvedValueOnce(false)
-    jest.spyOn(components.sceneAdminManager, 'isAdmin').mockResolvedValueOnce(false)
+    stubComponents.lands.hasLandUpdatePermission.resolves(false)
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -165,7 +214,19 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   })
 
   it('returns 400 when admin already exists', async () => {
-    const { localFetch, sceneAdminManager } = components
+    const { localFetch } = components
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+    stubComponents.sceneManager.isSceneOwner.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+    stubComponents.sceneManager.isSceneOwner.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(true)
+
+    stubComponents.places.getPlaceByParcel.resolves({
+      positions: [metadataLand.parcel],
+      id: testPlaceId,
+      world: false
+    } as PlaceAttributes)
 
     await makeRequest(
       localFetch,
@@ -194,14 +255,5 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     )
 
     expect(response.status).toBe(400)
-
-    const result = await sceneAdminManager.listActiveAdmins({
-      place_id: testPlaceId,
-      admin: admin.authChain[0].payload
-    })
-
-    if (result.length > 0) {
-      cleanup.trackInsert('scene_admin', { id: result[0].id })
-    }
   })
 })

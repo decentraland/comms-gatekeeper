@@ -1,22 +1,26 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { HandlerContextWithPath, InvalidRequestError, UnauthorizedError } from '../../../types'
+import { HandlerContextWithPath } from '../../../types'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate, validateFilters } from '../../../logic/utils'
-
+import { PlaceAttributes } from '../../../types/places.type'
 export async function listSceneAdminsHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneAdminManager' | 'sceneFetcher' | 'logs' | 'config' | 'fetch', '/scene-admin'>,
+    HandlerContextWithPath<
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places',
+      '/scene-admin'
+    >,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { sceneFetcher, logs, sceneAdminManager },
+    components: { logs, sceneAdminManager, sceneManager, places },
     url,
     verification
   } = ctx
 
-  const { getPlace, hasLandPermission, hasWorldPermission } = sceneFetcher
-
   const logger = logs.getLogger('list-scene-admins-handler')
+  const { getPlaceByWorldName, getPlaceByParcel } = places
+  const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
@@ -31,21 +35,15 @@ export async function listSceneAdminsHandler(
   } = await validate(ctx)
   const isWorlds = hostname.includes('worlds-content-server')
 
-  const place = await getPlace(isWorlds, serverName, parcel)
-  if (!place) {
-    logger.warn(`Place not found for parcel: ${parcel}`)
-    return {
-      status: 404,
-      body: { error: 'Place not found' }
-    }
+  let place: PlaceAttributes
+  if (isWorlds) {
+    place = await getPlaceByWorldName(serverName)
+  } else {
+    place = await getPlaceByParcel(parcel)
   }
 
-  const hasPermission = isWorlds
-    ? await hasWorldPermission(authenticatedAddress, place.world_name!)
-    : (await hasLandPermission(authenticatedAddress, place.positions)) ||
-      (await sceneAdminManager.isAdmin(place.id, authenticatedAddress))
-
-  if (!hasPermission) {
+  const canList = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  if (!canList) {
     logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
     throw new UnauthorizedError('Only administrators or the owner can list administrators')
   }

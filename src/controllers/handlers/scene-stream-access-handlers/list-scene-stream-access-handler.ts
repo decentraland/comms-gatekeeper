@@ -1,30 +1,30 @@
-import { InvalidRequestError, UnauthorizedError } from '../../../types'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
-
+import { PlaceAttributes } from '../../../types/places.type'
 const FOUR_DAYS = 4 * 24 * 60 * 60
 
 export async function listSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneAdminManager' | 'sceneStreamAccessManager' | 'sceneFetcher' | 'logs' | 'config',
+      'fetch' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'logs' | 'config',
       '/scene-stream-access'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneStreamAccessManager, sceneFetcher },
+    components: { logs, sceneStreamAccessManager, sceneManager, places },
     verification
   } = ctx
   const logger = logs.getLogger('get-scene-stream-access-handler')
+  const { getPlaceByWorldName, getPlaceByParcel } = places
+  const { isSceneOwnerOrAdmin } = sceneManager
   if (!verification?.auth) {
     logger.error('Authentication required')
     throw new InvalidRequestError('Authentication required')
   }
   const authenticatedAddress = verification.auth
-
-  const { getPlace, hasWorldPermission, hasLandPermission } = sceneFetcher
 
   const {
     parcel,
@@ -34,18 +34,18 @@ export async function listSceneStreamAccessHandler(
   const isWorlds = !!hostname?.includes('worlds-content-server')
 
   if (!isWorlds && !sceneId) {
-    throw new UnauthorizedError('Access denied, invalid signed-fetch request, no sceneId')
+    throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  const place = await getPlace(isWorlds, serverName, parcel)
+  let place: PlaceAttributes
+  if (isWorlds) {
+    place = await getPlaceByWorldName(serverName)
+  } else {
+    place = await getPlaceByParcel(parcel)
+  }
 
-  const isOwner = isWorlds
-    ? await hasWorldPermission(authenticatedAddress, place.world_name!)
-    : await hasLandPermission(authenticatedAddress, place.positions)
-
-  const isAdmin = await sceneAdminManager.isAdmin(place.id, authenticatedAddress)
-
-  if (!isOwner && !isAdmin) {
+  const canListStreamKeys = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  if (!canListStreamKeys) {
     logger.info(`Wallet ${authenticatedAddress} is not owner nor admin of the scene. Place ${place.id}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
   }
