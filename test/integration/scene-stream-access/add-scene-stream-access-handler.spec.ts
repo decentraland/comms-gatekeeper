@@ -3,7 +3,7 @@ import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
-import { InvalidRequestError, StreamingAccessUnavailableError } from '../../../src/types/errors'
+import { InvalidRequestError, StreamingAccessNotFoundError } from '../../../src/types/errors'
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
@@ -506,14 +506,14 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     expect(response.status).toBe(401)
   })
 
-  it('returns 500 when streaming access creation fails', async () => {
+  it('returns 404 when streaming access creation fails', async () => {
     const { localFetch } = components
 
     stubComponents.sceneStreamAccessManager.getAccess.rejects(
-      new StreamingAccessUnavailableError('Streaming access unavailable')
+      new StreamingAccessNotFoundError('Streaming access unavailable')
     )
     stubComponents.sceneStreamAccessManager.addAccess.rejects(
-      new StreamingAccessUnavailableError('Streaming access unavailable')
+      new StreamingAccessNotFoundError('Streaming access unavailable')
     )
     stubComponents.lands.hasLandUpdatePermission.resolves(true)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
@@ -537,7 +537,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       owner
     )
 
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(404)
   })
 
   it('returns 400 when request is invalid', async () => {

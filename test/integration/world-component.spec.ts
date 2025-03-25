@@ -66,9 +66,8 @@ describe('WorldComponent', () => {
       await expect(worldsComponent.hasWorldOwnerPermission('authAddress', 'myworld')).rejects.toThrow(
         'Invalid world name: myworld, should end with .dcl.eth or .eth'
       )
-
-      await expect(worldsComponent.hasWorldOwnerPermission('authAddress', 'myworld')).rejects.toBeInstanceOf(
-        InvalidRequestError
+      await expect(worldsComponent.hasWorldOwnerPermission('authAddress', 'myworld')).rejects.toThrow(
+        new InvalidRequestError('Invalid world name: myworld, should end with .dcl.eth or .eth')
       )
     })
 

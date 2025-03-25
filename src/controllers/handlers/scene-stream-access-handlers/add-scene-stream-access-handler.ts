@@ -1,6 +1,6 @@
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError, StreamingAccessUnavailableError, UnauthorizedError } from '../../../types/errors'
+import { InvalidRequestError, StreamingAccessNotFoundError, UnauthorizedError } from '../../../types/errors'
 import { SceneStreamAccess } from '../../../types'
 import { PlaceAttributes } from '../../../types/places.type'
 const FOUR_DAYS = 4 * 24 * 60 * 60
@@ -63,7 +63,7 @@ export async function addSceneStreamAccessHandler(
   try {
     access = await sceneStreamAccessManager.getAccess(place.id)
   } catch (error) {
-    if (error instanceof StreamingAccessUnavailableError) {
+    if (error instanceof StreamingAccessNotFoundError) {
       const ingress = await livekit.getOrCreateIngress(roomName, authenticatedAddress)
       access = await sceneStreamAccessManager.addAccess({
         place_id: place.id,

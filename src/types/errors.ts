@@ -30,13 +30,6 @@ export class ServiceUnavailableError extends Error {
   }
 }
 
-export class StreamingAccessUnavailableError extends Error {
-  constructor(message: string) {
-    super(message)
-    Error.captureStackTrace(this, this.constructor)
-  }
-}
-
 export class StreamingAccessNotFoundError extends Error {
   constructor(message: string) {
     super(message)
@@ -48,11 +41,5 @@ export class PlaceNotFoundError extends Error {
   constructor(message: string) {
     super(message)
     Error.captureStackTrace(this, this.constructor)
-  }
-}
-
-export class DuplicateAdminError extends Error {
-  constructor() {
-    super('Admin already exists for this place')
   }
 }
