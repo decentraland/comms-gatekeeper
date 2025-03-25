@@ -19,7 +19,7 @@ export async function createSceneManagerComponent(
     return await hasLandUpdatePermission(address, place.positions)
   }
 
-  async function hasPermissionPrivilege(place: PlaceAttributes, address: string): Promise<boolean> {
+  async function isSceneOwnerOrAdmin(place: PlaceAttributes, address: string): Promise<boolean> {
     const isOwner = await isSceneOwner(place, address)
     let isAdmin = await sceneAdminManager.isAdmin(place.id, address)
     if (!isAdmin && place.world) {
@@ -33,6 +33,6 @@ export async function createSceneManagerComponent(
 
   return {
     isSceneOwner,
-    hasPermissionPrivilege
+    isSceneOwnerOrAdmin
   }
 }

@@ -93,7 +93,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.livekit.getWorldRoomName.resolves(`name.dcl.eth`)
     stubComponents.livekit.getOrCreateIngress.resolves(mockIngress)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
   })
 
   afterEach(async () => {
@@ -239,7 +239,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -386,7 +386,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneStreamAccessManager.addAccess.resolves(mockSceneStreamAccess)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
     stubComponents.livekit.getOrCreateIngress.resolves({
       id: 'mock-ingress-id',
@@ -491,7 +491,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -518,7 +518,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     stubComponents.lands.hasLandUpdatePermission.resolves(true)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.livekit.getOrCreateIngress.resolves({
       id: 'mock-ingress-id',
       name: 'mock-ingress',

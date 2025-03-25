@@ -20,7 +20,7 @@ export async function removeSceneAdminHandler(
   } = ctx
 
   const { getPlaceByWorldName, getPlaceByParcel } = places
-  const { hasPermissionPrivilege, isSceneOwner } = sceneManager
+  const { isSceneOwnerOrAdmin, isSceneOwner } = sceneManager
   const { hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
   const logger = logs.getLogger('remove-scene-admin-handler')
 
@@ -58,7 +58,7 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError('Place not found')
   }
 
-  const canRemove = await hasPermissionPrivilege(place, authenticatedAddress)
+  const canRemove = await isSceneOwnerOrAdmin(place, authenticatedAddress)
   if (!canRemove) {
     logger.warn(`User ${authenticatedAddress} is not authorized to remove admins for entity ${place.id}`)
     throw new UnauthorizedError('Only scene admins or the owner can remove admins')

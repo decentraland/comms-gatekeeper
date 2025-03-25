@@ -104,7 +104,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.livekit.getWorldRoomName.resolves(`name.dcl.eth`)
     stubComponents.livekit.getOrCreateIngress.resolves(mockIngress)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
   })
 
   afterEach(async () => {
@@ -251,7 +251,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,

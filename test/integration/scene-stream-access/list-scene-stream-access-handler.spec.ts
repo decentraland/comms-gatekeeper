@@ -81,7 +81,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
   })
 
   it('returns 200 with streaming access when user has land permission', async () => {
@@ -183,7 +183,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,

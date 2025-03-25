@@ -120,12 +120,12 @@ describe('SceneManagerComponent', () => {
     })
   })
 
-  describe('hasPermissionPrivilege', () => {
+  describe('isSceneOwnerOrAdmin', () => {
     it('should return true if user is the owner of a world', async () => {
       mockWorldOwnerPermission.mockResolvedValue(true)
       mockIsAdmin.mockResolvedValue(false)
 
-      const result = await sceneManager.hasPermissionPrivilege(mockWorldPlace, '0xuser')
+      const result = await sceneManager.isSceneOwnerOrAdmin(mockWorldPlace, '0xuser')
 
       expect(result).toBe(true)
     })
@@ -134,7 +134,7 @@ describe('SceneManagerComponent', () => {
       mockWorldOwnerPermission.mockResolvedValue(false)
       mockIsAdmin.mockResolvedValue(true)
 
-      const result = await sceneManager.hasPermissionPrivilege(mockWorldPlace, '0xuser')
+      const result = await sceneManager.isSceneOwnerOrAdmin(mockWorldPlace, '0xuser')
 
       expect(result).toBe(true)
     })
@@ -144,7 +144,7 @@ describe('SceneManagerComponent', () => {
       mockIsAdmin.mockResolvedValue(false)
       mockWorldStreamingPermission.mockResolvedValue(true)
 
-      const result = await sceneManager.hasPermissionPrivilege(mockWorldPlace, '0xuser')
+      const result = await sceneManager.isSceneOwnerOrAdmin(mockWorldPlace, '0xuser')
 
       expect(result).toBe(true)
     })
@@ -154,7 +154,7 @@ describe('SceneManagerComponent', () => {
       mockIsAdmin.mockResolvedValue(false)
       mockWorldDeployPermission.mockResolvedValue(true)
 
-      const result = await sceneManager.hasPermissionPrivilege(mockWorldPlace, '0xuser')
+      const result = await sceneManager.isSceneOwnerOrAdmin(mockWorldPlace, '0xuser')
 
       expect(result).toBe(true)
     })
@@ -163,7 +163,7 @@ describe('SceneManagerComponent', () => {
       mockLandPermission.mockResolvedValue(true)
       mockIsAdmin.mockResolvedValue(false)
 
-      const result = await sceneManager.hasPermissionPrivilege(mockScenePlace, '0xuser')
+      const result = await sceneManager.isSceneOwnerOrAdmin(mockScenePlace, '0xuser')
 
       expect(result).toBe(true)
     })
@@ -172,7 +172,7 @@ describe('SceneManagerComponent', () => {
       mockLandPermission.mockResolvedValue(false)
       mockIsAdmin.mockResolvedValue(true)
 
-      const result = await sceneManager.hasPermissionPrivilege(mockScenePlace, '0xuser')
+      const result = await sceneManager.isSceneOwnerOrAdmin(mockScenePlace, '0xuser')
 
       expect(result).toBe(true)
     })
@@ -181,7 +181,7 @@ describe('SceneManagerComponent', () => {
       mockLandPermission.mockResolvedValue(false)
       mockIsAdmin.mockResolvedValue(false)
 
-      const result = await sceneManager.hasPermissionPrivilege(mockScenePlace, '0xuser')
+      const result = await sceneManager.isSceneOwnerOrAdmin(mockScenePlace, '0xuser')
 
       expect(result).toBe(false)
     })
@@ -191,7 +191,7 @@ describe('SceneManagerComponent', () => {
       mockIsAdmin.mockResolvedValue(false)
       mockWorldStreamingPermission.mockResolvedValue(false)
       mockWorldDeployPermission.mockResolvedValue(false)
-      const result = await sceneManager.hasPermissionPrivilege(mockWorldPlace, '0xuser')
+      const result = await sceneManager.isSceneOwnerOrAdmin(mockWorldPlace, '0xuser')
 
       expect(result).toBe(false)
     })

@@ -68,7 +68,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     } as PlaceAttributes)
 
     stubComponents.lands.hasLandUpdatePermission.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.worlds.hasWorldDeployPermission.resolves(false)
@@ -80,7 +80,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   it('returns 204 when successfully adding a scene admin', async () => {
     const { localFetch, sceneAdminManager } = components
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -115,7 +115,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       id: testPlaceId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -215,10 +215,10 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   it('returns 400 when admin already exists', async () => {
     const { localFetch } = components
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.sceneManager.isSceneOwner.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.sceneManager.isSceneOwner.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
 

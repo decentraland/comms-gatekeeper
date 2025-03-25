@@ -119,7 +119,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     stubComponents.lands.hasLandUpdatePermission.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -148,7 +148,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     } as PlaceAttributes)
 
     stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -176,7 +176,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -204,7 +204,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
     stubComponents.worlds.hasWorldDeployPermission.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -226,7 +226,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -260,7 +260,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves(mockResponse)
 
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     const response = await makeRequest(
       localFetch,
       `/scene-admin?admin=${nonOwner.authChain[0].payload}`,
@@ -281,7 +281,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 401 when user is not authorized', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -335,7 +335,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       positions: ['10,20']
     } as PlaceAttributes)
     stubComponents.lands.hasLandUpdatePermission.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -364,7 +364,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     stubComponents.lands.hasLandUpdatePermission.resolves(false)
     stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -410,7 +410,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -438,7 +438,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
     stubComponents.worlds.hasWorldDeployPermission.resolves(true)
-    stubComponents.sceneManager.hasPermissionPrivilege.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
