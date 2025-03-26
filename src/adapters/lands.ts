@@ -1,6 +1,7 @@
 import { ensureSlashAtTheEnd } from '../logic/utils'
-import { AppComponents, LandsResponse } from '../types'
-import { ILandComponent } from '../types/land.type'
+import { AppComponents } from '../types'
+import { LandPermissionsNotFoundError } from '../types/errors'
+import { ILandComponent, LandsParcelPermissionsResponse } from '../types/land.type'
 
 export async function createLandsComponent(
   components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
@@ -10,27 +11,32 @@ export async function createLandsComponent(
 
   const lambdasUrl = await config.requireString('LAMBDAS_URL')
 
-  async function hasLandUpdatePermission(authAddress: string, placePositions: string[]): Promise<boolean> {
-    if (!placePositions?.length) return false
-
+  async function getLandUpdatePermission(
+    authAddress: string,
+    placePositions: string[]
+  ): Promise<LandsParcelPermissionsResponse> {
     const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
     if (!baseUrl) {
       logger.info('Lambdas URL is not set')
       throw new Error('Lambdas URL is not set')
     }
 
-    const landsResponse = await cachedFetch.cache<LandsResponse>().fetch(`${baseUrl}users/${authAddress}/lands`)
+    const position = placePositions[0].split(',')
+    const parcelPermissionsResponse = await cachedFetch
+      .cache<LandsParcelPermissionsResponse>()
+      .fetch(`${baseUrl}users/${authAddress}/parcels/${position[0]}/${position[1]}/permissions`)
 
-    if (!landsResponse?.elements?.length) return false
+    if (!parcelPermissionsResponse) {
+      logger.info(`Land permissions not found for ${authAddress} at ${position[0]},${position[1]}`)
+      throw new LandPermissionsNotFoundError(
+        `Land permissions not found for ${authAddress} at ${position[0]},${position[1]}`
+      )
+    }
 
-    const userParcelPositions = landsResponse.elements
-      .filter((element) => element.category === 'parcel')
-      .map((parcel) => `${parcel.x},${parcel.y}`)
-
-    return placePositions.some((pos) => userParcelPositions.includes(pos))
+    return parcelPermissionsResponse
   }
 
   return {
-    hasLandUpdatePermission
+    getLandUpdatePermission
   }
 }

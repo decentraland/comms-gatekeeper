@@ -1,5 +1,5 @@
 import { AppComponents } from '../types'
-import { ISceneManager } from '../types/scene-manager.type'
+import { ISceneManager, UserScenePermissions } from '../types/scene-manager.type'
 import { PlaceAttributes } from '../types/places.type'
 
 export async function createSceneManagerComponent(
@@ -8,7 +8,7 @@ export async function createSceneManagerComponent(
   const { worlds, lands, sceneAdminManager } = components
 
   const { hasWorldOwnerPermission, hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
-  const { hasLandUpdatePermission } = lands
+  const { getLandUpdatePermission } = lands
 
   async function isSceneOwner(place: PlaceAttributes, address: string): Promise<boolean> {
     const isWorlds = place.world
@@ -16,23 +16,29 @@ export async function createSceneManagerComponent(
       return await hasWorldOwnerPermission(address, place.world_name!)
     }
 
-    return await hasLandUpdatePermission(address, place.positions)
+    return (await getLandUpdatePermission(address, place.positions)).owner
   }
 
-  async function isSceneOwnerOrAdmin(place: PlaceAttributes, address: string): Promise<boolean> {
+  async function resolveUserScenePermissions(place: PlaceAttributes, address: string): Promise<UserScenePermissions> {
     const isOwner = await isSceneOwner(place, address)
-    let isAdmin = await sceneAdminManager.isAdmin(place.id, address)
+    const isAdmin = await sceneAdminManager.isAdmin(place.id, address)
+    let hasExtendedPermissions = false
     if (!isAdmin && place.world) {
-      isAdmin =
+      hasExtendedPermissions =
         (await hasWorldStreamingPermission(address, place.world_name!)) ||
         (await hasWorldDeployPermission(address, place.world_name!))
+    } else if (!isAdmin && !place.world) {
+      hasExtendedPermissions = (await getLandUpdatePermission(address, place.positions)).operator
     }
-
-    return isOwner || isAdmin
+    return {
+      owner: isOwner,
+      admin: isAdmin,
+      hasExtendedPermissions
+    }
   }
 
   return {
     isSceneOwner,
-    isSceneOwnerOrAdmin
+    resolveUserScenePermissions
   }
 }
