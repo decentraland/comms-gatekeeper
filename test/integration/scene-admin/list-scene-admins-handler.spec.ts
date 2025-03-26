@@ -106,11 +106,12 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.worlds.hasWorldDeployPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: false
     })
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves(allAdminResults)
   })
@@ -124,7 +125,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
@@ -157,7 +158,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     } as PlaceAttributes)
 
     stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
@@ -190,7 +191,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     } as PlaceAttributes)
 
     stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: true
@@ -223,7 +224,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     } as PlaceAttributes)
 
     stubComponents.worlds.hasWorldDeployPermission.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: true
@@ -249,7 +250,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: true,
       hasExtendedPermissions: false
@@ -274,7 +275,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 200 with a list of scene admins and a filtered list when using query parameters', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
@@ -296,11 +297,15 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 401 when user is not authorized', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(false)
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: false
     })
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -355,7 +360,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     } as PlaceAttributes)
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
@@ -388,7 +393,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
@@ -439,7 +444,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     } as PlaceAttributes)
 
     stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: true
@@ -472,7 +477,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     } as PlaceAttributes)
 
     stubComponents.worlds.hasWorldDeployPermission.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: true

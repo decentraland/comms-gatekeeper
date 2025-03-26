@@ -22,7 +22,7 @@ export async function addSceneAdminHandler(
   const logger = logs.getLogger('add-scene-admin-handler')
 
   const { getPlaceByWorldName, getPlaceByParcel } = places
-  const { resolveUserScenePermissions } = sceneManager
+  const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
     throw new InvalidRequestError('Authentication required')
@@ -49,17 +49,14 @@ export async function addSceneAdminHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  const authenticatedUserScenePermissions = await resolveUserScenePermissions(place, authenticatedAddress)
+  const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(authenticatedUserScenePermissions)
 
-  if (
-    !authenticatedUserScenePermissions.owner &&
-    !authenticatedUserScenePermissions.admin &&
-    !authenticatedUserScenePermissions.hasExtendedPermissions
-  ) {
+  if (!isOwnerOrAdmin) {
     throw new UnauthorizedError('You do not have permission to add admins to this place')
   }
 
-  const userToAddScenePermissions = await resolveUserScenePermissions(place, adminToAdd.toLowerCase())
+  const userToAddScenePermissions = await getUserScenePermissions(place, adminToAdd.toLowerCase())
 
   if (
     userToAddScenePermissions.owner ||

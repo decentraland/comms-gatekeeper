@@ -20,7 +20,7 @@ export async function removeSceneAdminHandler(
   } = ctx
 
   const { getPlaceByWorldName, getPlaceByParcel } = places
-  const { resolveUserScenePermissions } = sceneManager
+  const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
   const logger = logs.getLogger('remove-scene-admin-handler')
 
   if (!verification?.auth) {
@@ -57,17 +57,14 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError('Place not found')
   }
 
-  const authenticatedUserScenePermissions = await resolveUserScenePermissions(place, authenticatedAddress)
-  if (
-    !authenticatedUserScenePermissions.owner &&
-    !authenticatedUserScenePermissions.admin &&
-    !authenticatedUserScenePermissions.hasExtendedPermissions
-  ) {
+  const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(authenticatedUserScenePermissions)
+  if (!isOwnerOrAdmin) {
     logger.warn(`User ${authenticatedAddress} is not authorized to remove admins for entity ${place.id}`)
     throw new UnauthorizedError('Only scene admins or the owner can remove admins')
   }
 
-  const userToRemoveScenePermissions = await resolveUserScenePermissions(place, adminToRemove)
+  const userToRemoveScenePermissions = await getUserScenePermissions(place, adminToRemove)
 
   if (userToRemoveScenePermissions.owner || userToRemoveScenePermissions.hasExtendedPermissions) {
     logger.warn(`Attempt to remove ${adminToRemove} from entity ${place.id} by ${authenticatedAddress}`)

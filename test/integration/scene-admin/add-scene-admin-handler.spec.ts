@@ -68,7 +68,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     } as PlaceAttributes)
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: false
@@ -78,6 +78,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     stubComponents.worlds.hasWorldDeployPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneManager.isSceneOwner.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     stubComponents.sceneAdminManager.addAdmin.resolves()
     stubComponents.sceneAdminManager.listActiveAdmins.resolves([
@@ -100,7 +101,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 204 when successfully adding a scene admin', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.resolveUserScenePermissions
+    stubComponents.sceneManager.getUserScenePermissions
       .onFirstCall()
       .resolves({
         owner: true,
@@ -148,7 +149,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
 
-    stubComponents.sceneManager.resolveUserScenePermissions
+    stubComponents.sceneManager.getUserScenePermissions
       .onFirstCall()
       .resolves({
         owner: false,
@@ -207,7 +208,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: true })
 
-    stubComponents.sceneManager.resolveUserScenePermissions
+    stubComponents.sceneManager.getUserScenePermissions
       .onFirstCall()
       .resolves({
         owner: false,
@@ -301,11 +302,12 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: false
     })
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -326,7 +328,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 400 when admin already exists', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.resolveUserScenePermissions
+    stubComponents.sceneManager.getUserScenePermissions
       .onFirstCall()
       .resolves({
         owner: false,
@@ -359,7 +361,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 400 when trying to add an owner as admin', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.resolveUserScenePermissions
+    stubComponents.sceneManager.getUserScenePermissions
       .onFirstCall()
       .resolves({
         owner: true,

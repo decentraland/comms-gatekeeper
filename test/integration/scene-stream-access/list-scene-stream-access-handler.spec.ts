@@ -81,11 +81,12 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
     })
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
   })
 
   it('returns 200 with streaming access when user has land permission', async () => {
@@ -131,7 +132,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     } as PlaceAttributes)
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
@@ -164,7 +165,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: true,
       hasExtendedPermissions: false
@@ -197,11 +198,12 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: false
     })
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,

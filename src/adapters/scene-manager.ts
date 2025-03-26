@@ -19,14 +19,16 @@ export async function createSceneManagerComponent(
     return (await getLandUpdatePermission(address, place.positions)).owner
   }
 
-  async function resolveUserScenePermissions(place: PlaceAttributes, address: string): Promise<UserScenePermissions> {
+  async function getUserScenePermissions(place: PlaceAttributes, address: string): Promise<UserScenePermissions> {
     const isOwner = await isSceneOwner(place, address)
     const isAdmin = await sceneAdminManager.isAdmin(place.id, address)
     let hasExtendedPermissions = false
     if (!isAdmin && place.world) {
-      hasExtendedPermissions =
-        (await hasWorldStreamingPermission(address, place.world_name!)) ||
-        (await hasWorldDeployPermission(address, place.world_name!))
+      const [hasStreamingPermission, hasDeployPermission] = await Promise.all([
+        hasWorldStreamingPermission(address, place.world_name!),
+        hasWorldDeployPermission(address, place.world_name!)
+      ])
+      hasExtendedPermissions = hasStreamingPermission || hasDeployPermission
     } else if (!isAdmin && !place.world) {
       hasExtendedPermissions = (await getLandUpdatePermission(address, place.positions)).operator
     }
@@ -37,8 +39,13 @@ export async function createSceneManagerComponent(
     }
   }
 
+  async function isSceneOwnerOrAdmin(scenePermissions: UserScenePermissions): Promise<boolean> {
+    return scenePermissions.owner || scenePermissions.admin || scenePermissions.hasExtendedPermissions
+  }
+
   return {
     isSceneOwner,
-    resolveUserScenePermissions
+    getUserScenePermissions,
+    isSceneOwnerOrAdmin
   }
 }

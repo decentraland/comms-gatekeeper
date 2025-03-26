@@ -104,7 +104,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.livekit.getWorldRoomName.resolves(`name.dcl.eth`)
     stubComponents.livekit.getOrCreateIngress.resolves(mockIngress)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
@@ -118,6 +118,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
   it('returns 200 with streaming access when user has land permission', async () => {
     const { localFetch } = components
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -147,6 +148,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
   it('returns 200 with streaming access when user has world permission', async () => {
     const { localFetch } = components
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce({
       identity: owner.authChain[0].payload,
@@ -187,11 +189,12 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
   it('returns 200 with streaming access when user is an admin', async () => {
     const { localFetch } = components
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: true,
       hasExtendedPermissions: false
@@ -225,6 +228,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
   it('returns 200 with a new streaming access when it does not exist', async () => {
     const { localFetch } = components
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     stubComponents.places.getPlaceByParcel.resolves({
       id: anotherPlaceId,
@@ -260,11 +264,12 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.resolveUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
       hasExtendedPermissions: false
     })
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
