@@ -1,7 +1,7 @@
 import { ensureSlashAtTheEnd } from '../logic/utils'
 import { AppComponents } from '../types'
 import { LandPermissionsNotFoundError } from '../types/errors'
-import { ILandComponent, LandsParcelPermissionsResponse } from '../types/land.type'
+import { ILandComponent, LandsParcelPermissionsResponse } from '../types/lands.type'
 
 export async function createLandsComponent(
   components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>

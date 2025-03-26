@@ -50,3 +50,10 @@ export class LandPermissionsNotFoundError extends Error {
     Error.captureStackTrace(this, this.constructor)
   }
 }
+
+export class ProfilesNotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
