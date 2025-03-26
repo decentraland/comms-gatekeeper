@@ -88,18 +88,6 @@ export interface Land {
   y?: string
 }
 
-export interface LandsResponse {
-  elements: Array<{
-    category: string
-    x: string
-    y: string
-    [key: string]: any
-  }>
-  totalAmount: number
-  pageNum: string
-  pageSize: string
-}
-
 export interface Name {
   name: string
   contractAddress: string
@@ -116,9 +104,6 @@ export interface NamesResponse {
   pageNum: string
   pageSize: string
 }
-
-export type AddressResource = 'lands' | 'names'
-export type AddressResourceResponse<T extends AddressResource> = T extends 'lands' ? LandsResponse : NamesResponse
 
 export type RealmAuthMetadata = {
   hostname: string

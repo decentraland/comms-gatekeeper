@@ -43,3 +43,10 @@ export class PlaceNotFoundError extends Error {
     Error.captureStackTrace(this, this.constructor)
   }
 }
+
+export class LandPermissionsNotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}

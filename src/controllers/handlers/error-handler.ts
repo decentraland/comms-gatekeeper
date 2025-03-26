@@ -5,7 +5,8 @@ import {
   PlaceNotFoundError,
   ServiceUnavailableError,
   StreamingAccessNotFoundError,
-  UnauthorizedError
+  UnauthorizedError,
+  LandPermissionsNotFoundError
 } from '../../types/errors'
 
 export async function errorHandler(
@@ -27,7 +28,8 @@ export async function errorHandler(
     if (
       error instanceof NotFoundError ||
       error instanceof PlaceNotFoundError ||
-      error instanceof StreamingAccessNotFoundError
+      error instanceof StreamingAccessNotFoundError ||
+      error instanceof LandPermissionsNotFoundError
     ) {
       return {
         status: 404,
