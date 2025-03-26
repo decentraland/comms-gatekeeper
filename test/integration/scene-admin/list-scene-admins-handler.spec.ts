@@ -5,7 +5,8 @@ import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { PlaceNotFoundError } from '../../../src/types/errors'
 import { SceneAdmin } from '../../../src/types'
-import { InvalidRequestError } from '../../../src/types/errors'
+
+type SceneAdminWithName = SceneAdmin & { name: string }
 
 test('GET /scene-admin - lists all active administrators for scenes', ({ components, stubComponents }) => {
   let cleanup: TestCleanup
@@ -26,7 +27,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   let metadataWorld: Metadata
   let adminResults: SceneAdmin[]
   let adminResults2: SceneAdmin[]
-  let allAdminResults: SceneAdmin[]
+  let allAdminResults: SceneAdminWithName[]
 
   beforeEach(async () => {
     cleanup = new TestCleanup(components.database)
@@ -46,7 +47,10 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     })
 
     if (adminResults?.length > 0) {
-      allAdminResults.push(adminResults[0])
+      allAdminResults.push({
+        ...adminResults[0],
+        name: ''
+      })
       cleanup.trackInsert('scene_admin', { id: adminResults[0].id })
     }
 
@@ -62,7 +66,10 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     })
 
     if (adminResults2?.length > 0) {
-      allAdminResults.push(adminResults2[0])
+      allAdminResults.push({
+        ...adminResults2[0],
+        name: 'SirTest'
+      })
       cleanup.trackInsert('scene_admin', { id: adminResults2[0].id })
     }
 
@@ -114,6 +121,12 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves(allAdminResults)
+
+    // Configuramos el stub para el componente names
+    stubComponents.names.getNamesFromAddresses.resolves({
+      [admin.authChain[0].payload]: '',
+      [nonOwner.authChain[0].payload]: 'SirTest'
+    })
   })
 
   afterEach(async () => {

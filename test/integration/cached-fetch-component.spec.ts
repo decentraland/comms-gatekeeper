@@ -30,7 +30,7 @@ describe('CachedFetchComponent', () => {
   })
 
   describe('cache function', () => {
-    it('should cache fetch responses', async () => {
+    it('should cache fetch responses with GET method', async () => {
       const mockResponse = { data: 'test data' }
       mockNodeFetch.mockResolvedValueOnce({
         ok: true,
@@ -38,14 +38,13 @@ describe('CachedFetchComponent', () => {
       })
 
       const cachedFunction = cachedComponent.cache()
-      await cachedFunction.set('https://test-url.com', undefined)
       const result = await cachedFunction.fetch('https://test-url.com')
 
       expect(result).toEqual(mockResponse)
-      expect(mockNodeFetch).toHaveBeenCalledWith('https://test-url.com')
+      expect(mockNodeFetch).toHaveBeenCalledWith('https://test-url.com', { method: 'GET' })
     })
 
-    it('should reuse cached results for repeated requests', async () => {
+    it('should reuse cached results for repeated GET requests', async () => {
       const mockResponse = { data: 'test data' }
       mockNodeFetch.mockResolvedValue({
         ok: true,
@@ -53,7 +52,6 @@ describe('CachedFetchComponent', () => {
       })
 
       const cachedFunction = cachedComponent.cache()
-
       const result1 = await cachedFunction.fetch('https://test-url.com')
       expect(result1).toEqual(mockResponse)
       expect(mockNodeFetch).toHaveBeenCalledTimes(1)
@@ -62,10 +60,10 @@ describe('CachedFetchComponent', () => {
       expect(result2).toEqual(mockResponse)
 
       expect(mockNodeFetch).toHaveBeenCalledTimes(1)
-      expect(mockNodeFetch).toHaveBeenCalledWith('https://test-url.com')
+      expect(mockNodeFetch).toHaveBeenCalledWith('https://test-url.com', { method: 'GET' })
     })
 
-    it('should handle fetch errors', async () => {
+    it('should handle fetch errors for GET requests', async () => {
       const mockError = new Error('Fetch error')
       mockNodeFetch.mockRejectedValueOnce(mockError)
 
@@ -73,7 +71,7 @@ describe('CachedFetchComponent', () => {
       await expect(cachedFunction.fetch('https://test-url.com')).rejects.toThrow('Fetch error')
     })
 
-    it('should handle non-ok responses', async () => {
+    it('should handle non-ok responses for GET requests', async () => {
       mockNodeFetch.mockResolvedValueOnce({
         ok: false,
         status: 404,
@@ -82,6 +80,41 @@ describe('CachedFetchComponent', () => {
 
       const cachedFunction = cachedComponent.cache()
       await expect(cachedFunction.fetch('https://test-url.com')).rejects.toThrow('Error getting https://test-url.com')
+    })
+
+    it('should support POST method with body', async () => {
+      const mockResponse = { success: true }
+      mockNodeFetch.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue(mockResponse)
+      })
+
+      const cachedFunction = cachedComponent.cache()
+      const postBody = { name: 'test', value: 123 }
+      const result = await cachedFunction.post('https://test-url.com/post-endpoint', postBody)
+
+      expect(result).toEqual(mockResponse)
+      expect(mockNodeFetch).toHaveBeenCalledWith('https://test-url.com/post-endpoint', {
+        method: 'POST',
+        body: JSON.stringify(postBody),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+    })
+
+    it('should handle POST method with no body', async () => {
+      const mockResponse = { success: true }
+      mockNodeFetch.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue(mockResponse)
+      })
+
+      const cachedFunction = cachedComponent.cache()
+      const result = await cachedFunction.post('https://test-url.com/empty-post')
+
+      expect(result).toEqual(mockResponse)
+      expect(mockNodeFetch).toHaveBeenCalledWith('https://test-url.com/empty-post', { method: 'POST' })
     })
   })
 })

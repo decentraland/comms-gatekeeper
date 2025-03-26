@@ -26,7 +26,7 @@ export async function createPlacesComponent(
   async function getPlaceByWorldName(worldName: string): Promise<PlaceAttributes> {
     const response = await fetchFromCache.fetch(`${placesApiUrl}/worlds?names=${worldName}`)
 
-    if (!response?.data?.length) {
+    if (!response?.data || response.data.length === 0) {
       logger.info(`No world found with name ${worldName}`)
       throw new PlaceNotFoundError(`No world found with name ${worldName}`)
     }

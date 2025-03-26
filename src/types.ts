@@ -15,9 +15,10 @@ import { Room } from 'livekit-server-sdk'
 import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 import { ICachedFetchComponent } from './types/fetch.type'
 import { IPlacesComponent } from './types/places.type'
-import { IWorldComponent } from './types/world.type'
-import { ILandComponent } from './types/land.type'
+import { IWorldComponent } from './types/worlds.type'
+import { ILandComponent } from './types/lands.type'
 import { ISceneManager } from './types/scene-manager.type'
+import { INamesComponent } from './types/names.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -39,6 +40,7 @@ export type BaseComponents = {
   places: IPlacesComponent
   worlds: IWorldComponent
   lands: ILandComponent
+  names: INamesComponent
   sceneManager: ISceneManager
 }
 
