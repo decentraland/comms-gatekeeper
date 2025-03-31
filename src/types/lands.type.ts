@@ -1,6 +1,6 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
 
-export interface LandsParcelPermissionsResponse {
+export type LandsParcelPermissionsResponse = {
   operator: boolean
   owner: boolean
 }
