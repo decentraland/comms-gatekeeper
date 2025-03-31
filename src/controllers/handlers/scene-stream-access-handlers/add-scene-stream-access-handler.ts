@@ -20,7 +20,7 @@ export async function addSceneStreamAccessHandler(
   } = ctx
   const logger = logs.getLogger('get-scene-stream-access-handler')
   const { getPlaceByWorldName, getPlaceByParcel } = places
-  const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
+  const { isSceneOwnerOrAdmin } = sceneManager
   if (!verification?.auth) {
     logger.error('Authentication required')
     throw new InvalidRequestError('Authentication required')
@@ -45,8 +45,7 @@ export async function addSceneStreamAccessHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress)
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(authenticatedUserScenePermissions)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
   if (!isOwnerOrAdmin) {
     logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
