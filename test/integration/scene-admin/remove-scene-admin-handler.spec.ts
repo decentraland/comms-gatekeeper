@@ -13,6 +13,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   const ownerAddress = owner.authChain[0].payload
   const otherAdminAddress = '0x4444444444444444444444444444444444444444'
   const nonExistentAdminAddress = '0x5555555555555555555555555555555555555555'
+  const operatorAddress = '0x6666666666666666666666666666666666666666'
 
   type Metadata = {
     identity: string
@@ -26,6 +27,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   }
 
   let metadataLand: Metadata
+  let metadataWorld: Metadata
 
   beforeEach(async () => {
     cleanup = new TestCleanup(components.database)
@@ -54,7 +56,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
         })
       }
     } catch (error) {
-      console.error('Error al listar admins:', error)
+      console.error('Error listing admins:', error)
     }
 
     await sceneAdminManager.addAdmin({
@@ -74,16 +76,45 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       parcel: '10,20'
     }
 
+    metadataWorld = {
+      identity: ownerAddress,
+      realm: {
+        serverName: 'test-world',
+        hostname: 'https://worlds-content-server.decentraland.org',
+        protocol: 'https'
+      },
+      sceneId: 'test-scene',
+      parcel: '10,20'
+    }
+
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
     stubComponents.places.getPlaceByParcel.resolves({
       id: placeId,
       positions: ['10,20'],
       owner: ownerAddress
     } as PlaceAttributes)
-    stubComponents.lands.hasLandUpdatePermission.resolves(false)
+
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: placeId,
+      positions: [],
+      world_name: 'test-world',
+      world: true,
+      owner: ownerAddress
+    } as PlaceAttributes)
+
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.worlds.hasWorldDeployPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
+    stubComponents.sceneAdminManager.isAdmin.resolves(false)
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+    stubComponents.sceneManager.isSceneOwner.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+
+    stubComponents.sceneAdminManager.removeAdmin.resolves()
   })
 
   afterEach(async () => {
@@ -94,7 +125,13 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 204 when successfully deactivating a scene admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandUpdatePermission.resolves(true)
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: true,
+      hasExtendedPermissions: false
+    })
+
+    stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -115,7 +152,12 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 204 when an admin removes another admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandUpdatePermission.resolves(false)
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: true,
+      hasExtendedPermissions: false
+    })
+
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
     const response = await makeRequest(
@@ -134,10 +176,15 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     expect(response.status).toBe(204)
   })
 
-  it('returns 401 when trying to remove a non-existent admin', async () => {
+  it('returns 400 when trying to remove a non-existent admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandUpdatePermission.resolves(true)
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     const response = await makeRequest(
@@ -153,14 +200,17 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       owner
     )
 
-    expect(response.status).toBe(401)
+    expect(response.status).toBe(400)
   })
 
-  it('returns 204 when trying to remove the owner', async () => {
+  it('returns 400 when trying to remove the owner', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.lands.hasLandUpdatePermission.resolves(true)
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: true,
+      admin: false,
+      hasExtendedPermissions: false
+    })
 
     const response = await makeRequest(
       localFetch,
@@ -175,14 +225,18 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       admin
     )
 
-    expect(response.status).toBe(204)
+    expect(response.status).toBe(400)
   })
 
   it('returns 401 when non-owner/non-admin tries to remove an admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandUpdatePermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -240,10 +294,24 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     expect(response.status).toBe(400)
   })
 
-  it('returns 204 when owner tries to remove themselves', async () => {
+  it('returns 400 when owner tries to remove themselves', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandUpdatePermission.resolves(true)
+    stubComponents.sceneManager.getUserScenePermissions
+      .onFirstCall()
+      .resolves({
+        owner: true,
+        admin: false,
+        hasExtendedPermissions: false
+      })
+      .onSecondCall()
+      .resolves({
+        owner: true,
+        admin: false,
+        hasExtendedPermissions: false
+      })
+
+    stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -253,9 +321,74 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
         body: JSON.stringify({
           admin: ownerAddress
         }),
+        metadata: {
+          ...metadataLand,
+          identity: ownerAddress
+        }
+      },
+      owner
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  it('returns 400 when trying to remove a user with extended permissions', async () => {
+    const { localFetch } = components
+
+    stubComponents.sceneManager.getUserScenePermissions
+      .onFirstCall()
+      .resolves({
+        owner: true,
+        admin: false,
+        hasExtendedPermissions: false
+      })
+      .onSecondCall()
+      .resolves({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: true
+      })
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'DELETE',
+        body: JSON.stringify({
+          admin: operatorAddress
+        }),
         metadata: metadataLand
       },
       owner
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  it('returns 204 when world admin removes another admin', async () => {
+    const { localFetch } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: true,
+      hasExtendedPermissions: false
+    })
+
+    stubComponents.sceneAdminManager.isAdmin.resolves(true)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'DELETE',
+        body: JSON.stringify({
+          admin: adminAddress
+        }),
+        metadata: metadataWorld
+      },
+      nonOwner
     )
 
     expect(response.status).toBe(204)

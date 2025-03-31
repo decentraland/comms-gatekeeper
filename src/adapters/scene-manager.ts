@@ -1,5 +1,5 @@
 import { AppComponents } from '../types'
-import { ISceneManager } from '../types/scene-manager.type'
+import { ISceneManager, UserScenePermissions } from '../types/scene-manager.type'
 import { PlaceAttributes } from '../types/places.type'
 
 export async function createSceneManagerComponent(
@@ -8,7 +8,7 @@ export async function createSceneManagerComponent(
   const { worlds, lands, sceneAdminManager } = components
 
   const { hasWorldOwnerPermission, hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
-  const { hasLandUpdatePermission } = lands
+  const { getLandUpdatePermission } = lands
 
   async function isSceneOwner(place: PlaceAttributes, address: string): Promise<boolean> {
     const isWorlds = place.world
@@ -16,23 +16,41 @@ export async function createSceneManagerComponent(
       return await hasWorldOwnerPermission(address, place.world_name!)
     }
 
-    return await hasLandUpdatePermission(address, place.positions)
+    return (await getLandUpdatePermission(address, place.positions)).owner
   }
 
-  async function isSceneOwnerOrAdmin(place: PlaceAttributes, address: string): Promise<boolean> {
+  async function getUserScenePermissions(place: PlaceAttributes, address: string): Promise<UserScenePermissions> {
     const isOwner = await isSceneOwner(place, address)
-    let isAdmin = await sceneAdminManager.isAdmin(place.id, address)
+    const isAdmin = await sceneAdminManager.isAdmin(place.id, address)
+    let hasExtendedPermissions = false
     if (!isAdmin && place.world) {
-      isAdmin =
-        (await hasWorldStreamingPermission(address, place.world_name!)) ||
-        (await hasWorldDeployPermission(address, place.world_name!))
+      const [hasStreamingPermission, hasDeployPermission] = await Promise.all([
+        hasWorldStreamingPermission(address, place.world_name!),
+        hasWorldDeployPermission(address, place.world_name!)
+      ])
+      hasExtendedPermissions = hasStreamingPermission || hasDeployPermission
+    } else if (!isAdmin && !place.world) {
+      hasExtendedPermissions = (await getLandUpdatePermission(address, place.positions)).operator
     }
+    return {
+      owner: isOwner,
+      admin: isAdmin,
+      hasExtendedPermissions
+    }
+  }
 
-    return isOwner || isAdmin
+  async function isSceneOwnerOrAdmin(place: PlaceAttributes, authenticatedAddress: string): Promise<boolean> {
+    const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress)
+    return (
+      authenticatedUserScenePermissions.owner ||
+      authenticatedUserScenePermissions.admin ||
+      authenticatedUserScenePermissions.hasExtendedPermissions
+    )
   }
 
   return {
     isSceneOwner,
+    getUserScenePermissions,
     isSceneOwnerOrAdmin
   }
 }

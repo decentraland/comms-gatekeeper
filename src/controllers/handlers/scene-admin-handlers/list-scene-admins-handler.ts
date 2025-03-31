@@ -42,8 +42,8 @@ export async function listSceneAdminsHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  const canList = await isSceneOwnerOrAdmin(place, authenticatedAddress)
-  if (!canList) {
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  if (!isOwnerOrAdmin) {
     logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
     throw new UnauthorizedError('Only administrators or the owner can list administrators')
   }

@@ -67,20 +67,47 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       world: true
     } as PlaceAttributes)
 
-    stubComponents.lands.hasLandUpdatePermission.resolves(true)
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.worlds.hasWorldDeployPermission.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.resolves(false)
+    stubComponents.sceneManager.isSceneOwner.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+
+    stubComponents.sceneAdminManager.addAdmin.resolves()
+    stubComponents.sceneAdminManager.listActiveAdmins.resolves([
+      {
+        id: 'test-admin-id',
+        place_id: testPlaceId,
+        admin: admin.authChain[0].payload.toLowerCase(),
+        added_by: owner.authChain[0].payload.toLowerCase(),
+        active: true,
+        created_at: Date.now()
+      }
+    ])
   })
 
   afterEach(async () => {
     await cleanup.cleanup()
+    jest.restoreAllMocks()
   })
 
   it('returns 204 when successfully adding a scene admin', async () => {
-    const { localFetch, sceneAdminManager } = components
+    const { localFetch } = components
+
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -93,8 +120,11 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       },
       owner
     )
+
     expect(response.status).toBe(204)
-    const result = await sceneAdminManager.listActiveAdmins({
+    expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
+
+    const result = await components.sceneAdminManager.listActiveAdmins({
       place_id: testPlaceId,
       admin: admin.authChain[0].payload
     })
@@ -108,14 +138,27 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   })
 
   it('returns 204 when user has world streaming permission', async () => {
-    const { localFetch, sceneAdminManager } = components
+    const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByWorldName.resolves({
-      id: testPlaceId,
-      world_name: 'name.dcl.eth'
-    } as PlaceAttributes)
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+
+    stubComponents.sceneAdminManager.listActiveAdmins.resolves([
+      {
+        id: 'test-admin-id',
+        place_id: testPlaceId,
+        admin: admin.authChain[0].payload.toLowerCase(),
+        added_by: nonOwner.authChain[0].payload.toLowerCase(),
+        active: true,
+        created_at: Date.now()
+      }
+    ])
+
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -130,8 +173,9 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     )
 
     expect(response.status).toBe(204)
+    expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
 
-    const result = await sceneAdminManager.listActiveAdmins({
+    const result = await components.sceneAdminManager.listActiveAdmins({
       place_id: testPlaceId,
       admin: admin.authChain[0].payload
     })
@@ -142,6 +186,45 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     expect(result.length).toBe(1)
     expect(result[0].active).toBe(true)
+  })
+
+  it('returns 204 when user has operator permission', async () => {
+    const { localFetch } = components
+
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: true })
+
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+
+    stubComponents.sceneAdminManager.listActiveAdmins.resolves([
+      {
+        id: 'test-admin-id',
+        place_id: testPlaceId,
+        admin: admin.authChain[0].payload.toLowerCase(),
+        added_by: nonOwner.authChain[0].payload.toLowerCase(),
+        active: true,
+        created_at: Date.now()
+      }
+    ])
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          admin: admin.authChain[0].payload
+        }),
+        metadata: metadataLand
+      },
+      nonOwner
+    )
+
+    expect(response.status).toBe(204)
+    expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
   })
 
   it('returns 401 when authentication is provided but invalid', async () => {
@@ -193,9 +276,15 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.hasLandUpdatePermission.resolves(false)
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -215,20 +304,22 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   it('returns 400 when admin already exists', async () => {
     const { localFetch } = components
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-    stubComponents.sceneManager.isSceneOwner.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-    stubComponents.sceneManager.isSceneOwner.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
 
-    stubComponents.places.getPlaceByParcel.resolves({
-      positions: [metadataLand.parcel],
-      id: testPlaceId,
-      world: false
-    } as PlaceAttributes)
+    stubComponents.sceneManager.getUserScenePermissions
+      .onFirstCall()
+      .resolves({
+        owner: false,
+        admin: true,
+        hasExtendedPermissions: false
+      })
+      .onSecondCall()
+      .resolves({
+        owner: false,
+        admin: true,
+        hasExtendedPermissions: false
+      })
 
-    await makeRequest(
+    const response = await makeRequest(
       localFetch,
       '/scene-admin',
       {
@@ -241,13 +332,33 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       owner
     )
 
+    expect(response.status).toBe(400)
+  })
+
+  it('returns 400 when trying to add an owner as admin', async () => {
+    const { localFetch } = components
+
+    stubComponents.sceneManager.getUserScenePermissions
+      .onFirstCall()
+      .resolves({
+        owner: true,
+        admin: false,
+        hasExtendedPermissions: false
+      })
+      .onSecondCall()
+      .resolves({
+        owner: true,
+        admin: false,
+        hasExtendedPermissions: false
+      })
+
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
       {
         method: 'POST',
         body: JSON.stringify({
-          admin: admin.authChain[0].payload
+          admin: owner.authChain[0].payload
         }),
         metadata: metadataLand
       },

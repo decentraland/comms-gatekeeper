@@ -7,21 +7,20 @@ import { PlaceAttributes } from '../../../types/places.type'
 export async function removeSceneAdminHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'worlds',
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places',
       '/scene-admin'
     >,
     'components' | 'url' | 'params' | 'verification' | 'request'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places, worlds },
+    components: { logs, sceneAdminManager, sceneManager, places },
     request,
     verification
   } = ctx
 
   const { getPlaceByWorldName, getPlaceByParcel } = places
-  const { isSceneOwnerOrAdmin, isSceneOwner } = sceneManager
-  const { hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
+  const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
   const logger = logs.getLogger('remove-scene-admin-handler')
 
   if (!verification?.auth) {
@@ -58,33 +57,20 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError('Place not found')
   }
 
-  const canRemove = await isSceneOwnerOrAdmin(place, authenticatedAddress)
-  if (!canRemove) {
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  if (!isOwnerOrAdmin) {
     logger.warn(`User ${authenticatedAddress} is not authorized to remove admins for entity ${place.id}`)
     throw new UnauthorizedError('Only scene admins or the owner can remove admins')
   }
 
-  const isOwnerToRemove = await isSceneOwner(place, adminToRemove)
+  const userToRemoveScenePermissions = await getUserScenePermissions(place, adminToRemove)
 
-  if (isOwnerToRemove) {
-    logger.warn(`Attempt to remove owner ${adminToRemove} from entity ${place.id} by ${authenticatedAddress}`)
-    throw new InvalidRequestError('Cannot remove the owner of the scene')
+  if (userToRemoveScenePermissions.owner || userToRemoveScenePermissions.hasExtendedPermissions) {
+    logger.warn(`Attempt to remove ${adminToRemove} from entity ${place.id} by ${authenticatedAddress}`)
+    throw new InvalidRequestError('Cannot remove the user with privileges from this scene')
   }
 
-  const isWorldStreamingPermissionToRemove =
-    place.world &&
-    ((await hasWorldStreamingPermission(adminToRemove, serverName)) ||
-      (await hasWorldDeployPermission(adminToRemove, serverName)))
-
-  if (isWorldStreamingPermissionToRemove) {
-    logger.warn(
-      `Attempt to remove world streaming permission ${adminToRemove} from from World Content Server. Wrong endpoint`
-    )
-    throw new InvalidRequestError('Cannot remove world streaming permission from World Content Server. Wrong endpoint')
-  }
-
-  const isTargetAdminActive = await sceneAdminManager.isAdmin(place.id, adminToRemove)
-  if (!isTargetAdminActive) {
+  if (!userToRemoveScenePermissions.admin) {
     throw new InvalidRequestError('The specified admin does not exist or is already inactive')
   }
 

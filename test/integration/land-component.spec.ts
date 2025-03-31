@@ -1,4 +1,5 @@
 import { createLandsComponent } from '../../src/adapters/lands'
+import { LandsParcelPermissionsResponse } from '../../src/types/land.type'
 
 describe('LandsComponent', () => {
   let landsComponent: Awaited<ReturnType<typeof createLandsComponent>>
@@ -43,53 +44,48 @@ describe('LandsComponent', () => {
     })
   })
 
-  describe('hasLandUpdatePermission', () => {
-    it('should return true when user has permission', async () => {
-      const mockLandResponse = {
-        elements: [
-          { category: 'parcel', x: '10', y: '20' },
-          { category: 'parcel', x: '30', y: '40' }
-        ]
+  describe('getLandUpdatePermission', () => {
+    it('should return owner=true when user has owner permission', async () => {
+      const mockParcelPermissionsResponse: LandsParcelPermissionsResponse = {
+        owner: true,
+        operator: false
       }
 
-      mockFetch.mockResolvedValueOnce(mockLandResponse)
+      mockFetch.mockResolvedValueOnce(mockParcelPermissionsResponse)
 
-      const result = await landsComponent.hasLandUpdatePermission('0xUserAddress', ['10,20', '99,99'])
-      expect(result).toBe(true)
-      expect(mockFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/users/0xUserAddress/lands')
+      const result = await landsComponent.getLandUpdatePermission('0xUserAddress', ['10,20', '99,99'])
+      expect(result.owner).toBe(true)
+      expect(result.operator).toBe(false)
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://lambdas.decentraland.org/api/users/0xUserAddress/parcels/10/20/permissions'
+      )
     })
 
-    it('should return false when user does not have permission', async () => {
-      const mockLandResponse = {
-        elements: [
-          { category: 'parcel', x: '10', y: '20' },
-          { category: 'parcel', x: '30', y: '40' }
-        ]
+    it('should return operator=true when user has operator permission', async () => {
+      const mockParcelPermissionsResponse: LandsParcelPermissionsResponse = {
+        owner: false,
+        operator: true
       }
 
-      mockFetch.mockResolvedValueOnce(mockLandResponse)
+      mockFetch.mockResolvedValueOnce(mockParcelPermissionsResponse)
 
-      const result = await landsComponent.hasLandUpdatePermission('0xUserAddress', ['50,60', '99,99'])
-      expect(result).toBe(false)
-      expect(mockFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/users/0xUserAddress/lands')
+      const result = await landsComponent.getLandUpdatePermission('0xUserAddress', ['50,60', '99,99'])
+      expect(result.owner).toBe(false)
+      expect(result.operator).toBe(true)
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://lambdas.decentraland.org/api/users/0xUserAddress/parcels/50/60/permissions'
+      )
     })
 
-    it('should return false when user has no lands', async () => {
-      const mockEmptyResponse = {
-        elements: []
-      }
+    it('should throw an error when permission response is not available', async () => {
+      mockFetch.mockResolvedValueOnce(null)
 
-      mockFetch.mockResolvedValueOnce(mockEmptyResponse)
-
-      const result = await landsComponent.hasLandUpdatePermission('0xUserAddress', ['10,20'])
-      expect(result).toBe(false)
-      expect(mockFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/users/0xUserAddress/lands')
-    })
-
-    it('should return false when positions array is empty', async () => {
-      const result = await landsComponent.hasLandUpdatePermission('0xUserAddress', [])
-      expect(result).toBe(false)
-      expect(mockFetch).not.toHaveBeenCalled()
+      await expect(landsComponent.getLandUpdatePermission('0xUserAddress', ['10,20'])).rejects.toThrow(
+        'Land permissions not found for 0xUserAddress at 10,20'
+      )
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://lambdas.decentraland.org/api/users/0xUserAddress/parcels/10/20/permissions'
+      )
     })
 
     it('should throw an error when lambdas URL is not set', async () => {
@@ -114,7 +110,7 @@ describe('LandsComponent', () => {
         }
       })
 
-      await expect(component.hasLandUpdatePermission('0xUserAddress', ['10,20'])).rejects.toThrow(
+      await expect(component.getLandUpdatePermission('0xUserAddress', ['10,20'])).rejects.toThrow(
         'Lambdas URL is not set'
       )
     })

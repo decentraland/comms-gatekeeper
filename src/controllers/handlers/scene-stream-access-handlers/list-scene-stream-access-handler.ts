@@ -44,9 +44,9 @@ export async function listSceneStreamAccessHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  const canListStreamKeys = await isSceneOwnerOrAdmin(place, authenticatedAddress)
-  if (!canListStreamKeys) {
-    logger.info(`Wallet ${authenticatedAddress} is not owner nor admin of the scene. Place ${place.id}`)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  if (!isOwnerOrAdmin) {
+    logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
   }
 

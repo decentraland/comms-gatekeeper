@@ -22,7 +22,7 @@ export async function addSceneAdminHandler(
   const logger = logs.getLogger('add-scene-admin-handler')
 
   const { getPlaceByWorldName, getPlaceByParcel } = places
-  const { isSceneOwner, isSceneOwnerOrAdmin } = sceneManager
+  const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
     throw new InvalidRequestError('Authentication required')
@@ -49,21 +49,20 @@ export async function addSceneAdminHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  const canAdd = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
 
-  if (!canAdd) {
+  if (!isOwnerOrAdmin) {
     throw new UnauthorizedError('You do not have permission to add admins to this place')
   }
 
-  const isAddingOwnerAsAdmin = await isSceneOwner(place, adminToAdd.toLowerCase())
+  const userToAddScenePermissions = await getUserScenePermissions(place, adminToAdd.toLowerCase())
 
-  if (isAddingOwnerAsAdmin) {
-    throw new InvalidRequestError('Cannot add the owner as an admin')
-  }
-
-  const isAlreadyAdmin = await sceneAdminManager.isAdmin(place.id, adminToAdd)
-  if (isAlreadyAdmin) {
-    throw new InvalidRequestError('This address is already an admin')
+  if (
+    userToAddScenePermissions.owner ||
+    userToAddScenePermissions.admin ||
+    userToAddScenePermissions.hasExtendedPermissions
+  ) {
+    throw new InvalidRequestError('Cannot add this address as an admin')
   }
 
   await sceneAdminManager.addAdmin({
