@@ -20,7 +20,7 @@ export async function listSceneAdminsHandler(
 
   const logger = logs.getLogger('list-scene-admins-handler')
   const { getPlaceByWorldName, getPlaceByParcel } = places
-  const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
+  const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
@@ -42,8 +42,7 @@ export async function listSceneAdminsHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress)
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(authenticatedUserScenePermissions)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
   if (!isOwnerOrAdmin) {
     logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
     throw new UnauthorizedError('Only administrators or the owner can list administrators')

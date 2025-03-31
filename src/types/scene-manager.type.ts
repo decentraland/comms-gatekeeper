@@ -10,5 +10,5 @@ export type UserScenePermissions = {
 export type ISceneManager = IBaseComponent & {
   isSceneOwner: (place: PlaceAttributes, address: string) => Promise<boolean>
   getUserScenePermissions: (place: PlaceAttributes, address: string) => Promise<UserScenePermissions>
-  isSceneOwnerOrAdmin: (scenePermissions: UserScenePermissions) => Promise<boolean>
+  isSceneOwnerOrAdmin: (place: PlaceAttributes, address: string) => Promise<boolean>
 }

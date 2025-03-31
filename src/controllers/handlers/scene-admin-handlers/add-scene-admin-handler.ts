@@ -49,8 +49,7 @@ export async function addSceneAdminHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress)
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(authenticatedUserScenePermissions)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
 
   if (!isOwnerOrAdmin) {
     throw new UnauthorizedError('You do not have permission to add admins to this place')

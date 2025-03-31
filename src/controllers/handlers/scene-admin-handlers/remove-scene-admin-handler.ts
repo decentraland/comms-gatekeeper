@@ -57,8 +57,7 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError('Place not found')
   }
 
-  const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress)
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(authenticatedUserScenePermissions)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
   if (!isOwnerOrAdmin) {
     logger.warn(`User ${authenticatedAddress} is not authorized to remove admins for entity ${place.id}`)
     throw new UnauthorizedError('Only scene admins or the owner can remove admins')

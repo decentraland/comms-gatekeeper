@@ -101,19 +101,12 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 204 when successfully adding a scene admin', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions
-      .onFirstCall()
-      .resolves({
-        owner: true,
-        admin: false,
-        hasExtendedPermissions: false
-      })
-      .onSecondCall()
-      .resolves({
-        owner: false,
-        admin: false,
-        hasExtendedPermissions: false
-      })
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     const response = await makeRequest(
       localFetch,
@@ -149,19 +142,11 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
 
-    stubComponents.sceneManager.getUserScenePermissions
-      .onFirstCall()
-      .resolves({
-        owner: false,
-        admin: false,
-        hasExtendedPermissions: true
-      })
-      .onSecondCall()
-      .resolves({
-        owner: false,
-        admin: false,
-        hasExtendedPermissions: false
-      })
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves([
       {
@@ -208,19 +193,11 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: true })
 
-    stubComponents.sceneManager.getUserScenePermissions
-      .onFirstCall()
-      .resolves({
-        owner: false,
-        admin: false,
-        hasExtendedPermissions: true
-      })
-      .onSecondCall()
-      .resolves({
-        owner: false,
-        admin: false,
-        hasExtendedPermissions: false
-      })
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false
+    })
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves([
       {

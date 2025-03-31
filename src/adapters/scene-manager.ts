@@ -39,8 +39,13 @@ export async function createSceneManagerComponent(
     }
   }
 
-  async function isSceneOwnerOrAdmin(scenePermissions: UserScenePermissions): Promise<boolean> {
-    return scenePermissions.owner || scenePermissions.admin || scenePermissions.hasExtendedPermissions
+  async function isSceneOwnerOrAdmin(place: PlaceAttributes, authenticatedAddress: string): Promise<boolean> {
+    const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress)
+    return (
+      authenticatedUserScenePermissions.owner ||
+      authenticatedUserScenePermissions.admin ||
+      authenticatedUserScenePermissions.hasExtendedPermissions
+    )
   }
 
   return {
