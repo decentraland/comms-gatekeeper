@@ -57,9 +57,9 @@ test('SceneManagerComponent', ({ components, stubComponents }) => {
   })
 
   describe('getUserScenePermissions', () => {
-    it('should return correct permissions when user is owner', async () => {
-      stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-      const result = await sceneManager.getUserScenePermissions(scenePlace, testAddress)
+    it('should return owner=true if user is the owner of a world', async () => {
+      stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
       expect(result).toEqual({
         owner: true,
         admin: false,
@@ -67,9 +67,9 @@ test('SceneManagerComponent', ({ components, stubComponents }) => {
       })
     })
 
-    it('should return correct permissions when user is admin', async () => {
+    it('should return admin=true if user is an admin of a world', async () => {
       stubComponents.sceneAdminManager.isAdmin.resolves(true)
-      const result = await sceneManager.getUserScenePermissions(scenePlace, testAddress)
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
       expect(result).toEqual({
         owner: false,
         admin: true,
@@ -77,13 +77,51 @@ test('SceneManagerComponent', ({ components, stubComponents }) => {
       })
     })
 
-    it('should return correct permissions when user has extended permissions', async () => {
+    it('should return hasExtendedPermissions=true if user has streaming permission for a world', async () => {
       stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
       const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
       expect(result).toEqual({
         owner: false,
         admin: false,
         hasExtendedPermissions: true
+      })
+    })
+
+    it('should return hasExtendedPermissions=true if user has deploy permission for a world', async () => {
+      stubComponents.worlds.hasWorldDeployPermission.resolves(true)
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: true
+      })
+    })
+
+    it('should return hasExtendedPermissions=true if user is an operator of a scene', async () => {
+      stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: true })
+      const result = await sceneManager.getUserScenePermissions(scenePlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: true
+      })
+    })
+
+    it('should return all false if user has no privileges for a scene', async () => {
+      const result = await sceneManager.getUserScenePermissions(scenePlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: false
+      })
+    })
+
+    it('should return all false if user has no privileges for a world', async () => {
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: false
       })
     })
   })
