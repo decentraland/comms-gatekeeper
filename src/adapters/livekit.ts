@@ -8,6 +8,7 @@ import {
   TrackSource
 } from 'livekit-server-sdk'
 import { IngressInfo, IngressInput } from 'livekit-server-sdk/dist/proto/livekit_ingress'
+import { LivekitIngressNotFoundError } from '../types/errors'
 
 export async function createLivekitComponent(
   components: Pick<AppComponents, 'config' | 'logs'>
@@ -125,15 +126,15 @@ export async function createLivekitComponent(
   }
 
   async function removeIngress(ingressId: string): Promise<IngressInfo> {
-    const ingresses = await ingressClient.listIngress({
-      ingressId: ingressId
-    })
-
-    if (ingresses.length === 0) {
-      logger.error(`No ingress found with ID ${ingressId}`)
-      throw new Error(`No ingress found with ID ${ingressId}`)
+    try {
+      await ingressClient.listIngress({
+        ingressId: ingressId
+      })
+      return ingressClient.deleteIngress(ingressId)
+    } catch (error) {
+      logger.error(`Error removing ingress ${ingressId}:`, { error: JSON.stringify(error) })
+      throw new LivekitIngressNotFoundError(`No ingress found`)
     }
-    return ingressClient.deleteIngress(ingressId)
   }
 
   return {

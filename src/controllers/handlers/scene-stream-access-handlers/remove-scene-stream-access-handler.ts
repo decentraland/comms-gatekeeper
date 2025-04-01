@@ -1,11 +1,9 @@
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError, StreamingAccessNotFoundError, UnauthorizedError } from '../../../types/errors'
-import { SceneStreamAccess } from '../../../types'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { PlaceAttributes } from '../../../types/places.type'
-const FOUR_DAYS = 4 * 24 * 60 * 60
 
-export async function addSceneStreamAccessHandler(
+export async function removeSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
       'fetch' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'livekit' | 'logs' | 'config',
@@ -18,7 +16,7 @@ export async function addSceneStreamAccessHandler(
     components: { logs, sceneStreamAccessManager, sceneManager, places, livekit },
     verification
   } = ctx
-  const logger = logs.getLogger('add-scene-stream-access-handler')
+  const logger = logs.getLogger('revoke-scene-stream-access-handler')
   const { getPlaceByWorldName, getPlaceByParcel } = places
   const { isSceneOwnerOrAdmin } = sceneManager
   if (!verification?.auth) {
@@ -51,38 +49,10 @@ export async function addSceneStreamAccessHandler(
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
   }
 
-  let roomName: string
-  if (isWorlds) {
-    roomName = livekit.getWorldRoomName(serverName)
-  } else {
-    roomName = livekit.getSceneRoomName(serverName, sceneId!)
-  }
-
-  let access: SceneStreamAccess
-  try {
-    access = await sceneStreamAccessManager.getAccess(place.id)
-  } catch (error) {
-    if (error instanceof StreamingAccessNotFoundError) {
-      const ingress = await livekit.getOrCreateIngress(roomName, authenticatedAddress)
-      access = await sceneStreamAccessManager.addAccess({
-        place_id: place.id,
-        streaming_url: ingress.url!,
-        streaming_key: ingress.streamKey!,
-        ingress_id: ingress.ingressId!
-      })
-    } else {
-      logger.error('Error getting stream access: ', { error: JSON.stringify(error) })
-      throw error
-    }
-  }
+  const access = await sceneStreamAccessManager.getAccess(place.id)
+  await livekit.removeIngress(access.ingress_id)
 
   return {
-    status: 200,
-    body: {
-      streaming_url: access.streaming_url,
-      streaming_key: access.streaming_key,
-      created_at: Number(access.created_at),
-      ends_at: Number(access.created_at) + FOUR_DAYS
-    }
+    status: 204
   }
 }
