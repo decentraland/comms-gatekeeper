@@ -74,7 +74,7 @@ export async function initComponents(): Promise<AppComponents> {
   const worlds = await createWorldsComponent({ config, logs, cachedFetch })
   const places = await createPlacesComponent({ config, logs, cachedFetch })
   const lands = await createLandsComponent({ config, logs, cachedFetch })
-  const names = await createNamesComponent({ config, logs, cachedFetch })
+  const names = await createNamesComponent({ config, logs, fetch: tracedFetch })
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
