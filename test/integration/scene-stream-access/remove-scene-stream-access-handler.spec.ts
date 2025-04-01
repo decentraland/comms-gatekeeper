@@ -86,9 +86,6 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
@@ -166,9 +163,6 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
