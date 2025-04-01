@@ -122,7 +122,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves(allAdminResults)
 
-    // Configuramos el stub para el componente names
     stubComponents.names.getNamesFromAddresses.resolves({
       [admin.authChain[0].payload]: '',
       [nonOwner.authChain[0].payload]: 'SirTest'
@@ -510,5 +509,65 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const body = await response.json()
     expect(Array.isArray(body)).toBe(true)
     expect(body).toEqual(allAdminResults)
+  })
+
+  it('returns 200 with a list of scene admins when user has unclaimed name', async () => {
+    const { localFetch } = components
+
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: true,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+
+    const mockAdmin1 = {
+      id: '1',
+      place_id: placeId,
+      admin: admin.authChain[0].payload,
+      added_by: owner.authChain[0].payload,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      deleted_at: null,
+      active: true
+    }
+
+    const mockAdmin2 = {
+      id: '2',
+      place_id: placeId,
+      admin: nonOwner.authChain[0].payload,
+      added_by: owner.authChain[0].payload,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      deleted_at: null,
+      active: true
+    }
+
+    stubComponents.names.getNamesFromAddresses.resolves({
+      [admin.authChain[0].payload]: 'TestUser#1234',
+      [nonOwner.authChain[0].payload]: 'SirTest'
+    })
+
+    const expectedAdmins = [
+      { ...mockAdmin1, name: 'TestUser#1234' },
+      { ...mockAdmin2, name: 'SirTest' }
+    ]
+
+    stubComponents.sceneAdminManager.listActiveAdmins.resolves(expectedAdmins)
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataLand
+      },
+      owner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toEqual(expectedAdmins)
   })
 })

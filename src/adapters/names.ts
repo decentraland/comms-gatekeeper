@@ -29,13 +29,11 @@ export async function createNamesComponent(
       throw new ProfilesNotFoundError(`Profiles not found for ${addresses}`)
     }
 
-    const profilesWithNames = profiles.map((profile) => {
-      return {
-        [profile.avatars[0].ethAddress]: profile.avatars[0].name
-      }
-    })
-
-    return profilesWithNames.reduce((acc, profile) => ({ ...acc, ...profile }), {})
+    return profiles.reduce((acc, profile) => {
+      const avatar = profile.avatars[0]
+      const name = avatar.hasClaimedName ? avatar.name : `${avatar.name}#${avatar.ethAddress.slice(-4)}`
+      return { ...acc, [avatar.ethAddress]: name }
+    }, {})
   }
 
   return {
