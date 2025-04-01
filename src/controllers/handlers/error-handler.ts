@@ -6,7 +6,8 @@ import {
   ServiceUnavailableError,
   StreamingAccessNotFoundError,
   UnauthorizedError,
-  LandPermissionsNotFoundError
+  LandPermissionsNotFoundError,
+  LivekitIngressNotFoundError
 } from '../../types/errors'
 
 export async function errorHandler(
@@ -29,7 +30,8 @@ export async function errorHandler(
       error instanceof NotFoundError ||
       error instanceof PlaceNotFoundError ||
       error instanceof StreamingAccessNotFoundError ||
-      error instanceof LandPermissionsNotFoundError
+      error instanceof LandPermissionsNotFoundError ||
+      error instanceof LivekitIngressNotFoundError
     ) {
       return {
         status: 404,
