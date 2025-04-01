@@ -51,6 +51,7 @@ export async function removeSceneStreamAccessHandler(
 
   const access = await sceneStreamAccessManager.getAccess(place.id)
   await livekit.removeIngress(access.ingress_id)
+  await sceneStreamAccessManager.removeAccess(place.id)
 
   return {
     status: 204

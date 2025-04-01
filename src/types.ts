@@ -166,7 +166,7 @@ export interface ISceneAdminManager {
 
 export interface ISceneStreamAccessManager {
   addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess>
-  removeAccess(placeId: string, adminAddress: string): Promise<void>
+  removeAccess(placeId: string): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
 }
 
