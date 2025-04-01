@@ -1,257 +1,152 @@
+import { test } from '../components'
 import { createSceneManagerComponent } from '../../src/adapters/scene-manager'
 import { PlaceAttributes } from '../../src/types/places.type'
 import { ISceneManager } from '../../src/types/scene-manager.type'
 
-describe('SceneManagerComponent', () => {
-  const mockWorldOwnerPermission = jest.fn()
-  const mockWorldStreamingPermission = jest.fn()
-  const mockWorldDeployPermission = jest.fn()
-  const mockLandPermission = jest.fn()
-  const mockIsAdmin = jest.fn()
-
-  const mockWorld = {
-    hasWorldOwnerPermission: mockWorldOwnerPermission,
-    hasWorldStreamingPermission: mockWorldStreamingPermission,
-    hasWorldDeployPermission: mockWorldDeployPermission
-  }
-
-  const mockSceneAdminManager = {
-    isAdmin: mockIsAdmin,
-    addAdmin: jest.fn(),
-    removeAdmin: jest.fn(),
-    listActiveAdmins: jest.fn()
-  }
-
-  const mockLand = {
-    getLandUpdatePermission: mockLandPermission
-  }
-
+test('SceneManagerComponent', ({ components, stubComponents }) => {
+  const testPlaceId = `place-id-test`
+  const testAddress = '0x123'
+  const testParcel = '10,20'
   let sceneManager: ISceneManager
+  let scenePlace: PlaceAttributes
+  let worldPlace: PlaceAttributes
 
   beforeEach(async () => {
-    jest.clearAllMocks()
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
+    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
+    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
+    stubComponents.sceneAdminManager.isAdmin.resolves(false)
 
     sceneManager = await createSceneManagerComponent({
-      lands: mockLand as any,
-      worlds: mockWorld as any,
-      sceneAdminManager: mockSceneAdminManager as any
+      worlds: stubComponents.worlds,
+      lands: stubComponents.lands,
+      sceneAdminManager: stubComponents.sceneAdminManager
     })
+
+    scenePlace = {
+      id: testPlaceId,
+      world: false,
+      positions: [testParcel]
+    } as PlaceAttributes
+
+    worldPlace = {
+      id: testPlaceId,
+      world: true,
+      world_name: 'test-world'
+    } as PlaceAttributes
   })
 
-  const mockScenePlace: PlaceAttributes = {
-    id: 'place-123',
-    title: 'Test Place',
-    description: null,
-    image: null,
-    highlighted_image: null,
-    owner: '0xowner',
-    positions: ['0,0'],
-    base_position: '0,0',
-    contact_name: null,
-    contact_email: null,
-    likes: 0,
-    dislikes: 0,
-    favorites: 0,
-    like_rate: null,
-    like_score: null,
-    highlighted: false,
-    disabled: false,
-    disabled_at: null,
-    created_at: new Date(),
-    updated_at: new Date(),
-    world: false,
-    world_name: null,
-    deployed_at: new Date(),
-    categories: [],
-    user_like: false,
-    user_dislike: false,
-    user_favorite: false,
-    user_count: 0,
-    user_visits: 0
-  }
-
-  const mockWorldPlace: PlaceAttributes = {
-    id: 'world-123',
-    title: 'Test World',
-    description: null,
-    image: null,
-    highlighted_image: null,
-    owner: '0xowner',
-    positions: [],
-    base_position: '0,0',
-    contact_name: null,
-    contact_email: null,
-    likes: 0,
-    dislikes: 0,
-    favorites: 0,
-    like_rate: null,
-    like_score: null,
-    highlighted: false,
-    disabled: false,
-    disabled_at: null,
-    created_at: new Date(),
-    updated_at: new Date(),
-    world: true,
-    world_name: 'test-world.eth',
-    deployed_at: new Date(),
-    categories: [],
-    user_like: false,
-    user_dislike: false,
-    user_favorite: false,
-    user_count: 0,
-    user_visits: 0
-  }
-
   describe('isSceneOwner', () => {
-    it('should return false if user is not owner of a world', async () => {
-      mockWorldOwnerPermission.mockResolvedValue(false)
-
-      const result = await sceneManager.isSceneOwner(mockWorldPlace, '0xuser')
-
-      expect(result).toBe(false)
+    it('should return true when user has world owner permission', async () => {
+      stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
+      const result = await sceneManager.isSceneOwner(worldPlace, testAddress)
+      expect(result).toBe(true)
     })
 
-    it('should return false if user is not owner of a scene', async () => {
-      mockLandPermission.mockResolvedValue({ owner: false, operator: false })
+    it('should return true when user has land owner permission', async () => {
+      stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+      const result = await sceneManager.isSceneOwner(scenePlace, testAddress)
+      expect(result).toBe(true)
+    })
 
-      const result = await sceneManager.isSceneOwner(mockScenePlace, '0xuser')
-
+    it('should return false when user has no permissions', async () => {
+      const result = await sceneManager.isSceneOwner(scenePlace, testAddress)
       expect(result).toBe(false)
     })
   })
 
   describe('getUserScenePermissions', () => {
     it('should return owner=true if user is the owner of a world', async () => {
-      mockWorldOwnerPermission.mockResolvedValue(true)
-      mockIsAdmin.mockResolvedValue(false)
-      mockWorldStreamingPermission.mockResolvedValue(false)
-      mockWorldDeployPermission.mockResolvedValue(false)
-
-      const result = await sceneManager.getUserScenePermissions(mockWorldPlace, '0xuser')
-
-      expect(result.owner).toBe(true)
-      expect(result.admin).toBe(false)
-      expect(result.hasExtendedPermissions).toBe(false)
+      stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
+      expect(result).toEqual({
+        owner: true,
+        admin: false,
+        hasExtendedPermissions: false
+      })
     })
 
     it('should return admin=true if user is an admin of a world', async () => {
-      mockWorldOwnerPermission.mockResolvedValue(false)
-      mockIsAdmin.mockResolvedValue(true)
-
-      const result = await sceneManager.getUserScenePermissions(mockWorldPlace, '0xuser')
-
-      expect(result.owner).toBe(false)
-      expect(result.admin).toBe(true)
-      expect(result.hasExtendedPermissions).toBe(false)
+      stubComponents.sceneAdminManager.isAdmin.resolves(true)
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: true,
+        hasExtendedPermissions: false
+      })
     })
 
     it('should return hasExtendedPermissions=true if user has streaming permission for a world', async () => {
-      mockWorldOwnerPermission.mockResolvedValue(false)
-      mockIsAdmin.mockResolvedValue(false)
-      mockWorldStreamingPermission.mockResolvedValue(true)
-      mockWorldDeployPermission.mockResolvedValue(false)
-
-      const result = await sceneManager.getUserScenePermissions(mockWorldPlace, '0xuser')
-
-      expect(result.owner).toBe(false)
-      expect(result.admin).toBe(false)
-      expect(result.hasExtendedPermissions).toBe(true)
+      stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: true
+      })
     })
 
     it('should return hasExtendedPermissions=true if user has deploy permission for a world', async () => {
-      mockWorldOwnerPermission.mockResolvedValue(false)
-      mockIsAdmin.mockResolvedValue(false)
-      mockWorldStreamingPermission.mockResolvedValue(false)
-      mockWorldDeployPermission.mockResolvedValue(true)
-
-      const result = await sceneManager.getUserScenePermissions(mockWorldPlace, '0xuser')
-
-      expect(result.owner).toBe(false)
-      expect(result.admin).toBe(false)
-      expect(result.hasExtendedPermissions).toBe(true)
-    })
-
-    it('should return owner=true if user is the owner of a scene', async () => {
-      mockLandPermission.mockResolvedValue({ owner: true, operator: false })
-      mockIsAdmin.mockResolvedValue(false)
-
-      const result = await sceneManager.getUserScenePermissions(mockScenePlace, '0xuser')
-
-      expect(result.owner).toBe(true)
-      expect(result.admin).toBe(false)
-      expect(result.hasExtendedPermissions).toBe(false)
-    })
-
-    it('should return admin=true if user is an admin of a scene', async () => {
-      mockLandPermission.mockResolvedValue({ owner: false, operator: false })
-      mockIsAdmin.mockResolvedValue(true)
-
-      const result = await sceneManager.getUserScenePermissions(mockScenePlace, '0xuser')
-
-      expect(result.owner).toBe(false)
-      expect(result.admin).toBe(true)
-      expect(result.hasExtendedPermissions).toBe(false)
+      stubComponents.worlds.hasWorldDeployPermission.resolves(true)
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: true
+      })
     })
 
     it('should return hasExtendedPermissions=true if user is an operator of a scene', async () => {
-      mockLandPermission.mockResolvedValue({ owner: false, operator: true })
-      mockIsAdmin.mockResolvedValue(false)
-
-      const result = await sceneManager.getUserScenePermissions(mockScenePlace, '0xuser')
-
-      expect(result.owner).toBe(false)
-      expect(result.admin).toBe(false)
-      expect(result.hasExtendedPermissions).toBe(true)
+      stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: true })
+      const result = await sceneManager.getUserScenePermissions(scenePlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: true
+      })
     })
 
     it('should return all false if user has no privileges for a scene', async () => {
-      mockLandPermission.mockResolvedValue({ owner: false, operator: false })
-      mockIsAdmin.mockResolvedValue(false)
-
-      const result = await sceneManager.getUserScenePermissions(mockScenePlace, '0xuser')
-
-      expect(result.owner).toBe(false)
-      expect(result.admin).toBe(false)
-      expect(result.hasExtendedPermissions).toBe(false)
+      const result = await sceneManager.getUserScenePermissions(scenePlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: false
+      })
     })
 
     it('should return all false if user has no privileges for a world', async () => {
-      mockWorldOwnerPermission.mockResolvedValue(false)
-      mockIsAdmin.mockResolvedValue(false)
-      mockWorldStreamingPermission.mockResolvedValue(false)
-      mockWorldDeployPermission.mockResolvedValue(false)
-
-      const result = await sceneManager.getUserScenePermissions(mockWorldPlace, '0xuser')
-
-      expect(result.owner).toBe(false)
-      expect(result.admin).toBe(false)
-      expect(result.hasExtendedPermissions).toBe(false)
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: false
+      })
     })
   })
 
   describe('isSceneOwnerOrAdmin', () => {
-    it.only('should return true if user is the owner', async () => {
-      mockLandPermission.mockResolvedValue({ owner: true, operator: false })
-      const result = await sceneManager.isSceneOwnerOrAdmin(mockScenePlace, '0xuser')
-
+    it('should return true when user is owner', async () => {
+      stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+      const result = await sceneManager.isSceneOwnerOrAdmin(scenePlace, testAddress)
       expect(result).toBe(true)
     })
 
-    it('should return true if user is an admin', async () => {
-      const result = await sceneManager.isSceneOwnerOrAdmin(mockScenePlace, '0xuser')
-
+    it('should return true when user is admin', async () => {
+      stubComponents.sceneAdminManager.isAdmin.resolves(true)
+      const result = await sceneManager.isSceneOwnerOrAdmin(scenePlace, testAddress)
       expect(result).toBe(true)
     })
 
-    it('should return true if user has extended permissions', async () => {
-      const result = await sceneManager.isSceneOwnerOrAdmin(mockScenePlace, '0xuser')
-
+    it('should return true when user has extended permissions', async () => {
+      stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
+      const result = await sceneManager.isSceneOwnerOrAdmin(worldPlace, testAddress)
       expect(result).toBe(true)
     })
 
-    it('should return false if user has no privileges', async () => {
-      const result = await sceneManager.isSceneOwnerOrAdmin(mockScenePlace, '0xuser')
-
+    it('should return false when user has no permissions', async () => {
+      const result = await sceneManager.isSceneOwnerOrAdmin(scenePlace, testAddress)
       expect(result).toBe(false)
     })
   })

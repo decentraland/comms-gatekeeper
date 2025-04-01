@@ -15,8 +15,8 @@ export async function createSceneManagerComponent(
     if (isWorlds) {
       return await hasWorldOwnerPermission(address, place.world_name!)
     }
-
-    return (await getLandUpdatePermission(address, place.positions)).owner
+    const landParcelPermission = await getLandUpdatePermission(address, place.positions)
+    return landParcelPermission?.owner
   }
 
   async function getUserScenePermissions(place: PlaceAttributes, address: string): Promise<UserScenePermissions> {

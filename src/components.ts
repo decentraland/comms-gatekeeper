@@ -19,6 +19,7 @@ import { createWorldsComponent } from './adapters/worlds'
 import { createPlacesComponent } from './adapters/places'
 import { createLandsComponent } from './adapters/lands'
 import { createSceneManagerComponent } from './adapters/scene-manager'
+import { createNamesComponent } from './adapters/names'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -73,6 +74,7 @@ export async function initComponents(): Promise<AppComponents> {
   const worlds = await createWorldsComponent({ config, logs, cachedFetch })
   const places = await createPlacesComponent({ config, logs, cachedFetch })
   const lands = await createLandsComponent({ config, logs, cachedFetch })
+  const names = await createNamesComponent({ config, logs, fetch: tracedFetch })
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
@@ -90,6 +92,7 @@ export async function initComponents(): Promise<AppComponents> {
     worlds,
     places,
     lands,
+    names,
     sceneManager,
     livekit,
     database,

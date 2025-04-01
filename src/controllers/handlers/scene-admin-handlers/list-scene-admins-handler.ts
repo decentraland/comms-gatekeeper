@@ -6,14 +6,14 @@ import { PlaceAttributes } from '../../../types/places.type'
 export async function listSceneAdminsHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places',
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'names',
       '/scene-admin'
     >,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places },
+    components: { logs, sceneAdminManager, sceneManager, places, names },
     url,
     verification
   } = ctx
@@ -69,8 +69,18 @@ export async function listSceneAdminsHandler(
 
   const admins = await sceneAdminManager.listActiveAdmins(sceneAdminFilters)
 
+  let adminsNames: Record<string, string>
+  if (admins.length > 0) {
+    const adminsWallets = admins.map((admin) => admin.admin)
+    adminsNames = await names.getNamesFromAddresses(adminsWallets)
+  }
+  const adminsWithNames = admins.map((admin) => ({
+    ...admin,
+    name: adminsNames[admin.admin] || ''
+  }))
+
   return {
     status: 200,
-    body: admins
+    body: adminsWithNames
   }
 }

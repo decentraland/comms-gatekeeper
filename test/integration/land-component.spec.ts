@@ -1,5 +1,5 @@
 import { createLandsComponent } from '../../src/adapters/lands'
-import { LandsParcelPermissionsResponse } from '../../src/types/land.type'
+import { LandsParcelPermissionsResponse } from '../../src/types/lands.type'
 
 describe('LandsComponent', () => {
   let landsComponent: Awaited<ReturnType<typeof createLandsComponent>>
