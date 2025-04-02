@@ -107,7 +107,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     jest.restoreAllMocks()
   })
 
-  it('returns 200 with new streaming access when user is owner', async () => {
+  it('returns 200 with new streaming access when user is land owner', async () => {
     const { localFetch } = components
 
     const newMockIngress = {
@@ -223,7 +223,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     expect(stubComponents.sceneStreamAccessManager.addAccess.called).toBe(true)
   })
 
-  it('returns 401 when user is not owner', async () => {
+  it('returns 401 when user is not the land owner', async () => {
     const { localFetch } = components
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
