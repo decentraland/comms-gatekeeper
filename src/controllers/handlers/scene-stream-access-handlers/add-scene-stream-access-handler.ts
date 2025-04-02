@@ -22,7 +22,7 @@ export async function addSceneStreamAccessHandler(
   const { getPlaceByWorldName, getPlaceByParcel } = places
   const { isSceneOwnerOrAdmin } = sceneManager
   if (!verification?.auth) {
-    logger.error('Authentication required')
+    logger.debug('Authentication required')
     throw new InvalidRequestError('Authentication required')
   }
   const authenticatedAddress = verification.auth
@@ -71,7 +71,7 @@ export async function addSceneStreamAccessHandler(
         ingress_id: ingress.ingressId!
       })
     } else {
-      logger.error('Error getting stream access: ', { error: JSON.stringify(error) })
+      logger.debug('Error getting stream access: ', { error: JSON.stringify(error) })
       throw error
     }
   }

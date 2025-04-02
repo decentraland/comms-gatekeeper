@@ -132,7 +132,7 @@ export async function createLivekitComponent(
       })
       return ingressClient.deleteIngress(ingressId)
     } catch (error) {
-      logger.error(`Error removing ingress ${ingressId}:`, { error: JSON.stringify(error) })
+      logger.debug(`Error removing ingress ${ingressId}:`, { error: JSON.stringify(error) })
       throw new LivekitIngressNotFoundError(`No ingress found`)
     }
   }

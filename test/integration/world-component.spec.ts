@@ -1,5 +1,5 @@
 import { createWorldsComponent } from '../../src/adapters/worlds'
-import { PermissionType } from '../../src/types'
+import { PermissionType } from '../../src/types/worlds.type'
 import { InvalidRequestError } from '../../src/types/errors'
 
 describe('WorldComponent', () => {
@@ -102,10 +102,6 @@ describe('WorldComponent', () => {
     it('should return true when user is in streaming allowlist', async () => {
       const mockPermissionsWithAllowList = {
         permissions: {
-          access: {
-            type: 'allow-list',
-            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
-          },
           deployment: {
             type: 'allow-list',
             wallets: []
@@ -127,10 +123,6 @@ describe('WorldComponent', () => {
     it('should return false when user is not in streaming allowlist', async () => {
       const mockPermissionsWithoutUser = {
         permissions: {
-          access: {
-            type: 'allow-list',
-            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
-          },
           deployment: {
             type: 'allow-list',
             wallets: []
@@ -151,10 +143,6 @@ describe('WorldComponent', () => {
     it('should return false when streaming permissions are not allowlist type', async () => {
       const mockPermissionsWithOtherType = {
         permissions: {
-          access: {
-            type: 'allow-list',
-            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
-          },
           deployment: {
             type: 'allow-list',
             wallets: []
@@ -183,10 +171,6 @@ describe('WorldComponent', () => {
     it('should return true when user is in deploy allowlist', async () => {
       const mockPermissionsWithAllowList = {
         permissions: {
-          access: {
-            type: 'allow-list',
-            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
-          },
           deployment: {
             type: PermissionType.AllowList,
             wallets: ['0xuseraddress', '0xotheraddress']
@@ -207,10 +191,6 @@ describe('WorldComponent', () => {
     it('should return false when user is not in deploy allowlist', async () => {
       const mockPermissionsWithoutUser = {
         permissions: {
-          access: {
-            type: 'allow-list',
-            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
-          },
           deployment: {
             type: 'allow-list',
             wallets: []
@@ -237,10 +217,6 @@ describe('WorldComponent', () => {
     it('should return false when permissions are not allowlist type', async () => {
       const mockPermissionsWithOtherType = {
         permissions: {
-          access: {
-            type: 'allow-list',
-            wallets: ['0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']
-          },
           deployment: {
             type: 'other-type',
             wallets: ['0xUserAddress']

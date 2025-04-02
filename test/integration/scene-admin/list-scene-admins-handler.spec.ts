@@ -5,8 +5,9 @@ import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { PlaceNotFoundError } from '../../../src/types/errors'
 import { SceneAdmin } from '../../../src/types'
+import { PermissionType } from '../../../src/types/worlds.type'
 
-type SceneAdminWithName = SceneAdmin & { name: string }
+type SceneAdminWithName = SceneAdmin & { name: string; canBeRemoved: boolean; updated_at: number }
 
 test('GET /scene-admin - lists all active administrators for scenes', ({ components, stubComponents }) => {
   let cleanup: TestCleanup
@@ -49,7 +50,9 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     if (adminResults?.length > 0) {
       allAdminResults.push({
         ...adminResults[0],
-        name: ''
+        name: '',
+        canBeRemoved: true,
+        updated_at: Date.now()
       })
       cleanup.trackInsert('scene_admin', { id: adminResults[0].id })
     }
@@ -68,7 +71,9 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     if (adminResults2?.length > 0) {
       allAdminResults.push({
         ...adminResults2[0],
-        name: 'SirTest'
+        name: 'SirTest',
+        canBeRemoved: true,
+        updated_at: Date.now()
       })
       cleanup.trackInsert('scene_admin', { id: adminResults2[0].id })
     }
@@ -529,7 +534,8 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       created_at: Date.now(),
       updated_at: Date.now(),
       deleted_at: null,
-      active: true
+      active: true,
+      canBeRemoved: true
     }
 
     const mockAdmin2 = {
@@ -540,7 +546,8 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       created_at: Date.now(),
       updated_at: Date.now(),
       deleted_at: null,
-      active: true
+      active: true,
+      canBeRemoved: true
     }
 
     stubComponents.names.getNamesFromAddresses.resolves({
@@ -561,6 +568,155 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       {
         method: 'GET',
         metadata: metadataLand
+      },
+      owner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toEqual(expectedAdmins)
+  })
+
+  it('returns 200 with a list of scene admins including addresses from world permissions', async () => {
+    const { localFetch } = components
+
+    const extraAddress1 = '0x1111111111111111111111111111111111111111'
+    const extraAddress2 = '0x2222222222222222222222222222222222222222'
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: placeId,
+      world_name: 'name.dcl.eth',
+      world: true
+    } as PlaceAttributes)
+
+    stubComponents.worlds.fetchWorldActionPermissions.resolves({
+      deployment: {
+        type: PermissionType.AllowList,
+        wallets: [extraAddress1]
+      },
+      streaming: {
+        type: PermissionType.AllowList,
+        wallets: [extraAddress2]
+      },
+      access: {
+        type: PermissionType.AllowList,
+        wallets: []
+      }
+    })
+
+    stubComponents.names.getNamesFromAddresses.resolves({
+      [admin.authChain[0].payload]: '',
+      [nonOwner.authChain[0].payload]: 'SirTest',
+      [extraAddress1]: 'ExtraUser1',
+      [extraAddress2]: 'ExtraUser2'
+    })
+
+    const expectedAdmins = [
+      ...allAdminResults.map((admin) => ({
+        ...admin,
+        canBeRemoved: true
+      })),
+      {
+        admin: extraAddress1,
+        name: 'ExtraUser1',
+        canBeRemoved: false
+      },
+      {
+        admin: extraAddress2,
+        name: 'ExtraUser2',
+        canBeRemoved: false
+      }
+    ]
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataWorld
+      },
+      owner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body).toEqual(expectedAdmins)
+  })
+
+  it('returns 200 with a list of scene admins where some cannot be removed due to world permissions', async () => {
+    const { localFetch } = components
+
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: placeId,
+      world_name: 'name.dcl.eth',
+      world: true
+    } as PlaceAttributes)
+
+    stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: true,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+
+    const mockAdmin1 = {
+      id: '1',
+      place_id: placeId,
+      admin: admin.authChain[0].payload,
+      added_by: owner.authChain[0].payload,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      deleted_at: null,
+      active: true
+    }
+
+    const mockAdmin2 = {
+      id: '2',
+      place_id: placeId,
+      admin: nonOwner.authChain[0].payload,
+      added_by: owner.authChain[0].payload,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      deleted_at: null,
+      active: true
+    }
+
+    stubComponents.worlds.fetchWorldActionPermissions.resolves({
+      deployment: {
+        type: PermissionType.AllowList,
+        wallets: [nonOwner.authChain[0].payload]
+      },
+      streaming: {
+        type: PermissionType.AllowList,
+        wallets: []
+      },
+      access: {
+        type: PermissionType.AllowList,
+        wallets: []
+      }
+    })
+
+    stubComponents.names.getNamesFromAddresses.resolves({
+      [admin.authChain[0].payload]: 'TestUser#1234',
+      [nonOwner.authChain[0].payload]: 'SirTest'
+    })
+
+    const expectedAdmins = [
+      { ...mockAdmin1, name: 'TestUser#1234', canBeRemoved: true },
+      { ...mockAdmin2, name: 'SirTest', canBeRemoved: false }
+    ]
+
+    stubComponents.sceneAdminManager.listActiveAdmins.resolves([mockAdmin1, mockAdmin2])
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataWorld
       },
       owner
     )
