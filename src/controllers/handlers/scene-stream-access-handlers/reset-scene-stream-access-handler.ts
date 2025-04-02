@@ -22,7 +22,7 @@ export async function resetSceneStreamAccessHandler(
   const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
-    logger.error('Authentication required')
+    logger.debug('Authentication required')
     throw new InvalidRequestError('Authentication required')
   }
   const authenticatedAddress = verification.auth

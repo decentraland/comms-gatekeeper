@@ -1,6 +1,6 @@
-import { AppComponents, PermissionsOverWorld, PermissionType, NamesResponse } from '../types'
+import { AppComponents, NamesResponse } from '../types'
 import { ensureSlashAtTheEnd } from '../logic/utils'
-import { IWorldComponent } from '../types/worlds.type'
+import { IWorldComponent, PermissionsOverWorld, PermissionType } from '../types/worlds.type'
 import { InvalidRequestError } from '../types/errors'
 
 export async function createWorldsComponent(
@@ -63,6 +63,7 @@ export async function createWorldsComponent(
   }
 
   return {
+    fetchWorldActionPermissions,
     hasWorldOwnerPermission,
     hasWorldStreamingPermission,
     hasWorldDeployPermission
