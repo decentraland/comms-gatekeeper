@@ -30,8 +30,8 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]
   }
 
-  async function removeAccess(placeId: string, adminAddress: string): Promise<void> {
-    logger.debug('Removing stream access', { placeId, adminAddress })
+  async function removeAccess(placeId: string): Promise<void> {
+    logger.debug('Removing stream access', { placeId })
 
     await database.query(
       SQL`UPDATE scene_stream_access 

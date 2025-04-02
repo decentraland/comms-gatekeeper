@@ -87,6 +87,7 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
     } as PlaceAttributes)
 
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
+    stubComponents.sceneStreamAccessManager.removeAccess.resolves()
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
@@ -115,6 +116,10 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
     )
 
     expect(response.status).toBe(204)
+    expect(stubComponents.sceneStreamAccessManager.removeAccess.calledOnce).toBe(true)
+    expect(stubComponents.sceneStreamAccessManager.removeAccess.calledWith(placeId)).toBe(true)
+    expect(stubComponents.livekit.removeIngress.calledOnce).toBe(true)
+    expect(stubComponents.livekit.removeIngress.calledWith(mockSceneStreamAccess.ingress_id)).toBe(true)
   })
 
   it('returns 204 when user has world permission and successfully removes streaming access', async () => {
