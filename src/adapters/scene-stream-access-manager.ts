@@ -51,9 +51,9 @@ export async function createSceneStreamAccessManagerComponent({
     )
 
     if (result.rowCount === 0) {
-      throw new StreamingAccessNotFoundError(`No active streaming access found for place ${placeId}`)
+      logger.error('No active streaming access found for place', { placeId })
+      throw new StreamingAccessNotFoundError('No active streaming access found for place')
     }
-
     return result.rows[0]
   }
 
