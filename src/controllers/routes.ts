@@ -10,6 +10,7 @@ import { addSceneAdminHandler, removeSceneAdminHandler, listSceneAdminsHandler }
 import { addSceneStreamAccessHandler, listSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers'
 import { getPrivateMessagesTokenHandler } from './handlers/private-messages/get-token-handler'
 import { removeSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/remove-scene-stream-access-handler'
+import { resetSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/reset-scene-stream-access-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -41,6 +42,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.get('/scene-stream-access', auth, listSceneStreamAccessHandler)
   router.post('/scene-stream-access', auth, addSceneStreamAccessHandler)
   router.delete('/scene-stream-access', auth, removeSceneStreamAccessHandler)
+  router.put('/scene-stream-access', auth, resetSceneStreamAccessHandler)
 
   router.get('/private-messages/token', authExplorer, getPrivateMessagesTokenHandler)
 
