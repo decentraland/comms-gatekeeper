@@ -75,7 +75,9 @@ export async function listSceneAdminsHandler(
   const extraAddresses = new Set<string>()
   let worldActionPermissions: PermissionsOverWorld | undefined
 
-  isWorlds && (worldActionPermissions = await fetchWorldActionPermissions(place.world_name!))
+  if (isWorlds) {
+    worldActionPermissions = await fetchWorldActionPermissions(place.world_name!)
+  }
 
   if (worldActionPermissions?.deployment.type === PermissionType.AllowList) {
     worldActionPermissions.deployment.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
