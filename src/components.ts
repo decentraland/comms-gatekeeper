@@ -20,6 +20,9 @@ import { createPlacesComponent } from './adapters/places'
 import { createLandsComponent } from './adapters/lands'
 import { createSceneManagerComponent } from './adapters/scene-manager'
 import { createNamesComponent } from './adapters/names'
+import { createSqsAdapter } from './adapters/sqs'
+import { createMemoryQueueAdapter } from './adapters/memory-queue'
+import { createMessageProcessorComponent } from './logic/message-processor'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -79,6 +82,14 @@ export async function initComponents(): Promise<AppComponents> {
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
+  const sqsEndpoint = await config.getString('AWS_SQS_ENDPOINT')
+  const queue = sqsEndpoint ? await createSqsAdapter(sqsEndpoint) : createMemoryQueueAdapter()
+
+  const messageProcessor = await createMessageProcessorComponent({
+    logs,
+    config
+  })
+
   return {
     blockList,
     config,
@@ -97,6 +108,8 @@ export async function initComponents(): Promise<AppComponents> {
     livekit,
     database,
     sceneAdminManager,
-    sceneStreamAccessManager
+    sceneStreamAccessManager,
+    queue,
+    messageProcessor
   }
 }

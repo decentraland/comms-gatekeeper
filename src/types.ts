@@ -19,6 +19,7 @@ import { IWorldComponent } from './types/worlds.type'
 import { ILandComponent } from './types/lands.type'
 import { ISceneManager } from './types/scene-manager.type'
 import { INamesComponent } from './types/names.type'
+import { MessageProcessorComponent, QueueComponent } from './types/sqs.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -36,12 +37,14 @@ export type BaseComponents = {
   database: IPgComponent
   sceneAdminManager: ISceneAdminManager
   sceneStreamAccessManager: ISceneStreamAccessManager
+  queue: QueueComponent
   cachedFetch: ICachedFetchComponent
   places: IPlacesComponent
   worlds: IWorldComponent
   lands: ILandComponent
   names: INamesComponent
   sceneManager: ISceneManager
+  messageProcessor: MessageProcessorComponent
 }
 
 export type AppComponents = BaseComponents & {
