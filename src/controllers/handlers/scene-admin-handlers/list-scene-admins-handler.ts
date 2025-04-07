@@ -46,6 +46,14 @@ export async function listSceneAdminsHandler(
   }
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+
+  // TODO: Remove this before deploying
+  logger.info(`Authenticated Address: ${authenticatedAddress}`)
+  logger.info(`Hostname: ${hostname}`)
+  logger.info(`Server Name: ${serverName}`)
+  logger.info(`Parcel: ${parcel}`)
+  logger.info(`Is Owner Or Admin: ${isOwnerOrAdmin}`)
+
   if (!isOwnerOrAdmin) {
     logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
     throw new UnauthorizedError('Only administrators or the owner can list administrators')
