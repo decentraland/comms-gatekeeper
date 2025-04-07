@@ -46,6 +46,7 @@ export async function listSceneAdminsHandler(
   }
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+
   if (!isOwnerOrAdmin) {
     logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
     throw new UnauthorizedError('Only administrators or the owner can list administrators')
@@ -77,12 +78,18 @@ export async function listSceneAdminsHandler(
 
   isWorlds && (worldActionPermissions = await fetchWorldActionPermissions(place.world_name!))
 
-  if (worldActionPermissions?.deployment.type === PermissionType.AllowList) {
-    worldActionPermissions.deployment.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
+  if (worldActionPermissions?.permissions.deployment.type === PermissionType.AllowList) {
+    worldActionPermissions.permissions.deployment.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
   }
 
-  if (worldActionPermissions?.streaming.type === PermissionType.AllowList) {
-    worldActionPermissions.streaming.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
+  if (worldActionPermissions?.permissions.streaming.type === PermissionType.AllowList) {
+    worldActionPermissions.permissions.streaming.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
+  }
+
+  const ownerAddress = worldActionPermissions?.owner
+
+  if (ownerAddress) {
+    extraAddresses.add(ownerAddress.toLowerCase())
   }
 
   const allAddresses = [...new Set([...admins.map((admin) => admin.admin), ...extraAddresses])]
