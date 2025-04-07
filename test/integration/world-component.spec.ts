@@ -216,6 +216,7 @@ describe('WorldComponent', () => {
 
     it('should return false when permissions are not allowlist type', async () => {
       const mockPermissionsWithOtherType = {
+        owner: '0xUserAddress',
         permissions: {
           deployment: {
             type: 'other-type',

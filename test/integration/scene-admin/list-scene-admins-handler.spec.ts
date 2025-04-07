@@ -592,18 +592,21 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     } as PlaceAttributes)
 
     stubComponents.worlds.fetchWorldActionPermissions.resolves({
-      deployment: {
-        type: PermissionType.AllowList,
-        wallets: [extraAddress1]
+      permissions: {
+        deployment: {
+          type: PermissionType.AllowList,
+          wallets: [extraAddress1]
+        },
+        streaming: {
+          type: PermissionType.AllowList,
+          wallets: [extraAddress2]
+        },
+        access: {
+          type: PermissionType.AllowList,
+          wallets: []
+        }
       },
-      streaming: {
-        type: PermissionType.AllowList,
-        wallets: [extraAddress2]
-      },
-      access: {
-        type: PermissionType.AllowList,
-        wallets: []
-      }
+      owner: '0xUserAddress'
     })
 
     stubComponents.names.getNamesFromAddresses.resolves({
@@ -627,6 +630,11 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         admin: extraAddress2,
         name: 'ExtraUser2',
         canBeRemoved: false
+      },
+      {
+        admin: '0xuseraddress',
+        canBeRemoved: false,
+        name: ''
       }
     ]
 
@@ -685,18 +693,21 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     }
 
     stubComponents.worlds.fetchWorldActionPermissions.resolves({
-      deployment: {
-        type: PermissionType.AllowList,
-        wallets: [nonOwner.authChain[0].payload]
+      permissions: {
+        deployment: {
+          type: PermissionType.AllowList,
+          wallets: [nonOwner.authChain[0].payload]
+        },
+        streaming: {
+          type: PermissionType.AllowList,
+          wallets: []
+        },
+        access: {
+          type: PermissionType.AllowList,
+          wallets: []
+        }
       },
-      streaming: {
-        type: PermissionType.AllowList,
-        wallets: []
-      },
-      access: {
-        type: PermissionType.AllowList,
-        wallets: []
-      }
+      owner: owner.authChain[0].payload
     })
 
     stubComponents.names.getNamesFromAddresses.resolves({
@@ -706,7 +717,12 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     const expectedAdmins = [
       { ...mockAdmin1, name: 'TestUser#1234', canBeRemoved: true },
-      { ...mockAdmin2, name: 'SirTest', canBeRemoved: false }
+      { ...mockAdmin2, name: 'SirTest', canBeRemoved: false },
+      {
+        admin: '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd',
+        canBeRemoved: false,
+        name: ''
+      }
     ]
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves([mockAdmin1, mockAdmin2])

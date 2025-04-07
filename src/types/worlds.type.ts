@@ -40,7 +40,10 @@ export type AccessPermissionSetting =
   | AllowListPermissionSetting
 
 export type PermissionsOverWorld = {
-  deployment: AllowListPermissionSetting
-  access: AccessPermissionSetting
-  streaming: UnrestrictedPermissionSetting | AllowListPermissionSetting
+  owner: string
+  permissions: {
+    deployment: AllowListPermissionSetting
+    access: AccessPermissionSetting
+    streaming: UnrestrictedPermissionSetting | AllowListPermissionSetting
+  }
 }

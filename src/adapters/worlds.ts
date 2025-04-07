@@ -15,9 +15,9 @@ export async function createWorldsComponent(
   ])
 
   async function fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined> {
-    const fetchFromCache = cachedFetch.cache<{ permissions: PermissionsOverWorld }>()
+    const fetchFromCache = cachedFetch.cache<PermissionsOverWorld>()
     const response = await fetchFromCache.fetch(`${worldContentUrl}/world/${worldName.toLowerCase()}/permissions`)
-    return response?.permissions
+    return response
   }
 
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
@@ -48,8 +48,8 @@ export async function createWorldsComponent(
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
 
     return (
-      permissionsOverWorld?.streaming.type === PermissionType.AllowList &&
-      permissionsOverWorld.streaming.wallets.includes(authAddress)
+      permissionsOverWorld?.permissions?.streaming.type === PermissionType.AllowList &&
+      permissionsOverWorld.permissions.streaming.wallets.includes(authAddress)
     )
   }
 
@@ -57,8 +57,8 @@ export async function createWorldsComponent(
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
 
     return (
-      permissionsOverWorld?.deployment.type === PermissionType.AllowList &&
-      permissionsOverWorld.deployment.wallets.includes(authAddress)
+      permissionsOverWorld?.permissions?.deployment.type === PermissionType.AllowList &&
+      permissionsOverWorld.permissions.deployment.wallets.includes(authAddress)
     )
   }
 
