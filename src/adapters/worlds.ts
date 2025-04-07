@@ -48,7 +48,7 @@ export async function createWorldsComponent(
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
 
     return (
-      permissionsOverWorld?.permissions.streaming.type === PermissionType.AllowList &&
+      permissionsOverWorld?.permissions?.streaming.type === PermissionType.AllowList &&
       permissionsOverWorld.permissions.streaming.wallets.includes(authAddress)
     )
   }
@@ -57,7 +57,7 @@ export async function createWorldsComponent(
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
 
     return (
-      permissionsOverWorld?.permissions.deployment.type === PermissionType.AllowList &&
+      permissionsOverWorld?.permissions?.deployment.type === PermissionType.AllowList &&
       permissionsOverWorld.permissions.deployment.wallets.includes(authAddress)
     )
   }
