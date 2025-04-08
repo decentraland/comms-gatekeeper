@@ -19,6 +19,7 @@ import { IWorldComponent } from './types/worlds.type'
 import { ILandComponent } from './types/lands.type'
 import { ISceneManager } from './types/scene-manager.type'
 import { INamesComponent } from './types/names.type'
+import { IPlaceChecker } from './types/places-checker.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -42,6 +43,7 @@ export type BaseComponents = {
   lands: ILandComponent
   names: INamesComponent
   sceneManager: ISceneManager
+  placesChecker: IPlaceChecker
 }
 
 export type AppComponents = BaseComponents & {
@@ -162,6 +164,8 @@ export interface ISceneAdminManager {
   removeAdmin(placeId: string, adminAddress: string): Promise<void>
   listActiveAdmins(filters: ListSceneAdminFilters): Promise<SceneAdmin[]>
   isAdmin(placeId: string, address: string): Promise<boolean>
+  getPlacesIdWithActiveAdmins(): Promise<string[]>
+  removeAllAdminsByPlaceId(placeId: string): Promise<void>
 }
 
 export interface ISceneStreamAccessManager {

@@ -3,9 +3,9 @@ import { PlaceNotFoundError } from '../types/errors'
 import { IPlacesComponent, PlaceAttributes, PlaceResponse } from '../types/places.type'
 
 export async function createPlacesComponent(
-  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
+  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs' | 'fetch'>
 ): Promise<IPlacesComponent> {
-  const { config, cachedFetch, logs } = components
+  const { config, cachedFetch, logs, fetch } = components
 
   const logger = logs.getLogger('places-component')
 
@@ -34,8 +34,25 @@ export async function createPlacesComponent(
     return response.data[0]
   }
 
+  async function getPlaceByIds(ids: string[]): Promise<PlaceAttributes[]> {
+    const response = await fetch.fetch(`${placesApiUrl}/places`, {
+      method: 'POST',
+      body: JSON.stringify(ids)
+    })
+
+    const places = (await response.json()) as PlaceResponse
+
+    if (!places?.data || places.data.length === 0) {
+      logger.info(`No places found with ids ${ids}`)
+      throw new PlaceNotFoundError(`No places found with ids ${ids}`)
+    }
+
+    return places.data
+  }
+
   return {
     getPlaceByParcel,
-    getPlaceByWorldName
+    getPlaceByWorldName,
+    getPlaceByIds
   }
 }
