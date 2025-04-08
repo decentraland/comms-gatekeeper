@@ -127,15 +127,16 @@ export async function createSceneAdminManagerComponent({
     return result.rows.map((row) => row.place_id)
   }
 
-  async function removeAllAdminsByPlaceId(placeId: string): Promise<void> {
-    await database.query(
-      SQL`UPDATE scene_admin 
-          SET active = false
-          WHERE place_id = ${placeId} 
-          AND active = true`
-    )
+  async function removeAllAdminsByPlaceIds(placeIds: string[]): Promise<void> {
+    const query = SQL`
+      UPDATE scene_admin 
+      SET active = false
+      WHERE place_id = ANY(${placeIds})
+      AND active = true`
 
-    logger.info(`All admins deactivated for place ${placeId}`)
+    await database.query(query)
+
+    logger.info(`All admins deactivated for places ${placeIds.join(', ')}`)
   }
 
   return {
@@ -144,6 +145,6 @@ export async function createSceneAdminManagerComponent({
     listActiveAdmins,
     isAdmin,
     getPlacesIdWithActiveAdmins,
-    removeAllAdminsByPlaceId
+    removeAllAdminsByPlaceIds
   }
 }

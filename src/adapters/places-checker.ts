@@ -10,7 +10,7 @@ export async function createPlaceChecker(
   let job: CronJob
   async function start(): Promise<void> {
     job = new CronJob(
-      '0 0 0 * * 1', // Every monday at 00:00
+      '0 * * * * *', //'0 0 0 * * 1', // Every monday at 00:00  - '0 * * * * *'
       async function () {
         try {
           logger.info(`Looking into active places.`)
@@ -21,30 +21,35 @@ export async function createPlaceChecker(
             return
           }
 
-          const placesFromIds = await places.getPlaceStateById(placesIdWithActiveAdmins)
+          let placesFromIds: Array<{ id: string; disabled: boolean }> = []
+          const batchSize = 100
 
-          const placesDisabled = placesFromIds.filter((place) => place.disabled)
-
-          if (placesDisabled.length > 0) {
-            logger.info(`Places disabled found: ${placesDisabled.map((place) => place.id).join(', ')}`)
-            return
+          const batchPromises = []
+          for (let i = 0; i < placesIdWithActiveAdmins.length; i += batchSize) {
+            const batch = placesIdWithActiveAdmins.slice(i, i + batchSize)
+            batchPromises.push(places.getPlaceStatusById(batch))
           }
 
+          const batchResults = await Promise.all(batchPromises)
+          placesFromIds = batchResults.flat()
+
+          const placesDisabled = placesFromIds.filter((place) => place.disabled)
+          if (placesDisabled.length === 0) {
+            return
+          }
+          logger.info(`Places disabled found: ${placesDisabled.map((place) => place.id).join(', ')}`)
+
           await Promise.all([
-            ...placesFromIds.map(async (place) => {
-              await sceneAdminManager.removeAllAdminsByPlaceId(place.id)
-            }),
-            ...placesFromIds.map(async (place) => {
-              await sceneStreamAccessManager.removeAccess(place.id)
-            })
+            sceneAdminManager.removeAllAdminsByPlaceIds(placesDisabled.map((place) => place.id)),
+            sceneStreamAccessManager.removeAccessByPlaceIds(placesDisabled.map((place) => place.id))
           ])
 
           logger.info(
-            `All admins and stream access removed for places: ${placesFromIds.map((place) => place.id).join(', ')}`
+            `All admins and stream access removed for places: ${placesDisabled.map((place) => place.id).join(', ')}`
           )
           return
         } catch (error) {
-          logger.warn(`Error while checking places: ${error}`)
+          logger.error(`Error while checking places: ${error}`)
         }
       },
       null,

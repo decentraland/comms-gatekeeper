@@ -165,12 +165,13 @@ export interface ISceneAdminManager {
   listActiveAdmins(filters: ListSceneAdminFilters): Promise<SceneAdmin[]>
   isAdmin(placeId: string, address: string): Promise<boolean>
   getPlacesIdWithActiveAdmins(): Promise<string[]>
-  removeAllAdminsByPlaceId(placeId: string): Promise<void>
+  removeAllAdminsByPlaceIds(placeIds: string[]): Promise<void>
 }
 
 export interface ISceneStreamAccessManager {
   addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess>
   removeAccess(placeId: string): Promise<void>
+  removeAccessByPlaceIds(placeIds: string[]): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
 }
 
