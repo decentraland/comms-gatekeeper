@@ -34,8 +34,8 @@ export async function createPlacesComponent(
     return response.data[0]
   }
 
-  async function getPlaceByIds(ids: string[]): Promise<PlaceAttributes[]> {
-    const response = await fetch.fetch(`${placesApiUrl}/places`, {
+  async function getPlaceStateById(ids: string[]): Promise<Pick<PlaceAttributes, 'id' | 'disabled'>[]> {
+    const response = await fetch.fetch(`${placesApiUrl}/places/status`, {
       method: 'POST',
       body: JSON.stringify(ids)
     })
@@ -53,6 +53,6 @@ export async function createPlacesComponent(
   return {
     getPlaceByParcel,
     getPlaceByWorldName,
-    getPlaceByIds
+    getPlaceStateById
   }
 }

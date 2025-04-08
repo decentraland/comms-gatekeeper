@@ -21,7 +21,7 @@ export async function createPlaceChecker(
             return
           }
 
-          const placesFromIds = await places.getPlaceByIds(placesIdWithActiveAdmins)
+          const placesFromIds = await places.getPlaceStateById(placesIdWithActiveAdmins)
 
           const placesDisabled = placesFromIds.filter((place) => place.disabled)
 
