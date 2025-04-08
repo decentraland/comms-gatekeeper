@@ -9,6 +9,7 @@ describe('PlacesComponent', () => {
     jest.clearAllMocks()
 
     mockFetch = jest.fn()
+    const mockFetchComponent = { fetch: mockFetch }
 
     const mockConfig = {
       requireString: jest.fn().mockImplementation((key) => {
@@ -40,7 +41,8 @@ describe('PlacesComponent', () => {
     placesComponent = await createPlacesComponent({
       config: mockConfig,
       cachedFetch: mockCachedFetch,
-      logs: mockLogs
+      logs: mockLogs,
+      fetch: mockFetchComponent
     })
   })
 
