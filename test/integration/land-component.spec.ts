@@ -1,5 +1,5 @@
 import { createLandsComponent } from '../../src/adapters/lands'
-import { LandsParcelPermissionsResponse } from '../../src/types/lands.type'
+import { LandsParcelPermissionsResponse, LandsParcelOperatorsResponse } from '../../src/types/lands.type'
 
 describe('LandsComponent', () => {
   let landsComponent: Awaited<ReturnType<typeof createLandsComponent>>
@@ -113,6 +113,67 @@ describe('LandsComponent', () => {
       await expect(component.getLandUpdatePermission('0xUserAddress', ['10,20'])).rejects.toThrow(
         'Lambdas URL is not set'
       )
+    })
+  })
+
+  describe('getLandOperators', () => {
+    it('should return owner and operator when both exist', async () => {
+      const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
+        owner: '0xOwnerAddress',
+        operator: '0xOperatorAddress'
+      }
+
+      mockFetch.mockResolvedValueOnce(mockParcelOperatorsResponse)
+
+      const result = await landsComponent.getLandOperators('10,20')
+      expect(result.owner).toBe('0xOwnerAddress')
+      expect(result.operator).toBe('0xOperatorAddress')
+      expect(mockFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/parcels/10/20/operators')
+    })
+
+    it('should return only owner when operator does not exist', async () => {
+      const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
+        owner: '0xOwnerAddress'
+      }
+
+      mockFetch.mockResolvedValueOnce(mockParcelOperatorsResponse)
+
+      const result = await landsComponent.getLandOperators('10,20')
+      expect(result.owner).toBe('0xOwnerAddress')
+      expect(result.operator).toBeUndefined()
+      expect(mockFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/parcels/10/20/operators')
+    })
+
+    it('should throw an error when operators response is not available', async () => {
+      mockFetch.mockResolvedValueOnce(null)
+
+      await expect(landsComponent.getLandOperators('10,20')).rejects.toThrow('Land permissions not found for 10,20')
+      expect(mockFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/parcels/10/20/operators')
+    })
+
+    it('should throw an error when lambdas URL is not set', async () => {
+      const mockConfig = {
+        requireString: jest.fn().mockResolvedValue(''),
+        getString: jest.fn(),
+        getNumber: jest.fn(),
+        requireNumber: jest.fn()
+      }
+
+      const component = await createLandsComponent({
+        config: mockConfig,
+        cachedFetch: {
+          cache: jest.fn().mockReturnValue({
+            fetch: jest.fn()
+          })
+        },
+        logs: {
+          getLogger: jest.fn().mockReturnValue({
+            info: jest.fn()
+          })
+        }
+      })
+
+      await expect(component.getLandOperators('10,20')).rejects.toThrow('Lambdas URL is not set')
     })
   })
 })
