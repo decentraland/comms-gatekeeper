@@ -140,7 +140,16 @@ export async function createLivekitComponent(
     }
   }
 
+  async function updateParticipantMetadata(
+    roomId: string,
+    participantId: string,
+    metadata: Record<string, unknown>
+  ): Promise<void> {
+    await roomClient.updateParticipant(roomId, participantId, JSON.stringify(metadata))
+  }
+
   return {
+    updateParticipantMetadata,
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
