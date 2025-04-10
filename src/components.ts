@@ -20,6 +20,7 @@ import { createPlacesComponent } from './adapters/places'
 import { createLandsComponent } from './adapters/lands'
 import { createSceneManagerComponent } from './adapters/scene-manager'
 import { createNamesComponent } from './adapters/names'
+import { createSocialComponent } from './adapters/social'
 import { createPlaceChecker } from './adapters/places-checker'
 
 // Initialize all the components of the app
@@ -70,7 +71,7 @@ export async function initComponents(): Promise<AppComponents> {
   )
 
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
-
+  const social = await createSocialComponent({ config, logs, fetch: tracedFetch })
   const cachedFetch = await cachedFetchComponent({ fetch: tracedFetch, logs })
   const worlds = await createWorldsComponent({ config, logs, cachedFetch })
   const places = await createPlacesComponent({ config, logs, cachedFetch, fetch: tracedFetch })
@@ -102,6 +103,7 @@ export async function initComponents(): Promise<AppComponents> {
     lands,
     names,
     sceneManager,
+    social,
     livekit,
     database,
     sceneAdminManager,

@@ -48,12 +48,14 @@ export async function createLivekitComponent(
     identity: string,
     roomId: string,
     permissions: Omit<Permissions, 'mute'>,
-    forPreview: boolean
+    forPreview: boolean,
+    metadata?: Record<string, unknown>
   ): Promise<LivekitCredentials> {
     const settings = forPreview ? previewSettings : prodSettings
     const allSources = permissions.cast.includes(identity)
     const token = new AccessToken(settings.apiKey, settings.secret, {
       identity,
+      metadata: metadata ? JSON.stringify(metadata) : undefined,
       ttl: 5 * 60 // 5 minutes
     })
 
