@@ -23,17 +23,11 @@ export async function createPlaceChecker(
 
           let placesFromIds: Array<{ id: string; disabled: boolean }> = []
           const batchSize = 100
-          const delayBetweenBatches = 60000 // one minute
 
           for (let i = 0; i < placesIdWithActiveAdmins.length; i += batchSize) {
             const batch = placesIdWithActiveAdmins.slice(i, i + batchSize)
             const batchResult = await places.getPlaceStatusById(batch)
             placesFromIds = placesFromIds.concat(batchResult)
-
-            // Add delay between batches, except for the last batch
-            if (i + batchSize < placesIdWithActiveAdmins.length) {
-              await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches))
-            }
           }
 
           const placesDisabled = placesFromIds.filter((place) => place.disabled)
