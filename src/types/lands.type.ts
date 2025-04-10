@@ -5,6 +5,12 @@ export type LandsParcelPermissionsResponse = {
   owner: boolean
 }
 
+export type LandsParcelOperatorsResponse = {
+  owner: string
+  operator?: string
+}
+
 export type ILandComponent = IBaseComponent & {
   getLandUpdatePermission(authAddress: string, placePositions: string[]): Promise<LandsParcelPermissionsResponse>
+  getLandOperators(parcel: string): Promise<LandsParcelOperatorsResponse>
 }

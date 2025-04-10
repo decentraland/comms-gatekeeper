@@ -3,7 +3,7 @@ import { createSceneManagerComponent } from '../../src/adapters/scene-manager'
 import { PlaceAttributes } from '../../src/types/places.type'
 import { ISceneManager } from '../../src/types/scene-manager.type'
 
-test('SceneManagerComponent', ({ components, stubComponents }) => {
+test('SceneManagerComponent', ({ stubComponents }) => {
   const testPlaceId = `place-id-test`
   const testAddress = '0x123'
   const testParcel = '10,20'

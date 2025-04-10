@@ -43,6 +43,12 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       added_by: ownerAddress
     })
 
+    await sceneAdminManager.addAdmin({
+      place_id: placeId,
+      admin: otherAdminAddress,
+      added_by: ownerAddress
+    })
+
     try {
       const adminResults = await sceneAdminManager.listActiveAdmins({
         place_id: placeId
@@ -58,12 +64,6 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     } catch (error) {
       console.error('Error listing admins:', error)
     }
-
-    await sceneAdminManager.addAdmin({
-      place_id: placeId,
-      admin: otherAdminAddress,
-      added_by: ownerAddress
-    })
 
     metadataLand = {
       identity: ownerAddress,

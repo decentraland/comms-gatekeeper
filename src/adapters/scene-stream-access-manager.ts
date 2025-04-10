@@ -40,6 +40,18 @@ export async function createSceneStreamAccessManagerComponent({
     )
   }
 
+  async function removeAccessByPlaceIds(placeIds: string[]): Promise<void> {
+    logger.debug('Removing stream access', { placeIds: placeIds.join(', ') })
+
+    const query = SQL`
+      UPDATE scene_stream_access 
+      SET active = false 
+      WHERE place_id = ANY(${placeIds})
+      AND active = true`
+
+    await database.query(query)
+  }
+
   async function getAccess(placeId: string): Promise<SceneStreamAccess> {
     logger.debug('Getting stream access', { placeId })
 
@@ -60,6 +72,7 @@ export async function createSceneStreamAccessManagerComponent({
   return {
     addAccess,
     removeAccess,
+    removeAccessByPlaceIds,
     getAccess
   }
 }

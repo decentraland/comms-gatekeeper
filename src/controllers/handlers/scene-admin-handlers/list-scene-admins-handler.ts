@@ -4,18 +4,19 @@ import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate, validateFilters } from '../../../logic/utils'
 import { PlaceAttributes } from '../../../types/places.type'
 import { PermissionsOverWorld, PermissionType } from '../../../types/worlds.type'
+import { LandsParcelOperatorsResponse } from '../../../types/lands.type'
 
 export async function listSceneAdminsHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'names' | 'worlds',
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'names' | 'worlds' | 'lands',
       '/scene-admin'
     >,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places, names, worlds },
+    components: { logs, sceneAdminManager, sceneManager, places, names, worlds, lands },
     url,
     verification
   } = ctx
@@ -24,6 +25,7 @@ export async function listSceneAdminsHandler(
   const { getPlaceByWorldName, getPlaceByParcel } = places
   const { isSceneOwnerOrAdmin } = sceneManager
   const { fetchWorldActionPermissions } = worlds
+  const { getLandOperators } = lands
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
@@ -82,15 +84,31 @@ export async function listSceneAdminsHandler(
 
   const extraAddresses = new Set<string>()
   let worldActionPermissions: PermissionsOverWorld | undefined
+  let landActionPermissions: LandsParcelOperatorsResponse | undefined
 
-  isWorlds && (worldActionPermissions = await fetchWorldActionPermissions(place.world_name!))
-
-  if (worldActionPermissions?.deployment.type === PermissionType.AllowList) {
-    worldActionPermissions.deployment.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
+  if (isWorlds) {
+    worldActionPermissions = await fetchWorldActionPermissions(place.world_name!)
+  } else {
+    landActionPermissions = await getLandOperators(parcel)
   }
 
-  if (worldActionPermissions?.streaming.type === PermissionType.AllowList) {
-    worldActionPermissions.streaming.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
+  if (landActionPermissions) {
+    extraAddresses.add(landActionPermissions.owner.toLowerCase())
+    landActionPermissions.operator && extraAddresses.add(landActionPermissions.operator.toLowerCase())
+  }
+
+  if (worldActionPermissions?.permissions.deployment.type === PermissionType.AllowList) {
+    worldActionPermissions.permissions.deployment.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
+  }
+
+  if (worldActionPermissions?.permissions.streaming.type === PermissionType.AllowList) {
+    worldActionPermissions.permissions.streaming.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
+  }
+
+  const ownerAddress = worldActionPermissions?.owner
+
+  if (ownerAddress) {
+    extraAddresses.add(ownerAddress.toLowerCase())
   }
 
   const allAddresses = [...new Set([...admins.map((admin) => admin.admin), ...extraAddresses])]
