@@ -196,4 +196,5 @@ export type ILivekitComponent = IBaseComponent & {
   getRoom: (roomName: string) => Promise<Room>
   getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
   removeIngress: (ingressId: string) => Promise<IngressInfo>
+  updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>
 }
