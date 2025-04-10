@@ -14,7 +14,7 @@ test('PATCH /users/:address/private-messages-privacy', ({ components, spyCompone
       private_messages_privacy: PrivateMessagesPrivacy.ALL
     }
     spyComponents.config.requireString.mockImplementation((key) => {
-      if (key === 'SOCIAL_SERVICE_INTERACTIONS_TOKEN') return Promise.resolve(validToken)
+      if (key === 'COMMS_GATEKEEPER_AUTH_TOKEN') return Promise.resolve(validToken)
       if (key === 'PRIVATE_MESSAGES_ROOM_ID') return Promise.resolve('private-messages')
       return Promise.resolve('')
     })

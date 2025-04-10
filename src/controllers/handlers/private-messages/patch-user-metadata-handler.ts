@@ -11,7 +11,7 @@ export async function patchUserPrivateMessagesPrivacyHandler(
     components: { livekit, logs, config }
   } = context
 
-  const socialServiceInteractionsToken = await config.requireString('SOCIAL_SERVICE_INTERACTIONS_TOKEN')
+  const socialServiceInteractionsToken = await config.requireString('COMMS_GATEKEEPER_AUTH_TOKEN')
   const PRIVATE_MESSAGES_ROOM_ID = await config.requireString('PRIVATE_MESSAGES_ROOM_ID')
   const logger = logs.getLogger('patch-user-private-message-metadata-handler')
 
