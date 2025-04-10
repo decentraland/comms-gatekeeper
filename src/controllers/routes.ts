@@ -11,6 +11,7 @@ import { addSceneStreamAccessHandler, listSceneStreamAccessHandler } from './han
 import { getPrivateMessagesTokenHandler } from './handlers/private-messages/get-token-handler'
 import { removeSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/remove-scene-stream-access-handler'
 import { resetSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/reset-scene-stream-access-handler'
+import { patchUserPrivateMessagesPrivacyHandler } from './handlers/private-messages/patch-user-metadata-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -45,6 +46,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.put('/scene-stream-access', auth, resetSceneStreamAccessHandler)
 
   router.get('/private-messages/token', authExplorer, getPrivateMessagesTokenHandler)
+  router.patch('/users/:address/private-messages-privacy', patchUserPrivateMessagesPrivacyHandler)
 
   return router
 }
