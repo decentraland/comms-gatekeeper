@@ -17,7 +17,7 @@ export async function createLandsComponent(
   ): Promise<LandsParcelPermissionsResponse> {
     const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
     if (!baseUrl) {
-      logger.info('Lambdas URL is not set')
+      logger.error('Lambdas URL is not set')
       throw new Error('Lambdas URL is not set')
     }
 
@@ -39,7 +39,7 @@ export async function createLandsComponent(
   async function getLandOperators(parcel: string): Promise<LandsParcelOperatorsResponse> {
     const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
     if (!baseUrl) {
-      logger.info('Lambdas URL is not set')
+      logger.error('Lambdas URL is not set')
       throw new Error('Lambdas URL is not set')
     }
     const [x, y] = parcel.split(',')

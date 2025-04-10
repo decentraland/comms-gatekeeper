@@ -79,8 +79,11 @@ export async function listSceneAdminsHandler(
   let worldActionPermissions: PermissionsOverWorld | undefined
   let landActionPermissions: LandsParcelOperatorsResponse | undefined
 
-  isWorlds && (worldActionPermissions = await fetchWorldActionPermissions(place.world_name!))
-  !isWorlds && (landActionPermissions = await getLandOperators(parcel))
+  if (isWorlds) {
+    worldActionPermissions = await fetchWorldActionPermissions(place.world_name!)
+  } else {
+    landActionPermissions = await getLandOperators(parcel)
+  }
 
   if (landActionPermissions) {
     extraAddresses.add(landActionPermissions.owner.toLowerCase())

@@ -841,29 +841,4 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(response.status).toBe(500)
     expect(stubComponents.lands.getLandOperators.calledOnce).toBe(true)
   })
-
-  it('returns 500 when land operators request fails', async () => {
-    const { localFetch } = components
-
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.lands.getLandOperators.rejects(new Error('Failed to get land operators'))
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
-
-    const response = await makeRequest(
-      localFetch,
-      '/scene-admin',
-      {
-        method: 'GET',
-        metadata: metadataLand
-      },
-      owner
-    )
-
-    expect(response.status).toBe(500)
-    expect(stubComponents.lands.getLandOperators.calledOnce).toBe(true)
-  })
 })
