@@ -14,6 +14,20 @@ jest.mock('cron', () => ({
 
 const MockedCronJob = CronJob as jest.MockedClass<typeof CronJob>
 
+const executeOnTick = async (
+  placeChecker: IPlaceChecker & IBaseComponent,
+  startOptions: IBaseComponent.ComponentStartOptions
+) => {
+  await placeChecker.start(startOptions)
+  const constructorArgs = MockedCronJob.mock.calls[0]
+  const onTickFunction = constructorArgs[1] as (() => void | Promise<void>) | undefined
+  if (typeof onTickFunction === 'function') {
+    await onTickFunction()
+  } else {
+    throw new Error('onTick function was not passed to CronJob constructor mock')
+  }
+}
+
 describe('PlaceChecker', () => {
   let placeChecker: IPlaceChecker & IBaseComponent
   let mockedComponents: any
@@ -60,14 +74,7 @@ describe('PlaceChecker', () => {
 
     it('should handle no places with active admins', async () => {
       mockedComponents.sceneAdminManager.getPlacesIdWithActiveAdmins.mockResolvedValue([])
-      await placeChecker.start(startOptions)
-      const constructorArgs = MockedCronJob.mock.calls[0]
-      const onTickFunction = constructorArgs[1] as (() => void | Promise<void>) | undefined
-      if (typeof onTickFunction === 'function') {
-        await onTickFunction()
-      } else {
-        throw new Error('onTick function was not passed to CronJob constructor mock')
-      }
+      await executeOnTick(placeChecker, startOptions)
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('No places with active admins found.')
     })
 
@@ -81,14 +88,7 @@ describe('PlaceChecker', () => {
       mockedComponents.sceneAdminManager.getPlacesIdWithActiveAdmins.mockResolvedValue(mockPlaces)
       mockedComponents.places.getPlaceStatusById.mockResolvedValue(mockPlaceStatus)
 
-      await placeChecker.start(startOptions)
-      const constructorArgs = MockedCronJob.mock.calls[0]
-      const onTickFunction = constructorArgs[1] as (() => void | Promise<void>) | undefined
-      if (typeof onTickFunction === 'function') {
-        await onTickFunction()
-      } else {
-        throw new Error('onTick function was not passed to CronJob constructor mock')
-      }
+      await executeOnTick(placeChecker, startOptions)
 
       expect(mockedComponents.sceneAdminManager.removeAllAdminsByPlaceIds).toHaveBeenCalledWith(['place2'])
       expect(mockedComponents.sceneStreamAccessManager.removeAccessByPlaceIds).toHaveBeenCalledWith(['place2'])
@@ -97,18 +97,27 @@ describe('PlaceChecker', () => {
       )
     })
 
+    it('should not remove admins or access when no places are disabled', async () => {
+      const mockPlaces = ['place1', 'place2']
+      const mockPlaceStatus = [
+        { id: 'place1', disabled: false },
+        { id: 'place2', disabled: false }
+      ]
+
+      mockedComponents.sceneAdminManager.getPlacesIdWithActiveAdmins.mockResolvedValue(mockPlaces)
+      mockedComponents.places.getPlaceStatusById.mockResolvedValue(mockPlaceStatus)
+
+      await executeOnTick(placeChecker, startOptions)
+
+      expect(mockedComponents.sceneAdminManager.removeAllAdminsByPlaceIds).not.toHaveBeenCalled()
+      expect(mockedComponents.sceneStreamAccessManager.removeAccessByPlaceIds).not.toHaveBeenCalled()
+    })
+
     it('should handle errors gracefully', async () => {
       const error = new Error('Test error')
       mockedComponents.sceneAdminManager.getPlacesIdWithActiveAdmins.mockRejectedValue(error)
 
-      await placeChecker.start(startOptions)
-      const constructorArgs = MockedCronJob.mock.calls[0]
-      const onTickFunction = constructorArgs[1] as (() => void | Promise<void>) | undefined
-      if (typeof onTickFunction === 'function') {
-        await onTickFunction()
-      } else {
-        throw new Error('onTick function was not passed to CronJob constructor mock')
-      }
+      await executeOnTick(placeChecker, startOptions)
 
       expect(mockedComponents.logs.getLogger().error).toHaveBeenCalledWith(`Error while checking places: ${error}`)
     })

@@ -10,7 +10,7 @@ export async function createPlaceChecker(
   let job: CronJob
   async function start(): Promise<void> {
     job = new CronJob(
-      '0 * * * * *', //'0 0 0 * * 1', // Every monday at 00:00  - '0 * * * * *'
+      '0 0 0 * * 1', // Every monday at 00:00
       async function () {
         try {
           logger.info(`Looking into active places.`)
@@ -23,15 +23,18 @@ export async function createPlaceChecker(
 
           let placesFromIds: Array<{ id: string; disabled: boolean }> = []
           const batchSize = 100
+          const delayBetweenBatches = 60000 // one minute
 
-          const batchPromises = []
           for (let i = 0; i < placesIdWithActiveAdmins.length; i += batchSize) {
             const batch = placesIdWithActiveAdmins.slice(i, i + batchSize)
-            batchPromises.push(places.getPlaceStatusById(batch))
-          }
+            const batchResult = await places.getPlaceStatusById(batch)
+            placesFromIds = placesFromIds.concat(batchResult)
 
-          const batchResults = await Promise.all(batchPromises)
-          placesFromIds = batchResults.flat()
+            // Add delay between batches, except for the last batch
+            if (i + batchSize < placesIdWithActiveAdmins.length) {
+              await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches))
+            }
+          }
 
           const placesDisabled = placesFromIds.filter((place) => place.disabled)
           if (placesDisabled.length === 0) {
