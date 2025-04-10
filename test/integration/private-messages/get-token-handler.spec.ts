@@ -1,10 +1,11 @@
+import { PrivateMessagesPrivacy } from '../../../src/types/social.type'
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
 
-test('GET /private-messages/token', ({ components, stubComponents }) => {
+test('GET /private-messages/token', ({ components, spyComponents }) => {
   describe('when the user is in the blocklist', () => {
     beforeEach(() => {
-      stubComponents.blockList.isBlacklisted.resolves(true)
+      spyComponents.blockList.isBlacklisted.mockResolvedValueOnce(true)
     })
 
     it('should respond with a 401', async () => {
@@ -19,39 +20,98 @@ test('GET /private-messages/token', ({ components, stubComponents }) => {
 
   describe('when the user is not in the blocklist', () => {
     beforeEach(() => {
-      stubComponents.blockList.isBlacklisted.resolves(false)
+      spyComponents.blockList.isBlacklisted.mockResolvedValueOnce(false)
     })
 
-    describe('and retrieving a token for the private messages is successful', () => {
+    describe('and requesting the user privacy settings fails but the retrieval of the token succeeds', () => {
       beforeEach(() => {
-        stubComponents.livekit.generateCredentials.resolves({
+        spyComponents.social.getUserPrivacySettings.mockRejectedValueOnce(
+          new Error('Failed to get user privacy settings')
+        )
+        spyComponents.livekit.generateCredentials.mockResolvedValueOnce({
           token: 'valid-token',
-          url: 'https://livekit.io'
+          url: 'wss://dcl.livekit.cloud'
         })
       })
 
-      it('should respond with a 200 and a valid LiveKit token', async () => {
+      it('should respond with a 200, a valid LiveKit token and the user privacy settings as all', async () => {
         const response = await makeRequest(components.localFetch, '/private-messages/token', {
           metadata: { signer: 'dcl:explorer' }
         })
 
         expect(response.status).toBe(200)
-        expect(response.json()).resolves.toEqual({ adapter: 'livekit:https://livekit.io?access_token=valid-token' })
+        expect(response.json()).resolves.toEqual({
+          adapter: 'livekit:wss://dcl.livekit.cloud?access_token=valid-token'
+        })
+        expect(spyComponents.livekit.generateCredentials).toHaveBeenCalledWith(
+          '0x5babd1869989570988b79b5f5086e17a9e96a235',
+          'private-messages',
+          {
+            cast: [],
+            canPublish: false,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          {
+            private_messages_privacy: 'all'
+          }
+        )
       })
     })
 
-    describe('and retrieving a token for the private messages fails', () => {
+    describe('and requesting the user privacy settings succeeds', () => {
       beforeEach(() => {
-        stubComponents.livekit.generateCredentials.rejects(new Error('Failed to generate token'))
+        spyComponents.social.getUserPrivacySettings.mockResolvedValueOnce({
+          private_messages_privacy: PrivateMessagesPrivacy.ONLY_FRIENDS
+        })
       })
 
-      it('should respond with a 500', async () => {
-        const response = await makeRequest(components.localFetch, '/private-messages/token', {
-          metadata: { signer: 'dcl:explorer' }
+      describe('and retrieving a token for the private messages fails', () => {
+        beforeEach(() => {
+          spyComponents.livekit.generateCredentials.mockRejectedValueOnce(new Error('Failed to generate token'))
         })
 
-        expect(response.status).toBe(500)
-        expect(response.json()).resolves.toEqual({ error: 'Internal Server Error' })
+        it('should respond with a 500', async () => {
+          const response = await makeRequest(components.localFetch, '/private-messages/token', {
+            metadata: { signer: 'dcl:explorer' }
+          })
+
+          expect(response.status).toBe(500)
+          expect(response.json()).resolves.toEqual({ error: 'Internal Server Error' })
+        })
+      })
+
+      describe('and retrieving a token for the private messages is successful', () => {
+        beforeEach(() => {
+          spyComponents.livekit.generateCredentials.mockResolvedValueOnce({
+            token: 'valid-token',
+            url: 'wss://dcl.livekit.cloud'
+          })
+        })
+
+        it('should respond with a 200, a valid LiveKit token and the user privacy settings as the private messages privacy', async () => {
+          const response = await makeRequest(components.localFetch, '/private-messages/token', {
+            metadata: { signer: 'dcl:explorer' }
+          })
+
+          expect(response.status).toBe(200)
+          expect(response.json()).resolves.toEqual({
+            adapter: 'livekit:wss://dcl.livekit.cloud?access_token=valid-token'
+          })
+          expect(spyComponents.livekit.generateCredentials).toHaveBeenCalledWith(
+            '0x5babd1869989570988b79b5f5086e17a9e96a235',
+            'private-messages',
+            {
+              cast: [],
+              canPublish: false,
+              canUpdateOwnMetadata: false
+            },
+            false,
+            {
+              private_messages_privacy: PrivateMessagesPrivacy.ONLY_FRIENDS
+            }
+          )
+        })
       })
     })
   })

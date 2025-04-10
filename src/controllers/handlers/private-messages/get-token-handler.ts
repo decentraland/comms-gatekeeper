@@ -1,11 +1,15 @@
 import { HandlerContextWithPath } from '../../../types'
 import { UnauthorizedError } from '../../../types/errors'
+import { PrivateMessagesPrivacy } from '../../../types/social.type'
 
 export async function getPrivateMessagesTokenHandler(
-  context: HandlerContextWithPath<'fetch' | 'livekit' | 'logs' | 'blockList' | 'config', '/private-messages/token'>
+  context: HandlerContextWithPath<
+    'fetch' | 'livekit' | 'logs' | 'blockList' | 'social' | 'config',
+    '/private-messages/token'
+  >
 ) {
   const {
-    components: { livekit, logs, blockList, config }
+    components: { livekit, logs, blockList, config, social }
   } = context
 
   const identity: string | undefined = context.verification?.auth.toLowerCase()
@@ -22,6 +26,16 @@ export async function getPrivateMessagesTokenHandler(
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
 
+  let userPrivacySettings: { private_messages_privacy: string }
+  try {
+    userPrivacySettings = await social.getUserPrivacySettings(identity)
+  } catch (error) {
+    logger.error(`Error getting user privacy settings: ${error}`)
+    // If we fail to get the user privacy settings, we default to all.
+    // We don't want to block the user from accessing the private messages
+    userPrivacySettings = { private_messages_privacy: PrivateMessagesPrivacy.ALL }
+  }
+
   const credentials = await livekit.generateCredentials(
     identity,
     PRIVATE_MESSAGES_ROOM_ID,
@@ -30,7 +44,10 @@ export async function getPrivateMessagesTokenHandler(
       canPublish: false,
       canUpdateOwnMetadata: false
     },
-    false
+    false,
+    {
+      private_messages_privacy: userPrivacySettings.private_messages_privacy
+    }
   )
 
   return {

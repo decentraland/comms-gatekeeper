@@ -19,12 +19,14 @@ import { IWorldComponent } from './types/worlds.type'
 import { ILandComponent } from './types/lands.type'
 import { ISceneManager } from './types/scene-manager.type'
 import { INamesComponent } from './types/names.type'
+import { ISocialComponent } from './types/social.type'
 
 export type GlobalContext = {
   components: BaseComponents
 }
 
 export type BaseComponents = {
+  social: ISocialComponent
   config: IConfigComponent
   tracer: ITracerComponent
   blockList: IBlockListComponent
@@ -181,7 +183,8 @@ export type ILivekitComponent = IBaseComponent & {
     identity: string,
     roomId: string,
     permissions: Omit<Permissions, 'mute'>,
-    forPreview: boolean
+    forPreview: boolean,
+    metadata?: Record<string, unknown>
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
   getWorldRoomName: (worldName: string) => string
