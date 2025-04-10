@@ -13,7 +13,7 @@ export async function patchUserPrivateMessagesPrivacyHandler(
 
   const socialServiceInteractionsToken = await config.requireString('SOCIAL_SERVICE_INTERACTIONS_TOKEN')
   const PRIVATE_MESSAGES_ROOM_ID = await config.requireString('PRIVATE_MESSAGES_ROOM_ID')
-  const logger = logs.getLogger('patch-user-metadata-handler')
+  const logger = logs.getLogger('patch-user-private-message-metadata-handler')
 
   // The token must be of value "Bearer <token>"
   const token = context.request.headers.get('Authorization')?.split(' ')[1]
