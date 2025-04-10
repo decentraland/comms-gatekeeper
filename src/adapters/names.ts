@@ -15,7 +15,7 @@ export async function createNamesComponent(
   async function getNamesFromAddresses(addresses: string[]): Promise<Record<string, string>> {
     const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
     if (!baseUrl) {
-      logger.info('Lambdas URL is not set')
+      logger.error('Lambdas URL is not set')
       throw new Error('Lambdas URL is not set')
     }
 

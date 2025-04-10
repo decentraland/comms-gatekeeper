@@ -742,4 +742,103 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(Array.isArray(body)).toBe(true)
     expect(body).toEqual(expectedAdmins)
   })
+
+  it('returns 200 with a list of scene admins including land operators', async () => {
+    const { localFetch } = components
+
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.lands.getLandOperators.resolves({
+      owner: '0xOwnerAddress',
+      operator: '0xOperatorAddress'
+    })
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: true,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataLand
+      },
+      owner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toContainEqual({
+      admin: '0xowneraddress',
+      canBeRemoved: false,
+      name: ''
+    })
+    expect(body).toContainEqual({
+      admin: '0xoperatoraddress',
+      canBeRemoved: false,
+      name: ''
+    })
+    expect(stubComponents.lands.getLandOperators.calledOnce).toBe(true)
+  })
+
+  it('returns 200 with a list of scene admins including only land owner when no operator exists', async () => {
+    const { localFetch } = components
+
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.lands.getLandOperators.resolves({
+      owner: '0xOwnerAddress'
+    })
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: true,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataLand
+      },
+      owner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toContainEqual({
+      admin: '0xowneraddress',
+      canBeRemoved: false,
+      name: ''
+    })
+    expect(stubComponents.lands.getLandOperators.calledOnce).toBe(true)
+  })
+
+  it('returns 500 when land operators request fails', async () => {
+    const { localFetch } = components
+
+    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.lands.getLandOperators.rejects(new Error('Failed to get land operators'))
+    stubComponents.sceneManager.getUserScenePermissions.resolves({
+      owner: true,
+      admin: false,
+      hasExtendedPermissions: false
+    })
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataLand
+      },
+      owner
+    )
+
+    expect(response.status).toBe(500)
+    expect(stubComponents.lands.getLandOperators.calledOnce).toBe(true)
+  })
 })
