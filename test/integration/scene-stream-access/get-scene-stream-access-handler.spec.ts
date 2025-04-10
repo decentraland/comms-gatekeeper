@@ -4,7 +4,7 @@ import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { InvalidRequestError } from '../../../src/types/errors'
 import { PlaceAttributes } from '../../../src/types/places.type'
-import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
+import { IngressInfo } from 'livekit-server-sdk'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
   const placeId = `place-id-stream-access`
@@ -36,7 +36,6 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
   beforeEach(async () => {
     mockIngress = {
-      id: 'mock-ingress-id',
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
       streamKey: 'mock-stream-key',
