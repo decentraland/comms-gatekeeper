@@ -105,7 +105,8 @@ describe('LandsComponent', () => {
         },
         logs: {
           getLogger: jest.fn().mockReturnValue({
-            info: jest.fn()
+            info: jest.fn(),
+            error: jest.fn()
           })
         }
       })
@@ -168,7 +169,8 @@ describe('LandsComponent', () => {
         },
         logs: {
           getLogger: jest.fn().mockReturnValue({
-            info: jest.fn()
+            info: jest.fn(),
+            error: jest.fn()
           })
         }
       })
