@@ -4,7 +4,7 @@ import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { InvalidRequestError } from '../../../src/types/errors'
 import { PlaceAttributes } from '../../../src/types/places.type'
-import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
+import { IngressInfo } from 'livekit-server-sdk'
 
 test('DELETE /scene-stream-access - removes streaming access for scenes', ({ components, stubComponents }) => {
   const placeId = `place-id-stream-access`
@@ -33,7 +33,6 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
 
   beforeEach(async () => {
     mockIngress = {
-      id: 'mock-ingress-id',
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
       streamKey: 'mock-stream-key',

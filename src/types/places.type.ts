@@ -3,6 +3,7 @@ import { IBaseComponent } from '@well-known-components/interfaces'
 export type IPlacesComponent = IBaseComponent & {
   getPlaceByParcel(parcel: string): Promise<PlaceAttributes>
   getPlaceByWorldName(worldName: string): Promise<PlaceAttributes>
+  getPlaceStatusById(ids: string[]): Promise<Pick<PlaceAttributes, 'id' | 'disabled'>[]>
 }
 
 export type PlaceAttributes = {

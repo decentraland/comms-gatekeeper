@@ -21,6 +21,7 @@ import { createLandsComponent } from './adapters/lands'
 import { createSceneManagerComponent } from './adapters/scene-manager'
 import { createNamesComponent } from './adapters/names'
 import { createSocialComponent } from './adapters/social'
+import { createPlaceChecker } from './adapters/places-checker'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -73,12 +74,19 @@ export async function initComponents(): Promise<AppComponents> {
   const social = await createSocialComponent({ config, logs, fetch: tracedFetch })
   const cachedFetch = await cachedFetchComponent({ fetch: tracedFetch, logs })
   const worlds = await createWorldsComponent({ config, logs, cachedFetch })
-  const places = await createPlacesComponent({ config, logs, cachedFetch })
+  const places = await createPlacesComponent({ config, logs, cachedFetch, fetch: tracedFetch })
   const lands = await createLandsComponent({ config, logs, cachedFetch })
   const names = await createNamesComponent({ config, logs, fetch: tracedFetch })
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
+
+  const placesChecker = await createPlaceChecker({
+    logs,
+    sceneAdminManager,
+    sceneStreamAccessManager,
+    places
+  })
 
   return {
     blockList,
@@ -99,6 +107,7 @@ export async function initComponents(): Promise<AppComponents> {
     livekit,
     database,
     sceneAdminManager,
-    sceneStreamAccessManager
+    sceneStreamAccessManager,
+    placesChecker
   }
 }

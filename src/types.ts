@@ -11,8 +11,7 @@ import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
 import { IBlockListComponent } from './adapters/blocklist'
 import { IPgComponent } from '@well-known-components/pg-component'
-import { Room } from 'livekit-server-sdk'
-import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
+import { IngressInfo, Room } from 'livekit-server-sdk'
 import { ICachedFetchComponent } from './types/fetch.type'
 import { IPlacesComponent } from './types/places.type'
 import { IWorldComponent } from './types/worlds.type'
@@ -20,6 +19,7 @@ import { ILandComponent } from './types/lands.type'
 import { ISceneManager } from './types/scene-manager.type'
 import { INamesComponent } from './types/names.type'
 import { ISocialComponent } from './types/social.type'
+import { IPlaceChecker } from './types/places-checker.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -44,6 +44,7 @@ export type BaseComponents = {
   lands: ILandComponent
   names: INamesComponent
   sceneManager: ISceneManager
+  placesChecker: IPlaceChecker
 }
 
 export type AppComponents = BaseComponents & {
@@ -164,11 +165,14 @@ export interface ISceneAdminManager {
   removeAdmin(placeId: string, adminAddress: string): Promise<void>
   listActiveAdmins(filters: ListSceneAdminFilters): Promise<SceneAdmin[]>
   isAdmin(placeId: string, address: string): Promise<boolean>
+  getPlacesIdWithActiveAdmins(): Promise<string[]>
+  removeAllAdminsByPlaceIds(placeIds: string[]): Promise<void>
 }
 
 export interface ISceneStreamAccessManager {
   addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess>
   removeAccess(placeId: string): Promise<void>
+  removeAccessByPlaceIds(placeIds: string[]): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
 }
 

@@ -3,11 +3,12 @@ import {
   AccessToken,
   CreateIngressOptions,
   IngressClient,
+  IngressInfo,
+  IngressInput,
   Room,
   RoomServiceClient,
   TrackSource
 } from 'livekit-server-sdk'
-import { IngressInfo, IngressInput } from 'livekit-server-sdk/dist/proto/livekit_ingress'
 import { LivekitIngressNotFoundError } from '../types/errors'
 
 export async function createLivekitComponent(
@@ -72,7 +73,7 @@ export async function createLivekitComponent(
 
     return {
       url: settings.host,
-      token: token.toJwt()
+      token: await token.toJwt()
     }
   }
 

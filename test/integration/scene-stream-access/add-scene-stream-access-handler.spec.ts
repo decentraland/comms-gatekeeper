@@ -4,7 +4,7 @@ import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { InvalidRequestError, StreamingAccessNotFoundError } from '../../../src/types/errors'
-import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
+import { IngressInfo } from 'livekit-server-sdk'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
   const FOUR_DAYS = 4 * 24 * 60 * 60
@@ -33,7 +33,6 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   })
   beforeEach(async () => {
     mockIngress = {
-      id: 'mock-ingress-id',
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
       streamKey: 'mock-stream-key',
@@ -407,7 +406,6 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
     stubComponents.livekit.getOrCreateIngress.resolves({
-      id: 'mock-ingress-id',
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
       streamKey: 'mock-stream-key',
@@ -552,7 +550,6 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       hasExtendedPermissions: false
     })
     stubComponents.livekit.getOrCreateIngress.resolves({
-      id: 'mock-ingress-id',
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
       streamKey: 'mock-stream-key',

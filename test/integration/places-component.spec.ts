@@ -9,6 +9,7 @@ describe('PlacesComponent', () => {
     jest.clearAllMocks()
 
     mockFetch = jest.fn()
+    const mockFetchComponent = { fetch: mockFetch }
 
     const mockConfig = {
       requireString: jest.fn().mockImplementation((key) => {
@@ -40,7 +41,8 @@ describe('PlacesComponent', () => {
     placesComponent = await createPlacesComponent({
       config: mockConfig,
       cachedFetch: mockCachedFetch,
-      logs: mockLogs
+      logs: mockLogs,
+      fetch: mockFetchComponent
     })
   })
 
@@ -104,6 +106,50 @@ describe('PlacesComponent', () => {
 
       await expect(placesComponent.getPlaceByWorldName('nonexistent-world')).rejects.toThrow(PlaceNotFoundError)
       expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds?names=nonexistent-world')
+    })
+  })
+
+  describe('getPlaceStatusById', () => {
+    it('should return place statuses for given ids', async () => {
+      const mockResponse = {
+        data: [
+          { id: '1', disabled: false },
+          { id: '2', disabled: true }
+        ]
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        json: () => Promise.resolve(mockResponse)
+      })
+
+      const result = await placesComponent.getPlaceStatusById(['1', '2'])
+
+      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places/status', {
+        method: 'POST',
+        body: JSON.stringify(['1', '2'])
+      })
+
+      expect(result).toEqual([
+        { id: '1', disabled: false },
+        { id: '2', disabled: true }
+      ])
+    })
+
+    it('should throw PlaceNotFoundError when no places are found', async () => {
+      const mockResponse = {
+        data: []
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        json: () => Promise.resolve(mockResponse)
+      })
+
+      await expect(placesComponent.getPlaceStatusById(['1', '2'])).rejects.toThrow(PlaceNotFoundError)
+
+      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places/status', {
+        method: 'POST',
+        body: JSON.stringify(['1', '2'])
+      })
     })
   })
 })
