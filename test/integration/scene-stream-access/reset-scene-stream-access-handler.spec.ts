@@ -3,8 +3,8 @@ import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
-import { InvalidRequestError, StreamingAccessNotFoundError } from '../../../src/types/errors'
-import { IngressInfo } from 'livekit-server-sdk/dist/proto/livekit_ingress'
+import { IngressInfo } from 'livekit-server-sdk'
+import { SceneStreamAccess } from '../../../src/types'
 
 test('PUT /scene-stream-access - resets streaming access for scenes', ({ components, stubComponents }) => {
   const FOUR_DAYS = 4 * 24 * 60 * 60
@@ -34,7 +34,6 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
 
   beforeEach(async () => {
     mockIngress = {
-      id: 'mock-ingress-id',
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
       streamKey: 'mock-stream-key',
@@ -112,20 +111,18 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
 
     const newMockIngress = {
       ...mockIngress,
-      id: 'new-mock-ingress-id',
       name: 'new-mock-ingress',
       url: 'rtmp://new-mock-stream-url',
       streamKey: 'new-mock-stream-key',
       ingressId: 'new-mock-ingress-id'
-    }
+    } as IngressInfo
 
     const newMockSceneStreamAccess = {
       ...mockSceneStreamAccess,
-      id: 'new-mock-access-id',
       streaming_url: 'rtmp://new-mock-stream-url',
       streaming_key: 'new-mock-stream-key',
       ingress_id: 'new-mock-ingress-id'
-    }
+    } as SceneStreamAccess
 
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
     stubComponents.livekit.removeIngress.resolves()
@@ -164,12 +161,11 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
 
     const newMockIngress = {
       ...mockIngress,
-      id: 'new-mock-ingress-id',
       name: 'new-mock-ingress',
       url: 'rtmp://new-mock-stream-url',
       streamKey: 'new-mock-stream-key',
       ingressId: 'new-mock-ingress-id'
-    }
+    } as IngressInfo
 
     const newMockSceneStreamAccess = {
       ...mockSceneStreamAccess,
