@@ -101,7 +101,7 @@ export function getAuthHeaders(
 export async function makeRequest(fetch: any, path: string, options: any = {}, identity = admin) {
   const url = new URL(path, 'http://127.0.0.1:3001')
 
-  const { metadata, headers, ...otherOptions } = options
+  const { metadata, ...otherOptions } = options
 
   let authIdentity = identity
   if (typeof identity === 'string') {
@@ -120,7 +120,6 @@ export async function makeRequest(fetch: any, path: string, options: any = {}, i
   const fetchOptions = {
     ...otherOptions,
     headers: {
-      ...headers,
       ...getAuthHeaders(
         options.method || 'GET',
         url.pathname,
