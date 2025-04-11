@@ -73,7 +73,7 @@ export async function createSceneStreamAccessManagerComponent({
     const now = Date.now()
     const query = SQL`
       UPDATE scene_stream_access 
-      SET streaming = true, start_streaming_at = ${now}
+      SET streaming = true, streaming_start_time = ${now}
       WHERE ingress_id = ${ingressId} AND active = true
     `
     await database.query(query)

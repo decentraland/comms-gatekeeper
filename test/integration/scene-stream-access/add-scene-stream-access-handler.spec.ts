@@ -5,9 +5,9 @@ import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { InvalidRequestError, StreamingAccessNotFoundError } from '../../../src/types/errors'
 import { IngressInfo } from 'livekit-server-sdk'
+import { FOUR_DAYS } from '../../../src/logic/time'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
-  const FOUR_DAYS = 4 * 24 * 60 * 60 * 1000
   const placeId = `place-id-stream-access`
   const anotherPlaceId = `another-place-id-stream-access`
   const placeWorldId = `place-id-world-stream-access`
@@ -323,7 +323,6 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 })
 
 test('POST /scene-stream-access - adds streaming access for a scene', ({ components, stubComponents }) => {
-  const FOUR_DAYS = 4 * 24 * 60 * 60 * 1000
   const placeId = `place-id-stream-access-add`
   const placeWorldId = `place-id-world-stream-access-add`
   let cleanup: TestCleanup

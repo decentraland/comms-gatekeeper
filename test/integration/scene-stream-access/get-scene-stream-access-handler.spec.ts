@@ -5,12 +5,12 @@ import * as handlersUtils from '../../../src/logic/utils'
 import { InvalidRequestError } from '../../../src/types/errors'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { IngressInfo } from 'livekit-server-sdk'
+import { FOUR_DAYS } from '../../../src/logic/time'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
   const placeId = `place-id-stream-access`
   const anotherPlaceId = `another-place-id-stream-access`
   const placeWorldId = `place-id-world-stream-access`
-  const FOUR_DAYS = 4 * 24 * 60 * 60 * 1000
 
   let cleanup: TestCleanup
 

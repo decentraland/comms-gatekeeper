@@ -5,9 +5,9 @@ import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { IngressInfo } from 'livekit-server-sdk'
 import { SceneStreamAccess } from '../../../src/types'
+import { FOUR_DAYS } from '../../../src/logic/time'
 
 test('PUT /scene-stream-access - resets streaming access for scenes', ({ components, stubComponents }) => {
-  const FOUR_DAYS = 4 * 24 * 60 * 60 * 1000
   const placeId = `place-id-stream-access`
   const placeWorldId = `place-id-world-stream-access`
   let cleanup: TestCleanup

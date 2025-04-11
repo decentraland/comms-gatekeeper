@@ -3,7 +3,7 @@ import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError, StreamingAccessNotFoundError, UnauthorizedError } from '../../../types/errors'
 import { SceneStreamAccess } from '../../../types'
 import { PlaceAttributes } from '../../../types/places.type'
-const FOUR_DAYS = 4 * 24 * 60 * 60 * 1000
+import { FOUR_DAYS } from '../../../logic/time'
 
 export async function addSceneStreamAccessHandler(
   ctx: Pick<

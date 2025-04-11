@@ -136,7 +136,7 @@ export type SceneStreamAccess = {
   created_at: number
   active: boolean
   streaming: boolean
-  start_streaming_at: number
+  streaming_start_time: number
 }
 
 export interface AddSceneAdminInput {
