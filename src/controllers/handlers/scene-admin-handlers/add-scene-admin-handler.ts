@@ -51,6 +51,13 @@ export async function addSceneAdminHandler(
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
 
+  // TODO: Remove this before deploying
+  logger.info(`Authenticated Address: ${authenticatedAddress}`)
+  logger.info(`Hostname: ${hostname}`)
+  logger.info(`Server Name: ${serverName}`)
+  logger.info(`Parcel: ${parcel}`)
+  logger.info(`Is Owner Or Admin: ${isOwnerOrAdmin}`)
+
   if (!isOwnerOrAdmin) {
     throw new UnauthorizedError('You do not have permission to add admins to this place')
   }

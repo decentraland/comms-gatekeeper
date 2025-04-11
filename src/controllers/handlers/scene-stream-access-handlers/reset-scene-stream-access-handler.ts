@@ -46,6 +46,14 @@ export async function resetSceneStreamAccessHandler(
   }
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+
+  // TODO: Remove this before deploying
+  logger.info(`Authenticated Address: ${authenticatedAddress}`)
+  logger.info(`Hostname: ${hostname}`)
+  logger.info(`Server Name: ${serverName}`)
+  logger.info(`Parcel: ${parcel}`)
+  logger.info(`Is Owner Or Admin: ${isOwnerOrAdmin}`)
+
   if (!isOwnerOrAdmin) {
     logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
