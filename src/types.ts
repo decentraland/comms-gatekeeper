@@ -11,7 +11,6 @@ import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
 import { IBlockListComponent } from './adapters/blocklist'
 import { IPgComponent } from '@well-known-components/pg-component'
-import { IngressInfo, Room } from 'livekit-server-sdk'
 import { ICachedFetchComponent } from './types/fetch.type'
 import { IPlacesComponent } from './types/places.type'
 import { IWorldComponent } from './types/worlds.type'
@@ -20,6 +19,7 @@ import { ISceneManager } from './types/scene-manager.type'
 import { INamesComponent } from './types/names.type'
 import { ISocialComponent } from './types/social.type'
 import { IPlaceChecker } from './types/places-checker.type'
+import { ILivekitComponent } from './types/livekit.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -74,11 +74,6 @@ export type Permissions = {
   canPublish?: boolean
   canSubscribe?: boolean
   canUpdateOwnMetadata?: boolean
-}
-
-export type LivekitCredentials = {
-  token: string
-  url: string
 }
 
 export interface Land {
@@ -174,27 +169,4 @@ export interface ISceneStreamAccessManager {
   removeAccess(placeId: string): Promise<void>
   removeAccessByPlaceIds(placeIds: string[]): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
-}
-
-export type LivekitSettings = {
-  host: string
-  apiKey: string
-  secret: string
-}
-
-export type ILivekitComponent = IBaseComponent & {
-  generateCredentials: (
-    identity: string,
-    roomId: string,
-    permissions: Omit<Permissions, 'mute'>,
-    forPreview: boolean,
-    metadata?: Record<string, unknown>
-  ) => Promise<LivekitCredentials>
-  muteParticipant: (roomId: string, participantId: string) => Promise<void>
-  getWorldRoomName: (worldName: string) => string
-  getSceneRoomName: (realmName: string, sceneId: string) => string
-  getRoom: (roomName: string) => Promise<Room>
-  getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
-  removeIngress: (ingressId: string) => Promise<IngressInfo>
-  updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>
 }

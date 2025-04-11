@@ -1,4 +1,3 @@
-import { AppComponents, ILivekitComponent, LivekitCredentials, LivekitSettings, Permissions } from '../types'
 import {
   AccessToken,
   CreateIngressOptions,
@@ -7,9 +6,12 @@ import {
   IngressInput,
   Room,
   RoomServiceClient,
-  TrackSource
+  TrackSource,
+  WebhookReceiver
 } from 'livekit-server-sdk'
+import { AppComponents, Permissions } from '../types'
 import { LivekitIngressNotFoundError } from '../types/errors'
+import { ILivekitComponent, LivekitCredentials, LivekitSettings } from '../types/livekit.type'
 
 export async function createLivekitComponent(
   components: Pick<AppComponents, 'config' | 'logs'>
@@ -43,6 +45,7 @@ export async function createLivekitComponent(
 
   const roomClient = new RoomServiceClient(prodHost, prodApiKey, prodSecret)
   const ingressClient = new IngressClient(prodHost, prodApiKey, prodSecret)
+  const receiver = new WebhookReceiver(prodApiKey, prodSecret)
 
   async function generateCredentials(
     identity: string,
@@ -148,6 +151,10 @@ export async function createLivekitComponent(
     await roomClient.updateParticipant(roomId, participantId, JSON.stringify(metadata))
   }
 
+  async function getWebhookEvent(body: string, authorization: string) {
+    return receiver.receive(body, authorization)
+  }
+
   return {
     updateParticipantMetadata,
     generateCredentials,
@@ -156,6 +163,7 @@ export async function createLivekitComponent(
     muteParticipant,
     getRoom,
     getOrCreateIngress,
-    removeIngress
+    removeIngress,
+    getWebhookEvent
   }
 }
