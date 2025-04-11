@@ -10,7 +10,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   const placeId = `place-id-stream-access`
   const anotherPlaceId = `another-place-id-stream-access`
   const placeWorldId = `place-id-world-stream-access`
-  const FOUR_DAYS = 4 * 24 * 60 * 60
+  const FOUR_DAYS = 4 * 24 * 60 * 60 * 1000
 
   let cleanup: TestCleanup
 

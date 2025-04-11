@@ -5,7 +5,7 @@ import { InvalidRequestError, StreamingAccessNotFoundError } from '../../../src/
 import { PlaceAttributes } from '../../../src/types/places.type'
 
 test('GET /scene-stream-access - lists streaming access for scenes', ({ components, stubComponents }) => {
-  const FOUR_DAYS = 4 * 24 * 60 * 60
+  const FOUR_DAYS = 4 * 24 * 60 * 60 * 1000
   const placeId = `place-id-stream-access-list`
   const placeWorldId = `place-id-world-stream-access-list`
 
