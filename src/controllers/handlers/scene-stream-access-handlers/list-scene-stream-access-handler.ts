@@ -2,7 +2,7 @@ import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
 import { PlaceAttributes } from '../../../types/places.type'
-const FOUR_DAYS = 4 * 24 * 60 * 60
+import { FOUR_DAYS } from '../../../logic/time'
 
 export async function listSceneStreamAccessHandler(
   ctx: Pick<

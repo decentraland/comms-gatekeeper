@@ -69,10 +69,39 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]
   }
 
+  async function startStreaming(ingressId: string): Promise<void> {
+    const now = Date.now()
+    const query = SQL`
+      UPDATE scene_stream_access 
+      SET streaming = true, streaming_start_time = ${now}
+      WHERE ingress_id = ${ingressId} AND active = true
+    `
+    await database.query(query)
+  }
+
+  async function stopStreaming(ingressId: string): Promise<void> {
+    const query = SQL`
+      UPDATE scene_stream_access 
+      SET streaming = false
+      WHERE ingress_id = ${ingressId} AND active = true
+    `
+    await database.query(query)
+  }
+
+  async function isStreaming(ingressId: string): Promise<boolean> {
+    const result = await database.query<SceneStreamAccess>(
+      SQL`SELECT streaming FROM scene_stream_access WHERE ingress_id = ${ingressId} AND active = true LIMIT 1`
+    )
+    return result.rowCount > 0 && result.rows[0].streaming
+  }
+
   return {
     addAccess,
     removeAccess,
     removeAccessByPlaceIds,
-    getAccess
+    getAccess,
+    startStreaming,
+    stopStreaming,
+    isStreaming
   }
 }

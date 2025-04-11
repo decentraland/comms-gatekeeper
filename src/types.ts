@@ -135,6 +135,8 @@ export type SceneStreamAccess = {
   ingress_id: string
   created_at: number
   active: boolean
+  streaming: boolean
+  streaming_start_time: number
 }
 
 export interface AddSceneAdminInput {
@@ -169,4 +171,7 @@ export interface ISceneStreamAccessManager {
   removeAccess(placeId: string): Promise<void>
   removeAccessByPlaceIds(placeIds: string[]): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
+  startStreaming(ingressId: string): Promise<void>
+  stopStreaming(ingressId: string): Promise<void>
+  isStreaming(ingressId: string): Promise<boolean>
 }
