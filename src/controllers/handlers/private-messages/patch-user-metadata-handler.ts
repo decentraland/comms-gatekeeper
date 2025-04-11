@@ -41,8 +41,8 @@ export async function patchUserPrivateMessagesPrivacyHandler(
 
   // Validate the private_messages_privacy field
   if (
-    body.private_messages_privacy.toLowerCase() !== PrivateMessagesPrivacy.ALL &&
-    body.private_messages_privacy.toLowerCase() !== PrivateMessagesPrivacy.ONLY_FRIENDS
+    body.private_messages_privacy?.toLowerCase() !== PrivateMessagesPrivacy.ALL &&
+    body.private_messages_privacy?.toLowerCase() !== PrivateMessagesPrivacy.ONLY_FRIENDS
   ) {
     throw new InvalidRequestError('Invalid private_messages_privacy')
   }
