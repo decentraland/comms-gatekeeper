@@ -2,11 +2,14 @@ import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { HandlerContextWithPath } from '../../types'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { InvalidRequestError } from '../../types/errors'
+import { WebhookEventNames } from 'livekit-server-sdk'
+
 export async function livekitWebhookHandler(
-  ctx: HandlerContextWithPath<'logs' | 'livekit', '/livekit-webhook'> & DecentralandSignatureContext<any>
+  ctx: HandlerContextWithPath<'logs' | 'livekit' | 'sceneStreamAccessManager', '/livekit-webhook'> &
+    DecentralandSignatureContext<any>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, livekit },
+    components: { logs, livekit, sceneStreamAccessManager },
     request
   } = ctx
 
@@ -26,6 +29,17 @@ export async function livekitWebhookHandler(
     const logger = logs.getLogger('livekit-webhook')
     logger.debug(` >>> webhookEvent`)
     logger.debug(JSON.stringify(webhookEvent))
+  }
+
+  const event = webhookEvent.event as WebhookEventNames
+
+  if (event === 'ingress_started' && webhookEvent.ingressInfo) {
+    const isStreaming = await sceneStreamAccessManager.isStreaming(webhookEvent.ingressInfo.ingressId)
+    if (!isStreaming) {
+      await sceneStreamAccessManager.startStreaming(webhookEvent.ingressInfo.ingressId)
+    }
+  } else if (event === 'ingress_ended' && webhookEvent.ingressInfo) {
+    await sceneStreamAccessManager.stopStreaming(webhookEvent.ingressInfo.ingressId)
   }
 
   return {
