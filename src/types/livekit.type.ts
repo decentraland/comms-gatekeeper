@@ -18,7 +18,8 @@ export type ILivekitComponent = IBaseComponent & {
     identity: string,
     roomId: string,
     permissions: Omit<Permissions, 'mute'>,
-    forPreview: boolean
+    forPreview: boolean,
+    metadata?: Record<string, unknown>
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
   getWorldRoomName: (worldName: string) => string
