@@ -69,6 +69,11 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]
   }
 
+  async function getActiveStreamingKeys(): Promise<SceneStreamAccess[]> {
+    const result = await database.query<SceneStreamAccess>(SQL`SELECT * FROM scene_stream_access WHERE active = true`)
+    return result.rows
+  }
+
   async function startStreaming(ingressId: string): Promise<void> {
     const now = Date.now()
     const query = SQL`
@@ -116,6 +121,7 @@ export async function createSceneStreamAccessManagerComponent({
     removeAccess,
     removeAccessByPlaceIds,
     getAccess,
+    getActiveStreamingKeys,
     startStreaming,
     stopStreaming,
     isStreaming,
