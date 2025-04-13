@@ -45,6 +45,7 @@ export type BaseComponents = {
   names: INamesComponent
   sceneManager: ISceneManager
   placesChecker: IPlaceChecker
+  streamingTTLChecker: IPlaceChecker
 }
 
 export type AppComponents = BaseComponents & {

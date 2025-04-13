@@ -22,6 +22,7 @@ import { createSceneManagerComponent } from './adapters/scene-manager'
 import { createNamesComponent } from './adapters/names'
 import { createSocialComponent } from './adapters/social'
 import { createPlaceChecker } from './adapters/places-checker'
+import { createStreamingTTLChecker } from './adapters/streaming-ttl-checker'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -88,6 +89,8 @@ export async function initComponents(): Promise<AppComponents> {
     places
   })
 
+  const streamingTTLChecker = await createStreamingTTLChecker({ logs, sceneStreamAccessManager, livekit })
+
   return {
     blockList,
     config,
@@ -108,6 +111,7 @@ export async function initComponents(): Promise<AppComponents> {
     database,
     sceneAdminManager,
     sceneStreamAccessManager,
-    placesChecker
+    placesChecker,
+    streamingTTLChecker
   }
 }
