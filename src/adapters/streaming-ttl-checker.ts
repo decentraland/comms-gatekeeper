@@ -1,10 +1,10 @@
 import { AppComponents } from '../types'
-import { IPlaceChecker } from '../types/places-checker.type'
+import { IStreamingChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
 
 export async function createStreamingTTLChecker(
   components: Pick<AppComponents, 'logs' | 'sceneStreamAccessManager' | 'livekit'>
-): Promise<IPlaceChecker> {
+): Promise<IStreamingChecker> {
   const { logs, sceneStreamAccessManager, livekit } = components
   const logger = logs.getLogger(`streaming-ttl-checker`)
   let job: CronJob
