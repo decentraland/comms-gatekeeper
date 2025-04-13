@@ -25,25 +25,28 @@ export async function createStreamingTTLChecker(
             (streaming) => now - streaming.created_at > MAX_STREAMING_TIME
           )
 
-          if (expiredStreamings.length > 0) {
-            logger.info(`Found ${expiredStreamings.length} streamings that exceed the maximum allowed time.`)
-
-            const ingressIdsToRevoke = expiredStreamings.map((streaming) => streaming.ingress_id)
-
-            await Promise.all(
-              ingressIdsToRevoke.map(async (ingressId) => {
-                try {
-                  await livekit.removeIngress(ingressId)
-                  await sceneStreamAccessManager.killStreaming(ingressId)
-                  logger.info(`Ingress ${ingressId} revoked correctly from LiveKit and streaming killed`)
-                } catch (error) {
-                  logger.error(`Error revoking ingress ${ingressId} or killing streaming: ${error}`)
-                }
-              })
-            )
-
-            logger.info(`${expiredStreamings.length} streaming keys revoked for exceeding the maximum allowed time.`)
+          if (expiredStreamings.length === 0) {
+            return
           }
+
+          logger.info(`Found ${expiredStreamings.length} streamings that exceed the maximum allowed time.`)
+
+          const ingressIdsToRevoke = expiredStreamings.map((streaming) => streaming.ingress_id)
+
+          await Promise.all(
+            ingressIdsToRevoke.map(async (ingressId) => {
+              try {
+                await livekit.removeIngress(ingressId)
+                await sceneStreamAccessManager.killStreaming(ingressId)
+                logger.info(`Ingress ${ingressId} revoked correctly from LiveKit and streaming killed`)
+              } catch (error) {
+                logger.error(`Error revoking ingress ${ingressId} or killing streaming: ${error}`)
+              }
+            })
+          )
+
+          logger.info(`${expiredStreamings.length} streaming keys revoked for exceeding the maximum allowed time.`)
+
           return
         } catch (error) {
           logger.error(`Error while checking places: ${error}`)
