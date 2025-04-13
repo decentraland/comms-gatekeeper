@@ -1,7 +1,7 @@
 import { createPlaceChecker } from '../../src/adapters/places-checker'
-import { CronJob, CronOnCompleteCommand } from 'cron'
-import { IPlaceChecker } from '../../src/types/places-checker.type'
+import { CronJob } from 'cron'
 import { IBaseComponent } from '@well-known-components/interfaces'
+import { IPlaceChecker } from '../../src/types/checker.type'
 
 jest.mock('cron', () => ({
   CronJob: jest.fn().mockImplementation((cronTime, onTick, onComplete, start, timeZone) => {
