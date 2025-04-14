@@ -1,3 +1,4 @@
+import { isErrorWithMessage } from '../logic/errors'
 import { AppComponents } from '../types'
 import { IStreamingKeyChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
@@ -14,11 +15,13 @@ export async function createStreamingKeyTTLChecker(
       '*/10 * * * *', // every 10 minutes
       async function () {
         try {
-          logger.info(`Looking into active streamings.`)
+          logger.info(`Running job to remove expired streaming keys.`)
 
           await sceneStreamAccessManager.removeExpiredStreamingKeys()
         } catch (error) {
-          logger.error(`Error while checking places: ${error}`)
+          logger.error(
+            `Error while removing expired streaming keys: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
+          )
         }
       },
       null,
