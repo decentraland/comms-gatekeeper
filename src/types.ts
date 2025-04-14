@@ -173,7 +173,7 @@ export interface ISceneStreamAccessManager {
   removeAccess(placeId: string): Promise<void>
   removeAccessByPlaceIds(placeIds: string[]): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
-  getActiveStreamingKeys(): Promise<SceneStreamAccess[]>
+  removeExpiredStreamingKeys(): Promise<void>
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>
   isStreaming(ingressId: string): Promise<boolean>
