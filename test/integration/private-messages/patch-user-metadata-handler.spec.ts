@@ -83,6 +83,21 @@ test('PATCH /users/:address/private-messages-privacy', ({ components, spyCompone
     })
   })
 
+  describe('and the content of the body is a valid JSON without the private_messages_privacy field', () => {
+    it('should respond with a 400 and a message saying that the private_messages_privacy field is required', async () => {
+      const response = await makeRequest(components.localFetch, `/users/${validAddress}/private-messages-privacy`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${validToken}`
+        },
+        body: JSON.stringify({})
+      })
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({ error: 'Invalid private_messages_privacy' })
+    })
+  })
+
   describe('when the request is valid', () => {
     describe('and the participant does not exist in the room', () => {
       beforeEach(() => {
