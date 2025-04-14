@@ -44,8 +44,7 @@ describe('StreamingKeyTTLChecker', () => {
         })
       },
       sceneStreamAccessManager: {
-        getActiveStreamingKeys: jest.fn(),
-        removeAccess: jest.fn()
+        removeExpiredStreamingKeys: jest.fn()
       }
     }
 
@@ -66,75 +65,17 @@ describe('StreamingKeyTTLChecker', () => {
       expect(mockJobInstance?.start).toHaveBeenCalled()
     })
 
-    it('should handle no active streaming keys', async () => {
-      mockedComponents.sceneStreamAccessManager.getActiveStreamingKeys.mockResolvedValue([])
-      await executeOnTick(streamingKeyChecker, startOptions)
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 0 active streamings to verify.')
-    })
-
-    it('should handle active streaming keys that have not expired', async () => {
-      const now = Date.now()
-      const mockStreamings = [
-        { place_id: 'place1', created_at: now - 1000 * 60 * 60 * 24, streaming: false }, // 1 day old
-        { place_id: 'place2', created_at: now - 1000 * 60 * 60 * 24 * 2, streaming: false } // 2 days old
-      ]
-
-      mockedComponents.sceneStreamAccessManager.getActiveStreamingKeys.mockResolvedValue(mockStreamings)
+    it('should call removeExpiredStreamingKeys and log success', async () => {
+      mockedComponents.sceneStreamAccessManager.removeExpiredStreamingKeys.mockResolvedValue(undefined)
       await executeOnTick(streamingKeyChecker, startOptions)
 
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 2 active streamings to verify.')
-      expect(mockedComponents.sceneStreamAccessManager.removeAccess).not.toHaveBeenCalled()
-    })
-
-    it('should handle expired streaming keys that are not active', async () => {
-      const now = Date.now()
-      const mockStreamings = [
-        { place_id: 'place1', created_at: now - 1000 * 60 * 60 * 24 * 5, streaming: false }, // 5 days old
-        { place_id: 'place2', created_at: now - 1000 * 60 * 60 * 24 * 6, streaming: false } // 6 days old
-      ]
-
-      mockedComponents.sceneStreamAccessManager.getActiveStreamingKeys.mockResolvedValue(mockStreamings)
-      await executeOnTick(streamingKeyChecker, startOptions)
-
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 2 active streamings to verify.')
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
-        'Found 2 streaming keys that exceed the maximum allowed time.'
-      )
-
-      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledTimes(2)
-      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('place1')
-      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('place2')
-    })
-
-    it('should not remove access for expired streaming keys that are active', async () => {
-      const now = Date.now()
-      const mockStreamings = [
-        { place_id: 'place1', created_at: now - 1000 * 60 * 60 * 24 * 5, streaming: true }, // 5 days old and active
-        { place_id: 'place2', created_at: now - 1000 * 60 * 60 * 24 * 6, streaming: false } // 6 days old and not active
-      ]
-
-      mockedComponents.sceneStreamAccessManager.getActiveStreamingKeys.mockResolvedValue(mockStreamings)
-      await executeOnTick(streamingKeyChecker, startOptions)
-
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 2 active streamings to verify.')
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
-        'Found 2 streaming keys that exceed the maximum allowed time.'
-      )
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
-        'There are 1 streamings that are active and will not be revoked.'
-      )
-
-      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledTimes(1)
-      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('place2')
+      expect(mockedComponents.sceneStreamAccessManager.removeExpiredStreamingKeys).toHaveBeenCalled()
     })
 
     it('should handle errors gracefully', async () => {
       const error = new Error('Test error')
-      mockedComponents.sceneStreamAccessManager.getActiveStreamingKeys.mockRejectedValue(error)
+      mockedComponents.sceneStreamAccessManager.removeExpiredStreamingKeys.mockRejectedValue(error)
 
       await executeOnTick(streamingKeyChecker, startOptions)
 
