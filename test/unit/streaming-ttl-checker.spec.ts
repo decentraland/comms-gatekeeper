@@ -44,7 +44,7 @@ describe('StreamingTTLChecker', () => {
         })
       },
       sceneStreamAccessManager: {
-        getActiveStreamings: jest.fn(),
+        getExpiredStreamAccesses: jest.fn(),
         killStreaming: jest.fn()
       },
       livekit: {
@@ -70,7 +70,7 @@ describe('StreamingTTLChecker', () => {
     })
 
     it('should handle no active streamings', async () => {
-      mockedComponents.sceneStreamAccessManager.getActiveStreamings.mockResolvedValue([])
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValue([])
       await executeOnTick(streamingChecker, startOptions)
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 0 active streamings to verify.')
@@ -83,7 +83,7 @@ describe('StreamingTTLChecker', () => {
         { ingress_id: 'ingress2', created_at: now - 1000 * 60 * 60 * 2 } // 2 hours old
       ]
 
-      mockedComponents.sceneStreamAccessManager.getActiveStreamings.mockResolvedValue(mockStreamings)
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValue(mockStreamings)
       await executeOnTick(streamingChecker, startOptions)
 
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
@@ -106,7 +106,7 @@ describe('StreamingTTLChecker', () => {
         { ingress_id: 'ingress2', created_at: now - 1000 * 60 * 60 * 6 } // 6 hours old
       ]
 
-      mockedComponents.sceneStreamAccessManager.getActiveStreamings.mockResolvedValue(mockStreamings)
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValue(mockStreamings)
       await executeOnTick(streamingChecker, startOptions)
 
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
@@ -133,7 +133,7 @@ describe('StreamingTTLChecker', () => {
 
     it('should handle errors gracefully', async () => {
       const error = new Error('Test error')
-      mockedComponents.sceneStreamAccessManager.getActiveStreamings.mockRejectedValue(error)
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockRejectedValue(error)
 
       await executeOnTick(streamingChecker, startOptions)
 

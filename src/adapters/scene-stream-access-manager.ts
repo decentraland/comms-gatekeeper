@@ -96,7 +96,7 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rowCount > 0 && result.rows[0].streaming
   }
 
-  async function getActiveStreamings(): Promise<Pick<SceneStreamAccess, 'created_at' | 'ingress_id'>[]> {
+  async function getExpiredStreamAccesses(): Promise<Pick<SceneStreamAccess, 'created_at' | 'ingress_id'>[]> {
     const result = await database.query<Pick<SceneStreamAccess, 'created_at' | 'ingress_id'>>(
       SQL`
       SELECT created_at, ingress_id 
@@ -126,7 +126,7 @@ export async function createSceneStreamAccessManagerComponent({
     startStreaming,
     stopStreaming,
     isStreaming,
-    getActiveStreamings,
+    getExpiredStreamAccesses,
     killStreaming
   }
 }

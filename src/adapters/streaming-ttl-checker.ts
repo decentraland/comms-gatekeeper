@@ -23,7 +23,7 @@ export async function createStreamingTTLChecker(
         try {
           logger.info(`Looking into active streamings.`)
 
-          const expiredStreamings = await sceneStreamAccessManager.getActiveStreamings()
+          const expiredStreamings = await sceneStreamAccessManager.getExpiredStreamAccesses()
           logger.info(`Found ${expiredStreamings.length} active streamings to verify.`)
 
           if (expiredStreamings.length === 0) {
