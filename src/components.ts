@@ -92,7 +92,7 @@ export async function initComponents(): Promise<AppComponents> {
 
   const streamingTTLChecker = await createStreamingTTLChecker({ logs, sceneStreamAccessManager, livekit })
 
-  const streamingKeyTTLChecker = await createStreamingKeyTTLChecker({ logs, sceneStreamAccessManager })
+  const streamingKeyTTLChecker = await createStreamingKeyTTLChecker({ logs, sceneStreamAccessManager, livekit })
 
   return {
     blockList,
