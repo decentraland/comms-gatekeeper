@@ -9,10 +9,18 @@ export async function createStreamingTTLChecker(
   const { logs, sceneStreamAccessManager, livekit } = components
   const logger = logs.getLogger(`streaming-ttl-checker`)
   let job: CronJob
+  let isProcessing = false
+
   async function start(): Promise<void> {
     job = new CronJob(
       '* * * * *',
       async function () {
+        if (isProcessing) {
+          logger.info('Previous job still running, skipping this execution')
+          return
+        }
+
+        isProcessing = true
         try {
           logger.info(`Looking into active streamings.`)
 
@@ -44,6 +52,8 @@ export async function createStreamingTTLChecker(
           return
         } catch (error) {
           logger.error(`Error while checking places: ${error}`)
+        } finally {
+          isProcessing = false
         }
       },
       null,
