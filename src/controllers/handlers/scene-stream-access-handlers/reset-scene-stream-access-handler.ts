@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { FOUR_DAYS } from '../../../logic/time'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
@@ -62,7 +63,8 @@ export async function resetSceneStreamAccessHandler(
     roomName = livekit.getSceneRoomName(serverName, sceneId!)
   }
 
-  const ingress = await livekit.getOrCreateIngress(roomName, authenticatedAddress)
+  const participantIdentity = randomUUID()
+  const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
   const access = await sceneStreamAccessManager.addAccess({
     place_id: place.id,
     streaming_url: ingress.url!,

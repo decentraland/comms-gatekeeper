@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError, StreamingAccessNotFoundError, UnauthorizedError } from '../../../types/errors'
@@ -63,7 +64,8 @@ export async function addSceneStreamAccessHandler(
     access = await sceneStreamAccessManager.getAccess(place.id)
   } catch (error) {
     if (error instanceof StreamingAccessNotFoundError) {
-      const ingress = await livekit.getOrCreateIngress(roomName, authenticatedAddress)
+      const participantIdentity = randomUUID()
+      const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
       access = await sceneStreamAccessManager.addAccess({
         place_id: place.id,
         streaming_url: ingress.url!,
