@@ -133,9 +133,6 @@ export async function createLivekitComponent(
 
   async function removeIngress(ingressId: string): Promise<IngressInfo> {
     try {
-      await ingressClient.listIngress({
-        ingressId: ingressId
-      })
       return ingressClient.deleteIngress(ingressId)
     } catch (error) {
       logger.debug(`Error removing ingress ${ingressId}:`, { error: JSON.stringify(error) })
