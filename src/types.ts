@@ -177,6 +177,6 @@ export interface ISceneStreamAccessManager {
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>
   isStreaming(ingressId: string): Promise<boolean>
-  getActiveStreamings(): Promise<SceneStreamAccess[]>
+  getExpiredStreamAccesses(): Promise<Pick<SceneStreamAccess, 'created_at' | 'ingress_id'>[]>
   killStreaming(ingressId: string): Promise<void>
 }

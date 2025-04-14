@@ -8,22 +8,23 @@ export async function createStreamingTTLChecker(
   const { logs, sceneStreamAccessManager, livekit } = components
   const logger = logs.getLogger(`streaming-ttl-checker`)
   let job: CronJob
+  let isProcessing = false
+
   async function start(): Promise<void> {
     job = new CronJob(
       '* * * * *',
       async function () {
+        if (isProcessing) {
+          logger.info('Previous job still running, skipping this execution')
+          return
+        }
+
+        isProcessing = true
         try {
           logger.info(`Looking into active streamings.`)
 
-          const activeStreamings = await sceneStreamAccessManager.getActiveStreamings()
-          logger.info(`Found ${activeStreamings.length} active streamings to verify.`)
-
-          const MAX_STREAMING_TIME = 4 * 60 * 60 * 1000 // 4 hours
-          const now = Date.now()
-
-          const expiredStreamings = activeStreamings.filter(
-            (streaming) => now - streaming.created_at > MAX_STREAMING_TIME
-          )
+          const expiredStreamings = await sceneStreamAccessManager.getExpiredStreamAccesses()
+          logger.info(`Found ${expiredStreamings.length} active streamings to verify.`)
 
           if (expiredStreamings.length === 0) {
             return
@@ -33,23 +34,21 @@ export async function createStreamingTTLChecker(
 
           const ingressIdsToRevoke = expiredStreamings.map((streaming) => streaming.ingress_id)
 
-          await Promise.all(
-            ingressIdsToRevoke.map(async (ingressId) => {
-              try {
-                await livekit.removeIngress(ingressId)
-                await sceneStreamAccessManager.killStreaming(ingressId)
-                logger.info(`Ingress ${ingressId} revoked correctly from LiveKit and streaming killed`)
-              } catch (error) {
-                logger.error(`Error revoking ingress ${ingressId} or killing streaming: ${error}`)
-              }
-            })
-          )
-
-          logger.info(`${expiredStreamings.length} streaming keys revoked for exceeding the maximum allowed time.`)
+          for (const ingressId of ingressIdsToRevoke) {
+            try {
+              await livekit.removeIngress(ingressId)
+              await sceneStreamAccessManager.killStreaming(ingressId)
+              logger.info(`Ingress ${ingressId} revoked correctly from LiveKit and streaming killed`)
+            } catch (error) {
+              logger.error(`Error revoking ingress ${ingressId} or killing streaming: ${error}`)
+            }
+          }
 
           return
         } catch (error) {
           logger.error(`Error while checking places: ${error}`)
+        } finally {
+          isProcessing = false
         }
       },
       null,
