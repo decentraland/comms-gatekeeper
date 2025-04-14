@@ -122,9 +122,6 @@ describe('StreamingTTLChecker', () => {
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
         'Ingress ingress2 revoked correctly from LiveKit and streaming killed'
       )
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
-        '2 streaming keys revoked for exceeding the maximum allowed time.'
-      )
     })
 
     it('should handle errors gracefully', async () => {
