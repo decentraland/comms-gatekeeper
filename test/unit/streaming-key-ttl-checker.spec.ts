@@ -69,7 +69,9 @@ describe('StreamingKeyTTLChecker', () => {
       mockedComponents.sceneStreamAccessManager.removeExpiredStreamingKeys.mockResolvedValue(undefined)
       await executeOnTick(streamingKeyChecker, startOptions)
 
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
+      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
+        'Running job to remove expired streaming keys.'
+      )
       expect(mockedComponents.sceneStreamAccessManager.removeExpiredStreamingKeys).toHaveBeenCalled()
     })
 
@@ -79,7 +81,9 @@ describe('StreamingKeyTTLChecker', () => {
 
       await executeOnTick(streamingKeyChecker, startOptions)
 
-      expect(mockedComponents.logs.getLogger().error).toHaveBeenCalledWith(`Error while checking places: ${error}`)
+      expect(mockedComponents.logs.getLogger().error).toHaveBeenCalledWith(
+        `Error while removing expired streaming keys: Test error`
+      )
     })
   })
 
