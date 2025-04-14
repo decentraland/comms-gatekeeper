@@ -1,4 +1,3 @@
-import { FOUR_HOURS } from '../logic/time'
 import { AppComponents } from '../types'
 import { IStreamingChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
@@ -24,12 +23,8 @@ export async function createStreamingTTLChecker(
         try {
           logger.info(`Looking into active streamings.`)
 
-          const activeStreamings = await sceneStreamAccessManager.getActiveStreamings()
-          logger.info(`Found ${activeStreamings.length} active streamings to verify.`)
-
-          const now = Date.now()
-
-          const expiredStreamings = activeStreamings.filter((streaming) => now - streaming.created_at > FOUR_HOURS)
+          const expiredStreamings = await sceneStreamAccessManager.getActiveStreamings()
+          logger.info(`Found ${expiredStreamings.length} active streamings to verify.`)
 
           if (expiredStreamings.length === 0) {
             return

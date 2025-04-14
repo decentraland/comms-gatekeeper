@@ -1,3 +1,4 @@
+import { FOUR_HOURS } from '../logic/time'
 import { AppComponents, AddSceneStreamAccessInput, ISceneStreamAccessManager, SceneStreamAccess } from '../types'
 import { StreamingAccessNotFoundError } from '../types/errors'
 import SQL from 'sql-template-strings'
@@ -97,7 +98,13 @@ export async function createSceneStreamAccessManagerComponent({
 
   async function getActiveStreamings(): Promise<Pick<SceneStreamAccess, 'created_at' | 'ingress_id'>[]> {
     const result = await database.query<Pick<SceneStreamAccess, 'created_at' | 'ingress_id'>>(
-      SQL`SELECT created_at, ingress_id FROM scene_stream_access WHERE active = true AND streaming = true`
+      SQL`
+      SELECT created_at, ingress_id 
+      FROM scene_stream_access 
+      WHERE active = true 
+        AND streaming = true AND ${Date.now()} - created_at > ${FOUR_HOURS} 
+      ORDER BY created_at DESC 
+      LIMIT 100`
     )
     return result.rows
   }
