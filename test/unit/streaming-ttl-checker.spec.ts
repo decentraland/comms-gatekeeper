@@ -88,8 +88,15 @@ describe('StreamingTTLChecker', () => {
 
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 2 active streamings to verify.')
-      expect(mockedComponents.livekit.removeIngress).not.toHaveBeenCalled()
-      expect(mockedComponents.sceneStreamAccessManager.killStreaming).not.toHaveBeenCalled()
+      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
+        'Found 2 streamings that exceed the maximum allowed time.'
+      )
+      expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledTimes(2)
+      expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('ingress1')
+      expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('ingress2')
+      expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledTimes(2)
+      expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledWith('ingress1')
+      expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledWith('ingress2')
     })
 
     it('should handle expired streamings', async () => {
