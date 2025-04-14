@@ -24,8 +24,6 @@ export async function createStreamingKeyTTLChecker(
             return
           }
 
-          logger.info(`Found ${expiredStreamingKeys.length} streaming keys that exceed the maximum allowed time.`)
-
           for (const expiredKey of expiredStreamingKeys) {
             await livekit.removeIngress(expiredKey.ingress_id)
             await sceneStreamAccessManager.removeAccess(expiredKey.place_id)
