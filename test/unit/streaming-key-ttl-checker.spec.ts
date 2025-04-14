@@ -44,7 +44,11 @@ describe('StreamingKeyTTLChecker', () => {
         })
       },
       sceneStreamAccessManager: {
-        removeExpiredStreamingKeys: jest.fn()
+        getExpiredStreamingKeys: jest.fn().mockResolvedValue([]),
+        removeAccess: jest.fn()
+      },
+      livekit: {
+        removeIngress: jest.fn()
       }
     }
 
@@ -65,19 +69,26 @@ describe('StreamingKeyTTLChecker', () => {
       expect(mockJobInstance?.start).toHaveBeenCalled()
     })
 
-    it('should call removeExpiredStreamingKeys and log success', async () => {
-      mockedComponents.sceneStreamAccessManager.removeExpiredStreamingKeys.mockResolvedValue(undefined)
+    it('should call getExpiredStreamingKeys and log success', async () => {
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValue([
+        {
+          place_id: 'test-place',
+          ingress_id: 'test-ingress'
+        }
+      ])
       await executeOnTick(streamingKeyChecker, startOptions)
 
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
         'Running job to remove expired streaming keys.'
       )
-      expect(mockedComponents.sceneStreamAccessManager.removeExpiredStreamingKeys).toHaveBeenCalled()
+      expect(mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys).toHaveBeenCalled()
+      expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('test-ingress')
+      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('test-place')
     })
 
     it('should handle errors gracefully', async () => {
       const error = new Error('Test error')
-      mockedComponents.sceneStreamAccessManager.removeExpiredStreamingKeys.mockRejectedValue(error)
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockRejectedValue(error)
 
       await executeOnTick(streamingKeyChecker, startOptions)
 

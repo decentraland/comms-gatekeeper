@@ -1,4 +1,4 @@
-import { FOUR_DAYS, FOUR_HOURS } from '../logic/time'
+import { FOUR_HOURS, FOUR_DAYS } from '../logic/time'
 import { AppComponents, AddSceneStreamAccessInput, ISceneStreamAccessManager, SceneStreamAccess } from '../types'
 import { StreamingAccessNotFoundError } from '../types/errors'
 import SQL from 'sql-template-strings'
@@ -70,10 +70,11 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]
   }
 
-  async function removeExpiredStreamingKeys(): Promise<void> {
-    await database.query(
-      SQL`UPDATE scene_stream_access SET active = false WHERE active = true AND streaming = false AND created_at < ${Date.now() - FOUR_DAYS}`
+  async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]> {
+    const result = await database.query<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>>(
+      SQL`SELECT ingress_id, place_id FROM scene_stream_access WHERE active = true AND streaming = false AND created_at < ${Date.now() - FOUR_DAYS}`
     )
+    return result.rows
   }
 
   async function startStreaming(ingressId: string): Promise<void> {
@@ -129,7 +130,7 @@ export async function createSceneStreamAccessManagerComponent({
     removeAccess,
     removeAccessByPlaceIds,
     getAccess,
-    removeExpiredStreamingKeys,
+    getExpiredStreamingKeys,
     startStreaming,
     stopStreaming,
     isStreaming,

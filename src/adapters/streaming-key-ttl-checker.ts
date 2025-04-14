@@ -4,9 +4,9 @@ import { IStreamingKeyChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
 
 export async function createStreamingKeyTTLChecker(
-  components: Pick<AppComponents, 'logs' | 'sceneStreamAccessManager'>
+  components: Pick<AppComponents, 'logs' | 'sceneStreamAccessManager' | 'livekit'>
 ): Promise<IStreamingKeyChecker> {
-  const { logs, sceneStreamAccessManager } = components
+  const { logs, sceneStreamAccessManager, livekit } = components
   const logger = logs.getLogger(`streaming-key-ttl-checker`)
   let job: CronJob
 
@@ -17,7 +17,19 @@ export async function createStreamingKeyTTLChecker(
         try {
           logger.info(`Running job to remove expired streaming keys.`)
 
-          await sceneStreamAccessManager.removeExpiredStreamingKeys()
+          const expiredStreamingKeys = await sceneStreamAccessManager.getExpiredStreamingKeys()
+          logger.info(`Found ${expiredStreamingKeys.length} expired streaming keys.`)
+
+          if (expiredStreamingKeys.length === 0) {
+            return
+          }
+
+          logger.info(`Found ${expiredStreamingKeys.length} streaming keys that exceed the maximum allowed time.`)
+
+          for (const expiredKey of expiredStreamingKeys) {
+            await livekit.removeIngress(expiredKey.ingress_id)
+            await sceneStreamAccessManager.removeAccess(expiredKey.place_id)
+          }
         } catch (error) {
           logger.error(
             `Error while removing expired streaming keys: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
