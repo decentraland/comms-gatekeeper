@@ -1,5 +1,5 @@
 import { AppComponents } from '../types'
-import { IPlaceChecker } from '../types/places-checker.type'
+import { IPlaceChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
 
 export async function createPlaceChecker(

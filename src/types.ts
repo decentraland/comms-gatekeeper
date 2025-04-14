@@ -18,7 +18,7 @@ import { ILandComponent } from './types/lands.type'
 import { ISceneManager } from './types/scene-manager.type'
 import { INamesComponent } from './types/names.type'
 import { ISocialComponent } from './types/social.type'
-import { IPlaceChecker } from './types/places-checker.type'
+import { IPlaceChecker, IStreamingChecker } from './types/checker.type'
 import { ILivekitComponent } from './types/livekit.type'
 
 export type GlobalContext = {
@@ -45,6 +45,7 @@ export type BaseComponents = {
   names: INamesComponent
   sceneManager: ISceneManager
   placesChecker: IPlaceChecker
+  streamingTTLChecker: IStreamingChecker
 }
 
 export type AppComponents = BaseComponents & {
@@ -174,4 +175,6 @@ export interface ISceneStreamAccessManager {
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>
   isStreaming(ingressId: string): Promise<boolean>
+  getExpiredStreamAccesses(): Promise<Pick<SceneStreamAccess, 'created_at' | 'ingress_id'>[]>
+  killStreaming(ingressId: string): Promise<void>
 }
