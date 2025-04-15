@@ -19,7 +19,7 @@ export async function oldValidate<T extends string>(
 
   const { sceneId, parcel, realmName } = verification.authMetadata
   if (!realmName) {
-    throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realm')
+    throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realmName')
   }
 
   const identity = verification.auth
