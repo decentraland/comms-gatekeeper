@@ -1,7 +1,7 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
-import { validate } from '../../logic/utils'
+import { oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'logs' | 'blockList', '/get-scene-adapter'>
@@ -11,11 +11,8 @@ export async function commsSceneHandler(
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
-  const {
-    realm: { serverName },
-    sceneId,
-    identity
-  } = await validate(context)
+  const { sceneId, identity, realmName } = await oldValidate(context)
+
   let forPreview = false
   let room: string
   const permissions: Permissions = {
@@ -29,17 +26,17 @@ export async function commsSceneHandler(
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
 
-  if (serverName === 'preview') {
+  if (realmName === 'preview') {
     room = `preview-${identity}`
 
     forPreview = true
-  } else if (serverName.endsWith('.eth')) {
-    room = livekit.getWorldRoomName(serverName)
+  } else if (realmName.endsWith('.eth')) {
+    room = livekit.getWorldRoomName(realmName)
   } else {
     if (!sceneId) {
       throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
     }
-    room = livekit.getSceneRoomName(serverName, sceneId)
+    room = livekit.getSceneRoomName(realmName, sceneId)
   }
 
   if (!permissions) {

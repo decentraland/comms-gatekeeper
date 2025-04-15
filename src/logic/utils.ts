@@ -2,9 +2,39 @@ import { DecentralandSignatureData, verify } from '@dcl/platform-crypto-middlewa
 import { HandlerContextWithPath, AuthData } from '../types'
 import { UnauthorizedError } from '../types/errors'
 
+export async function oldValidate<T extends string>(
+  context: HandlerContextWithPath<'fetch' | 'config', T>
+): Promise<Omit<AuthData, 'realm'>> {
+  const { config, fetch } = context.components
+  const baseUrl = (await config.getString('HTTP_BASE_URL')) || `${context.url.protocol}//${context.url.host}`
+  const path = new URL(baseUrl + context.url.pathname)
+  let verification: DecentralandSignatureData<AuthData>
+  try {
+    verification = await verify(context.request.method, path.pathname, context.request.headers.raw(), {
+      fetcher: fetch
+    })
+  } catch (e) {
+    throw new UnauthorizedError('Access denied, invalid signed-fetch request')
+  }
+
+  const { sceneId, parcel, realmName } = verification.authMetadata
+  if (!realmName) {
+    throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realmName')
+  }
+
+  const identity = verification.auth
+
+  return {
+    identity,
+    sceneId,
+    parcel,
+    realmName
+  }
+}
+
 export async function validate<T extends string>(
   context: HandlerContextWithPath<'fetch' | 'config', T>
-): Promise<AuthData> {
+): Promise<Omit<AuthData, 'realmName'>> {
   const { config, fetch } = context.components
   const baseUrl = (await config.getString('HTTP_BASE_URL')) || `${context.url.protocol}//${context.url.host}`
   const path = new URL(baseUrl + context.url.pathname)

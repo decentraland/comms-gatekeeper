@@ -118,6 +118,7 @@ export type AuthData = {
   sceneId?: string
   parcel: string
   realm: RealmAuthMetadata
+  realmName: string
 }
 
 export type SceneAdmin = {

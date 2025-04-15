@@ -40,11 +40,15 @@ export async function createLivekitComponent(
     config.requireString('PREVIEW_LIVEKIT_API_SECRET')
   ])
 
-  const prodSettings: LivekitSettings = { host: prodHost, apiKey: prodApiKey, secret: prodSecret }
-  const previewSettings: LivekitSettings = { host: previewHost, apiKey: previewApiKey, secret: previewSecret }
+  const normalizedProdHost = !prodHost.startsWith('wss://') ? `wss://${prodHost}` : prodHost
 
-  const roomClient = new RoomServiceClient(prodHost, prodApiKey, prodSecret)
-  const ingressClient = new IngressClient(prodHost, prodApiKey, prodSecret)
+  const normalizedPreviewHost = !previewHost.startsWith('wss://') ? `wss://${previewHost}` : previewHost
+
+  const prodSettings: LivekitSettings = { host: normalizedProdHost, apiKey: prodApiKey, secret: prodSecret }
+  const previewSettings: LivekitSettings = { host: normalizedPreviewHost, apiKey: previewApiKey, secret: previewSecret }
+
+  const roomClient = new RoomServiceClient(normalizedProdHost, prodApiKey, prodSecret)
+  const ingressClient = new IngressClient(normalizedProdHost, prodApiKey, prodSecret)
   const receiver = new WebhookReceiver(prodApiKey, prodSecret)
 
   async function generateCredentials(
