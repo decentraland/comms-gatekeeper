@@ -47,8 +47,8 @@ export async function createLivekitComponent(
   const prodSettings: LivekitSettings = { host: normalizedProdHost, apiKey: prodApiKey, secret: prodSecret }
   const previewSettings: LivekitSettings = { host: normalizedPreviewHost, apiKey: previewApiKey, secret: previewSecret }
 
-  const roomClient = new RoomServiceClient(prodHost, prodApiKey, prodSecret)
-  const ingressClient = new IngressClient(prodHost, prodApiKey, prodSecret)
+  const roomClient = new RoomServiceClient(normalizedProdHost, prodApiKey, prodSecret)
+  const ingressClient = new IngressClient(normalizedProdHost, prodApiKey, prodSecret)
   const receiver = new WebhookReceiver(prodApiKey, prodSecret)
 
   async function generateCredentials(
