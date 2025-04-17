@@ -26,8 +26,10 @@
     "tabWidth": 2
   },
   "dependencies": {
+    "@aws-sdk/client-sns": "^3.787.0",
     "@dcl/crypto": "^3.4.5",
     "@dcl/platform-crypto-middleware": "^1.1.0",
+    "@dcl/schemas": "^16.6.1",
     "@well-known-components/env-config-provider": "^1.1.1",
     "@well-known-components/fetch-component": "^3.0.0",
     "@well-known-components/http-requests-logger-component": "^2.1.0",
