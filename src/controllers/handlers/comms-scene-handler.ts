@@ -4,10 +4,13 @@ import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../typ
 import { oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
-  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'logs' | 'blockList', '/get-scene-adapter'>
+  context: HandlerContextWithPath<
+    'fetch' | 'config' | 'livekit' | 'logs' | 'blockList' | 'publisher',
+    '/get-scene-adapter'
+  >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, blockList }
+    components: { livekit, logs, blockList, publisher }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -45,6 +48,15 @@ export async function commsSceneHandler(
 
   const credentials = await livekit.generateCredentials(identity, room, permissions, forPreview)
   logger.debug(`Token generated for ${identity} to join room ${room}`)
+
+  // TODO: implement this event
+  await publisher.publishMessages([
+    {
+      identity,
+      room,
+      sceneId
+    }
+  ])
 
   return {
     status: 200,

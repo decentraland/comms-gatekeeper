@@ -47,6 +47,7 @@ export type BaseComponents = {
   placesChecker: IPlaceChecker
   streamingTTLChecker: IStreamingChecker
   streamingKeyTTLChecker: IStreamingKeyChecker
+  publisher: IPublisherComponent
 }
 
 export type AppComponents = BaseComponents & {
@@ -180,4 +181,11 @@ export interface ISceneStreamAccessManager {
   isStreaming(ingressId: string): Promise<boolean>
   getExpiredStreamAccesses(): Promise<Pick<SceneStreamAccess, 'streaming_start_time' | 'ingress_id'>[]>
   killStreaming(ingressId: string): Promise<void>
+}
+
+export interface IPublisherComponent {
+  publishMessages(events: any[]): Promise<{
+    successfulMessageIds: string[]
+    failedEvents: any[]
+  }>
 }
