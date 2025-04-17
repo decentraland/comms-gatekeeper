@@ -2,6 +2,7 @@ import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
 import { oldValidate } from '../../logic/utils'
+import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
@@ -14,7 +15,7 @@ export async function commsSceneHandler(
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
-  const { sceneId, identity, realmName } = await oldValidate(context)
+  const { sceneId, identity, parcel, realmName } = await oldValidate(context)
 
   let forPreview = false
   let room: string
@@ -29,11 +30,13 @@ export async function commsSceneHandler(
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
 
+  const isWorld = realmName.endsWith('.eth')
+
   if (realmName === 'preview') {
     room = `preview-${identity}`
 
     forPreview = true
-  } else if (realmName.endsWith('.eth')) {
+  } else if (isWorld) {
     room = livekit.getWorldRoomName(realmName)
   } else {
     if (!sceneId) {
@@ -49,14 +52,21 @@ export async function commsSceneHandler(
   const credentials = await livekit.generateCredentials(identity, room, permissions, forPreview)
   logger.debug(`Token generated for ${identity} to join room ${room}`)
 
-  // TODO: implement this event
-  await publisher.publishMessages([
-    {
-      identity,
-      room,
-      sceneId
+  const event: UserJoinedRoomEvent = {
+    type: Events.Type.COMMS,
+    subType: Events.SubType.Comms.USER_JOINED_ROOM,
+    key: `user-joined-room-${room}`,
+    timestamp: Date.now(),
+    metadata: {
+      sceneId: sceneId || '',
+      userAddress: identity.toLowerCase(),
+      parcel,
+      realmName,
+      isWorld
     }
-  ])
+  }
+
+  await publisher.publishMessages([event])
 
   return {
     status: 200,

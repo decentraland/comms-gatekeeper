@@ -751,6 +751,16 @@
     "@well-known-components/fetch-component" "^2.0.2"
     "@well-known-components/interfaces" "^1.4.2"
 
+"@dcl/schemas@^16.5.0":
+  version "16.5.0"
+  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-16.5.0.tgz#4ef6c1b4b4a10e074322e37ca18763004da9d66b"
+  integrity sha512-GqprPRMr0VXmdu4Cz3isQEw/qIm6AMxdqq8dikDLFvJ5CDIwJHg1DITMW5pQNTWLpaERx2mJgUTIacnuFWA5Kw==
+  dependencies:
+    ajv "^8.11.0"
+    ajv-errors "^3.0.0"
+    ajv-keywords "^5.1.0"
+    mitt "^3.0.1"
+
 "@dcl/schemas@^9.2.0":
   version "9.15.0"
   resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-9.15.0.tgz#81337faa396d21a2d1e704e5ec3cfd7b7b14343e"
@@ -3762,7 +3772,7 @@ minimatch@^3.0.4, minimatch@^3.0.5, minimatch@^3.1.1, minimatch@^3.1.2:
   dependencies:
     brace-expansion "^1.1.7"
 
-mitt@^3.0.0:
+mitt@^3.0.0, mitt@^3.0.1:
   version "3.0.1"
   resolved "https://registry.yarnpkg.com/mitt/-/mitt-3.0.1.tgz#ea36cf0cc30403601ae074c8f77b7092cdab36d1"
   integrity sha512-vKivATfr97l2/QBCYAkXYDbrIWPM2IIKEl7YPhjCvKlG3kE2gm+uBo6nEXK3M5/Ffh/FLpKExzOQ3JJoJGFKBw==
