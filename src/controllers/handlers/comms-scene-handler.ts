@@ -52,21 +52,23 @@ export async function commsSceneHandler(
   const credentials = await livekit.generateCredentials(identity, room, permissions, forPreview)
   logger.debug(`Token generated for ${identity} to join room ${room}`)
 
-  const event: UserJoinedRoomEvent = {
-    type: Events.Type.COMMS,
-    subType: Events.SubType.Comms.USER_JOINED_ROOM,
-    key: `user-joined-room-${room}`,
-    timestamp: Date.now(),
-    metadata: {
-      sceneId: sceneId || '',
-      userAddress: identity.toLowerCase(),
-      parcel,
-      realmName,
-      isWorld
+  setImmediate(async () => {
+    const event: UserJoinedRoomEvent = {
+      type: Events.Type.COMMS,
+      subType: Events.SubType.Comms.USER_JOINED_ROOM,
+      key: `user-joined-room-${room}`,
+      timestamp: Date.now(),
+      metadata: {
+        sceneId: sceneId || '',
+        userAddress: identity.toLowerCase(),
+        parcel,
+        realmName,
+        isWorld
+      }
     }
-  }
 
-  await publisher.publishMessages([event])
+    await publisher.publishMessages([event])
+  })
 
   return {
     status: 200,
