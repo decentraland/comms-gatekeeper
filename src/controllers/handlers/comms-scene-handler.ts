@@ -67,7 +67,16 @@ export async function commsSceneHandler(
       }
     }
 
-    await publisher.publishMessages([event])
+    try {
+      await publisher.publishMessages([event])
+      logger.debug(`Published UserJoinedRoomEvent for ${identity} in room ${room}`)
+    } catch (error: any) {
+      logger.error(`Failed to publish UserJoinedRoomEvent: ${error}`, {
+        error,
+        event: JSON.stringify(event),
+        room
+      })
+    }
   })
 
   return {
