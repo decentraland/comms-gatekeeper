@@ -1,19 +1,27 @@
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
+import { NotificationStreamingType } from '../../../types/notification.type'
 import { PlaceAttributes } from '../../../types/places.type'
 
 export async function removeSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'livekit' | 'logs' | 'config',
+      | 'fetch'
+      | 'sceneStreamAccessManager'
+      | 'sceneManager'
+      | 'places'
+      | 'livekit'
+      | 'logs'
+      | 'config'
+      | 'notifications',
       '/scene-stream-access'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit },
+    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, notifications },
     verification
   } = ctx
   const logger = logs.getLogger('revoke-scene-stream-access-handler')
@@ -52,6 +60,8 @@ export async function removeSceneStreamAccessHandler(
   const access = await sceneStreamAccessManager.getAccess(place.id)
   await livekit.removeIngress(access.ingress_id)
   await sceneStreamAccessManager.removeAccess(place.id)
+
+  await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_REVOKE, place)
 
   return {
     status: 204

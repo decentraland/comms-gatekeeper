@@ -25,6 +25,8 @@ import { createPlaceChecker } from './adapters/places-checker'
 import { createStreamingTTLChecker } from './adapters/streaming-ttl-checker'
 import { createStreamingKeyTTLChecker } from './adapters/streaming-key-ttl-checker'
 import { createSnsComponent } from './adapters/sns'
+import { createNotificationsComponent } from './adapters/notifications'
+import { createSceneAdminsComponent } from './adapters/scene-admins'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -84,16 +86,33 @@ export async function initComponents(): Promise<AppComponents> {
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
+  const sceneAdmins = await createSceneAdminsComponent({ worlds, lands, sceneAdminManager })
+
+  const notifications = await createNotificationsComponent({ config, logs, fetch: tracedFetch, sceneAdmins })
+
   const placesChecker = await createPlaceChecker({
     logs,
     sceneAdminManager,
     sceneStreamAccessManager,
-    places
+    places,
+    notifications
   })
 
-  const streamingTTLChecker = await createStreamingTTLChecker({ logs, sceneStreamAccessManager, livekit })
+  const streamingTTLChecker = await createStreamingTTLChecker({
+    logs,
+    sceneStreamAccessManager,
+    livekit,
+    places,
+    notifications
+  })
 
-  const streamingKeyTTLChecker = await createStreamingKeyTTLChecker({ logs, sceneStreamAccessManager, livekit })
+  const streamingKeyTTLChecker = await createStreamingKeyTTLChecker({
+    logs,
+    sceneStreamAccessManager,
+    livekit,
+    places,
+    notifications
+  })
 
   const publisher = await createSnsComponent({ config })
 
@@ -120,6 +139,8 @@ export async function initComponents(): Promise<AppComponents> {
     placesChecker,
     streamingTTLChecker,
     streamingKeyTTLChecker,
-    publisher
+    publisher,
+    sceneAdmins,
+    notifications
   }
 }

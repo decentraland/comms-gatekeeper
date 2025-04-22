@@ -34,7 +34,9 @@ export async function createPlacesComponent(
     return response.data[0]
   }
 
-  async function getPlaceStatusById(ids: string[]): Promise<Pick<PlaceAttributes, 'id' | 'disabled'>[]> {
+  async function getPlaceStatusById(
+    ids: string[]
+  ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>[]> {
     const response = await fetch.fetch(`${placesApiUrl}/places/status`, {
       method: 'POST',
       body: JSON.stringify(ids)
