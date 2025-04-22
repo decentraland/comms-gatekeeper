@@ -41,7 +41,7 @@ export async function createNotificationsComponent({
 
     const { addresses } = await getAdminsAndExtraAddresses(place)
 
-    const notifications: Notification[] = addresses.map((address) => ({
+    const notifications: Notification[] = Array.from(addresses).map((address) => ({
       eventKey: `${type}-${place.id}-${Date.now()}`,
       type: type,
       address: address,

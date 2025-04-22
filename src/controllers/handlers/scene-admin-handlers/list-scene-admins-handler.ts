@@ -66,12 +66,12 @@ export async function listSceneAdminsHandler(
 
   const allAddresses = await sceneAdmins.getAdminsAndExtraAddresses(place, validationResult.value.admin)
 
-  const allNames = await names.getNamesFromAddresses(allAddresses.addresses)
+  const allNames = await names.getNamesFromAddresses(Array.from(allAddresses.addresses))
 
   const adminsWithNames = Array.from(allAddresses.admins).map((admin) => ({
-    admin,
-    name: allNames[admin] || '',
-    canBeRemoved: !allAddresses.extraAddresses.has(admin)
+    ...admin,
+    name: allNames[admin.admin] || '',
+    canBeRemoved: !allAddresses.extraAddresses.has(admin.admin)
   }))
 
   const extraAdminsWithNames = Array.from(allAddresses.extraAddresses).map((address) => ({

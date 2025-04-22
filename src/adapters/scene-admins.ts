@@ -1,4 +1,4 @@
-import { AppComponents } from '../types'
+import { AppComponents, SceneAdmin } from '../types'
 import { ISceneAdmins } from '../types/scene.type'
 import { PlaceAttributes } from '../types/places.type'
 import { PermissionType } from '../types/worlds.type'
@@ -12,9 +12,9 @@ export async function createSceneAdminsComponent(
     place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position'>,
     admin?: string
   ): Promise<{
-    admins: Set<string>
+    admins: Set<SceneAdmin>
     extraAddresses: Set<string>
-    addresses: string[]
+    addresses: Set<string>
   }> {
     const { worlds, lands, sceneAdminManager } = components
 
@@ -60,9 +60,9 @@ export async function createSceneAdminsComponent(
     }
 
     return {
-      admins: new Set(admins.map((admin) => admin.admin)),
+      admins: new Set(admins),
       extraAddresses,
-      addresses: [...new Set([...admins.map((admin) => admin.admin), ...extraAddresses])]
+      addresses: new Set([...admins.map((admin) => admin.admin), ...extraAddresses])
     }
   }
 
