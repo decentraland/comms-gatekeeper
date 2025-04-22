@@ -94,6 +94,7 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.livekit.removeIngress.resolves(mockIngress)
+    stubComponents.notifications.sendNotificationType.resolves()
   })
 
   afterEach(async () => {
