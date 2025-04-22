@@ -692,24 +692,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       active: true
     }
 
-    stubComponents.worlds.fetchWorldActionPermissions.resolves({
-      permissions: {
-        deployment: {
-          type: PermissionType.AllowList,
-          wallets: [nonOwner.authChain[0].payload]
-        },
-        streaming: {
-          type: PermissionType.AllowList,
-          wallets: []
-        },
-        access: {
-          type: PermissionType.AllowList,
-          wallets: []
-        }
-      },
-      owner: owner.authChain[0].payload
-    })
-
     stubComponents.names.getNamesFromAddresses.resolves({
       [admin.authChain[0].payload]: 'TestUser#1234',
       [nonOwner.authChain[0].payload]: 'SirTest'
@@ -717,7 +699,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     const expectedAdmins = [
       { ...mockAdmin1, name: 'TestUser#1234', canBeRemoved: true },
-      { ...mockAdmin2, name: 'SirTest', canBeRemoved: false },
+      { admin: mockAdmin2.admin, name: 'SirTest', canBeRemoved: false },
       {
         admin: '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd',
         canBeRemoved: false,
@@ -725,7 +707,11 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       }
     ]
 
-    stubComponents.sceneAdminManager.listActiveAdmins.resolves([mockAdmin1, mockAdmin2])
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+      admins: new Set([mockAdmin1]),
+      extraAddresses: new Set([mockAdmin2.admin, '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']),
+      addresses: new Set([mockAdmin1.admin, mockAdmin2.admin, '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd'])
+    })
 
     const response = await makeRequest(
       localFetch,
@@ -747,14 +733,17 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.lands.getLandOperators.resolves({
-      owner: '0xOwnerAddress',
-      operator: '0xOperatorAddress'
-    })
+
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
+    })
+
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+      admins: new Set([]),
+      extraAddresses: new Set(['0xOwnerAddress', '0xOperatorAddress']),
+      addresses: new Set([admin.authChain[0].payload, '0xOwnerAddress', '0xOperatorAddress'])
     })
 
     const response = await makeRequest(
@@ -770,30 +759,27 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(Array.isArray(body)).toBe(true)
-    expect(body).toContainEqual({
-      admin: '0xowneraddress',
-      canBeRemoved: false,
-      name: ''
-    })
-    expect(body).toContainEqual({
-      admin: '0xoperatoraddress',
-      canBeRemoved: false,
-      name: ''
-    })
-    expect(stubComponents.lands.getLandOperators.calledOnce).toBe(true)
+    expect(body).toEqual([
+      { admin: '0xOwnerAddress', canBeRemoved: false, name: '' },
+      { admin: '0xOperatorAddress', canBeRemoved: false, name: '' }
+    ])
+    expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses.calledOnce).toBe(true)
   })
 
   it('returns 200 with a list of scene admins including only land owner when no operator exists', async () => {
     const { localFetch } = components
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.lands.getLandOperators.resolves({
-      owner: '0xOwnerAddress'
-    })
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
       hasExtendedPermissions: false
+    })
+
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+      admins: new Set([]),
+      extraAddresses: new Set(['0xOwnerAddress']),
+      addresses: new Set([admin.authChain[0].payload, '0xOwnerAddress'])
     })
 
     const response = await makeRequest(
@@ -809,19 +795,21 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(Array.isArray(body)).toBe(true)
-    expect(body).toContainEqual({
-      admin: '0xowneraddress',
-      canBeRemoved: false,
-      name: ''
-    })
-    expect(stubComponents.lands.getLandOperators.calledOnce).toBe(true)
+    expect(body).toEqual([
+      {
+        admin: '0xOwnerAddress',
+        canBeRemoved: false,
+        name: ''
+      }
+    ])
+    expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses.calledOnce).toBe(true)
   })
 
   it('returns 500 when land operators request fails', async () => {
     const { localFetch } = components
 
     stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.lands.getLandOperators.rejects(new Error('Failed to get land operators'))
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.rejects(new Error('Failed to get land operators'))
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
@@ -839,6 +827,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     )
 
     expect(response.status).toBe(500)
-    expect(stubComponents.lands.getLandOperators.calledOnce).toBe(true)
+    expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses.calledOnce).toBe(true)
   })
 })
