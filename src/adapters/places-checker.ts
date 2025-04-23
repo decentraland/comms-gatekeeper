@@ -43,17 +43,16 @@ export async function createPlaceChecker(
           }
           logger.info(`Places disabled found: ${placesDisabled.map((place) => place.id).join(', ')}`)
 
+          const disabledPlaceIds = placesDisabled.map((place) => place.id)
           await Promise.all([
-            sceneAdminManager.removeAllAdminsByPlaceIds(placesDisabled.map((place) => place.id)),
-            sceneStreamAccessManager.removeAccessByPlaceIds(placesDisabled.map((place) => place.id)),
+            sceneAdminManager.removeAllAdminsByPlaceIds(disabledPlaceIds),
+            sceneStreamAccessManager.removeAccessByPlaceIds(disabledPlaceIds),
             ...placesDisabled.map((place) =>
               notifications.sendNotificationType(NotificationStreamingType.STREAMING_PLACE_UPDATED, place)
             )
           ])
 
-          logger.info(
-            `All admins and stream access removed for places: ${placesDisabled.map((place) => place.id).join(', ')}`
-          )
+          logger.info(`All admins and stream access removed for places: ${disabledPlaceIds.join(', ')}`)
           return
         } catch (error) {
           logger.error(`Error while checking places: ${error}`)

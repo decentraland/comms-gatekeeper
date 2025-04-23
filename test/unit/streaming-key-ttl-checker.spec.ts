@@ -49,6 +49,12 @@ describe('StreamingKeyTTLChecker', () => {
       },
       livekit: {
         removeIngress: jest.fn()
+      },
+      places: {
+        getPlaceStatusById: jest.fn().mockResolvedValue([{ id: 'test-place' }])
+      },
+      notifications: {
+        sendNotificationType: jest.fn()
       }
     }
 
@@ -81,9 +87,11 @@ describe('StreamingKeyTTLChecker', () => {
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
         'Running job to remove expired streaming keys.'
       )
+      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 1 expired streaming keys.')
       expect(mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys).toHaveBeenCalled()
       expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('test-ingress')
       expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('test-place')
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalled()
     })
 
     it('should handle errors gracefully', async () => {
