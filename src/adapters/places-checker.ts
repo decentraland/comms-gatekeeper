@@ -46,13 +46,19 @@ export async function createPlaceChecker(
           const disabledPlaceIds = placesDisabled.map((place) => place.id)
           await Promise.all([
             sceneAdminManager.removeAllAdminsByPlaceIds(disabledPlaceIds),
-            sceneStreamAccessManager.removeAccessByPlaceIds(disabledPlaceIds),
-            ...placesDisabled.map((place) =>
-              notifications.sendNotificationType(NotificationStreamingType.STREAMING_PLACE_UPDATED, place)
-            )
+            sceneStreamAccessManager.removeAccessByPlaceIds(disabledPlaceIds)
           ])
 
           logger.info(`All admins and stream access removed for places: ${disabledPlaceIds.join(', ')}`)
+
+          for (const place of placesDisabled) {
+            try {
+              await notifications.sendNotificationType(NotificationStreamingType.STREAMING_PLACE_UPDATED, place)
+            } catch (error) {
+              logger.error(`Error sending notification for place ${place.id}: ${error}`)
+            }
+          }
+
           return
         } catch (error) {
           logger.error(`Error while checking places: ${error}`)

@@ -11,8 +11,8 @@ export async function createNotificationsComponent({
 }: Pick<AppComponents, 'config' | 'fetch' | 'logs' | 'sceneAdmins'>): Promise<INotifications> {
   const logger = logs.getLogger('notifications')
   const [notificationServiceUrl, authToken] = await Promise.all([
-    config.getString('NOTIFICATION_SERVICE_URL'),
-    config.getString('NOTIFICATION_SERVICE_TOKEN')
+    config.requireString('NOTIFICATION_SERVICE_URL'),
+    config.requireString('NOTIFICATION_SERVICE_TOKEN')
   ])
 
   if (!!notificationServiceUrl && !authToken) {
@@ -22,7 +22,7 @@ export async function createNotificationsComponent({
   logger.info(`Using notification service at ${notificationServiceUrl}`)
 
   async function sendNotifications(notifications: Notification[]): Promise<void> {
-    logger.info(`Sending ${notifications.length} notifications`, { notifications: JSON.stringify(notifications) })
+    logger.info(`Sending notifications to ${notifications.map((notification) => notification.address).join(', ')}`)
     await fetch.fetch(`${notificationServiceUrl}/notifications`, {
       method: 'POST',
       headers: {

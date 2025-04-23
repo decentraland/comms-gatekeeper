@@ -23,7 +23,7 @@ describe('SceneAdmins', () => {
   })
 
   describe('getAdminsAndExtraAddresses', () => {
-    it('should include world owner, deployers and streamers when place is a world', async () => {
+    it('should resolve with the world owner, deployers and streamers when place is a world', async () => {
       const place = {
         id: 'test-place',
         world: true,
@@ -159,6 +159,20 @@ describe('SceneAdmins', () => {
 
       const error = new Error('Test error')
       mockedComponents.worlds.fetchWorldActionPermissions.mockRejectedValue(error)
+
+      await expect(sceneAdmins.getAdminsAndExtraAddresses(place)).rejects.toThrow('Test error')
+    })
+
+    it('should propagate errors from land operators fetch', async () => {
+      const place = {
+        id: 'test-place',
+        world: false,
+        world_name: undefined,
+        base_position: '0,0'
+      }
+
+      const error = new Error('Test error')
+      mockedComponents.lands.getLandOperators.mockRejectedValue(error)
 
       await expect(sceneAdmins.getAdminsAndExtraAddresses(place)).rejects.toThrow('Test error')
     })

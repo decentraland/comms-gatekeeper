@@ -2,6 +2,7 @@ import { createStreamingTTLChecker } from '../../src/adapters/streaming-ttl-chec
 import { CronJob } from 'cron'
 import { IBaseComponent } from '@well-known-components/interfaces'
 import { IStreamingChecker } from '../../src/types/checker.type'
+import { NotificationStreamingType } from '../../src/types/notification.type'
 
 jest.mock('cron', () => ({
   CronJob: jest.fn().mockImplementation((cronTime, onTick, onComplete, start, timeZone) => {
@@ -124,6 +125,14 @@ describe('StreamingTTLChecker', () => {
       expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledWith('ingress2')
 
       expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledTimes(2)
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
+        NotificationStreamingType.STREAMING_TIME_EXCEEDED,
+        { id: 'place1' }
+      )
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
+        NotificationStreamingType.STREAMING_TIME_EXCEEDED,
+        { id: 'place2' }
+      )
 
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
         'Ingress ingress1 revoked correctly from LiveKit and streaming killed'

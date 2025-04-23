@@ -2,6 +2,7 @@ import { createPlaceChecker } from '../../src/adapters/places-checker'
 import { CronJob } from 'cron'
 import { IBaseComponent } from '@well-known-components/interfaces'
 import { IPlaceChecker } from '../../src/types/checker.type'
+import { NotificationStreamingType } from '../../src/types/notification.type'
 
 jest.mock('cron', () => ({
   CronJob: jest.fn().mockImplementation((cronTime, onTick, onComplete, start, timeZone) => {
@@ -100,7 +101,10 @@ describe('PlaceChecker', () => {
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Places disabled found: place2')
       expect(mockedComponents.sceneAdminManager.removeAllAdminsByPlaceIds).toHaveBeenCalledWith(['place2'])
       expect(mockedComponents.sceneStreamAccessManager.removeAccessByPlaceIds).toHaveBeenCalledWith(['place2'])
-      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalled()
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
+        NotificationStreamingType.STREAMING_PLACE_UPDATED,
+        { id: 'place2', disabled: true }
+      )
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
         'All admins and stream access removed for places: place2'
       )

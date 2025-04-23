@@ -2,6 +2,7 @@ import { createStreamingKeyTTLChecker } from '../../src/adapters/streaming-key-t
 import { CronJob } from 'cron'
 import { IBaseComponent } from '@well-known-components/interfaces'
 import { IStreamingKeyChecker } from '../../src/types/checker.type'
+import { NotificationStreamingType } from '../../src/types/notification.type'
 
 jest.mock('cron', () => ({
   CronJob: jest.fn().mockImplementation((cronTime, onTick, onComplete, start, timeZone) => {
@@ -91,7 +92,10 @@ describe('StreamingKeyTTLChecker', () => {
       expect(mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys).toHaveBeenCalled()
       expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('test-ingress')
       expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('test-place')
-      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalled()
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
+        NotificationStreamingType.STREAMING_KEY_EXPIRED,
+        { id: 'test-place' }
+      )
     })
 
     it('should handle errors gracefully', async () => {

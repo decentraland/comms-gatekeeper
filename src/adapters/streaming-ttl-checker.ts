@@ -35,7 +35,14 @@ export async function createStreamingTTLChecker(
 
           const placesIdsWithExpiredStreamings = expiredStreamings.map((streaming) => streaming.place_id)
 
-          const placesWithExpiredStreamings = await places.getPlaceStatusById(placesIdsWithExpiredStreamings)
+          const BATCH_SIZE = 100
+          let placesWithExpiredStreamings: Awaited<ReturnType<typeof places.getPlaceStatusById>> = []
+
+          for (let i = 0; i < placesIdsWithExpiredStreamings.length; i += BATCH_SIZE) {
+            const batch = placesIdsWithExpiredStreamings.slice(i, i + BATCH_SIZE)
+            const batchResults = await places.getPlaceStatusById(batch)
+            placesWithExpiredStreamings = [...placesWithExpiredStreamings, ...batchResults]
+          }
 
           const placesById = placesWithExpiredStreamings.reduce<
             Record<string, (typeof placesWithExpiredStreamings)[0]>
