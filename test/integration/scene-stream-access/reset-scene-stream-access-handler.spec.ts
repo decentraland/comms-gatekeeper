@@ -99,6 +99,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.livekit.getSceneRoomName.resolves(`test-realm:test-scene`)
     stubComponents.livekit.getWorldRoomName.resolves(`name.dcl.eth`)
+    stubComponents.notifications.sendNotificationType.resolves()
   })
 
   afterEach(async () => {

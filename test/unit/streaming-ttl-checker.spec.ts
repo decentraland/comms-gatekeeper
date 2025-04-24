@@ -2,6 +2,7 @@ import { createStreamingTTLChecker } from '../../src/adapters/streaming-ttl-chec
 import { CronJob } from 'cron'
 import { IBaseComponent } from '@well-known-components/interfaces'
 import { IStreamingChecker } from '../../src/types/checker.type'
+import { NotificationStreamingType } from '../../src/types/notification.type'
 
 jest.mock('cron', () => ({
   CronJob: jest.fn().mockImplementation((cronTime, onTick, onComplete, start, timeZone) => {
@@ -49,6 +50,12 @@ describe('StreamingTTLChecker', () => {
       },
       livekit: {
         removeIngress: jest.fn()
+      },
+      places: {
+        getPlaceStatusById: jest.fn().mockResolvedValue([{ id: 'place1' }, { id: 'place2' }])
+      },
+      notifications: {
+        sendNotificationType: jest.fn()
       }
     }
 
@@ -79,31 +86,25 @@ describe('StreamingTTLChecker', () => {
     it('should handle active streamings that have not expired', async () => {
       const now = Date.now()
       const mockStreamings = [
-        { ingress_id: 'ingress1', created_at: now - 1000 * 60 * 60 }, // 1 hour old
-        { ingress_id: 'ingress2', created_at: now - 1000 * 60 * 60 * 2 } // 2 hours old
+        { ingress_id: 'ingress1', created_at: now - 1000 * 60 * 60, place_id: 'place1' }, // 1 hour old
+        { ingress_id: 'ingress2', created_at: now - 1000 * 60 * 60 * 2, place_id: 'place2' } // 2 hours old
       ]
 
-      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValue(mockStreamings)
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValue([])
       await executeOnTick(streamingChecker, startOptions)
 
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Looking into active streamings.')
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 2 active streamings to verify.')
-      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
-        'Found 2 streamings that exceed the maximum allowed time.'
-      )
-      expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledTimes(2)
-      expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('ingress1')
-      expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('ingress2')
-      expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledTimes(2)
-      expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledWith('ingress1')
-      expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledWith('ingress2')
+      expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 0 active streamings to verify.')
+      expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledTimes(0)
+      expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledTimes(0)
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledTimes(0)
     })
 
     it('should handle expired streamings', async () => {
       const now = Date.now()
       const mockStreamings = [
-        { ingress_id: 'ingress1', created_at: now - 1000 * 60 * 60 * 5 }, // 5 hours old
-        { ingress_id: 'ingress2', created_at: now - 1000 * 60 * 60 * 6 } // 6 hours old
+        { ingress_id: 'ingress1', created_at: now - 1000 * 60 * 60 * 5, place_id: 'place1' }, // 5 hours old
+        { ingress_id: 'ingress2', created_at: now - 1000 * 60 * 60 * 6, place_id: 'place2' } // 6 hours old
       ]
 
       mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValue(mockStreamings)
@@ -122,6 +123,16 @@ describe('StreamingTTLChecker', () => {
       expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledTimes(2)
       expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledWith('ingress1')
       expect(mockedComponents.sceneStreamAccessManager.killStreaming).toHaveBeenCalledWith('ingress2')
+
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledTimes(2)
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
+        NotificationStreamingType.STREAMING_TIME_EXCEEDED,
+        { id: 'place1' }
+      )
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
+        NotificationStreamingType.STREAMING_TIME_EXCEEDED,
+        { id: 'place2' }
+      )
 
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
         'Ingress ingress1 revoked correctly from LiveKit and streaming killed'

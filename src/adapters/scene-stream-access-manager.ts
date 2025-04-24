@@ -108,10 +108,12 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rowCount > 0 && result.rows[0].streaming
   }
 
-  async function getExpiredStreamAccesses(): Promise<Pick<SceneStreamAccess, 'streaming_start_time' | 'ingress_id'>[]> {
-    const result = await database.query<Pick<SceneStreamAccess, 'streaming_start_time' | 'ingress_id'>>(
+  async function getExpiredStreamAccesses(): Promise<
+    Pick<SceneStreamAccess, 'streaming_start_time' | 'ingress_id' | 'place_id'>[]
+  > {
+    const result = await database.query<Pick<SceneStreamAccess, 'streaming_start_time' | 'ingress_id' | 'place_id'>>(
       SQL`
-      SELECT streaming_start_time, ingress_id 
+      SELECT streaming_start_time, ingress_id, place_id
       FROM scene_stream_access 
       WHERE active = true 
         AND streaming = true AND ${Date.now()} - streaming_start_time > ${FOUR_HOURS} 

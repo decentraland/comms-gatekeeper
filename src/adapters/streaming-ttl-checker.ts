@@ -1,11 +1,12 @@
 import { AppComponents } from '../types'
 import { IStreamingChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
+import { NotificationStreamingType } from '../types/notification.type'
 
 export async function createStreamingTTLChecker(
-  components: Pick<AppComponents, 'logs' | 'sceneStreamAccessManager' | 'livekit'>
+  components: Pick<AppComponents, 'logs' | 'sceneStreamAccessManager' | 'livekit' | 'notifications' | 'places'>
 ): Promise<IStreamingChecker> {
-  const { logs, sceneStreamAccessManager, livekit } = components
+  const { logs, sceneStreamAccessManager, livekit, notifications, places } = components
   const logger = logs.getLogger(`streaming-ttl-checker`)
   let job: CronJob
   let isProcessing = false
@@ -32,12 +33,31 @@ export async function createStreamingTTLChecker(
 
           logger.info(`Found ${expiredStreamings.length} streamings that exceed the maximum allowed time.`)
 
-          const ingressIdsToRevoke = expiredStreamings.map((streaming) => streaming.ingress_id)
+          const placesIdsWithExpiredStreamings = expiredStreamings.map((streaming) => streaming.place_id)
 
-          for (const ingressId of ingressIdsToRevoke) {
+          const BATCH_SIZE = 100
+          let placesWithExpiredStreamings: Awaited<ReturnType<typeof places.getPlaceStatusById>> = []
+
+          for (let i = 0; i < placesIdsWithExpiredStreamings.length; i += BATCH_SIZE) {
+            const batch = placesIdsWithExpiredStreamings.slice(i, i + BATCH_SIZE)
+            const batchResults = await places.getPlaceStatusById(batch)
+            placesWithExpiredStreamings = [...placesWithExpiredStreamings, ...batchResults]
+          }
+
+          const placesById = placesWithExpiredStreamings.reduce<
+            Record<string, (typeof placesWithExpiredStreamings)[0]>
+          >((acc, place) => {
+            acc[place.id] = place
+            return acc
+          }, {})
+
+          for (const expiredStreaming of expiredStreamings) {
+            const { ingress_id: ingressId, place_id: placeId } = expiredStreaming
+            const place = placesById[placeId]
             try {
               await livekit.removeIngress(ingressId)
               await sceneStreamAccessManager.killStreaming(ingressId)
+              await notifications.sendNotificationType(NotificationStreamingType.STREAMING_TIME_EXCEEDED, place)
               logger.info(`Ingress ${ingressId} revoked correctly from LiveKit and streaming killed`)
             } catch (error) {
               logger.error(`Error revoking ingress ${ingressId} or killing streaming: ${error}`)

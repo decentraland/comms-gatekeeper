@@ -3,20 +3,18 @@ import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate, validateFilters } from '../../../logic/utils'
 import { PlaceAttributes } from '../../../types/places.type'
-import { PermissionsOverWorld, PermissionType } from '../../../types/worlds.type'
-import { LandsParcelOperatorsResponse } from '../../../types/lands.type'
 
 export async function listSceneAdminsHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'names' | 'worlds' | 'lands',
+      'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'names' | 'sceneAdmins',
       '/scene-admin'
     >,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places, names, worlds, lands },
+    components: { logs, sceneManager, places, names, sceneAdmins },
     url,
     verification
   } = ctx
@@ -24,8 +22,6 @@ export async function listSceneAdminsHandler(
   const logger = logs.getLogger('list-scene-admins-handler')
   const { getPlaceByWorldName, getPlaceByParcel } = places
   const { isSceneOwnerOrAdmin } = sceneManager
-  const { fetchWorldActionPermissions } = worlds
-  const { getLandOperators } = lands
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
@@ -68,56 +64,17 @@ export async function listSceneAdminsHandler(
     throw new InvalidRequestError(`Invalid parameters: ${validationResult.error}`)
   }
 
-  const sceneAdminFilters = {
-    place_id: place.id,
-    admin: validationResult.value.admin
-  }
+  const allAddresses = await sceneAdmins.getAdminsAndExtraAddresses(place, validationResult.value.admin)
 
-  const admins = await sceneAdminManager.listActiveAdmins(sceneAdminFilters)
+  const allNames = await names.getNamesFromAddresses(Array.from(allAddresses.addresses))
 
-  const extraAddresses = new Set<string>()
-  let worldActionPermissions: PermissionsOverWorld | undefined
-  let landActionPermissions: LandsParcelOperatorsResponse | undefined
-
-  if (isWorlds) {
-    worldActionPermissions = await fetchWorldActionPermissions(place.world_name!)
-  } else {
-    landActionPermissions = await getLandOperators(parcel)
-  }
-
-  if (landActionPermissions) {
-    extraAddresses.add(landActionPermissions.owner.toLowerCase())
-    landActionPermissions.operator && extraAddresses.add(landActionPermissions.operator.toLowerCase())
-  }
-
-  if (worldActionPermissions?.permissions.deployment.type === PermissionType.AllowList) {
-    worldActionPermissions.permissions.deployment.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
-  }
-
-  if (worldActionPermissions?.permissions.streaming.type === PermissionType.AllowList) {
-    worldActionPermissions.permissions.streaming.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
-  }
-
-  const ownerAddress = worldActionPermissions?.owner
-
-  if (ownerAddress) {
-    extraAddresses.add(ownerAddress.toLowerCase())
-  }
-
-  const allAddresses = [...new Set([...admins.map((admin) => admin.admin), ...extraAddresses])]
-  const allNames = await names.getNamesFromAddresses(allAddresses)
-
-  const adminsWithNames = admins.map((admin) => ({
+  const adminsWithNames = Array.from(allAddresses.admins).map((admin) => ({
     ...admin,
     name: allNames[admin.admin] || '',
-    canBeRemoved: !extraAddresses.has(admin.admin)
+    canBeRemoved: !allAddresses.extraAddresses.has(admin.admin)
   }))
 
-  const extraAddressesNotInAdmins = [...extraAddresses].filter(
-    (address) => !admins.some((admin) => admin.admin.toLowerCase() === address.toLowerCase())
-  )
-
-  const extraAdminsWithNames = extraAddressesNotInAdmins.map((address) => ({
+  const extraAdminsWithNames = Array.from(allAddresses.extraAddresses).map((address) => ({
     admin: address,
     name: allNames[address] || '',
     canBeRemoved: false

@@ -4,18 +4,26 @@ import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { PlaceAttributes } from '../../../types/places.type'
+import { NotificationStreamingType } from '../../../types/notification.type'
 
 export async function resetSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'livekit' | 'logs' | 'config',
+      | 'fetch'
+      | 'sceneStreamAccessManager'
+      | 'sceneManager'
+      | 'places'
+      | 'livekit'
+      | 'logs'
+      | 'config'
+      | 'notifications',
       '/scene-stream-access/reset'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit },
+    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, notifications },
     verification
   } = ctx
   const logger = logs.getLogger('reset-scene-stream-access-handler')
@@ -71,6 +79,8 @@ export async function resetSceneStreamAccessHandler(
     streaming_key: ingress.streamKey!,
     ingress_id: ingress.ingressId!
   })
+
+  await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_RESET, place)
 
   return {
     status: 200,

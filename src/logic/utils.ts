@@ -1,6 +1,9 @@
 import { DecentralandSignatureData, verify } from '@dcl/platform-crypto-middleware'
 import { HandlerContextWithPath, AuthData } from '../types'
 import { UnauthorizedError } from '../types/errors'
+import { PlaceAttributes } from '../types/places.type'
+import { NotificationStreamingType } from '../types/notification.type'
+import { StreamingMetadata } from '../types/notification.type'
 
 export async function oldValidate<T extends string>(
   context: HandlerContextWithPath<'fetch' | 'config', T>
@@ -86,4 +89,55 @@ export function validateFilters(filters: { admin?: string }): {
       admin: filters.admin ? filters.admin.toLowerCase() : undefined
     }
   }
+}
+
+export function getExplorerUrl(place: Pick<PlaceAttributes, 'world' | 'world_name' | 'base_position'>): string {
+  const customProtocolParams: string[] = [`position=${place.base_position}`]
+
+  if (place.world) {
+    customProtocolParams.push(`realm=${place.world_name}`)
+  }
+
+  const customProtocolTarget = `decentraland://?${customProtocolParams.join('&')}`
+
+  return customProtocolTarget
+}
+
+export function getNotificationMetadata(
+  type: NotificationStreamingType,
+  place: Pick<PlaceAttributes, 'world' | 'world_name' | 'base_position'>
+): Omit<StreamingMetadata, 'address'> {
+  const metadata = {
+    title: '',
+    description: '',
+    position: place.base_position,
+    worldName: place.world_name,
+    isWorld: place.world,
+    url: getExplorerUrl(place)
+  }
+  switch (type) {
+    case NotificationStreamingType.STREAMING_KEY_RESET:
+      metadata.title = 'Stream Key Reset'
+      metadata.description = `Check the Admin Tools panel at ${place.world ? place.world_name : place.base_position} to get the new key.`
+      break
+    case NotificationStreamingType.STREAMING_KEY_REVOKE:
+      metadata.title = 'Stream Key Deactivated'
+      metadata.description = `Check the Admin Tools panel at ${place.world ? place.world_name : place.base_position} if you need a new key.`
+      break
+    case NotificationStreamingType.STREAMING_KEY_EXPIRED:
+      metadata.title = 'Stream Key Expired'
+      metadata.description = `Go to the Admin Tools panel at ${place.world ? place.world_name : place.base_position} if you need a new key.`
+      break
+    case NotificationStreamingType.STREAMING_TIME_EXCEEDED:
+      metadata.title = 'Stream Timed Out'
+      metadata.description = `Restart your stream in your broadcasting software (e.g. OBS) if you'd like to continue streaming to the scene at ${place.world ? place.world_name : place.base_position}`
+      break
+    case NotificationStreamingType.STREAMING_PLACE_UPDATED:
+      metadata.title = 'Stream Location Altered'
+      metadata.description = `If you'd like to stream to ${place.world ? place.world_name : place.base_position} please generate a new stream key from the Admin Tools panel in Decentraland.`
+      break
+    default:
+      throw new Error(`Invalid notification type: ${type}`)
+  }
+  return metadata
 }

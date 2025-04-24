@@ -2,11 +2,12 @@ import { isErrorWithMessage } from '../logic/errors'
 import { AppComponents } from '../types'
 import { IStreamingKeyChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
+import { NotificationStreamingType } from '../types/notification.type'
 
 export async function createStreamingKeyTTLChecker(
-  components: Pick<AppComponents, 'logs' | 'sceneStreamAccessManager' | 'livekit'>
+  components: Pick<AppComponents, 'logs' | 'sceneStreamAccessManager' | 'livekit' | 'places' | 'notifications'>
 ): Promise<IStreamingKeyChecker> {
-  const { logs, sceneStreamAccessManager, livekit } = components
+  const { logs, sceneStreamAccessManager, livekit, places, notifications } = components
   const logger = logs.getLogger(`streaming-key-ttl-checker`)
   let job: CronJob
 
@@ -24,9 +25,31 @@ export async function createStreamingKeyTTLChecker(
             return
           }
 
-          for (const expiredKey of expiredStreamingKeys) {
-            await livekit.removeIngress(expiredKey.ingress_id)
-            await sceneStreamAccessManager.removeAccess(expiredKey.place_id)
+          const placesIdsWithExpiredKeys = expiredStreamingKeys.map((streaming) => streaming.place_id)
+
+          const BATCH_SIZE = 100
+          let placesWithExpiredKeys: Awaited<ReturnType<typeof places.getPlaceStatusById>> = []
+
+          for (let i = 0; i < placesIdsWithExpiredKeys.length; i += BATCH_SIZE) {
+            const batch = placesIdsWithExpiredKeys.slice(i, i + BATCH_SIZE)
+            const batchResults = await places.getPlaceStatusById(batch)
+            placesWithExpiredKeys = [...placesWithExpiredKeys, ...batchResults]
+          }
+
+          const placesById = placesWithExpiredKeys.reduce<Record<string, (typeof placesWithExpiredKeys)[0]>>(
+            (acc, place) => {
+              acc[place.id] = place
+              return acc
+            },
+            {}
+          )
+
+          for (const expiredStreamKey of expiredStreamingKeys) {
+            const { ingress_id: ingressId, place_id: placeId } = expiredStreamKey
+            const place = placesById[placeId]
+            await livekit.removeIngress(ingressId)
+            await sceneStreamAccessManager.removeAccess(placeId)
+            await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_EXPIRED, place)
           }
         } catch (error) {
           logger.error(
