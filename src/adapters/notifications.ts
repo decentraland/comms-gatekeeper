@@ -15,10 +15,6 @@ export async function createNotificationsComponent({
     config.requireString('NOTIFICATION_SERVICE_TOKEN')
   ])
 
-  if (!!notificationServiceUrl && !authToken) {
-    throw new Error('Notification service URL provided without a token')
-  }
-
   logger.info(`Using notification service at ${notificationServiceUrl}`)
 
   async function sendNotifications(notifications: Notification[]): Promise<void> {
