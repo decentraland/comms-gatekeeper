@@ -805,16 +805,10 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses.calledOnce).toBe(true)
   })
 
-  it('returns 500 when land operators request fails', async () => {
+  it('returns 500 when getAdminsAndExtraAddresses request fails', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.rejects(new Error('Failed to get land operators'))
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.rejects(new Error('Failed to get admins and extra addresses'))
 
     const response = await makeRequest(
       localFetch,
