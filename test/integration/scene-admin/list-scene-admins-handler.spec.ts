@@ -113,19 +113,13 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
-    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: false
-    })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
-    stubComponents.sceneAdminManager.listActiveAdmins.resolves(allAdminResults)
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+      admins: new Set(allAdminResults.filter((admin) => admin.canBeRemoved && 'id' in admin && 'place_id' in admin)),
+      extraAddresses: new Set(allAdminResults.filter((admin) => !admin.canBeRemoved).map((admin) => admin.admin)),
+      addresses: new Set(allAdminResults.map((admin) => admin.admin))
+    })
 
     stubComponents.names.getNamesFromAddresses.resolves({
       [admin.authChain[0].payload]: '',
@@ -140,13 +134,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
   it('returns 200 with a list of scene admins when user has land permission', async () => {
     const { localFetch } = components
-
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
 
     const response = await makeRequest(
       localFetch,
@@ -174,13 +161,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
 
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
-
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -206,13 +186,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world_name: 'name.dcl.eth',
       world: true
     } as PlaceAttributes)
-
-    stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: true
-    })
 
     const response = await makeRequest(
       localFetch,
@@ -240,13 +213,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
 
-    stubComponents.worlds.hasWorldDeployPermission.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: true
-    })
-
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -265,13 +231,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
   it('returns 200 with a list of scene admins when user is an admin', async () => {
     const { localFetch } = components
-
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: true,
-      hasExtendedPermissions: false
-    })
 
     const response = await makeRequest(
       localFetch,
@@ -292,12 +251,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 200 with a list of scene admins and a filtered list when using query parameters', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
-
     const response = await makeRequest(
       localFetch,
       '/scene-admin?admin=' + admin.authChain[0].payload,
@@ -314,14 +267,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 401 when user is not authorized', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: false
-    })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
@@ -376,13 +321,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       positions: ['10,20']
     } as PlaceAttributes)
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
-
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -407,14 +345,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       id: placeId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
-
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
 
     const response = await makeRequest(
       localFetch,
@@ -460,13 +390,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
 
-    stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: true
-    })
-
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -493,13 +416,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
 
-    stubComponents.worlds.hasWorldDeployPermission.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: true
-    })
-
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -519,13 +435,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 200 with a list of scene admins when user has unclaimed name', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
-
     const mockAdmin1 = {
       id: '1',
       place_id: placeId,
@@ -535,32 +444,28 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       updated_at: Date.now(),
       deleted_at: null,
       active: true,
-      canBeRemoved: true
+      canBeRemoved: true,
+      name: 'TestUser#1234'
     }
 
     const mockAdmin2 = {
-      id: '2',
-      place_id: placeId,
       admin: nonOwner.authChain[0].payload,
-      added_by: owner.authChain[0].payload,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      deleted_at: null,
-      active: true,
-      canBeRemoved: true
+      canBeRemoved: false,
+      name: 'SirTest'
     }
+
+    const expectedAdmins = [mockAdmin1, mockAdmin2]
+
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+      admins: new Set([mockAdmin1]),
+      extraAddresses: new Set([mockAdmin2.admin]),
+      addresses: new Set([mockAdmin1.admin, mockAdmin2.admin])
+    })
 
     stubComponents.names.getNamesFromAddresses.resolves({
       [admin.authChain[0].payload]: 'TestUser#1234',
       [nonOwner.authChain[0].payload]: 'SirTest'
     })
-
-    const expectedAdmins = [
-      { ...mockAdmin1, name: 'TestUser#1234' },
-      { ...mockAdmin2, name: 'SirTest' }
-    ]
-
-    stubComponents.sceneAdminManager.listActiveAdmins.resolves(expectedAdmins)
 
     const response = await makeRequest(
       localFetch,
@@ -591,24 +496,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
 
-    stubComponents.worlds.fetchWorldActionPermissions.resolves({
-      permissions: {
-        deployment: {
-          type: PermissionType.AllowList,
-          wallets: [extraAddress1]
-        },
-        streaming: {
-          type: PermissionType.AllowList,
-          wallets: [extraAddress2]
-        },
-        access: {
-          type: PermissionType.AllowList,
-          wallets: []
-        }
-      },
-      owner: '0xUserAddress'
-    })
-
     stubComponents.names.getNamesFromAddresses.resolves({
       [admin.authChain[0].payload]: '',
       [nonOwner.authChain[0].payload]: 'SirTest',
@@ -638,6 +525,14 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       }
     ]
 
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+      admins: new Set(
+        expectedAdmins.filter((admin) => 'id' in admin && 'place_id' in admin) as unknown as Set<SceneAdmin>
+      ),
+      extraAddresses: new Set(expectedAdmins.filter((admin) => !admin.canBeRemoved).map((admin) => admin.admin)),
+      addresses: new Set(expectedAdmins.map((admin) => admin.admin))
+    })
+
     const response = await makeRequest(
       localFetch,
       '/scene-admin',
@@ -663,13 +558,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: true
     } as PlaceAttributes)
 
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
-
     const mockAdmin1 = {
       id: '1',
       place_id: placeId,
@@ -678,39 +566,28 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       created_at: Date.now(),
       updated_at: Date.now(),
       deleted_at: null,
-      active: true
+      active: true,
+      canBeRemoved: true,
+      name: 'TestUser#1234'
     }
 
     const mockAdmin2 = {
-      id: '2',
-      place_id: placeId,
       admin: nonOwner.authChain[0].payload,
-      added_by: owner.authChain[0].payload,
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      deleted_at: null,
-      active: true
+      canBeRemoved: false,
+      name: 'SirTest'
     }
+
+    const expectedAdmins = [mockAdmin1, mockAdmin2]
 
     stubComponents.names.getNamesFromAddresses.resolves({
       [admin.authChain[0].payload]: 'TestUser#1234',
       [nonOwner.authChain[0].payload]: 'SirTest'
     })
 
-    const expectedAdmins = [
-      { ...mockAdmin1, name: 'TestUser#1234', canBeRemoved: true },
-      { admin: mockAdmin2.admin, name: 'SirTest', canBeRemoved: false },
-      {
-        admin: '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd',
-        canBeRemoved: false,
-        name: ''
-      }
-    ]
-
     stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
       admins: new Set([mockAdmin1]),
-      extraAddresses: new Set([mockAdmin2.admin, '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd']),
-      addresses: new Set([mockAdmin1.admin, mockAdmin2.admin, '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd'])
+      extraAddresses: new Set([mockAdmin2.admin]),
+      addresses: new Set([mockAdmin1.admin, mockAdmin2.admin])
     })
 
     const response = await makeRequest(
@@ -731,14 +608,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
   it('returns 200 with a list of scene admins including land operators', async () => {
     const { localFetch } = components
-
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
 
     stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
       admins: new Set([]),
@@ -768,13 +637,6 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
   it('returns 200 with a list of scene admins including only land owner when no operator exists', async () => {
     const { localFetch } = components
-
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: true,
-      admin: false,
-      hasExtendedPermissions: false
-    })
 
     stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
       admins: new Set([]),
