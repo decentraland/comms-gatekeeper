@@ -1,4 +1,4 @@
-import { validateFilters, ensureSlashAtTheEnd } from '../../src/logic/utils'
+import { validateFilters, ensureSlashAtTheEnd, getExplorerUrl } from '../../src/logic/utils'
 
 describe('ensureSlashAtTheEnd', () => {
   it('should add a trailing slash if not present', () => {
@@ -37,5 +37,25 @@ describe('validateFilters', () => {
     const result = validateFilters({ admin: 123 as any })
     expect(result.valid).toBe(false)
     expect(result.error).toBe('admin must be a string')
+  })
+})
+
+describe('getExplorerUrl', () => {
+  it('should return URL with position parameter for non-world places', () => {
+    const place = {
+      world: false,
+      world_name: 'test-world',
+      base_position: '10,20'
+    }
+    expect(getExplorerUrl(place)).toBe('https://decentraland.org/jump/?position=10,20')
+  })
+
+  it('should return URL with realm parameter for world places', () => {
+    const place = {
+      world: true,
+      world_name: 'test-world',
+      base_position: '10,20'
+    }
+    expect(getExplorerUrl(place)).toBe('https://decentraland.org/jump/?realm=test-world')
   })
 })
