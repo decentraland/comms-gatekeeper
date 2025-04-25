@@ -5,6 +5,8 @@ import { PlaceAttributes } from '../types/places.type'
 import { NotificationStreamingType } from '../types/notification.type'
 import { StreamingMetadata } from '../types/notification.type'
 
+const METADATA_IMAGE_URL = 'https://assets-cdn.decentraland.org/streaming/streaming-notification.png'
+
 export async function oldValidate<T extends string>(
   context: HandlerContextWithPath<'fetch' | 'config', T>
 ): Promise<Omit<AuthData, 'realm'>> {
@@ -111,7 +113,8 @@ export function getNotificationMetadata(
     position: place.base_position,
     worldName: place.world_name,
     isWorld: place.world,
-    url: getExplorerUrl(place)
+    url: getExplorerUrl(place),
+    image: METADATA_IMAGE_URL
   }
   switch (type) {
     case NotificationStreamingType.STREAMING_KEY_RESET:

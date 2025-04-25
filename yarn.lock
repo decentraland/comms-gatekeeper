@@ -751,10 +751,10 @@
     "@well-known-components/fetch-component" "^2.0.2"
     "@well-known-components/interfaces" "^1.4.2"
 
-"@dcl/schemas@^16.6.4":
-  version "16.6.4"
-  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-16.6.4.tgz#42ad9174a96b46663f46f6fb0d01861e8cd6b0fb"
-  integrity sha512-fc1uHCw9YwwzlLRXzSCuhuXHeqtzU/dGmVXpIZdpx/ysz1PiVD1UUfzqZ4kLruJs6VOqBk1i0gbT/j5psXcu4A==
+"@dcl/schemas@^16.8.0":
+  version "16.8.0"
+  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-16.8.0.tgz#80f0e1d09ce20c92c0983ae510f275aa653875d2"
+  integrity sha512-4jl8VzcndiT/QECTMz4aWFjTjLMo4UIGOdLihcNf3d3bFxuYLUP5NmKFxwIUl7kaegQ5EbiyZmScl7vcwbOYXQ==
   dependencies:
     ajv "^8.11.0"
     ajv-errors "^3.0.0"

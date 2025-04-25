@@ -9,6 +9,7 @@ export type StreamingMetadata = {
   isWorld: boolean
   url: string
   address: string
+  image: string
 }
 
 export enum NotificationStreamingType {
