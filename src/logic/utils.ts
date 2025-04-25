@@ -5,6 +5,7 @@ import { PlaceAttributes } from '../types/places.type'
 import { NotificationStreamingType } from '../types/notification.type'
 import { StreamingMetadata } from '../types/notification.type'
 
+//TODO: inject the URL through definitions
 const METADATA_IMAGE_URL = 'https://assets-cdn.decentraland.org/streaming/streaming-notification.png'
 
 export async function oldValidate<T extends string>(
