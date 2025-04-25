@@ -92,15 +92,13 @@ export function validateFilters(filters: { admin?: string }): {
 }
 
 export function getExplorerUrl(place: Pick<PlaceAttributes, 'world' | 'world_name' | 'base_position'>): string {
-  const customProtocolParams: string[] = [`position=${place.base_position}`]
+  let customParam: string = `position=${place.base_position}`
 
   if (place.world) {
-    customProtocolParams.push(`realm=${place.world_name}`)
+    customParam = `realm=${place.world_name}`
   }
 
-  const customProtocolTarget = `decentraland://?${customProtocolParams.join('&')}`
-
-  return customProtocolTarget
+  return `https://decentraland.org/jump/?${customParam}`
 }
 
 export function getNotificationMetadata(
