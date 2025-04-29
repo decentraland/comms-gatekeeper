@@ -22,6 +22,7 @@ import { IPlaceChecker, IStreamingChecker, IStreamingKeyChecker } from './types/
 import { ILivekitComponent } from './types/livekit.type'
 import { INotifications } from './types/notification.type'
 import { ISceneAdmins } from './types/scene.type'
+import { IDataWarehouseClient } from './adapters/data-warehouse-client'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -52,6 +53,7 @@ export type BaseComponents = {
   streamingTTLChecker: IStreamingChecker
   streamingKeyTTLChecker: IStreamingKeyChecker
   publisher: IPublisherComponent
+  dataWarehouseClient: IDataWarehouseClient
 }
 
 export type AppComponents = BaseComponents & {

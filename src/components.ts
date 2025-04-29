@@ -27,6 +27,7 @@ import { createStreamingKeyTTLChecker } from './adapters/streaming-key-ttl-check
 import { createSnsComponent } from './adapters/sns'
 import { createNotificationsComponent } from './adapters/notifications'
 import { createSceneAdminsComponent } from './adapters/scene-admins'
+import { createDataWarehouseClient } from './adapters/data-warehouse-client'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -116,6 +117,8 @@ export async function initComponents(): Promise<AppComponents> {
 
   const publisher = await createSnsComponent({ config })
 
+  const dataWarehouseClient = await createDataWarehouseClient({ config, logs, fetch: tracedFetch })
+
   return {
     blockList,
     config,
@@ -141,6 +144,7 @@ export async function initComponents(): Promise<AppComponents> {
     streamingKeyTTLChecker,
     publisher,
     sceneAdmins,
-    notifications
+    notifications,
+    dataWarehouseClient
   }
 }

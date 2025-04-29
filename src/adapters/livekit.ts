@@ -13,6 +13,13 @@ import { AppComponents, Permissions } from '../types'
 import { LivekitIngressNotFoundError } from '../types/errors'
 import { ILivekitComponent, LivekitCredentials, LivekitSettings } from '../types/livekit.type'
 
+export enum WebhookEventName {
+  ParticipantJoined = 'participant_joined',
+  ParticipantLeft = 'participant_left',
+  IngressStarted = 'ingress_started',
+  IngressEnded = 'ingress_ended'
+}
+
 export async function createLivekitComponent(
   components: Pick<AppComponents, 'config' | 'logs'>
 ): Promise<ILivekitComponent> {
