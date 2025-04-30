@@ -34,14 +34,15 @@ export async function livekitWebhookHandler(
 
   const dataWarehouseEvent = WEBHOOK_EVENTS_TO_SEND_TO_DATA_WAREHOUSE[webhookEvent.event]
   if (dataWarehouseEvent) {
-    const { participant } = webhookEvent
+    const { participant, room } = webhookEvent
 
     setImmediate(async () => {
       await dataWarehouseClient.sendEvent({
-        context: 'notification_server',
+        context: 'comms_gatekeeper',
         event: dataWarehouseEvent,
         body: {
-          address: participant?.identity
+          address: participant?.identity,
+          room
         }
       })
     })

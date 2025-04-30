@@ -1,7 +1,7 @@
 import { IConfigComponent, IFetchComponent, ILoggerComponent } from '@well-known-components/interfaces'
 
 export type Event = {
-  context: 'notification_server'
+  context: 'comms_gatekeeper'
   event: 'peer_joined_room' | 'peer_left_room'
   body: {
     env: 'prd' | 'dev'
