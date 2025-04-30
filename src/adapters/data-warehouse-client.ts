@@ -45,7 +45,7 @@ export async function createDwhGenericEventsClient(
   ])
 
   async function sendEvent(event: Event): Promise<void> {
-    logger.info(`Sending event to DataWarehouse ${event.event}"`)
+    logger.info(`Sending event to DataWarehouse ${event.event}`)
 
     await fetch.fetch(apiBaseUrl, {
       method: 'POST',
