@@ -19,7 +19,7 @@ export async function livekitWebhookHandler(
     DecentralandSignatureContext<any>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, livekit, sceneStreamAccessManager, dataWarehouseClient },
+    components: { livekit, sceneStreamAccessManager, dataWarehouseClient },
     request
   } = ctx
 
@@ -46,15 +46,6 @@ export async function livekitWebhookHandler(
         }
       })
     })
-  }
-
-  if (
-    webhookEvent &&
-    (webhookEvent.room?.name === 'dev-brai.dcl.eth' || webhookEvent.event?.toLowerCase().includes('ingress'))
-  ) {
-    const logger = logs.getLogger('livekit-webhook')
-    logger.debug(` >>> webhookEvent`)
-    logger.debug(JSON.stringify(webhookEvent))
   }
 
   const event = webhookEvent.event as WebhookEventNames
