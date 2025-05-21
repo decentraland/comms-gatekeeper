@@ -67,7 +67,13 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       world: true
     } as PlaceAttributes)
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: true,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
@@ -191,7 +197,13 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 204 when user has operator permission', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: true })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: false,
+      operator: true,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
 
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
@@ -276,7 +288,13 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: false,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneManager.getUserScenePermissions.resolves({

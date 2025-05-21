@@ -143,7 +143,13 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
   it('returns 204 when user is an admin and successfully removes streaming access', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: false,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
     stubComponents.sceneManager.getUserScenePermissions.resolves({

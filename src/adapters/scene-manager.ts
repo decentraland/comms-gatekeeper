@@ -8,14 +8,14 @@ export async function createSceneManagerComponent(
   const { worlds, lands, sceneAdminManager } = components
 
   const { hasWorldOwnerPermission, hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
-  const { getLandUpdatePermission } = lands
+  const { getLandPermissions } = lands
 
   async function isSceneOwner(place: PlaceAttributes, address: string): Promise<boolean> {
     const isWorlds = place.world
     if (isWorlds) {
       return await hasWorldOwnerPermission(address, place.world_name!)
     }
-    const landParcelPermission = await getLandUpdatePermission(address, place.positions)
+    const landParcelPermission = await getLandPermissions(address, place.positions)
     return landParcelPermission?.owner
   }
 
@@ -30,7 +30,12 @@ export async function createSceneManagerComponent(
       ])
       hasExtendedPermissions = hasStreamingPermission || hasDeployPermission
     } else if (!isAdmin && !place.world) {
-      hasExtendedPermissions = (await getLandUpdatePermission(address, place.positions)).operator
+      const landParcelPermission = await getLandPermissions(address, place.positions)
+      hasExtendedPermissions =
+        landParcelPermission.operator ||
+        landParcelPermission.updateOperator ||
+        landParcelPermission.updateManager ||
+        landParcelPermission.approvedForAll
     }
     return {
       owner: isOwner,
