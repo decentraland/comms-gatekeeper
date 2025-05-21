@@ -135,8 +135,8 @@ describe('LandsComponent', () => {
     it('should return owner and operator when both exist', async () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
-        operators: ['0xOperatorAddress'],
-        updateOperators: [],
+        operator: '0xOperatorAddress',
+        updateOperators: null,
         updateManagers: [],
         approvedForAll: []
       }
@@ -146,8 +146,8 @@ describe('LandsComponent', () => {
       const result = await landsComponent.getLandOperators('10,20')
       expect(result).toEqual({
         owner: '0xOwnerAddress',
-        operators: ['0xOperatorAddress'],
-        updateOperators: [],
+        operator: '0xOperatorAddress',
+        updateOperators: null,
         updateManagers: [],
         approvedForAll: []
       })
@@ -157,8 +157,8 @@ describe('LandsComponent', () => {
     it('should return update operator when update operator exists', async () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
-        operators: [],
-        updateOperators: ['0xUpdateOperatorAddress'],
+        operator: null,
+        updateOperators: '0xUpdateOperatorAddress',
         updateManagers: [],
         approvedForAll: []
       }
@@ -168,8 +168,8 @@ describe('LandsComponent', () => {
       const result = await landsComponent.getLandOperators('10,20')
       expect(result).toEqual({
         owner: '0xOwnerAddress',
-        operators: [],
-        updateOperators: ['0xUpdateOperatorAddress'],
+        operator: null,
+        updateOperators: '0xUpdateOperatorAddress',
         updateManagers: [],
         approvedForAll: []
       })
@@ -179,8 +179,8 @@ describe('LandsComponent', () => {
     it('should return update manager when update manager exists', async () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
-        operators: [],
-        updateOperators: [],
+        operator: null,
+        updateOperators: null,
         updateManagers: ['0xUpdateManagerAddress'],
         approvedForAll: []
       }
@@ -190,8 +190,8 @@ describe('LandsComponent', () => {
       const result = await landsComponent.getLandOperators('10,20')
       expect(result).toEqual({
         owner: '0xOwnerAddress',
-        operators: [],
-        updateOperators: [],
+        operator: null,
+        updateOperators: null,
         updateManagers: ['0xUpdateManagerAddress'],
         approvedForAll: []
       })
@@ -201,8 +201,8 @@ describe('LandsComponent', () => {
     it('should return approved for all when approved for all exists', async () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
-        operators: [],
-        updateOperators: [],
+        operator: null,
+        updateOperators: null,
         updateManagers: [],
         approvedForAll: ['0xApprovedForAllAddress']
       }
@@ -212,8 +212,8 @@ describe('LandsComponent', () => {
       const result = await landsComponent.getLandOperators('10,20')
       expect(result).toEqual({
         owner: '0xOwnerAddress',
-        operators: [],
-        updateOperators: [],
+        operator: null,
+        updateOperators: null,
         updateManagers: [],
         approvedForAll: ['0xApprovedForAllAddress']
       })
@@ -223,8 +223,8 @@ describe('LandsComponent', () => {
     it('should return only owner when operator does not exist', async () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
-        operators: [],
-        updateOperators: [],
+        operator: null,
+        updateOperators: null,
         updateManagers: [],
         approvedForAll: []
       }
@@ -234,8 +234,8 @@ describe('LandsComponent', () => {
       const result = await landsComponent.getLandOperators('10,20')
       expect(result).toEqual({
         owner: '0xOwnerAddress',
-        operators: [],
-        updateOperators: [],
+        operator: null,
+        updateOperators: null,
         updateManagers: [],
         approvedForAll: []
       })

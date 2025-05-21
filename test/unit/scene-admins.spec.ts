@@ -96,8 +96,8 @@ describe('SceneAdmins', () => {
 
       const mockLandOperators = {
         owner: '0xlandowner1',
-        operators: ['0xoperator1'],
-        updateOperators: [],
+        operator: '0xoperator1',
+        updateOperators: null,
         updateManagers: [],
         approvedForAll: []
       }
@@ -138,8 +138,8 @@ describe('SceneAdmins', () => {
 
       const mockLandOperators = {
         owner: '0xlandowner1',
-        operators: ['0xoperator1'],
-        updateOperators: [],
+        operator: '0xoperator1',
+        updateOperators: null,
         updateManagers: [],
         approvedForAll: []
       }

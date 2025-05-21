@@ -10,8 +10,8 @@ export type LandsParcelPermissionsResponse = {
 
 export type LandsParcelOperatorsResponse = {
   owner: string
-  operators: string[]
-  updateOperators: string[]
+  operator: string | null
+  updateOperators: string | null
   updateManagers: string[]
   approvedForAll: string[]
 }
