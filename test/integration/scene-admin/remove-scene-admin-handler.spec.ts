@@ -102,7 +102,13 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       owner: ownerAddress
     } as PlaceAttributes)
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: false,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.worlds.hasWorldDeployPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)

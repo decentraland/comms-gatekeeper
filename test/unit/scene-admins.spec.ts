@@ -96,7 +96,10 @@ describe('SceneAdmins', () => {
 
       const mockLandOperators = {
         owner: '0xlandowner1',
-        operator: '0xoperator1'
+        operator: '0xoperator1',
+        updateOperators: null,
+        updateManagers: [],
+        approvedForAll: []
       }
 
       mockedComponents.sceneAdminManager.listActiveAdmins.mockResolvedValue([mockAdmin])
@@ -135,7 +138,10 @@ describe('SceneAdmins', () => {
 
       const mockLandOperators = {
         owner: '0xlandowner1',
-        operator: '0xoperator1'
+        operator: '0xoperator1',
+        updateOperators: null,
+        updateManagers: [],
+        approvedForAll: []
       }
 
       mockedComponents.sceneAdminManager.listActiveAdmins.mockResolvedValue([mockAdmin])

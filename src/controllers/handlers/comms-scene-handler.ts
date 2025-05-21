@@ -1,8 +1,8 @@
+import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
 import { oldValidate } from '../../logic/utils'
-import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<

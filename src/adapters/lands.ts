@@ -11,7 +11,7 @@ export async function createLandsComponent(
 
   const lambdasUrl = await config.requireString('LAMBDAS_URL')
 
-  async function getLandUpdatePermission(
+  async function getLandPermissions(
     authAddress: string,
     placePositions: string[]
   ): Promise<LandsParcelPermissionsResponse> {
@@ -56,7 +56,7 @@ export async function createLandsComponent(
   }
 
   return {
-    getLandUpdatePermission,
+    getLandPermissions,
     getLandOperators
   }
 }

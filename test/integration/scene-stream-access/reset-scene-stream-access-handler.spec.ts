@@ -95,7 +95,13 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: true,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.livekit.getSceneRoomName.resolves(`test-realm:test-scene`)
     stubComponents.livekit.getWorldRoomName.resolves(`name.dcl.eth`)

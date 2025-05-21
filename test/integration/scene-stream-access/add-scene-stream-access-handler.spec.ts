@@ -85,7 +85,13 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: true,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.livekit.getSceneRoomName.resolves(`test-realm:test-scene`)
@@ -172,7 +178,13 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 200 with streaming access when user is an admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: false,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
     stubComponents.sceneManager.getUserScenePermissions.resolves({
@@ -245,7 +257,13 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: false,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneManager.getUserScenePermissions.resolves({
@@ -393,7 +411,13 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: true,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneStreamAccessManager.addAccess.resolves(mockSceneStreamAccess)
@@ -475,7 +499,13 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
   it('returns 200 with streaming access when is an admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: false,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
     stubComponents.sceneManager.getUserScenePermissions.resolves({
@@ -508,7 +538,13 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
   it('returns 401 when user is not authorized', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: false, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: false,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneManager.getUserScenePermissions.resolves({
@@ -540,7 +576,13 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     stubComponents.sceneStreamAccessManager.addAccess.rejects(
       new StreamingAccessNotFoundError('Streaming access unavailable')
     )
-    stubComponents.lands.getLandUpdatePermission.resolves({ owner: true, operator: false })
+    stubComponents.lands.getLandPermissions.resolves({
+      owner: true,
+      operator: false,
+      updateOperator: false,
+      updateManager: false,
+      approvedForAll: false
+    })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
     stubComponents.sceneManager.getUserScenePermissions.resolves({
