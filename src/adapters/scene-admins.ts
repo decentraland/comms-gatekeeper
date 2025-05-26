@@ -43,8 +43,8 @@ export async function createSceneAdminsComponent(
       if (landActionPermissions.operator) {
         extraAddresses.add(landActionPermissions.operator.toLowerCase())
       }
-      if (landActionPermissions.updateOperators) {
-        extraAddresses.add(landActionPermissions.updateOperators.toLowerCase())
+      if (landActionPermissions.updateOperator) {
+        extraAddresses.add(landActionPermissions.updateOperator.toLowerCase())
       }
       landActionPermissions.updateManagers.forEach((operator) => extraAddresses.add(operator.toLowerCase()))
       landActionPermissions.approvedForAll.forEach((operator) => extraAddresses.add(operator.toLowerCase()))

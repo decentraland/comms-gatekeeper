@@ -97,7 +97,7 @@ describe('SceneAdmins', () => {
       const mockLandOperators = {
         owner: '0xlandowner1',
         operator: '0xoperator1',
-        updateOperators: null,
+        updateOperator: '0xupdateoperator1',
         updateManagers: [],
         approvedForAll: []
       }
@@ -111,9 +111,11 @@ describe('SceneAdmins', () => {
       expect(mockedComponents.lands.getLandOperators).toHaveBeenCalledWith('0,0')
 
       expect(result.admins).toEqual(new Set([mockAdmin]))
-      expect(result.extraAddresses).toEqual(new Set(['0xlandowner1', '0xoperator1'].map((addr) => addr.toLowerCase())))
+      expect(result.extraAddresses).toEqual(
+        new Set(['0xlandowner1', '0xoperator1', '0xupdateoperator1'].map((addr) => addr.toLowerCase()))
+      )
       expect(result.addresses).toEqual(
-        new Set(['0xadmin1', '0xlandowner1', '0xoperator1'].map((addr) => addr.toLowerCase()))
+        new Set(['0xadmin1', '0xlandowner1', '0xoperator1', '0xupdateoperator1'].map((addr) => addr.toLowerCase()))
       )
     })
 
@@ -139,7 +141,7 @@ describe('SceneAdmins', () => {
       const mockLandOperators = {
         owner: '0xlandowner1',
         operator: '0xoperator1',
-        updateOperators: null,
+        updateOperator: '0xupdateoperator1',
         updateManagers: [],
         approvedForAll: []
       }
