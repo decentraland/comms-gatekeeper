@@ -213,7 +213,7 @@ describe('LandsComponent', () => {
       expect(result).toEqual({
         owner: '0xOwnerAddress',
         operator: null,
-        updateOperators: null,
+        updateOperator: null,
         updateManagers: [],
         approvedForAll: ['0xApprovedForAllAddress']
       })
