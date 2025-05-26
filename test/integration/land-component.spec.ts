@@ -136,7 +136,7 @@ describe('LandsComponent', () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
         operator: '0xOperatorAddress',
-        updateOperators: null,
+        updateOperator: null,
         updateManagers: [],
         approvedForAll: []
       }
@@ -147,7 +147,7 @@ describe('LandsComponent', () => {
       expect(result).toEqual({
         owner: '0xOwnerAddress',
         operator: '0xOperatorAddress',
-        updateOperators: null,
+        updateOperator: null,
         updateManagers: [],
         approvedForAll: []
       })
@@ -158,7 +158,7 @@ describe('LandsComponent', () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
         operator: null,
-        updateOperators: '0xUpdateOperatorAddress',
+        updateOperator: '0xUpdateOperatorAddress',
         updateManagers: [],
         approvedForAll: []
       }
@@ -169,7 +169,7 @@ describe('LandsComponent', () => {
       expect(result).toEqual({
         owner: '0xOwnerAddress',
         operator: null,
-        updateOperators: '0xUpdateOperatorAddress',
+        updateOperator: '0xUpdateOperatorAddress',
         updateManagers: [],
         approvedForAll: []
       })
@@ -180,7 +180,7 @@ describe('LandsComponent', () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
         operator: null,
-        updateOperators: null,
+        updateOperator: null,
         updateManagers: ['0xUpdateManagerAddress'],
         approvedForAll: []
       }
@@ -191,7 +191,7 @@ describe('LandsComponent', () => {
       expect(result).toEqual({
         owner: '0xOwnerAddress',
         operator: null,
-        updateOperators: null,
+        updateOperator: null,
         updateManagers: ['0xUpdateManagerAddress'],
         approvedForAll: []
       })
@@ -202,7 +202,7 @@ describe('LandsComponent', () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
         operator: null,
-        updateOperators: null,
+        updateOperator: null,
         updateManagers: [],
         approvedForAll: ['0xApprovedForAllAddress']
       }
@@ -224,7 +224,7 @@ describe('LandsComponent', () => {
       const mockParcelOperatorsResponse: LandsParcelOperatorsResponse = {
         owner: '0xOwnerAddress',
         operator: null,
-        updateOperators: null,
+        updateOperator: null,
         updateManagers: [],
         approvedForAll: []
       }
@@ -235,7 +235,7 @@ describe('LandsComponent', () => {
       expect(result).toEqual({
         owner: '0xOwnerAddress',
         operator: null,
-        updateOperators: null,
+        updateOperator: null,
         updateManagers: [],
         approvedForAll: []
       })
