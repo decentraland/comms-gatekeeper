@@ -12,6 +12,7 @@ export async function livekitWebhookHandler(
     components: { logs, livekit, sceneStreamAccessManager },
     request
   } = ctx
+  const logger = logs.getLogger('livekit-webhook')
 
   const body = await request.text()
   const authorization = request.headers.get('Authorization') || ''
@@ -26,12 +27,12 @@ export async function livekitWebhookHandler(
     webhookEvent &&
     (webhookEvent.room?.name === 'dev-brai.dcl.eth' || webhookEvent.event?.toLowerCase().includes('ingress'))
   ) {
-    const logger = logs.getLogger('livekit-webhook')
     logger.debug(` >>> webhookEvent`)
     logger.debug(JSON.stringify(webhookEvent))
   }
 
   const event = webhookEvent.event as WebhookEventNames
+  const isVoiceChatRoom = webhookEvent.room?.name.startsWith('voice-chat')
 
   if (event === 'ingress_started' && webhookEvent.ingressInfo) {
     const isStreaming = await sceneStreamAccessManager.isStreaming(webhookEvent.ingressInfo.ingressId)
@@ -40,6 +41,13 @@ export async function livekitWebhookHandler(
     }
   } else if (event === 'ingress_ended' && webhookEvent.ingressInfo) {
     await sceneStreamAccessManager.stopStreaming(webhookEvent.ingressInfo.ingressId)
+  } else if (event === 'participant_joined' && isVoiceChatRoom) {
+    logger.debug(`Participant ${webhookEvent.participant?.identity} joined voice chat room ${webhookEvent.room?.name}`)
+  } else if (event === 'participant_left' && isVoiceChatRoom) {
+    const disconnectReason = webhookEvent.participant?.disconnectReason
+    logger.debug(
+      `Participant ${webhookEvent.participant?.identity} left voice chat room ${webhookEvent.room?.name} with reason ${disconnectReason}`
+    )
   }
 
   return {
