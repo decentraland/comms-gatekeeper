@@ -4,7 +4,7 @@ import { makeRequest } from '../../utils'
 
 test('PATCH /users/:address/private-messages-privacy', ({ components, spyComponents }) => {
   const validAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
-  const validToken = 'valid-token'
+  const validToken = 'aToken'
   let validBody: {
     private_messages_privacy: string
   }
@@ -14,7 +14,6 @@ test('PATCH /users/:address/private-messages-privacy', ({ components, spyCompone
       private_messages_privacy: PrivateMessagesPrivacy.ALL
     }
     spyComponents.config.requireString.mockImplementation((key) => {
-      if (key === 'COMMS_GATEKEEPER_AUTH_TOKEN') return Promise.resolve(validToken)
       if (key === 'PRIVATE_MESSAGES_ROOM_ID') return Promise.resolve('private-messages')
       return Promise.resolve('')
     })
@@ -31,7 +30,7 @@ test('PATCH /users/:address/private-messages-privacy', ({ components, spyCompone
       })
 
       expect(response.status).toBe(401)
-      await expect(response.json()).resolves.toEqual({ error: 'Access denied, invalid token' })
+      await expect(response.json()).resolves.toEqual({ error: 'Invalid authorization header' })
     })
   })
 

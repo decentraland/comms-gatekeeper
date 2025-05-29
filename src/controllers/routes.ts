@@ -1,4 +1,5 @@
 import { Router } from '@well-known-components/http-server'
+import { bearerTokenMiddleware } from '@dcl/platform-server-commons'
 import { wellKnownComponents as authVerificationMiddleware } from '@dcl/platform-crypto-middleware'
 import { GlobalContext } from '../types'
 import { errorHandler } from './handlers/error-handler'
@@ -16,6 +17,11 @@ import { patchUserPrivateMessagesPrivacyHandler } from './handlers/private-messa
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
+  const { config } = components
+
+  const socialServiceInteractionsToken = await config.requireString('COMMS_GATEKEEPER_AUTH_TOKEN')
+  const tokenAuthMiddleware = bearerTokenMiddleware(socialServiceInteractionsToken)
+
   const router = new Router<GlobalContext>()
   router.use(errorHandler)
 
@@ -49,7 +55,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post('/livekit-webhook', livekitWebhookHandler)
 
   router.get('/private-messages/token', authExplorer, getPrivateMessagesTokenHandler)
-  router.patch('/users/:address/private-messages-privacy', patchUserPrivateMessagesPrivacyHandler)
+  router.patch('/users/:address/private-messages-privacy', tokenAuthMiddleware, patchUserPrivateMessagesPrivacyHandler)
 
   return router
 }
