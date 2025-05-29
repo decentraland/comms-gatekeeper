@@ -1,4 +1,5 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { NotAuthorizedError } from '@dcl/platform-server-commons'
 import {
   InvalidRequestError,
   NotFoundError,
@@ -50,7 +51,7 @@ export async function errorHandler(
       }
     }
 
-    if (error instanceof UnauthorizedError) {
+    if (error instanceof UnauthorizedError || error instanceof NotAuthorizedError) {
       return {
         status: 401,
         body: {

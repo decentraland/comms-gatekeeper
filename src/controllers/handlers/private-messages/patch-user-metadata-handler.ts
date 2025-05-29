@@ -1,6 +1,6 @@
 import { EthAddress } from '@dcl/schemas'
 import { HandlerContextWithPath } from '../../../types'
-import { UnauthorizedError, InvalidRequestError } from '../../../types/errors'
+import { InvalidRequestError } from '../../../types/errors'
 import { PrivateMessagesPrivacy } from '../../../types/social.type'
 import { isErrorWithMessage } from '../../../logic/errors'
 
@@ -11,16 +11,8 @@ export async function patchUserPrivateMessagesPrivacyHandler(
     components: { livekit, logs, config }
   } = context
 
-  const socialServiceInteractionsToken = await config.requireString('COMMS_GATEKEEPER_AUTH_TOKEN')
   const PRIVATE_MESSAGES_ROOM_ID = await config.requireString('PRIVATE_MESSAGES_ROOM_ID')
   const logger = logs.getLogger('patch-user-private-message-metadata-handler')
-
-  // The token must be of value "Bearer <token>"
-  const token = context.request.headers.get('Authorization')?.split(' ')[1]
-
-  if (token !== socialServiceInteractionsToken) {
-    throw new UnauthorizedError('Access denied, invalid token')
-  }
 
   let body: {
     private_messages_privacy: string
