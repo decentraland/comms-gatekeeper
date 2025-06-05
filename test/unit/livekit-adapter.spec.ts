@@ -55,7 +55,7 @@ describe('when destroying a room', () => {
     })
 
     it('should destroy the room and resolve', async () => {
-      await livekitComponent.destroyRoom(roomName)
+      await livekitComponent.deleteRoom(roomName)
       expect(deleteRoomSpy).toHaveBeenCalledWith(roomName)
     })
   })
@@ -66,7 +66,7 @@ describe('when destroying a room', () => {
     })
 
     it('should resolve', async () => {
-      await expect(livekitComponent.destroyRoom(roomName)).resolves.toBeUndefined()
+      await expect(livekitComponent.deleteRoom(roomName)).resolves.toBeUndefined()
     })
   })
 })
