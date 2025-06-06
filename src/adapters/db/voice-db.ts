@@ -125,7 +125,7 @@ export async function createVoiceDBComponent({
    * Joins a user to a room. If the user is already in a room, disconnects them from the other room.
    * @param userAddress - The address of the user to join to the room.
    * @param roomName - The name of the room to join the user to.
-   * @returns The room the user was in before joining the new room, or null if the user was not in a room.
+   * @returns The room the user was in before joining the new room.
    */
   async function joinUserToRoom(userAddress: string, roomName: string): Promise<{ oldRoom: string }> {
     return _executeTx(async (txClient) => {

@@ -2,72 +2,200 @@ import { DisconnectReason } from '@livekit/protocol'
 import { IVoiceDBComponent } from '../../src/adapters/db/types'
 import { IVoiceComponent } from '../../src/logic/voice/types'
 import { createVoiceComponent } from '../../src/logic/voice/voice'
-import { ILivekitComponent } from '../../src/types/livekit.type'
+import { ILivekitComponent, LivekitCredentials } from '../../src/types/livekit.type'
+import { createMockedVoiceDBComponent } from '../mocks'
 
-let voiceComponent: IVoiceComponent
-let deleteRoomMock: jest.MockedFunction<ILivekitComponent['deleteRoom']>
-let generateCredentialsMock: jest.MockedFunction<ILivekitComponent['generateCredentials']>
-let getRoomUserIsInMock: jest.MockedFunction<IVoiceDBComponent['getRoomUserIsIn']>
-let joinUserToRoomMock: jest.MockedFunction<IVoiceDBComponent['joinUserToRoom']>
-let removeUserFromRoomMock: jest.MockedFunction<IVoiceDBComponent['removeUserFromRoom']>
-let disconnectUserFromRoomMock: jest.MockedFunction<IVoiceDBComponent['disconnectUserFromRoom']>
-let hasRoomExpiredMock: jest.MockedFunction<IVoiceDBComponent['isRoomActive']>
-
-beforeEach(() => {
-  deleteRoomMock = jest.fn()
-  generateCredentialsMock = jest.fn()
-  getRoomUserIsInMock = jest.fn()
-  joinUserToRoomMock = jest.fn()
-  removeUserFromRoomMock = jest.fn()
-  disconnectUserFromRoomMock = jest.fn()
-  hasRoomExpiredMock = jest.fn()
-
-  const livekit: jest.Mocked<ILivekitComponent> = {
-    deleteRoom: deleteRoomMock,
-    generateCredentials: generateCredentialsMock
-  } as jest.Mocked<ILivekitComponent>
-
-  const voiceDB: jest.Mocked<IVoiceDBComponent> = {
-    getRoomUserIsIn: getRoomUserIsInMock,
-    joinUserToRoom: joinUserToRoomMock,
-    removeUserFromRoom: removeUserFromRoomMock,
-    disconnectUserFromRoom: disconnectUserFromRoomMock,
-    isRoomActive: hasRoomExpiredMock
+describe('voice logic component', () => {
+  let voiceComponent: IVoiceComponent
+  let voiceDB: jest.Mocked<IVoiceDBComponent>
+  let livekit: jest.Mocked<ILivekitComponent>
+  let deleteRoomMock: jest.MockedFunction<ILivekitComponent['deleteRoom']>
+  let generateCredentialsMock: jest.MockedFunction<ILivekitComponent['generateCredentials']>
+  let getRoomUserIsInMock: jest.MockedFunction<IVoiceDBComponent['getRoomUserIsIn']>
+  let joinUserToRoomMock: jest.MockedFunction<IVoiceDBComponent['joinUserToRoom']>
+  let removeUserFromRoomMock: jest.MockedFunction<IVoiceDBComponent['removeUserFromRoom']>
+  let disconnectUserFromRoomMock: jest.MockedFunction<IVoiceDBComponent['disconnectUserFromRoom']>
+  let isPrivateRoomActiveMock: jest.MockedFunction<IVoiceDBComponent['isPrivateRoomActive']>
+  let createVoiceChatRoomMock: jest.MockedFunction<IVoiceDBComponent['createVoiceChatRoom']>
+  let deletePrivateVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deletePrivateVoiceChat']>
+  let loggerMock: {
+    debug: jest.MockedFunction<any>
+    info: jest.MockedFunction<any>
+    warn: jest.MockedFunction<any>
+    error: jest.MockedFunction<any>
   }
 
-  const logs = {
-    getLogger: jest.fn().mockImplementation((name) => {
-      return {
-        debug: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn()
-      }
-    })
-  }
+  beforeEach(() => {
+    jest.resetAllMocks()
 
-  voiceComponent = createVoiceComponent({
-    voiceDB,
-    livekit,
-    logs
+    deleteRoomMock = jest.fn()
+    generateCredentialsMock = jest.fn()
+    getRoomUserIsInMock = jest.fn()
+    joinUserToRoomMock = jest.fn()
+    removeUserFromRoomMock = jest.fn()
+    disconnectUserFromRoomMock = jest.fn()
+    isPrivateRoomActiveMock = jest.fn()
+    createVoiceChatRoomMock = jest.fn()
+    deletePrivateVoiceChatMock = jest.fn()
+
+    livekit = {
+      deleteRoom: deleteRoomMock,
+      generateCredentials: generateCredentialsMock
+    } as jest.Mocked<ILivekitComponent>
+
+    voiceDB = createMockedVoiceDBComponent({
+      getRoomUserIsIn: getRoomUserIsInMock,
+      joinUserToRoom: joinUserToRoomMock,
+      removeUserFromRoom: removeUserFromRoomMock,
+      disconnectUserFromRoom: disconnectUserFromRoomMock,
+      isPrivateRoomActive: isPrivateRoomActiveMock,
+      createVoiceChatRoom: createVoiceChatRoomMock,
+      deletePrivateVoiceChat: deletePrivateVoiceChatMock
+    })
+
+    loggerMock = {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn()
+    }
+
+    const logs = {
+      getLogger: jest.fn().mockReturnValue(loggerMock)
+    }
+
+    voiceComponent = createVoiceComponent({
+      voiceDB,
+      livekit,
+      logs
+    })
   })
-})
 
-describe('when handling that a participant joined a room', () => {
-  describe('and the room has expired', () => {
-    beforeEach(() => {
-      hasRoomExpiredMock.mockResolvedValue(true)
+  describe('when handling that a participant joined a room', () => {
+    const userAddress = '0x123'
+    const roomName = 'test-room'
+
+    describe('and the room is inactive', () => {
+      beforeEach(() => {
+        isPrivateRoomActiveMock.mockResolvedValue(false)
+      })
+
+      it('should warn and delete the room', async () => {
+        await voiceComponent.handleParticipantJoined(userAddress, roomName)
+
+        expect(loggerMock.warn).toHaveBeenCalledWith(
+          `User ${userAddress} has joined an inactive room ${roomName}, destroying it`
+        )
+        expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+      })
     })
 
-    it('should delete the room and resolve', async () => {
-      await expect(voiceComponent.handleParticipantJoined('0x123', 'room-1')).resolves.toBeUndefined()
-      expect(deleteRoomMock).toHaveBeenCalledWith('room-1')
+    describe('and the room is active', () => {
+      beforeEach(() => {
+        isPrivateRoomActiveMock.mockResolvedValue(true)
+      })
+
+      describe('and the user is in the same room', () => {
+        beforeEach(() => {
+          joinUserToRoomMock.mockResolvedValue({ oldRoom: roomName })
+        })
+
+        it('should join the user to the room without deleting any room', async () => {
+          await voiceComponent.handleParticipantJoined(userAddress, roomName)
+
+          expect(joinUserToRoomMock).toHaveBeenCalledWith(userAddress, roomName)
+          expect(deleteRoomMock).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and the user is in a different room', () => {
+        const oldRoom = 'old-room'
+
+        beforeEach(() => {
+          joinUserToRoomMock.mockResolvedValue({ oldRoom })
+        })
+
+        it('should join the user to the new room and delete the old room', async () => {
+          await voiceComponent.handleParticipantJoined(userAddress, roomName)
+
+          expect(joinUserToRoomMock).toHaveBeenCalledWith(userAddress, roomName)
+          expect(deleteRoomMock).toHaveBeenCalledWith(oldRoom)
+        })
+      })
     })
   })
 
-  describe('and the room has not expired', () => {
-    beforeEach(() => {
-      hasRoomExpiredMock.mockResolvedValue(false)
+  describe('when handling that a participant left a room', () => {
+    const userAddress = '0x123'
+    const roomName = 'test-room'
+
+    describe('and the participant left because of a duplicate identity', () => {
+      const disconnectReason = DisconnectReason.DUPLICATE_IDENTITY
+
+      it('should do nothing and resolve', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, disconnectReason)
+
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+        expect(removeUserFromRoomMock).not.toHaveBeenCalled()
+        expect(disconnectUserFromRoomMock).not.toHaveBeenCalled()
+        expect(deletePrivateVoiceChatMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the participant left willingly', () => {
+      const disconnectReason = DisconnectReason.CLIENT_INITIATED
+
+      it('should delete the room, remove the user from the room and resolve', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, disconnectReason)
+
+        expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+        expect(removeUserFromRoomMock).toHaveBeenCalledWith(userAddress, roomName)
+        expect(disconnectUserFromRoomMock).not.toHaveBeenCalled()
+        expect(deletePrivateVoiceChatMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the room was deleted', () => {
+      const disconnectReason = DisconnectReason.ROOM_DELETED
+
+      it('should delete the private voice chat and resolve', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, disconnectReason)
+
+        expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(roomName, userAddress)
+        expect(disconnectUserFromRoomMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+        expect(removeUserFromRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the participant left due to another reason', () => {
+      const disconnectReason = DisconnectReason.MIGRATION
+
+      it('should only disconnect the user from the room', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, disconnectReason)
+
+        expect(disconnectUserFromRoomMock).toHaveBeenCalledWith(userAddress, roomName)
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+        expect(removeUserFromRoomMock).not.toHaveBeenCalled()
+        expect(deletePrivateVoiceChatMock).not.toHaveBeenCalled()
+      })
+    })
+  })
+
+  describe('when checking if a user is in a voice chat', () => {
+    const userAddress = '0x123'
+
+    describe('and the user is in a room', () => {
+      beforeEach(() => {
+        getRoomUserIsInMock.mockResolvedValue('test-room')
+      })
+
+      it('should return true', async () => {
+        const result = await voiceComponent.isUserInVoiceChat(userAddress)
+
+        expect(result).toBe(true)
+        expect(getRoomUserIsInMock).toHaveBeenCalledWith(userAddress)
+      })
     })
 
     describe('and the user is not in a room', () => {
@@ -75,93 +203,133 @@ describe('when handling that a participant joined a room', () => {
         getRoomUserIsInMock.mockResolvedValue(null)
       })
 
-      it('should join the user to the room and resolve', async () => {
-        await expect(voiceComponent.handleParticipantJoined('0x123', 'room-1')).resolves.toBeUndefined()
-        expect(joinUserToRoomMock).toHaveBeenCalledWith('0x123', 'room-1')
+      it('should return false', async () => {
+        const result = await voiceComponent.isUserInVoiceChat(userAddress)
+
+        expect(result).toBe(false)
+        expect(getRoomUserIsInMock).toHaveBeenCalledWith(userAddress)
       })
     })
+  })
 
-    describe('and the user is in the same room', () => {
+  describe('when getting private voice chat room credentials', () => {
+    const roomId = 'room-123'
+    const userAddresses = ['0x111', '0x222']
+    const expectedRoomName = 'private-voice-chat-room-123'
+    let mockCredentials: LivekitCredentials[]
+
+    describe('and getting the credentials fails', () => {
+      const error = new Error('Livekit error')
+
       beforeEach(() => {
-        getRoomUserIsInMock.mockResolvedValue('room-1')
+        generateCredentialsMock.mockRejectedValue(error)
       })
 
-      it('should join the user to the room and resolve', async () => {
-        await expect(voiceComponent.handleParticipantJoined('0x123', 'room-1')).resolves.toBeUndefined()
-        expect(joinUserToRoomMock).toHaveBeenCalledWith('0x123', 'room-1')
+      it('should reject with the error', async () => {
+        await expect(voiceComponent.getPrivateVoiceChatRoomCredentials(roomId, userAddresses)).rejects.toThrow(error)
       })
     })
 
-    describe('and the user is in a different room', () => {
+    describe('and getting the credentials succeeds', () => {
       beforeEach(() => {
-        getRoomUserIsInMock.mockResolvedValue('room-2')
+        mockCredentials = [
+          { token: 'token1', url: 'url1' },
+          { token: 'token2', url: 'url2' }
+        ]
+
+        generateCredentialsMock.mockResolvedValueOnce(mockCredentials[0]).mockResolvedValueOnce(mockCredentials[1])
+      })
+      it('should generate credentials for all users, create the room and resolve with the credentials', async () => {
+        const result = await voiceComponent.getPrivateVoiceChatRoomCredentials(roomId, userAddresses)
+
+        expect(generateCredentialsMock).toHaveBeenCalledTimes(2)
+        expect(generateCredentialsMock).toHaveBeenNthCalledWith(
+          1,
+          userAddresses[0],
+          expectedRoomName,
+          {
+            cast: [],
+            canPublish: true,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false
+        )
+        expect(generateCredentialsMock).toHaveBeenNthCalledWith(
+          2,
+          userAddresses[1],
+          expectedRoomName,
+          {
+            cast: [],
+            canPublish: true,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false
+        )
+        expect(createVoiceChatRoomMock).toHaveBeenCalledWith(expectedRoomName, userAddresses)
+        expect(result).toEqual({
+          [userAddresses[0]]: mockCredentials[0],
+          [userAddresses[1]]: mockCredentials[1]
+        })
+      })
+    })
+  })
+
+  describe('when ending a private voice chat', () => {
+    const roomId = 'room-123'
+    const userAddress = '0x123'
+    const expectedRoomName = 'private-voice-chat-room-123'
+
+    describe('and the operation succeeds', () => {
+      beforeEach(() => {
+        deletePrivateVoiceChatMock.mockResolvedValue(undefined)
+        deleteRoomMock.mockResolvedValue(undefined)
       })
 
-      it('should join the user to the new room, delete the old room and resolve', async () => {
-        await expect(voiceComponent.handleParticipantJoined('0x123', 'room-1')).resolves.toBeUndefined()
-        expect(joinUserToRoomMock).toHaveBeenCalledWith('0x123', 'room-1')
-        expect(deleteRoomMock).toHaveBeenCalledWith('room-2')
+      it('should delete the private voice chat, delete the room and resolve', async () => {
+        await voiceComponent.endPrivateVoiceChat(roomId, userAddress)
+
+        expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(expectedRoomName, userAddress)
+        expect(deleteRoomMock).toHaveBeenCalledWith(expectedRoomName)
+        expect(loggerMock.error).not.toHaveBeenCalled()
       })
     })
-  })
-})
 
-describe('when handling that a participant left a room', () => {
-  let disconnectReason: DisconnectReason
+    describe('and deleting the private voice chat fails', () => {
+      const error = new Error('Database error')
 
-  describe('and the participant left because of a duplicate identity', () => {
-    beforeEach(() => {
-      disconnectReason = DisconnectReason.DUPLICATE_IDENTITY
+      beforeEach(() => {
+        deletePrivateVoiceChatMock.mockRejectedValue(error)
+      })
+
+      it('should log the error, not delete the room, and resolve', async () => {
+        await voiceComponent.endPrivateVoiceChat(roomId, userAddress)
+
+        expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(expectedRoomName, userAddress)
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+        expect(loggerMock.error).toHaveBeenCalledWith(
+          `Error deleting private voice chat ${roomId} for user ${userAddress}: ${error}`
+        )
+      })
     })
 
-    it('should do nothing and resolve', async () => {
-      await expect(voiceComponent.handleParticipantLeft('0x123', 'room-1', disconnectReason)).resolves.toBeUndefined()
-      expect(disconnectUserFromRoomMock).not.toHaveBeenCalled()
-    })
-  })
+    describe('and deleting the room fails', () => {
+      const error = new Error('Livekit error')
 
-  describe('and the participant left because of an unknown error', () => {
-    beforeEach(() => {
-      disconnectReason = DisconnectReason.MIGRATION
-    })
+      beforeEach(() => {
+        deleteRoomMock.mockRejectedValue(error)
+      })
 
-    it('should disconnect the user from the room and resolve', async () => {
-      await expect(voiceComponent.handleParticipantLeft('0x123', 'room-1', disconnectReason)).resolves.toBeUndefined()
-      expect(disconnectUserFromRoomMock).toHaveBeenCalledWith('0x123', 'room-1')
-    })
-  })
+      it('should log the error and resolve', async () => {
+        await voiceComponent.endPrivateVoiceChat(roomId, userAddress)
 
-  describe('and the participant left willingly', () => {
-    beforeEach(() => {
-      disconnectReason = DisconnectReason.CLIENT_INITIATED
-    })
-
-    it('should delete the room, disconnect the user from the room and resolve', async () => {
-      await expect(voiceComponent.handleParticipantLeft('0x123', 'room-1', disconnectReason)).resolves.toBeUndefined()
-      expect(deleteRoomMock).toHaveBeenCalledWith('room-1')
-      expect(disconnectUserFromRoomMock).toHaveBeenCalledWith('0x123', 'room-1')
-    })
-  })
-})
-
-describe('when checking if a user is in a voice chat', () => {
-  describe('and the user is in a room', () => {
-    beforeEach(() => {
-      getRoomUserIsInMock.mockResolvedValue('room-1')
-    })
-
-    it('should return true', async () => {
-      await expect(voiceComponent.isUserInVoiceChat('0x123')).resolves.toBe(true)
-    })
-  })
-
-  describe('and the user is not in a room', () => {
-    beforeEach(() => {
-      getRoomUserIsInMock.mockResolvedValue(null)
-    })
-
-    it('should return false', async () => {
-      await expect(voiceComponent.isUserInVoiceChat('0x123')).resolves.toBe(false)
+        expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(expectedRoomName, userAddress)
+        expect(deleteRoomMock).toHaveBeenCalledWith(expectedRoomName)
+        expect(loggerMock.error).toHaveBeenCalledWith(
+          `Error deleting private voice chat ${roomId} for user ${userAddress}: ${error}`
+        )
+      })
     })
   })
 })

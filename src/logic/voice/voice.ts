@@ -30,7 +30,7 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
     const { oldRoom } = await voiceDB.joinUserToRoom(userAddress, roomName)
 
     // If the user was in another room, destroy the old room.
-    if (oldRoom !== null && oldRoom !== roomName) {
+    if (oldRoom !== roomName) {
       await livekit.deleteRoom(oldRoom)
     }
   }
@@ -52,10 +52,10 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
       // This is done because there are only two users in the room, but in the future we might have more users.
       await livekit.deleteRoom(roomName)
       // Remove the user from the room.
-      await voiceDB.removeUserFromRoom(userAddress, roomName)
+      return voiceDB.removeUserFromRoom(userAddress, roomName)
     } else if (disconnectReason === DisconnectReason.ROOM_DELETED) {
       // If the room was deleted, remove the room from the database to prevent the room from being re-created.
-      await voiceDB.deletePrivateVoiceChat(roomName)
+      return voiceDB.deletePrivateVoiceChat(roomName, userAddress)
     }
 
     // Treat any other disconnections as abrupt disconnections.
