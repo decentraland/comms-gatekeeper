@@ -58,13 +58,10 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   router.get('/private-messages/token', authExplorer, getPrivateMessagesTokenHandler)
   router.patch('/users/:address/private-messages-privacy', tokenAuthMiddleware, patchUserPrivateMessagesPrivacyHandler)
-<<<<<<< HEAD
-=======
 
   router.get('/users/:address/voice-chat-status', tokenAuthMiddleware, getVoiceChatStatusHandler)
   router.post('/private-voice-chat', tokenAuthMiddleware, createPrivateVoiceChatCredentialsHandler)
   router.delete('/private-voice-chat/:id', tokenAuthMiddleware, deletePrivateVoiceChatHandler)
->>>>>>> feat/use-token-middleware
 
   return router
 }
