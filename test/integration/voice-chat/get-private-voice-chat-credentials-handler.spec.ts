@@ -1,3 +1,5 @@
+import { VoiceChatUserStatus } from '../../../src/adapters/db/types'
+import { getPrivateVoiceChatRoomName } from '../../../src/logic/voice/utils'
 import { LivekitCredentials } from '../../../src/types/livekit.type'
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
@@ -5,15 +7,15 @@ import { makeRequest } from '../../utils'
 test('POST /private-voice-chat', ({ components, spyComponents }) => {
   let token: string
   let body: any
-  const validAddress1 = '0x5babd1869989570988b79b5f5086e17a9e96a235'
-  const validAddress2 = '0x742d35Cc6635C0532925a3b8D6Ac6C2b6000b8B0'
+  const anAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
+  const anotherAddress = '0x742d35Cc6635C0532925a3b8D6Ac6C2b6000b8B0'
 
   describe('when the authorization token is invalid', () => {
     beforeEach(() => {
       token = 'an-invalid-token'
       body = {
         room_id: 'a-room-id',
-        user_addresses: [validAddress1, validAddress2]
+        user_addresses: [anAddress, anotherAddress]
       }
     })
 
@@ -80,7 +82,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
     describe('when user_addresses is not an array', () => {
       beforeEach(() => {
         body = {
-          roomId: 'a-room-id',
+          room_id: 'a-room-id',
           user_addresses: 'not-an-array'
         }
       })
@@ -104,12 +106,12 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
     describe('when user_addresses has one address', () => {
       beforeEach(() => {
         body = {
-          roomId: 'a-room-id',
-          user_addresses: [validAddress1]
+          room_id: 'a-room-id',
+          user_addresses: [anAddress]
         }
       })
 
-      it('should respond with a 400 when user_addresses has only one address', async () => {
+      it('should respond with a 400 and a message saying that user_addresses must have two addresses', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -126,11 +128,12 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
     describe('when user_addresses has more than two addresses', () => {
       beforeEach(() => {
         body = {
-          roomId: 'a-room-id',
-          userAddresses: [validAddress1, validAddress2, '0x123d35Cc6635C0532925a3b8D6Ac6C2b6000b8B0']
+          room_id: 'a-room-id',
+          user_addresses: [anAddress, anotherAddress, '0x123d35Cc6635C0532925a3b8D6Ac6C2b6000b8B0']
         }
       })
-      it('should respond with a 400 when user_addresses has three addresses', async () => {
+
+      it('should respond with a 400 and a message saying that user_addresses must have two addresses', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -147,12 +150,12 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
     describe('when user_addresses is empty', () => {
       beforeEach(() => {
         body = {
-          roomId: 'a-room-id',
+          room_id: 'a-room-id',
           user_addresses: []
         }
       })
 
-      it('should respond with a 400 when user_addresses is empty', async () => {
+      it('should respond with a 400 and a message saying that user_addresses must have two addresses', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -162,7 +165,9 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(400)
-        expect(response.json()).resolves.toEqual({ error: 'The property user_addresses must have two addresses' })
+        expect(response.json()).resolves.toEqual({
+          error: 'The property user_addresses must have two addresses'
+        })
       })
     })
 
@@ -171,11 +176,11 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
       beforeEach(() => {
         body = {
           room_id: 'a-room-id',
-          user_addresses: [invalidAddress, validAddress2]
+          user_addresses: [invalidAddress, anotherAddress]
         }
       })
 
-      it('should respond with a 400 when the first address is invalid', async () => {
+      it('should respond with a 400 and a message saying that the first address is invalid', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -189,14 +194,14 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
       })
     })
 
-    describe('when roomId is missing', () => {
+    describe('when room_id is missing', () => {
       beforeEach(() => {
         body = {
-          user_addresses: [validAddress1, validAddress2]
+          user_addresses: [anAddress, anotherAddress]
         }
       })
 
-      it('should respond with a 400 when roomId is missing', async () => {
+      it('should respond with a 400 and a message saying that room_id is required', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -206,7 +211,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(400)
-        expect(response.json()).resolves.toEqual({ error: 'The property roomId is required' })
+        expect(response.json()).resolves.toEqual({ error: 'The property room_id is required' })
       })
     })
 
@@ -214,18 +219,18 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
       beforeEach(() => {
         body = {
           room_id: 'a-room-id',
-          user_addresses: [validAddress1, validAddress2]
+          user_addresses: [anAddress, anotherAddress]
         }
       })
 
       describe('and getting private voice chat credentials fails', () => {
         beforeEach(() => {
-          spyComponents.voice.getPrivateVoiceChatRoomCredentials.mockRejectedValueOnce(
+          spyComponents.livekit.generateCredentials.mockRejectedValueOnce(
             new Error('Failed to get private voice chat credentials')
           )
         })
 
-        it('should respond with a 500', async () => {
+        it('should respond with a 500 and a message saying that the request failed', async () => {
           const response = await makeRequest(components.localFetch, '/private-voice-chat', {
             method: 'POST',
             headers: {
@@ -241,19 +246,31 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
 
       describe('and getting private voice chat credentials succeeds', () => {
         let mockCredentials: Record<string, LivekitCredentials>
+        let roomName: string
 
         beforeEach(() => {
+          roomName = getPrivateVoiceChatRoomName(body.room_id)
           mockCredentials = {
-            [validAddress1.toLowerCase()]: {
+            [anAddress.toLowerCase()]: {
               token: 'voice-chat-token-1',
               url: 'wss://voice.livekit.cloud'
             },
-            [validAddress2.toLowerCase()]: {
+            [anotherAddress.toLowerCase()]: {
               token: 'voice-chat-token-2',
               url: 'wss://voice.livekit.cloud'
             }
           }
-          spyComponents.voice.getPrivateVoiceChatRoomCredentials.mockResolvedValueOnce(mockCredentials)
+          spyComponents.livekit.generateCredentials
+            .mockResolvedValueOnce(mockCredentials[anAddress.toLowerCase()])
+            .mockResolvedValueOnce(mockCredentials[anotherAddress.toLowerCase()])
+        })
+
+        afterEach(async () => {
+          try {
+            await components.voiceDB.deletePrivateVoiceChat(roomName, anAddress)
+          } catch (error) {
+            // Do nothing
+          }
         })
 
         it('should respond with a 200 and the voice chat credentials', async () => {
@@ -266,9 +283,21 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           })
 
           expect(response.status).toBe(200)
-          expect(spyComponents.voice.getPrivateVoiceChatRoomCredentials).toHaveBeenCalledWith([
-            validAddress1.toLowerCase(),
-            validAddress2.toLowerCase()
+          await expect(components.voiceDB.getUsersInRoom(roomName)).resolves.toEqual([
+            {
+              address: anAddress.toLowerCase(),
+              roomName,
+              status: VoiceChatUserStatus.NotConnected,
+              joinedAt: expect.any(Number),
+              statusUpdatedAt: expect.any(Number)
+            },
+            {
+              address: anotherAddress.toLowerCase(),
+              roomName,
+              status: VoiceChatUserStatus.NotConnected,
+              joinedAt: expect.any(Number),
+              statusUpdatedAt: expect.any(Number)
+            }
           ])
           expect(response.json()).resolves.toEqual(mockCredentials)
         })

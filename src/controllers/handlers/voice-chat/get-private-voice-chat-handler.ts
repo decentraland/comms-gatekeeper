@@ -12,7 +12,7 @@ export async function getPrivateVoiceChatCredentialsHandler(
 
   logger.debug('Getting private voice chat credentials')
 
-  let body: { userAddresses: string[]; roomId: string }
+  let body: { user_addresses: string[]; room_id: string }
 
   try {
     body = await context.request.json()
@@ -21,30 +21,30 @@ export async function getPrivateVoiceChatCredentialsHandler(
     throw new InvalidRequestError('Invalid request body')
   }
 
-  if (!body.userAddresses || !Array.isArray(body.userAddresses)) {
-    throw new InvalidRequestError('The property userAddresses is required and must be an array')
+  if (!body.user_addresses || !Array.isArray(body.user_addresses)) {
+    throw new InvalidRequestError('The property user_addresses is required and must be an array')
   }
 
-  if (body.userAddresses.length !== 2) {
-    throw new InvalidRequestError('The property userAddresses must have two addresses')
+  if (body.user_addresses.length !== 2) {
+    throw new InvalidRequestError('The property user_addresses must have two addresses')
   }
 
-  for (const userAddress of body.userAddresses) {
+  for (const userAddress of body.user_addresses) {
     if (!EthAddress.validate(userAddress)) {
       throw new InvalidRequestError(`Invalid address: ${userAddress}`)
     }
   }
 
-  if (!body.roomId) {
-    throw new InvalidRequestError('The property roomId is required')
+  if (!body.room_id) {
+    throw new InvalidRequestError('The property room_id is required')
   }
 
-  const lowerCaseUserAddresses = body.userAddresses.map((address) => address.toLowerCase())
+  const lowerCaseUserAddresses = body.user_addresses.map((address) => address.toLowerCase())
 
-  const credentials = await voice.getPrivateVoiceChatRoomCredentials(body.roomId, lowerCaseUserAddresses)
+  const credentials = await voice.getPrivateVoiceChatRoomCredentials(body.room_id, lowerCaseUserAddresses)
 
   logger.debug(
-    `Got private voice chat credentials for room ${body.roomId} with users ${lowerCaseUserAddresses.join(', ')}`
+    `Got private voice chat credentials for room ${body.room_id} with users ${lowerCaseUserAddresses.join(', ')}`
   )
 
   return {
