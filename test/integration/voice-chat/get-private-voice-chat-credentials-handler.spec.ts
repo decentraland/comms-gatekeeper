@@ -12,8 +12,8 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
     beforeEach(() => {
       token = 'an-invalid-token'
       body = {
-        roomId: 'a-room-id',
-        userAddresses: [validAddress1, validAddress2]
+        room_id: 'a-room-id',
+        user_addresses: [validAddress1, validAddress2]
       }
     })
 
@@ -56,12 +56,12 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
       })
     })
 
-    describe('when userAddresses is missing', () => {
+    describe('when user_addresses is missing', () => {
       beforeEach(() => {
         body = {}
       })
 
-      it('should respond with a 400 and a message saying that userAddresses is required', async () => {
+      it('should respond with a 400 and a message saying that user_addresses is required', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -72,20 +72,20 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
 
         expect(response.status).toBe(400)
         expect(response.json()).resolves.toEqual({
-          error: 'The property userAddresses is required and must be an array'
+          error: 'The property user_addresses is required and must be an array'
         })
       })
     })
 
-    describe('when userAddresses is not an array', () => {
+    describe('when user_addresses is not an array', () => {
       beforeEach(() => {
         body = {
           roomId: 'a-room-id',
-          userAddresses: 'not-an-array'
+          user_addresses: 'not-an-array'
         }
       })
 
-      it('should respond with a 400 and a message saying that userAddresses must be an array', async () => {
+      it('should respond with a 400 and a message saying that user_addresses must be an array', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -96,20 +96,20 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
 
         expect(response.status).toBe(400)
         expect(response.json()).resolves.toEqual({
-          error: 'The property userAddresses is required and must be an array'
+          error: 'The property user_addresses is required and must be an array'
         })
       })
     })
 
-    describe('when userAddresses has one address', () => {
+    describe('when user_addresses has one address', () => {
       beforeEach(() => {
         body = {
           roomId: 'a-room-id',
-          userAddresses: [validAddress1]
+          user_addresses: [validAddress1]
         }
       })
 
-      it('should respond with a 400 when userAddresses has only one address', async () => {
+      it('should respond with a 400 when user_addresses has only one address', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -119,18 +119,18 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(400)
-        expect(response.json()).resolves.toEqual({ error: 'The property userAddresses must have two addresses' })
+        expect(response.json()).resolves.toEqual({ error: 'The property user_addresses must have two addresses' })
       })
     })
 
-    describe('when userAddresses has more than two addresses', () => {
+    describe('when user_addresses has more than two addresses', () => {
       beforeEach(() => {
         body = {
           roomId: 'a-room-id',
           userAddresses: [validAddress1, validAddress2, '0x123d35Cc6635C0532925a3b8D6Ac6C2b6000b8B0']
         }
       })
-      it('should respond with a 400 when userAddresses has three addresses', async () => {
+      it('should respond with a 400 when user_addresses has three addresses', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -140,19 +140,19 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(400)
-        expect(response.json()).resolves.toEqual({ error: 'The property userAddresses must have two addresses' })
+        expect(response.json()).resolves.toEqual({ error: 'The property user_addresses must have two addresses' })
       })
     })
 
-    describe('when userAddresses is empty', () => {
+    describe('when user_addresses is empty', () => {
       beforeEach(() => {
         body = {
           roomId: 'a-room-id',
-          userAddresses: []
+          user_addresses: []
         }
       })
 
-      it('should respond with a 400 when userAddresses is empty', async () => {
+      it('should respond with a 400 when user_addresses is empty', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -162,16 +162,16 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(400)
-        expect(response.json()).resolves.toEqual({ error: 'The property userAddresses must have two addresses' })
+        expect(response.json()).resolves.toEqual({ error: 'The property user_addresses must have two addresses' })
       })
     })
 
-    describe('when userAddresses contains invalid ethereum addresses', () => {
+    describe('when user_addresses contains invalid ethereum addresses', () => {
       const invalidAddress = 'invalid-address'
       beforeEach(() => {
         body = {
-          roomId: 'a-room-id',
-          userAddresses: [invalidAddress, validAddress2]
+          room_id: 'a-room-id',
+          user_addresses: [invalidAddress, validAddress2]
         }
       })
 
@@ -192,7 +192,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
     describe('when roomId is missing', () => {
       beforeEach(() => {
         body = {
-          userAddresses: [validAddress1, validAddress2]
+          user_addresses: [validAddress1, validAddress2]
         }
       })
 
@@ -213,8 +213,8 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
     describe('when the request is valid', () => {
       beforeEach(() => {
         body = {
-          roomId: 'a-room-id',
-          userAddresses: [validAddress1, validAddress2]
+          room_id: 'a-room-id',
+          user_addresses: [validAddress1, validAddress2]
         }
       })
 
