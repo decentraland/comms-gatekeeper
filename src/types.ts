@@ -22,6 +22,8 @@ import { IPlaceChecker, IStreamingChecker, IStreamingKeyChecker } from './types/
 import { ILivekitComponent } from './types/livekit.type'
 import { INotifications } from './types/notification.type'
 import { ISceneAdmins } from './types/scene.type'
+import { IVoiceDBComponent } from './adapters/db/types'
+import { IVoiceComponent } from './logic/voice/types'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -51,6 +53,8 @@ export type BaseComponents = {
   placesChecker: IPlaceChecker
   streamingTTLChecker: IStreamingChecker
   streamingKeyTTLChecker: IStreamingKeyChecker
+  voiceDB: IVoiceDBComponent
+  voice: IVoiceComponent
   publisher: IPublisherComponent
 }
 

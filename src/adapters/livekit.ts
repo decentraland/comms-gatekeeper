@@ -12,6 +12,7 @@ import {
 import { AppComponents, Permissions } from '../types'
 import { LivekitIngressNotFoundError } from '../types/errors'
 import { ILivekitComponent, LivekitCredentials, LivekitSettings } from '../types/livekit.type'
+import { isErrorWithMessage } from '../logic/errors'
 
 export async function createLivekitComponent(
   components: Pick<AppComponents, 'config' | 'logs'>
@@ -98,6 +99,14 @@ export async function createLivekitComponent(
     })
   }
 
+  async function deleteRoom(roomName: string): Promise<void> {
+    try {
+      await roomClient.deleteRoom(roomName)
+    } catch (error) {
+      logger.warn(`Error destroying room ${roomName}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`)
+    }
+  }
+
   async function getRoom(roomName: string): Promise<Room> {
     const existingRoom = await roomClient.listRooms([roomName])
 
@@ -157,6 +166,7 @@ export async function createLivekitComponent(
   }
 
   return {
+    deleteRoom,
     updateParticipantMetadata,
     generateCredentials,
     getWorldRoomName,
