@@ -14,7 +14,7 @@ import { removeSceneStreamAccessHandler } from './handlers/scene-stream-access-h
 import { resetSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/reset-scene-stream-access-handler'
 import { livekitWebhookHandler } from './handlers/livekit-webhook-handler'
 import { patchUserPrivateMessagesPrivacyHandler } from './handlers/private-messages/patch-user-metadata-handler'
-import { getVoiceChatStatusHandler, getPrivateVoiceChatCredentialsHandler } from './handlers/voice-chat'
+import { getVoiceChatStatusHandler, createPrivateVoiceChatCredentialsHandler } from './handlers/voice-chat'
 import { deletePrivateVoiceChatHandler } from './handlers/voice-chat/delete-private-voice-chat.handler'
 
 // We return the entire router because it will be easier to test than a whole server
@@ -60,7 +60,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.patch('/users/:address/private-messages-privacy', tokenAuthMiddleware, patchUserPrivateMessagesPrivacyHandler)
 
   router.get('/users/:address/voice-chat-status', tokenAuthMiddleware, getVoiceChatStatusHandler)
-  router.post('/private-voice-chat', tokenAuthMiddleware, getPrivateVoiceChatCredentialsHandler)
+  router.post('/private-voice-chat', tokenAuthMiddleware, createPrivateVoiceChatCredentialsHandler)
   router.delete('/private-voice-chat/:id', tokenAuthMiddleware, deletePrivateVoiceChatHandler)
 
   return router

@@ -1,6 +1,7 @@
 import { EthAddress } from '@dcl/schemas/dist/misc'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError } from '../../../types/errors'
+import { InvalidRequestError, NotFoundError } from '../../../types/errors'
+import { RoomDoesNotExistError } from '../../../adapters/db/errors'
 
 export async function deletePrivateVoiceChatHandler(
   context: HandlerContextWithPath<'logs' | 'voice', '/private-voice-chat/:id'>
@@ -17,7 +18,6 @@ export async function deletePrivateVoiceChatHandler(
   try {
     body = await context.request.json()
   } catch (error) {
-    logger.error(`Error updating participant metadata: ${error}`)
     throw new InvalidRequestError('Invalid request body')
   }
 
@@ -31,9 +31,21 @@ export async function deletePrivateVoiceChatHandler(
     throw new InvalidRequestError('Invalid request body, invalid address')
   }
 
-  await voice.endPrivateVoiceChat(id, address)
+  try {
+    const usersInRoom = await voice.endPrivateVoiceChat(id, address)
 
-  return {
-    status: 200
+    return {
+      status: 200,
+      body: {
+        users_in_voice_chat: usersInRoom
+      }
+    }
+  } catch (error) {
+    logger.error(`Error deleting private voice chat ${id} for user ${address}: ${error}`)
+    if (error instanceof RoomDoesNotExistError) {
+      throw new NotFoundError(`Room ${id} does not exist`)
+    }
+
+    throw error
   }
 }

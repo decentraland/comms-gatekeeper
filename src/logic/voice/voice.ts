@@ -2,14 +2,11 @@ import { DisconnectReason } from '@livekit/protocol'
 import { AppComponents } from '../../types'
 import { IVoiceComponent } from './types'
 import { LivekitCredentials } from '../../types/livekit.type'
+import { getPrivateVoiceChatRoomName } from './utils'
 
 export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit'>): IVoiceComponent {
   const { voiceDB, livekit, logs } = components
   const logger = logs.getLogger('voice')
-
-  function getPrivateVoiceChatRoomName(roomId: string): string {
-    return `private-voice-chat-${roomId}`
-  }
 
   /**
    * Handles the event when a participant joins a room.
@@ -52,14 +49,15 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
       // This is done because there are only two users in the room, but in the future we might have more users.
       await livekit.deleteRoom(roomName)
       // Remove the user from the room.
-      return voiceDB.removeUserFromRoom(userAddress, roomName)
+      return voiceDB.updateUserStatusAsDisconnected(userAddress, roomName)
     } else if (disconnectReason === DisconnectReason.ROOM_DELETED) {
       // If the room was deleted, remove the room from the database to prevent the room from being re-created.
-      return voiceDB.deletePrivateVoiceChat(roomName, userAddress)
+      await voiceDB.deletePrivateVoiceChat(roomName, userAddress)
+      return
     }
 
     // Treat any other disconnections as abrupt disconnections.
-    await voiceDB.disconnectUserFromRoom(userAddress, roomName)
+    await voiceDB.updateUserStatusAsConnectionInterrupted(userAddress, roomName)
   }
 
   /**
@@ -83,7 +81,6 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
     userAddresses: string[]
   ): Promise<Record<string, LivekitCredentials>> {
     const roomName = getPrivateVoiceChatRoomName(roomId)
-
     // Generate credentials for each user.
     const roomKeys = await Promise.all(
       userAddresses.map(async (userAddress) => {
@@ -101,10 +98,8 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
         return roomKey
       })
     )
-
     // Create the room in the database.
     await voiceDB.createVoiceChatRoom(roomName, userAddresses)
-
     return userAddresses.reduce(
       (acc, userAddress, index) => {
         acc[userAddress] = roomKeys[index]
@@ -118,15 +113,13 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
    * Ends a private voice chat room.
    * @param roomId - The ID suffix of the room to end.
    * @param address - The address of the user to end the private voice chat for.
+   * @returns The addresses of the users that were in the deleted room.
    */
-  async function endPrivateVoiceChat(roomId: string, address: string): Promise<void> {
+  async function endPrivateVoiceChat(roomId: string, address: string): Promise<string[]> {
     const roomName = getPrivateVoiceChatRoomName(roomId)
-    try {
-      await voiceDB.deletePrivateVoiceChat(roomName, address)
-      await livekit.deleteRoom(roomName)
-    } catch (error) {
-      logger.error(`Error deleting private voice chat ${roomId} for user ${address}: ${error}`)
-    }
+    const usersInRoom = await voiceDB.deletePrivateVoiceChat(roomName, address)
+    await livekit.deleteRoom(roomName)
+    return usersInRoom
   }
 
   return {

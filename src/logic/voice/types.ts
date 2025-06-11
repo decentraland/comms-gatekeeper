@@ -39,6 +39,7 @@ export interface IVoiceComponent {
    * Ends a private voice chat room.
    * @param roomId - The ID suffix of the room to end.
    * @param address - The address of the user to end the private voice chat for.
+   * @returns The addresses of the users that were in the deleted room.
    */
-  endPrivateVoiceChat(roomId: string, address: string): Promise<void>
+  endPrivateVoiceChat(roomId: string, address: string): Promise<string[]>
 }

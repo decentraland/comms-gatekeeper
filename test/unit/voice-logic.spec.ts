@@ -13,8 +13,8 @@ describe('voice logic component', () => {
   let generateCredentialsMock: jest.MockedFunction<ILivekitComponent['generateCredentials']>
   let getRoomUserIsInMock: jest.MockedFunction<IVoiceDBComponent['getRoomUserIsIn']>
   let joinUserToRoomMock: jest.MockedFunction<IVoiceDBComponent['joinUserToRoom']>
-  let removeUserFromRoomMock: jest.MockedFunction<IVoiceDBComponent['removeUserFromRoom']>
-  let disconnectUserFromRoomMock: jest.MockedFunction<IVoiceDBComponent['disconnectUserFromRoom']>
+  let removeUserFromRoomMock: jest.MockedFunction<IVoiceDBComponent['updateUserStatusAsDisconnected']>
+  let disconnectUserFromRoomMock: jest.MockedFunction<IVoiceDBComponent['updateUserStatusAsConnectionInterrupted']>
   let isPrivateRoomActiveMock: jest.MockedFunction<IVoiceDBComponent['isPrivateRoomActive']>
   let createVoiceChatRoomMock: jest.MockedFunction<IVoiceDBComponent['createVoiceChatRoom']>
   let deletePrivateVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deletePrivateVoiceChat']>
@@ -46,8 +46,8 @@ describe('voice logic component', () => {
     voiceDB = createMockedVoiceDBComponent({
       getRoomUserIsIn: getRoomUserIsInMock,
       joinUserToRoom: joinUserToRoomMock,
-      removeUserFromRoom: removeUserFromRoomMock,
-      disconnectUserFromRoom: disconnectUserFromRoomMock,
+      updateUserStatusAsDisconnected: removeUserFromRoomMock,
+      updateUserStatusAsConnectionInterrupted: disconnectUserFromRoomMock,
       isPrivateRoomActive: isPrivateRoomActiveMock,
       createVoiceChatRoom: createVoiceChatRoomMock,
       deletePrivateVoiceChat: deletePrivateVoiceChatMock
@@ -215,7 +215,7 @@ describe('voice logic component', () => {
   describe('when getting private voice chat room credentials', () => {
     const roomId = 'room-123'
     const userAddresses = ['0x111', '0x222']
-    const expectedRoomName = 'private-voice-chat-room-123'
+    const expectedRoomName = 'voice-chat-private-room-123'
     let mockCredentials: LivekitCredentials[]
 
     describe('and getting the credentials fails', () => {
@@ -279,56 +279,21 @@ describe('voice logic component', () => {
   describe('when ending a private voice chat', () => {
     const roomId = 'room-123'
     const userAddress = '0x123'
-    const expectedRoomName = 'private-voice-chat-room-123'
+    const expectedRoomName = 'voice-chat-private-room-123'
+    const usersInRoom = ['0x111', '0x222']
 
     describe('and the operation succeeds', () => {
       beforeEach(() => {
-        deletePrivateVoiceChatMock.mockResolvedValue(undefined)
+        deletePrivateVoiceChatMock.mockResolvedValue(usersInRoom)
         deleteRoomMock.mockResolvedValue(undefined)
       })
 
-      it('should delete the private voice chat, delete the room and resolve', async () => {
-        await voiceComponent.endPrivateVoiceChat(roomId, userAddress)
+      it('should delete the private voice chat, delete the room and return the users that were in the room', async () => {
+        const result = await voiceComponent.endPrivateVoiceChat(roomId, userAddress)
 
         expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(expectedRoomName, userAddress)
         expect(deleteRoomMock).toHaveBeenCalledWith(expectedRoomName)
-        expect(loggerMock.error).not.toHaveBeenCalled()
-      })
-    })
-
-    describe('and deleting the private voice chat fails', () => {
-      const error = new Error('Database error')
-
-      beforeEach(() => {
-        deletePrivateVoiceChatMock.mockRejectedValue(error)
-      })
-
-      it('should log the error, not delete the room, and resolve', async () => {
-        await voiceComponent.endPrivateVoiceChat(roomId, userAddress)
-
-        expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(expectedRoomName, userAddress)
-        expect(deleteRoomMock).not.toHaveBeenCalled()
-        expect(loggerMock.error).toHaveBeenCalledWith(
-          `Error deleting private voice chat ${roomId} for user ${userAddress}: ${error}`
-        )
-      })
-    })
-
-    describe('and deleting the room fails', () => {
-      const error = new Error('Livekit error')
-
-      beforeEach(() => {
-        deleteRoomMock.mockRejectedValue(error)
-      })
-
-      it('should log the error and resolve', async () => {
-        await voiceComponent.endPrivateVoiceChat(roomId, userAddress)
-
-        expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(expectedRoomName, userAddress)
-        expect(deleteRoomMock).toHaveBeenCalledWith(expectedRoomName)
-        expect(loggerMock.error).toHaveBeenCalledWith(
-          `Error deleting private voice chat ${roomId} for user ${userAddress}: ${error}`
-        )
+        expect(result).toEqual(usersInRoom)
       })
     })
   })
