@@ -62,15 +62,12 @@ export async function createVoiceDBComponent({
    */
   async function deletePrivateVoiceChat(roomName: string, address: string): Promise<string[]> {
     return _executeTx(async (txClient) => {
-      console.log('deletePrivateVoiceChat', { roomName, address })
       const result = await txClient.query(SQL`SELECT address FROM voice_chat_users WHERE room_name = ${roomName}`)
 
       if (result.rows.length === 0 || !result.rows.some((row) => row.address === address)) {
-        console.log('deletePrivateVoiceChat: room does not exist', { roomName, address })
         throw new RoomDoesNotExistError(roomName)
       }
 
-      console.log('deletePrivateVoiceChat: deleting room', { roomName, address })
       const query = SQL`DELETE FROM voice_chat_users WHERE room_name = ${roomName}`
       await txClient.query(query)
 
@@ -192,7 +189,6 @@ export async function createVoiceDBComponent({
    */
   async function createVoiceChatRoom(roomName: string, userAddresses: string[]): Promise<void> {
     const now = Date.now()
-    console.log('createVoiceChatRoom', { roomName, userAddresses })
     const query = SQL`INSERT INTO voice_chat_users (address, room_name, status, joined_at, status_updated_at) VALUES `
     userAddresses.forEach((userAddress, index) => {
       query.append(SQL`(${userAddress}, ${roomName}, ${VoiceChatUserStatus.NotConnected}, ${now}, ${now})`)

@@ -44,9 +44,10 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
       return
     }
 
+    // If the participant left willingly, we need to destroy the room to disconnect all users.
     if (disconnectReason === DisconnectReason.CLIENT_INITIATED) {
-      // If the participant left willingly, we need to destroy the room to disconnect all users.
-      // This is done because there are only two users in the room, but in the future we might have more users.
+      // As room only has two users up to know (private voice chats), if a user leaves a room willingly,
+      // we need to destroy the room to disconnect all users.
       await livekit.deleteRoom(roomName)
       // Remove the user from the room.
       return voiceDB.updateUserStatusAsDisconnected(userAddress, roomName)
