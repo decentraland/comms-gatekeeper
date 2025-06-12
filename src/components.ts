@@ -27,6 +27,8 @@ import { createStreamingKeyTTLChecker } from './adapters/streaming-key-ttl-check
 import { createSnsComponent } from './adapters/sns'
 import { createNotificationsComponent } from './adapters/notifications'
 import { createSceneAdminsComponent } from './adapters/scene-admins'
+import { createVoiceDBComponent } from './adapters/db/voice-db'
+import { createVoiceComponent } from './logic/voice/voice'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -116,6 +118,10 @@ export async function initComponents(): Promise<AppComponents> {
 
   const publisher = await createSnsComponent({ config })
 
+  // Voice components
+  const voiceDB = await createVoiceDBComponent({ database, logs, config })
+  const voice = createVoiceComponent({ voiceDB, logs, livekit })
+
   return {
     blockList,
     config,
@@ -134,6 +140,8 @@ export async function initComponents(): Promise<AppComponents> {
     social,
     livekit,
     database,
+    voiceDB,
+    voice,
     sceneAdminManager,
     sceneStreamAccessManager,
     placesChecker,

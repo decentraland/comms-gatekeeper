@@ -5,11 +5,11 @@ import { InvalidRequestError } from '../../types/errors'
 import { WebhookEventNames } from 'livekit-server-sdk'
 
 export async function livekitWebhookHandler(
-  ctx: HandlerContextWithPath<'logs' | 'livekit' | 'sceneStreamAccessManager', '/livekit-webhook'> &
+  ctx: HandlerContextWithPath<'logs' | 'livekit' | 'sceneStreamAccessManager' | 'voice', '/livekit-webhook'> &
     DecentralandSignatureContext<any>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, livekit, sceneStreamAccessManager },
+    components: { logs, livekit, sceneStreamAccessManager, voice },
     request
   } = ctx
   const logger = logs.getLogger('livekit-webhook')
@@ -42,12 +42,30 @@ export async function livekitWebhookHandler(
   } else if (event === 'ingress_ended' && webhookEvent.ingressInfo) {
     await sceneStreamAccessManager.stopStreaming(webhookEvent.ingressInfo.ingressId)
   } else if (event === 'participant_joined' && isVoiceChatRoom) {
-    logger.debug(`Participant ${webhookEvent.participant?.identity} joined voice chat room ${webhookEvent.room?.name}`)
+    if (!webhookEvent.participant?.identity) {
+      throw new InvalidRequestError("LiveKit didn't provide an identity for the participant")
+    }
+    if (!webhookEvent.room?.name) {
+      throw new InvalidRequestError("LiveKit didn't provide a room name for the participant")
+    }
+
+    logger.debug(`Participant ${webhookEvent.participant.identity} joined voice chat room ${webhookEvent.room.name}`)
+
+    await voice.handleParticipantJoined(webhookEvent.participant.identity, webhookEvent.room.name)
   } else if (event === 'participant_left' && isVoiceChatRoom) {
-    const disconnectReason = webhookEvent.participant?.disconnectReason
+    if (!webhookEvent.participant?.identity) {
+      throw new InvalidRequestError("LiveKit didn't provide an identity for the participant")
+    }
+    if (!webhookEvent.room?.name) {
+      throw new InvalidRequestError("LiveKit didn't provide a room name for the participant")
+    }
+
+    const disconnectReason = webhookEvent.participant.disconnectReason
     logger.debug(
-      `Participant ${webhookEvent.participant?.identity} left voice chat room ${webhookEvent.room?.name} with reason ${disconnectReason}`
+      `Participant ${webhookEvent.participant.identity} left voice chat room ${webhookEvent.room.name} with reason ${disconnectReason}`
     )
+
+    await voice.handleParticipantLeft(webhookEvent.participant.identity, webhookEvent.room.name, disconnectReason)
   }
 
   return {
