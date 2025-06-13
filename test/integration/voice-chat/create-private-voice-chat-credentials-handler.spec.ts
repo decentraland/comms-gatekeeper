@@ -292,6 +292,14 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           const body = await response.json()
 
           expect(response.status).toBe(200)
+          expect(body).toEqual({
+            [validAddress1.toLowerCase()]: {
+              connection_url: `livekit:${mockCredentials[validAddress1.toLowerCase()].url}?access_token=${mockCredentials[validAddress1.toLowerCase()].token}`
+            },
+            [validAddress2.toLowerCase()]: {
+              connection_url: `livekit:${mockCredentials[validAddress2.toLowerCase()].url}?access_token=${mockCredentials[validAddress2.toLowerCase()].token}`
+            }
+          })
           await expect(
             components.voiceDB.getUsersInRoom(getPrivateVoiceChatRoomName(requestBody.room_id))
           ).resolves.toEqual([
@@ -310,7 +318,6 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
               statusUpdatedAt: expect.any(Number)
             }
           ])
-          expect(body).toEqual(mockCredentials)
         })
       })
     })

@@ -40,7 +40,8 @@ describe('voice logic component', () => {
 
     livekit = {
       deleteRoom: deleteRoomMock,
-      generateCredentials: generateCredentialsMock
+      generateCredentials: generateCredentialsMock,
+      buildConnectionUrl: (url: string, token: string) => `livekit:${url}?access_token=${token}`
     } as jest.Mocked<ILivekitComponent>
 
     voiceDB = createMockedVoiceDBComponent({
@@ -239,6 +240,7 @@ describe('voice logic component', () => {
 
         generateCredentialsMock.mockResolvedValueOnce(mockCredentials[0]).mockResolvedValueOnce(mockCredentials[1])
       })
+
       it('should generate credentials for all users, create the room and resolve with the credentials', async () => {
         const result = await voiceComponent.getPrivateVoiceChatRoomCredentials(roomId, userAddresses)
 
@@ -269,8 +271,12 @@ describe('voice logic component', () => {
         )
         expect(createVoiceChatRoomMock).toHaveBeenCalledWith(expectedRoomName, userAddresses)
         expect(result).toEqual({
-          [userAddresses[0]]: mockCredentials[0],
-          [userAddresses[1]]: mockCredentials[1]
+          [userAddresses[0]]: {
+            connectionUrl: `livekit:${mockCredentials[0].url}?access_token=${mockCredentials[0].token}`
+          },
+          [userAddresses[1]]: {
+            connectionUrl: `livekit:${mockCredentials[1].url}?access_token=${mockCredentials[1].token}`
+          }
         })
       })
     })

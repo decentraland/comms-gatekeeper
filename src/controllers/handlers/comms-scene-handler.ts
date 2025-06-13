@@ -82,7 +82,7 @@ export async function commsSceneHandler(
   return {
     status: 200,
     body: {
-      adapter: `livekit:${credentials.url}?access_token=${credentials.token}`
+      adapter: livekit.buildConnectionUrl(credentials.url, credentials.token)
     }
   }
 }

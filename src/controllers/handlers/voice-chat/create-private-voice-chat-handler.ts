@@ -49,6 +49,13 @@ export async function createPrivateVoiceChatCredentialsHandler(
 
   return {
     status: 200,
-    body: credentials
+    body: Object.entries(credentials).reduce(
+      (acc, [userAddress, { connectionUrl }]) => {
+        // Re-build the object to be snake case.
+        acc[userAddress] = { connection_url: connectionUrl }
+        return acc
+      },
+      {} as Record<string, { connection_url: string }>
+    )
   }
 }

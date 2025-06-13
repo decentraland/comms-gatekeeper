@@ -15,6 +15,7 @@ export type LivekitSettings = {
 
 export type ILivekitComponent = IBaseComponent & {
   deleteRoom: (roomName: string) => Promise<void>
+  buildConnectionUrl: (url: string, token: string) => string
   generateCredentials: (
     identity: string,
     roomId: string,

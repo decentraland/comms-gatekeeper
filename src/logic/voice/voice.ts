@@ -1,7 +1,6 @@
 import { DisconnectReason } from '@livekit/protocol'
 import { AppComponents } from '../../types'
 import { IVoiceComponent } from './types'
-import { LivekitCredentials } from '../../types/livekit.type'
 import { getPrivateVoiceChatRoomName } from './utils'
 
 export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit'>): IVoiceComponent {
@@ -80,7 +79,7 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
   async function getPrivateVoiceChatRoomCredentials(
     roomId: string,
     userAddresses: string[]
-  ): Promise<Record<string, LivekitCredentials>> {
+  ): Promise<Record<string, { connectionUrl: string }>> {
     const roomName = getPrivateVoiceChatRoomName(roomId)
     // Generate credentials for each user.
     const roomKeys = await Promise.all(
@@ -103,10 +102,10 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
     await voiceDB.createVoiceChatRoom(roomName, userAddresses)
     return userAddresses.reduce(
       (acc, userAddress, index) => {
-        acc[userAddress] = roomKeys[index]
+        acc[userAddress] = { connectionUrl: livekit.buildConnectionUrl(roomKeys[index].url, roomKeys[index].token) }
         return acc
       },
-      {} as Record<string, LivekitCredentials>
+      {} as Record<string, { connectionUrl: string }>
     )
   }
 
