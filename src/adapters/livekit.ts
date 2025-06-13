@@ -165,7 +165,12 @@ export async function createLivekitComponent(
     return receiver.receive(body, authorization)
   }
 
+  function buildConnectionUrl(url: string, token: string): string {
+    return `livekit:${url}?access_token=${token}`
+  }
+
   return {
+    buildConnectionUrl,
     deleteRoom,
     updateParticipantMetadata,
     generateCredentials,

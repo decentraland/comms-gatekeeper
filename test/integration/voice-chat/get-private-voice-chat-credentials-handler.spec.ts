@@ -283,6 +283,14 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           })
 
           expect(response.status).toBe(200)
+          expect(response.json()).resolves.toEqual({
+            [anAddress.toLowerCase()]: {
+              connection_url: `livekit:${mockCredentials[anAddress.toLowerCase()].url}?access_token=${mockCredentials[anAddress.toLowerCase()].token}`
+            },
+            [anotherAddress.toLowerCase()]: {
+              connection_url: `livekit:${mockCredentials[anotherAddress.toLowerCase()].url}?access_token=${mockCredentials[anotherAddress.toLowerCase()].token}`
+            }
+          })
           await expect(components.voiceDB.getUsersInRoom(roomName)).resolves.toEqual([
             {
               address: anAddress.toLowerCase(),
@@ -299,7 +307,6 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
               statusUpdatedAt: expect.any(Number)
             }
           ])
-          expect(response.json()).resolves.toEqual(mockCredentials)
         })
       })
     })

@@ -1,5 +1,4 @@
 import { DisconnectReason } from '@livekit/protocol'
-import { LivekitCredentials } from '../../types/livekit.type'
 
 export interface IVoiceComponent {
   /**
@@ -33,7 +32,7 @@ export interface IVoiceComponent {
   getPrivateVoiceChatRoomCredentials(
     roomId: string,
     userAddresses: string[]
-  ): Promise<Record<string, LivekitCredentials>>
+  ): Promise<Record<string, { connectionUrl: string }>>
 
   /**
    * Ends a private voice chat room.
