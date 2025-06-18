@@ -3,6 +3,7 @@ import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate, validateFilters } from '../../../logic/utils'
 import { PlaceAttributes } from '../../../types/places.type'
+import { createSceneServiceComponent } from '../../../logic/scenes-service'
 
 export async function listSceneAdminsHandler(
   ctx: Pick<
@@ -64,24 +65,19 @@ export async function listSceneAdminsHandler(
     throw new InvalidRequestError(`Invalid parameters: ${validationResult.error}`)
   }
 
-  const allAddresses = await sceneAdmins.getAdminsAndExtraAddresses(place, validationResult.value.admin)
-
-  const allNames = await names.getNamesFromAddresses(Array.from(allAddresses.addresses))
-
-  const adminsWithNames = Array.from(allAddresses.admins).map((admin) => ({
-    ...admin,
-    name: allNames[admin.admin] || '',
-    canBeRemoved: !allAddresses.extraAddresses.has(admin.admin)
-  }))
-
-  const extraAdminsWithNames = Array.from(allAddresses.extraAddresses).map((address) => ({
-    admin: address,
-    name: allNames[address] || '',
-    canBeRemoved: false
-  }))
-
-  return {
-    status: 200,
-    body: [...adminsWithNames, ...extraAdminsWithNames]
+  const sceneService = createSceneServiceComponent({ sceneManager, sceneAdmins, names })
+  
+  try {
+    const admins = await sceneService.listSceneAdmins(place, authenticatedAddress, validationResult.value.admin)
+    return {
+      status: 200,
+      body: admins
+    }
+  } catch (error: any) {
+    if (error?.message?.includes('not authorized')) {
+      logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
+      throw new UnauthorizedError('Only administrators or the owner can list administrators')
+    }
+    throw error
   }
 }
