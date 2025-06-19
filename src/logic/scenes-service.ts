@@ -2,6 +2,7 @@ import { ISceneManager } from '../types/scene-manager.type'
 import { ISceneAdmins } from '../types/scene.type'
 import { PlaceAttributes } from '../types/places.type'
 import { SceneAdmin } from '../types'
+import { aggregateAdminsNames, aggregateExtraAdminsNames } from '../adapters/scenes'
 
 export type SceneServiceComponents = {
   sceneManager: ISceneManager
@@ -23,7 +24,7 @@ export type AdminWithName = {
 }
 
 export function createSceneServiceComponent(components: SceneServiceComponents) {
-  const { sceneManager, sceneAdmins, names, scenesAdapter } = components
+  const { sceneManager, sceneAdmins, names } = components
 
   async function listSceneAdmins(
     place: PlaceAttributes,
@@ -42,13 +43,13 @@ export function createSceneServiceComponent(components: SceneServiceComponents) 
     const adminsArray = Array.from(allAddresses.admins) as SceneAdmin[]
     const extraAddressesArray = Array.from(allAddresses.extraAddresses) as string[]
 
-    const adminsWithNames = scenesAdapter.aggregateAdminsNames({
+    const adminsWithNames = aggregateAdminsNames({
       getNames: allNames,
       getAdmins: adminsArray,
       getExtraAddresses: extraAddressesArray
     })
 
-    const extraAdminsWithNames = scenesAdapter.aggregateExtraAdminsNames({
+    const extraAdminsWithNames = aggregateExtraAdminsNames({
       getNames: allNames,
       getExtraAddresses: extraAddressesArray
     })

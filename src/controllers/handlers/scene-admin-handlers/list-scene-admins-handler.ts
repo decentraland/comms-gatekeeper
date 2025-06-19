@@ -66,7 +66,7 @@ export async function listSceneAdminsHandler(
   }
 
   const sceneService = createSceneServiceComponent({ sceneManager, sceneAdmins, names })
-  
+
   try {
     const admins = await sceneService.listSceneAdmins(place, authenticatedAddress, validationResult.value.admin)
     return {
