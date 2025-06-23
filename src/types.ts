@@ -24,6 +24,7 @@ import { INotifications } from './types/notification.type'
 import { ISceneAdmins } from './types/scene.type'
 import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
+import { ICronJobComponent } from './logic/cron-job/types'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -56,6 +57,7 @@ export type BaseComponents = {
   voiceDB: IVoiceDBComponent
   voice: IVoiceComponent
   publisher: IPublisherComponent
+  voiceChatExpirationJob?: ICronJobComponent
 }
 
 export type AppComponents = BaseComponents & {

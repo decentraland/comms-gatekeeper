@@ -41,4 +41,9 @@ export interface IVoiceComponent {
    * @returns The addresses of the users that were in the deleted room.
    */
   endPrivateVoiceChat(roomId: string, address: string): Promise<string[]>
+
+  /**
+   * Deletes expired private voice chats.
+   */
+  expirePrivateVoiceChats(): Promise<void>
 }

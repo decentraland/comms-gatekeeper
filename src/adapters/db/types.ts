@@ -81,4 +81,15 @@ export interface IVoiceDBComponent {
    * @returns The users in the room.
    */
   getUsersInRoom: (roomName: string) => Promise<VoiceChatUser[]>
+
+  /**
+   * Deletes expired private voice chats and returns the names of the rooms that were deleted.
+   * A private voice chat is expired if:
+   * - There's a user in the room that left the room voluntarily.
+   * - There's a user in the room with a connection interrupted more than VOICE_CHAT_CONNECTION_INTERRUPTED_TTL ago.
+   * - There's a user in the room that was not connected to the room for more than VOICE_CHAT_INITIAL_CONNECTION_TTL ago.
+   * Room where the users left voluntarily should not be returned, as they have already been deleted in LiveKit.
+   * @returns The names of the rooms that were deleted when the users were in the rooms.
+   */
+  deleteExpiredPrivateVoiceChats: () => Promise<string[]>
 }

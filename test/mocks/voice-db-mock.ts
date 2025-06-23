@@ -1,4 +1,4 @@
-import { IVoiceDBComponent } from '../src/adapters/db/types'
+import { IVoiceDBComponent } from '../../src/adapters/db/types'
 
 export const createMockedVoiceDBComponent = (
   overrides?: Partial<jest.Mocked<IVoiceDBComponent>>
@@ -11,6 +11,7 @@ export const createMockedVoiceDBComponent = (
     updateUserStatusAsConnectionInterrupted: overrides?.updateUserStatusAsConnectionInterrupted ?? jest.fn(),
     isPrivateRoomActive: overrides?.isPrivateRoomActive ?? jest.fn(),
     createVoiceChatRoom: overrides?.createVoiceChatRoom ?? jest.fn(),
-    deletePrivateVoiceChat: overrides?.deletePrivateVoiceChat ?? jest.fn()
+    deletePrivateVoiceChat: overrides?.deletePrivateVoiceChat ?? jest.fn(),
+    deleteExpiredPrivateVoiceChats: overrides?.deleteExpiredPrivateVoiceChats ?? jest.fn()
   }
 }

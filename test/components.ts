@@ -20,7 +20,7 @@ export const test = createRunner<TestComponents>({
 })
 
 async function initComponents(): Promise<TestComponents> {
-  const components = await originalInitComponents()
+  const components = await originalInitComponents(false)
 
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
 

@@ -3,7 +3,8 @@ import { IVoiceDBComponent } from '../../src/adapters/db/types'
 import { IVoiceComponent } from '../../src/logic/voice/types'
 import { createVoiceComponent } from '../../src/logic/voice/voice'
 import { ILivekitComponent, LivekitCredentials } from '../../src/types/livekit.type'
-import { createMockedVoiceDBComponent } from '../mocks'
+import { createMockedVoiceDBComponent } from '../mocks/voice-db-mock'
+import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 
 describe('voice logic component', () => {
   let voiceComponent: IVoiceComponent
@@ -18,6 +19,7 @@ describe('voice logic component', () => {
   let isPrivateRoomActiveMock: jest.MockedFunction<IVoiceDBComponent['isPrivateRoomActive']>
   let createVoiceChatRoomMock: jest.MockedFunction<IVoiceDBComponent['createVoiceChatRoom']>
   let deletePrivateVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deletePrivateVoiceChat']>
+  let deleteExpiredPrivateVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredPrivateVoiceChats']>
   let loggerMock: {
     debug: jest.MockedFunction<any>
     info: jest.MockedFunction<any>
@@ -37,12 +39,15 @@ describe('voice logic component', () => {
     isPrivateRoomActiveMock = jest.fn()
     createVoiceChatRoomMock = jest.fn()
     deletePrivateVoiceChatMock = jest.fn()
+    deleteExpiredPrivateVoiceChatsMock = jest.fn()
 
-    livekit = {
+    livekit = createLivekitMockedComponent({
       deleteRoom: deleteRoomMock,
       generateCredentials: generateCredentialsMock,
-      buildConnectionUrl: (url: string, token: string) => `livekit:${url}?access_token=${token}`
-    } as jest.Mocked<ILivekitComponent>
+      buildConnectionUrl: jest
+        .fn()
+        .mockImplementation((url: string, token: string) => `livekit:${url}?access_token=${token}`)
+    })
 
     voiceDB = createMockedVoiceDBComponent({
       getRoomUserIsIn: getRoomUserIsInMock,
@@ -51,7 +56,8 @@ describe('voice logic component', () => {
       updateUserStatusAsConnectionInterrupted: disconnectUserFromRoomMock,
       isPrivateRoomActive: isPrivateRoomActiveMock,
       createVoiceChatRoom: createVoiceChatRoomMock,
-      deletePrivateVoiceChat: deletePrivateVoiceChatMock
+      deletePrivateVoiceChat: deletePrivateVoiceChatMock,
+      deleteExpiredPrivateVoiceChats: deleteExpiredPrivateVoiceChatsMock
     })
 
     loggerMock = {
@@ -301,6 +307,24 @@ describe('voice logic component', () => {
         expect(deleteRoomMock).toHaveBeenCalledWith(expectedRoomName)
         expect(result).toEqual(usersInRoom)
       })
+    })
+  })
+
+  describe('when expiring private voice chats', () => {
+    let expiredRoomNames: string[]
+
+    beforeEach(() => {
+      expiredRoomNames = ['room-123', 'room-456']
+      deleteExpiredPrivateVoiceChatsMock.mockResolvedValue(expiredRoomNames)
+      deleteRoomMock.mockResolvedValue(undefined)
+    })
+
+    it('should delete the expired private voice chats and delete the rooms from LiveKit', async () => {
+      await voiceComponent.expirePrivateVoiceChats()
+
+      expect(deleteRoomMock).toHaveBeenCalledTimes(expiredRoomNames.length)
+      expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[0])
+      expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[1])
     })
   })
 })
