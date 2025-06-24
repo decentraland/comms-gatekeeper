@@ -230,20 +230,21 @@ export async function createVoiceDBComponent({
   async function deleteExpiredPrivateVoiceChats(): Promise<string[]> {
     const now = Date.now()
     return _executeTx(async (txClient) => {
-      const expiredQuery = SQL`SELECT 
-        room_name,
-        MAX(CASE WHEN status = ${VoiceChatUserStatus.NotConnected} OR status = ${VoiceChatUserStatus.ConnectionInterrupted} THEN 1 ELSE 0 END)::boolean AS should_delete_room 
-      FROM voice_chat_users WHERE 
-        (status = ${VoiceChatUserStatus.NotConnected} AND joined_at <= ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
-        OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at <= ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
-        OR (status = ${VoiceChatUserStatus.Disconnected})
-      GROUP BY room_name LIMIT ${VOICE_CHAT_EXPIRED_BATCH_SIZE}`
-
+      const expiredQuery = SQL`
+        WITH expired_rooms AS (
+          SELECT 
+            room_name,
+            MAX(CASE WHEN status = ${VoiceChatUserStatus.NotConnected} OR status = ${VoiceChatUserStatus.ConnectionInterrupted} THEN 1 ELSE 0 END)::boolean AS should_destroy_room 
+          FROM voice_chat_users WHERE 
+            (status = ${VoiceChatUserStatus.NotConnected} AND joined_at <= ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+            OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at <= ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
+            OR (status = ${VoiceChatUserStatus.Disconnected})
+          GROUP BY room_name LIMIT ${VOICE_CHAT_EXPIRED_BATCH_SIZE}
+        )
+        DELETE FROM voice_chat_users USING expired_rooms WHERE voice_chat_users.room_name = expired_rooms.room_name
+        RETURNING expired_rooms.room_name, expired_rooms.should_destroy_room`
       const expiredResult = await txClient.query(expiredQuery)
-      const expiredRoomNames = expiredResult.rows.map((row) => row.room_name)
-      const deleteQuery = SQL`DELETE FROM voice_chat_users WHERE room_name IN (${expiredRoomNames.join(',')})`
-      await txClient.query(deleteQuery)
-      return expiredResult.rows.filter((row) => row.should_delete_room).map((row) => row.room_name)
+      return [...new Set(expiredResult.rows.filter((row) => row.should_destroy_room).map((row) => row.room_name))]
     })
   }
 

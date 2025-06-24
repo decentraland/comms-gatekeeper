@@ -1,6 +1,6 @@
+import { generateRandomWalletAddresses } from '@dcl/platform-server-commons'
 import { test } from '../../components'
 import { setUserJoinedAt, setUserStatusUpdatedAt } from '../../db-utils'
-import { generateRandomWalletAddresses } from '../../tools/wallet'
 
 test('when expiring private voice chats', async ({ components, spyComponents }) => {
   let VOICE_CHAT_INITIAL_CONNECTION_TTL: number

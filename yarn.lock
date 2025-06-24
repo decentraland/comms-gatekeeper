@@ -751,10 +751,10 @@
     "@well-known-components/fetch-component" "^2.0.2"
     "@well-known-components/interfaces" "^1.4.2"
 
-"@dcl/platform-server-commons@^0.1.0":
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/@dcl/platform-server-commons/-/platform-server-commons-0.1.0.tgz#02400b9fa75201b3c31ef098f00abd153c4b81b6"
-  integrity sha512-lFdk9nw5mC37oWPu8p5cRwmN9hiLPCZvKZB74lIYTu/TL7XPmJIe0afans3ftptx1CP96dqor8LBTzaUx+HpoQ==
+"@dcl/platform-server-commons@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@dcl/platform-server-commons/-/platform-server-commons-0.2.0.tgz#cb688aa3f90bdc350fe74290aec242001acd4950"
+  integrity sha512-ijczFKcvgHli99bxJBw2LdZemsyY1aP/f2ccYuMT85rTla9py9vsYxdAuLlb/UN8FiBTQ1cvqgWK97O6i1llnw==
   dependencies:
     "@dcl/schemas" "^16.9.0"
     "@well-known-components/http-server" "^2.1.0"
