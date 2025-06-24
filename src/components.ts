@@ -29,11 +29,13 @@ import { createNotificationsComponent } from './adapters/notifications'
 import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
+import { createCronJobComponent } from './logic/cron-job'
 
 // Initialize all the components of the app
-export async function initComponents(): Promise<AppComponents> {
+export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
   const metrics = await createMetricsComponent(metricDeclarations, { config })
+  const everyMinuteExpression = '* * * * *'
   const tracer = createTracerComponent()
   const logs = await createLogComponent({ metrics, tracer })
   const server = await createServerComponent<GlobalContext>(
@@ -121,6 +123,12 @@ export async function initComponents(): Promise<AppComponents> {
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config })
   const voice = createVoiceComponent({ voiceDB, logs, livekit })
+  const voiceChatExpirationJob = await createCronJobComponent(
+    { logs },
+    voice.expirePrivateVoiceChats,
+    everyMinuteExpression,
+    { startOnInit: isProduction, waitForCompletion: true }
+  )
 
   return {
     blockList,
@@ -130,6 +138,7 @@ export async function initComponents(): Promise<AppComponents> {
     tracer,
     statusChecks,
     fetch: tracedFetch,
+    voiceChatExpirationJob,
     metrics,
     cachedFetch,
     worlds,

@@ -12,6 +12,7 @@ export async function createVoiceDBComponent({
   const logger = logs.getLogger('voice-db')
   const VOICE_CHAT_CONNECTION_INTERRUPTED_TTL = await config.requireNumber('VOICE_CHAT_CONNECTION_INTERRUPTED_TTL')
   const VOICE_CHAT_INITIAL_CONNECTION_TTL = await config.requireNumber('VOICE_CHAT_INITIAL_CONNECTION_TTL')
+  const VOICE_CHAT_EXPIRED_BATCH_SIZE = await config.requireNumber('VOICE_CHAT_EXPIRED_BATCH_SIZE')
 
   /**
    * Private function to update the status of a participant in a room.
@@ -111,8 +112,8 @@ export async function createVoiceDBComponent({
     const now = Date.now()
     const query = SQL`SELECT room_name FROM voice_chat_users WHERE address = ${userAddress} AND
     (status = ${VoiceChatUserStatus.Connected} OR
-      (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at + ${VOICE_CHAT_CONNECTION_INTERRUPTED_TTL} > ${now})
-      OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at + ${VOICE_CHAT_INITIAL_CONNECTION_TTL} > ${now}))
+      (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
+      OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL}))
     ORDER BY 
       CASE status 
         WHEN ${VoiceChatUserStatus.Connected} THEN 1 
@@ -217,7 +218,44 @@ export async function createVoiceDBComponent({
     }))
   }
 
+  /**
+   * Deletes expired private voice chats and returns the names of the rooms that were deleted.
+   * A private voice chat is expired if:
+   * - There's a user in the room that left the room voluntarily.
+   * - There's a user in the room with a connection interrupted more than VOICE_CHAT_CONNECTION_INTERRUPTED_TTL ago.
+   * - There's a user in the room that was not connected to the room for more than VOICE_CHAT_INITIAL_CONNECTION_TTL ago.
+   * Room where the users left voluntarily should not be returned, as they have already been deleted in LiveKit.
+   * @returns The names of the rooms that were deleted when the users were in the rooms.
+   */
+  async function deleteExpiredPrivateVoiceChats(): Promise<string[]> {
+    const now = Date.now()
+    return _executeTx(async (txClient) => {
+      const expiredQuery = SQL`
+        WITH expired_rooms AS (
+          SELECT 
+            room_name,
+            MAX(
+              CASE
+                WHEN status = ${VoiceChatUserStatus.NotConnected} OR status = ${VoiceChatUserStatus.ConnectionInterrupted}
+                THEN 1
+                ELSE 0
+              END
+            )::boolean AS should_destroy_room 
+          FROM voice_chat_users WHERE 
+            (status = ${VoiceChatUserStatus.NotConnected} AND joined_at <= ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+            OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at <= ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
+            OR (status = ${VoiceChatUserStatus.Disconnected})
+          GROUP BY room_name LIMIT ${VOICE_CHAT_EXPIRED_BATCH_SIZE}
+        )
+        DELETE FROM voice_chat_users USING expired_rooms WHERE voice_chat_users.room_name = expired_rooms.room_name
+        RETURNING expired_rooms.room_name, expired_rooms.should_destroy_room`
+      const expiredResult = await txClient.query(expiredQuery)
+      return [...new Set(expiredResult.rows.filter((row) => row.should_destroy_room).map((row) => row.room_name))]
+    })
+  }
+
   return {
+    deleteExpiredPrivateVoiceChats,
     getUsersInRoom,
     isPrivateRoomActive,
     deletePrivateVoiceChat,

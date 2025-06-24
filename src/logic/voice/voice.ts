@@ -122,7 +122,19 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
     return usersInRoom
   }
 
+  /**
+   * Deletes expired private voice chats.
+   */
+  async function expirePrivateVoiceChats() {
+    const expiredRoomNames = await voiceDB.deleteExpiredPrivateVoiceChats()
+    // Delete the expired rooms from LiveKit.
+    for (const roomName of expiredRoomNames) {
+      await livekit.deleteRoom(roomName)
+    }
+  }
+
   return {
+    expirePrivateVoiceChats,
     endPrivateVoiceChat,
     isUserInVoiceChat,
     handleParticipantJoined,
