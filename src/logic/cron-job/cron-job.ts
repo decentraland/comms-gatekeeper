@@ -7,7 +7,7 @@ export async function createCronJobComponent(
   components: Pick<AppComponents, 'logs'>,
   fn: () => Promise<void>,
   cronTime: string,
-  { waitForCompletion = false }: { waitForCompletion?: boolean } = {}
+  { waitForCompletion = false, startOnInit = true }: { waitForCompletion?: boolean; startOnInit?: boolean } = {}
 ): Promise<ICronJobComponent> {
   const { logs } = components
   const logger = logs.getLogger(`cron-job`)
@@ -24,10 +24,9 @@ export async function createCronJobComponent(
         }
       },
       waitForCompletion,
-      start: false,
+      start: startOnInit,
       timeZone: 'UCT'
     })
-    job.start()
   }
 
   async function stop() {

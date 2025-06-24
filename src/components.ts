@@ -29,7 +29,7 @@ import { createNotificationsComponent } from './adapters/notifications'
 import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
-import { createCronJobComponent, ICronJobComponent } from './logic/cron-job'
+import { createCronJobComponent } from './logic/cron-job'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -123,14 +123,12 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config })
   const voice = createVoiceComponent({ voiceDB, logs, livekit })
-  let voiceChatExpirationJob: ICronJobComponent | undefined
-  if (!isProduction) {
-    voiceChatExpirationJob = await createCronJobComponent(
-      { logs },
-      voice.expirePrivateVoiceChats,
-      everyMinuteExpression
-    )
-  }
+  const voiceChatExpirationJob = await createCronJobComponent(
+    { logs },
+    voice.expirePrivateVoiceChats,
+    everyMinuteExpression,
+    { startOnInit: isProduction, waitForCompletion: true }
+  )
 
   return {
     blockList,
