@@ -234,7 +234,13 @@ export async function createVoiceDBComponent({
         WITH expired_rooms AS (
           SELECT 
             room_name,
-            MAX(CASE WHEN status = ${VoiceChatUserStatus.NotConnected} OR status = ${VoiceChatUserStatus.ConnectionInterrupted} THEN 1 ELSE 0 END)::boolean AS should_destroy_room 
+            MAX(
+              CASE
+                WHEN status = ${VoiceChatUserStatus.NotConnected} OR status = ${VoiceChatUserStatus.ConnectionInterrupted}
+                THEN 1
+                ELSE 0
+              END
+            )::boolean AS should_destroy_room 
           FROM voice_chat_users WHERE 
             (status = ${VoiceChatUserStatus.NotConnected} AND joined_at <= ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
             OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at <= ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
