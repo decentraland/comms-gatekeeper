@@ -1,6 +1,6 @@
 import { ILoggerComponent } from '@well-known-components/interfaces'
 
-export const createLoggerMockComponent = (
+export const createLoggerMockedComponent = (
   overrides?: Partial<jest.Mocked<ILoggerComponent.ILogger>>
 ): jest.Mocked<ILoggerComponent> => {
   return {

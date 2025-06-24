@@ -3,7 +3,7 @@ import { IVoiceDBComponent } from '../../src/adapters/db/types'
 import { IVoiceComponent } from '../../src/logic/voice/types'
 import { createVoiceComponent } from '../../src/logic/voice/voice'
 import { ILivekitComponent, LivekitCredentials } from '../../src/types/livekit.type'
-import { createMockedVoiceDBComponent } from '../mocks/voice-db-mock'
+import { createVoiceDBMockedComponent } from '../mocks/voice-db-mock'
 import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 
 describe('voice logic component', () => {
@@ -49,7 +49,7 @@ describe('voice logic component', () => {
         .mockImplementation((url: string, token: string) => `livekit:${url}?access_token=${token}`)
     })
 
-    voiceDB = createMockedVoiceDBComponent({
+    voiceDB = createVoiceDBMockedComponent({
       getRoomUserIsIn: getRoomUserIsInMock,
       joinUserToRoom: joinUserToRoomMock,
       updateUserStatusAsDisconnected: removeUserFromRoomMock,

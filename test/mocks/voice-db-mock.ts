@@ -1,6 +1,6 @@
 import { IVoiceDBComponent } from '../../src/adapters/db/types'
 
-export const createMockedVoiceDBComponent = (
+export const createVoiceDBMockedComponent = (
   overrides?: Partial<jest.Mocked<IVoiceDBComponent>>
 ): jest.Mocked<IVoiceDBComponent> => {
   return {
