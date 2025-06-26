@@ -7,6 +7,7 @@ import type {
   ITracerComponent,
   IFetchComponent
 } from '@well-known-components/interfaces'
+import { IAnalyticsComponent } from '@dcl/analytics-component'
 import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
 import { IBlockListComponent } from './adapters/blocklist'
@@ -25,7 +26,6 @@ import { ISceneAdmins } from './types/scene.type'
 import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
 import { ICronJobComponent } from './logic/cron-job/types'
-import { IAnalyticsComponent } from './logic/analytics/types'
 import { AnalyticsEventPayload } from './types/analytics'
 
 export type GlobalContext = {

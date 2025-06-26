@@ -1,4 +1,4 @@
-import { IAnalyticsComponent } from '../../src/logic/analytics/types'
+import { IAnalyticsComponent } from '@dcl/analytics-component'
 import { AnalyticsEventPayload } from '../../src/types/analytics'
 
 export const createAnalyticsMockedComponent = (
