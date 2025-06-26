@@ -1,4 +1,5 @@
 import { resolve } from 'path'
+import { createAnalyticsComponent } from '@dcl/analytics-component'
 import { createDotEnvConfigComponent } from '@well-known-components/env-config-provider'
 import { createServerComponent, createStatusCheckComponent } from '@well-known-components/http-server'
 import { createLogComponent } from '@well-known-components/logger'
@@ -30,7 +31,6 @@ import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
 import { createCronJobComponent } from './logic/cron-job'
-import { createAnalyticsComponent } from './logic/analytics/component'
 import { AnalyticsEventPayload } from './types/analytics'
 
 // Initialize all the components of the app
