@@ -16,6 +16,7 @@ test('when expiring private voice chats', async ({ components, spyComponents }) 
       'VOICE_CHAT_CONNECTION_INTERRUPTED_TTL'
     )
     spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
+    spyComponents.analytics.fireEvent.mockReturnValue(undefined)
   })
 
   afterEach(async () => {
