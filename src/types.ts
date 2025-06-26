@@ -25,6 +25,8 @@ import { ISceneAdmins } from './types/scene.type'
 import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
 import { ICronJobComponent } from './logic/cron-job/types'
+import { IAnalyticsComponent } from './logic/analytics/types'
+import { AnalyticsEventPayload } from './types/analytics'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -56,6 +58,7 @@ export type BaseComponents = {
   streamingKeyTTLChecker: IStreamingKeyChecker
   voiceDB: IVoiceDBComponent
   voice: IVoiceComponent
+  analytics: IAnalyticsComponent<AnalyticsEventPayload>
   publisher: IPublisherComponent
   voiceChatExpirationJob?: ICronJobComponent
 }

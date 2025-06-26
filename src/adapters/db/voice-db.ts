@@ -94,7 +94,8 @@ export async function createVoiceDBComponent({
         user.statusUpdatedAt + VOICE_CHAT_CONNECTION_INTERRUPTED_TTL < now
       const hasNotJoinedLongerThanTTL =
         user.status === VoiceChatUserStatus.NotConnected && user.joinedAt + VOICE_CHAT_INITIAL_CONNECTION_TTL < now
-      return hasBeenInterruptedLongerThanTTL || hasNotJoinedLongerThanTTL
+      const hasLeftVoluntarily = user.status === VoiceChatUserStatus.Disconnected
+      return hasBeenInterruptedLongerThanTTL || hasNotJoinedLongerThanTTL || hasLeftVoluntarily
     })
     return !hasInactiveUser && usersInRoom.length >= 2
   }

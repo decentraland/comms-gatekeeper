@@ -30,6 +30,8 @@ import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
 import { createCronJobComponent } from './logic/cron-job'
+import { createAnalyticsComponent } from './logic/analytics/component'
+import { AnalyticsEventPayload } from './types/analytics'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -87,6 +89,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const lands = await createLandsComponent({ config, logs, cachedFetch })
   const names = await createNamesComponent({ config, logs, fetch: tracedFetch })
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager })
+  const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
@@ -122,7 +125,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config })
-  const voice = createVoiceComponent({ voiceDB, logs, livekit })
+  const voice = createVoiceComponent({ voiceDB, logs, livekit, analytics })
   const voiceChatExpirationJob = await createCronJobComponent(
     { logs },
     voice.expirePrivateVoiceChats,
@@ -131,6 +134,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   )
 
   return {
+    analytics,
     blockList,
     config,
     logs,

@@ -1,10 +1,13 @@
 import { DisconnectReason } from '@livekit/protocol'
+import { ILoggerComponent } from '@well-known-components/interfaces'
 import { IVoiceDBComponent } from '../../src/adapters/db/types'
 import { IVoiceComponent } from '../../src/logic/voice/types'
 import { createVoiceComponent } from '../../src/logic/voice/voice'
 import { ILivekitComponent, LivekitCredentials } from '../../src/types/livekit.type'
 import { createVoiceDBMockedComponent } from '../mocks/voice-db-mock'
 import { createLivekitMockedComponent } from '../mocks/livekit-mock'
+import { createLoggerMockedComponent } from '../mocks/logger-mock'
+import { createAnalyticsMockedComponent } from '../mocks/analytics-mocks'
 
 describe('voice logic component', () => {
   let voiceComponent: IVoiceComponent
@@ -20,12 +23,7 @@ describe('voice logic component', () => {
   let createVoiceChatRoomMock: jest.MockedFunction<IVoiceDBComponent['createVoiceChatRoom']>
   let deletePrivateVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deletePrivateVoiceChat']>
   let deleteExpiredPrivateVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredPrivateVoiceChats']>
-  let loggerMock: {
-    debug: jest.MockedFunction<any>
-    info: jest.MockedFunction<any>
-    warn: jest.MockedFunction<any>
-    error: jest.MockedFunction<any>
-  }
+  let logs: jest.Mocked<ILoggerComponent>
 
   beforeEach(() => {
     jest.resetAllMocks()
@@ -60,21 +58,15 @@ describe('voice logic component', () => {
       deleteExpiredPrivateVoiceChats: deleteExpiredPrivateVoiceChatsMock
     })
 
-    loggerMock = {
-      debug: jest.fn(),
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn()
-    }
+    logs = createLoggerMockedComponent()
 
-    const logs = {
-      getLogger: jest.fn().mockReturnValue(loggerMock)
-    }
+    const analytics = createAnalyticsMockedComponent()
 
     voiceComponent = createVoiceComponent({
       voiceDB,
       livekit,
-      logs
+      logs,
+      analytics
     })
   })
 
@@ -87,12 +79,8 @@ describe('voice logic component', () => {
         isPrivateRoomActiveMock.mockResolvedValue(false)
       })
 
-      it('should warn and delete the room', async () => {
-        await voiceComponent.handleParticipantJoined(userAddress, roomName)
-
-        expect(loggerMock.warn).toHaveBeenCalledWith(
-          `User ${userAddress} has joined an inactive room ${roomName}, destroying it`
-        )
+      it('should delete the room and resolve', async () => {
+        await expect(voiceComponent.handleParticipantJoined(userAddress, roomName)).resolves.toBeUndefined()
         expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
       })
     })
