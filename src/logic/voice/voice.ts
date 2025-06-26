@@ -1,7 +1,7 @@
 import { DisconnectReason } from '@livekit/protocol'
 import { AppComponents } from '../../types'
 import { IVoiceComponent } from './types'
-import { getPrivateVoiceChatRoomName } from './utils'
+import { getCallIdFromRoomName, getPrivateVoiceChatRoomName } from './utils'
 import { AnalyticsEvent } from '../../types/analytics'
 
 export function createVoiceComponent(
@@ -53,7 +53,7 @@ export function createVoiceComponent(
       await livekit.deleteRoom(roomName)
 
       analytics.fireEvent(AnalyticsEvent.END_CALL, {
-        room: roomName,
+        room: getCallIdFromRoomName(roomName),
         address: userAddress
       })
 
@@ -62,7 +62,7 @@ export function createVoiceComponent(
     } else if (disconnectReason === DisconnectReason.ROOM_DELETED) {
       // If the room was deleted, remove the room from the database to prevent the room from being re-created.
       analytics.fireEvent(AnalyticsEvent.END_CALL, {
-        room: roomName,
+        room: getCallIdFromRoomName(roomName),
         address: userAddress
       })
       await voiceDB.deletePrivateVoiceChat(roomName, userAddress)
@@ -142,6 +142,9 @@ export function createVoiceComponent(
     const expiredRoomNames = await voiceDB.deleteExpiredPrivateVoiceChats()
     // Delete the expired rooms from LiveKit.
     for (const roomName of expiredRoomNames) {
+      analytics.fireEvent(AnalyticsEvent.EXPIRE_CALL, {
+        call_id: getCallIdFromRoomName(roomName)
+      })
       await livekit.deleteRoom(roomName)
     }
   }
