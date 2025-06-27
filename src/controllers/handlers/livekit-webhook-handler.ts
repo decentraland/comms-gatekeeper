@@ -2,8 +2,15 @@ import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { HandlerContextWithPath } from '../../types'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { InvalidRequestError } from '../../types/errors'
-import { WebhookEventNames } from 'livekit-server-sdk'
+import { WebhookEvent, WebhookEventNames } from 'livekit-server-sdk'
 import { AnalyticsEvent } from '../../types/analytics'
+
+function isRoomEventValid(webhookEvent: WebhookEvent): webhookEvent is WebhookEvent & {
+  room: NonNullable<WebhookEvent['room']>
+  participant: NonNullable<WebhookEvent['participant']>
+} {
+  return !!webhookEvent.room?.name && !!webhookEvent.participant?.identity
+}
 
 export async function livekitWebhookHandler(
   ctx: HandlerContextWithPath<
@@ -51,14 +58,7 @@ export async function livekitWebhookHandler(
       address: webhookEvent.participant?.identity ?? 'Unknown'
     })
 
-    if (isVoiceChatRoom) {
-      if (!webhookEvent.participant?.identity) {
-        throw new InvalidRequestError("LiveKit didn't provide an identity for the participant")
-      }
-      if (!webhookEvent.room?.name) {
-        throw new InvalidRequestError("LiveKit didn't provide a room name for the participant")
-      }
-
+    if (isVoiceChatRoom && isRoomEventValid(webhookEvent)) {
       logger.debug(`Participant ${webhookEvent.participant.identity} joined voice chat room ${webhookEvent.room.name}`)
 
       await voice.handleParticipantJoined(webhookEvent.participant.identity, webhookEvent.room.name)
@@ -69,14 +69,7 @@ export async function livekitWebhookHandler(
       address: webhookEvent.participant?.identity ?? 'Unknown'
     })
 
-    if (isVoiceChatRoom) {
-      if (!webhookEvent.participant?.identity) {
-        throw new InvalidRequestError("LiveKit didn't provide an identity for the participant")
-      }
-      if (!webhookEvent.room?.name) {
-        throw new InvalidRequestError("LiveKit didn't provide a room name for the participant")
-      }
-
+    if (isVoiceChatRoom && isRoomEventValid(webhookEvent)) {
       const disconnectReason = webhookEvent.participant.disconnectReason
       logger.debug(
         `Participant ${webhookEvent.participant.identity} left voice chat room ${webhookEvent.room.name} with reason ${disconnectReason}`
