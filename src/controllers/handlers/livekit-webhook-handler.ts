@@ -34,14 +34,6 @@ export async function livekitWebhookHandler(
 
   const webhookEvent = await livekit.getWebhookEvent(body, authorization)
 
-  if (
-    webhookEvent &&
-    (webhookEvent.room?.name === 'dev-brai.dcl.eth' || webhookEvent.event?.toLowerCase().includes('ingress'))
-  ) {
-    logger.debug(` >>> webhookEvent`)
-    logger.debug(JSON.stringify(webhookEvent))
-  }
-
   const event = webhookEvent.event as WebhookEventNames
   const isVoiceChatRoom = webhookEvent.room?.name.startsWith('voice-chat')
 
