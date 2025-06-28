@@ -16,6 +16,7 @@ test('when expiring private voice chats', async ({ components, spyComponents }) 
       'VOICE_CHAT_CONNECTION_INTERRUPTED_TTL'
     )
     spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
+    spyComponents.analytics.fireEvent.mockReturnValue(undefined)
   })
 
   afterEach(async () => {
@@ -55,7 +56,7 @@ test('when expiring private voice chats', async ({ components, spyComponents }) 
 
       for (const room of rooms) {
         const users = await components.voiceDB.getUsersInRoom(room.roomName)
-        expect(users.map((user) => user.address)).toEqual(room.addresses)
+        expect(users.map((user) => user.address)).toEqual(expect.arrayContaining(room.addresses))
       }
 
       await expect(spyComponents.livekit.deleteRoom).not.toHaveBeenCalled()

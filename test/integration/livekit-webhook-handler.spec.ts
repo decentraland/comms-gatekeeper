@@ -21,6 +21,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
     } as WebhookEvent
 
     spyComponents.livekit.getWebhookEvent.mockResolvedValue(webhookEvent)
+    spyComponents.analytics.fireEvent.mockReturnValue(undefined)
   })
 
   describe('when the event is a participant left event', () => {
@@ -255,6 +256,27 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
               statusUpdatedAt: expect.any(Number)
             })
           })
+        })
+      })
+
+      describe('and the private room is not active due to a user having left voluntarily', () => {
+        beforeEach(async () => {
+          await components.voiceDB.joinUserToRoom(callerAddress, webhookEvent.room.name)
+          await components.voiceDB.joinUserToRoom(calleeAddress, webhookEvent.room.name)
+          await components.voiceDB.updateUserStatusAsDisconnected(callerAddress, webhookEvent.room.name)
+        })
+
+        it('should respond with a 200 and delete the room', async () => {
+          await makeRequest(components.localFetch, '/livekit-webhook', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer aToken',
+              'Content-Type': 'application/json'
+            },
+            body: 'aBody'
+          })
+
+          expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(webhookEvent.room.name)
         })
       })
 

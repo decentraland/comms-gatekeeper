@@ -1,10 +1,13 @@
 import { DisconnectReason } from '@livekit/protocol'
 import { AppComponents } from '../../types'
 import { IVoiceComponent } from './types'
-import { getPrivateVoiceChatRoomName } from './utils'
+import { getCallIdFromRoomName, getPrivateVoiceChatRoomName } from './utils'
+import { AnalyticsEvent } from '../../types/analytics'
 
-export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit'>): IVoiceComponent {
-  const { voiceDB, livekit, logs } = components
+export function createVoiceComponent(
+  components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit' | 'analytics'>
+): IVoiceComponent {
+  const { voiceDB, livekit, logs, analytics } = components
   const logger = logs.getLogger('voice')
 
   /**
@@ -48,10 +51,20 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
       // As room only has two users up to know (private voice chats), if a user leaves a room willingly,
       // we need to destroy the room to disconnect all users.
       await livekit.deleteRoom(roomName)
+
+      analytics.fireEvent(AnalyticsEvent.END_CALL, {
+        room: getCallIdFromRoomName(roomName),
+        address: userAddress
+      })
+
       // Remove the user from the room.
       return voiceDB.updateUserStatusAsDisconnected(userAddress, roomName)
     } else if (disconnectReason === DisconnectReason.ROOM_DELETED) {
       // If the room was deleted, remove the room from the database to prevent the room from being re-created.
+      analytics.fireEvent(AnalyticsEvent.END_CALL, {
+        room: getCallIdFromRoomName(roomName),
+        address: userAddress
+      })
       await voiceDB.deletePrivateVoiceChat(roomName, userAddress)
       return
     }
@@ -129,6 +142,9 @@ export function createVoiceComponent(components: Pick<AppComponents, 'voiceDB' |
     const expiredRoomNames = await voiceDB.deleteExpiredPrivateVoiceChats()
     // Delete the expired rooms from LiveKit.
     for (const roomName of expiredRoomNames) {
+      analytics.fireEvent(AnalyticsEvent.EXPIRE_CALL, {
+        call_id: getCallIdFromRoomName(roomName)
+      })
       await livekit.deleteRoom(roomName)
     }
   }
