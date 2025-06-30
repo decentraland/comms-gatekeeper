@@ -1,4 +1,4 @@
-# Comms-gatekeeper
+# comms-gatekeeper
 
 [![Coverage Status](https://coveralls.io/repos/github/decentraland/comms-gatekeeper/badge.svg?branch=coverage)](https://coveralls.io/github/decentraland/comms-gatekeeper?branch=coverage)
 
