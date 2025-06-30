@@ -773,10 +773,10 @@
     "@well-known-components/interfaces" "^1.4.3"
     node-fetch "^2.7.0"
 
-"@dcl/schemas@^16.8.0", "@dcl/schemas@^16.9.0":
-  version "16.9.0"
-  resolved "https://registry.npmjs.org/@dcl/schemas/-/schemas-16.9.0.tgz"
-  integrity sha512-YmYb2QvdOr5AdCzRsmlv3iT2KGnJ9jRqMVF7aMSgqOBcqCXuNsXZ28dQh3wnsNkmTR+xom4YIMJbkQTkKeoSXA==
+"@dcl/schemas@^16.13.0", "@dcl/schemas@^16.9.0":
+  version "16.13.0"
+  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-16.13.0.tgz#c44259271b5e7d45110e893f2f114ce0fd1b67fc"
+  integrity sha512-Wcu2tHomUX83bsv6HSbnGKKWypkZUVGGjgtB7MImJbdzccB2FgKzvi47fLADgLjZave4lymFIm/oldWTgtEtzA==
   dependencies:
     ajv "^8.11.0"
     ajv-errors "^3.0.0"
