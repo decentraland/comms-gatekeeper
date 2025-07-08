@@ -10,7 +10,7 @@ export async function createSocialComponent(
     logs,
     fetch: { fetch }
   } = components
-  const socialServiceUrl = config.requireString('SOCIAL_SERVICE_URL')
+  const socialServiceUrl = await config.requireString('SOCIAL_SERVICE_URL')
   const logger = logs.getLogger('social-component')
 
   async function getUserPrivacySettings(address: string): Promise<PrivacySettings> {
