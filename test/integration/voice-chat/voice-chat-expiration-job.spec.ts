@@ -20,13 +20,7 @@ test('when expiring private voice chats', async ({ components, spyComponents }) 
   })
 
   afterEach(async () => {
-    await Promise.all(
-      rooms.map(async (room) =>
-        components.voiceDB.deletePrivateVoiceChat(room.roomName, room.addresses[0]).catch(() => {
-          // Ignore errors
-        })
-      )
-    )
+    await Promise.all(rooms.map(async (room) => components.voiceDB.deletePrivateVoiceChat(room.roomName)))
   })
 
   describe('and there are no expired private voice chats', () => {

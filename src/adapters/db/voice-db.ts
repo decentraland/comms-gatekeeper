@@ -55,13 +55,31 @@ export async function createVoiceDBComponent({
   }
 
   /**
-   * Removes a private voice chat from the database by removing all users from the room.
-   * If the given address is not in the room, an error is thrown.
+   * Private function to delete a private voice chat from the database.
+   * @param roomName - The name of the room to delete.
+   * @param txClient - The transaction client to use.
+   */
+  async function _deletePrivateVoiceChat(roomName: string, txClient?: PoolClient): Promise<void> {
+    const query = SQL`DELETE FROM voice_chat_users WHERE room_name = ${roomName}`
+    await (txClient ? txClient.query(query) : database.query(query))
+  }
+
+  /**
+   * Deletes a private voice chat room from the database without any checks.
+   * @param roomName - The name of the room to delete.
+   */
+  async function deletePrivateVoiceChat(roomName: string): Promise<void> {
+    return _deletePrivateVoiceChat(roomName)
+  }
+
+  /**
+   * Deletes a private voice chat from the database by removing all users from the room.
+   * If the given address is or was not in the room, an error is thrown.
    * @param roomName - The name of the room to remove.
-   * @param address - The address of the user to remove from the room.
+   * @param address - An address of an user that was or is in the room.
    * @returns The addresses of the users that were in the deleted room.
    */
-  async function deletePrivateVoiceChat(roomName: string, address: string): Promise<string[]> {
+  async function deletePrivateVoiceChatUserIsOrWasIn(roomName: string, address: string): Promise<string[]> {
     return _executeTx(async (txClient) => {
       const result = await txClient.query(SQL`SELECT address FROM voice_chat_users WHERE room_name = ${roomName}`)
 
@@ -69,8 +87,7 @@ export async function createVoiceDBComponent({
         throw new RoomDoesNotExistError(roomName)
       }
 
-      const query = SQL`DELETE FROM voice_chat_users WHERE room_name = ${roomName}`
-      await txClient.query(query)
+      await _deletePrivateVoiceChat(roomName, txClient)
 
       return result.rows.map((row) => row.address)
     })
@@ -257,9 +274,10 @@ export async function createVoiceDBComponent({
 
   return {
     deleteExpiredPrivateVoiceChats,
+    deletePrivateVoiceChat,
     getUsersInRoom,
     isPrivateRoomActive,
-    deletePrivateVoiceChat,
+    deletePrivateVoiceChatUserIsOrWasIn,
     createVoiceChatRoom,
     joinUserToRoom,
     updateUserStatusAsDisconnected,

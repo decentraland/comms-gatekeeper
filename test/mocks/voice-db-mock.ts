@@ -12,6 +12,7 @@ export const createVoiceDBMockedComponent = (
     isPrivateRoomActive: overrides?.isPrivateRoomActive ?? jest.fn(),
     createVoiceChatRoom: overrides?.createVoiceChatRoom ?? jest.fn(),
     deletePrivateVoiceChat: overrides?.deletePrivateVoiceChat ?? jest.fn(),
+    deletePrivateVoiceChatUserIsOrWasIn: overrides?.deletePrivateVoiceChatUserIsOrWasIn ?? jest.fn(),
     deleteExpiredPrivateVoiceChats: overrides?.deleteExpiredPrivateVoiceChats ?? jest.fn()
   }
 }
