@@ -100,6 +100,7 @@ export async function createLivekitComponent(
   }
 
   async function deleteRoom(roomName: string): Promise<void> {
+    logger.info(`Deleting room ${roomName}`)
     try {
       await roomClient.deleteRoom(roomName)
     } catch (error) {
