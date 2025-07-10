@@ -22,6 +22,9 @@ describe('voice logic component', () => {
   let isPrivateRoomActiveMock: jest.MockedFunction<IVoiceDBComponent['isPrivateRoomActive']>
   let createVoiceChatRoomMock: jest.MockedFunction<IVoiceDBComponent['createVoiceChatRoom']>
   let deletePrivateVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deletePrivateVoiceChat']>
+  let deletePrivateVoiceChatUserIsOrWasInMock: jest.MockedFunction<
+    IVoiceDBComponent['deletePrivateVoiceChatUserIsOrWasIn']
+  >
   let deleteExpiredPrivateVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredPrivateVoiceChats']>
   let logs: jest.Mocked<ILoggerComponent>
 
@@ -37,6 +40,7 @@ describe('voice logic component', () => {
     isPrivateRoomActiveMock = jest.fn()
     createVoiceChatRoomMock = jest.fn()
     deletePrivateVoiceChatMock = jest.fn()
+    deletePrivateVoiceChatUserIsOrWasInMock = jest.fn()
     deleteExpiredPrivateVoiceChatsMock = jest.fn()
 
     livekit = createLivekitMockedComponent({
@@ -55,6 +59,7 @@ describe('voice logic component', () => {
       isPrivateRoomActive: isPrivateRoomActiveMock,
       createVoiceChatRoom: createVoiceChatRoomMock,
       deletePrivateVoiceChat: deletePrivateVoiceChatMock,
+      deletePrivateVoiceChatUserIsOrWasIn: deletePrivateVoiceChatUserIsOrWasInMock,
       deleteExpiredPrivateVoiceChats: deleteExpiredPrivateVoiceChatsMock
     })
 
@@ -156,7 +161,7 @@ describe('voice logic component', () => {
       it('should delete the private voice chat and resolve', async () => {
         await voiceComponent.handleParticipantLeft(userAddress, roomName, disconnectReason)
 
-        expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(roomName, userAddress)
+        expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(roomName)
         expect(disconnectUserFromRoomMock).not.toHaveBeenCalled()
         expect(deleteRoomMock).not.toHaveBeenCalled()
         expect(removeUserFromRoomMock).not.toHaveBeenCalled()
@@ -284,14 +289,14 @@ describe('voice logic component', () => {
 
     describe('and the operation succeeds', () => {
       beforeEach(() => {
-        deletePrivateVoiceChatMock.mockResolvedValue(usersInRoom)
+        deletePrivateVoiceChatUserIsOrWasInMock.mockResolvedValue(usersInRoom)
         deleteRoomMock.mockResolvedValue(undefined)
       })
 
       it('should delete the private voice chat, delete the room and return the users that were in the room', async () => {
         const result = await voiceComponent.endPrivateVoiceChat(roomId, userAddress)
 
-        expect(deletePrivateVoiceChatMock).toHaveBeenCalledWith(expectedRoomName, userAddress)
+        expect(deletePrivateVoiceChatUserIsOrWasInMock).toHaveBeenCalledWith(expectedRoomName, userAddress)
         expect(deleteRoomMock).toHaveBeenCalledWith(expectedRoomName)
         expect(result).toEqual(usersInRoom)
       })

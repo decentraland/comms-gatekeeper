@@ -69,11 +69,12 @@ export interface IVoiceDBComponent {
 
   /**
    * Deletes a private voice chat from the database by removing all users from the room.
+   * If the given address is or was not in the room, an error is thrown.
    * @param roomName - The name of the room to remove.
-   * @param address - The address of the user to remove from the room.
+   * @param address - An address of an user that was or is in the room.
    * @returns The addresses of the users that were in the deleted room.
    */
-  deletePrivateVoiceChat: (roomName: string, address: string) => Promise<string[]>
+  deletePrivateVoiceChatUserIsOrWasIn: (roomName: string, address: string) => Promise<string[]>
 
   /**
    * Gets the users in a room.
@@ -92,4 +93,10 @@ export interface IVoiceDBComponent {
    * @returns The names of the rooms that were deleted when the users were in the rooms.
    */
   deleteExpiredPrivateVoiceChats: () => Promise<string[]>
+
+  /**
+   * Deletes a private voice chat room from the database without any checks.
+   * @param roomName - The name of the room to delete.
+   */
+  deletePrivateVoiceChat: (roomName: string) => Promise<void>
 }
