@@ -271,14 +271,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         })
 
         afterEach(async () => {
-          try {
-            await components.voiceDB.deletePrivateVoiceChat(
-              getPrivateVoiceChatRoomName(requestBody.room_id),
-              requestBody.user_addresses[0]
-            )
-          } catch (error) {
-            // Do nothing
-          }
+          await components.voiceDB.deletePrivateVoiceChat(getPrivateVoiceChatRoomName(requestBody.room_id))
         })
 
         it('should create respond with a 200 and the voice chat credentials', async () => {

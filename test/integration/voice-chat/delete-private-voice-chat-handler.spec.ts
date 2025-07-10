@@ -176,11 +176,7 @@ test('DELETE /private-voice-chat/:id', ({ components, spyComponents }) => {
         })
 
         afterEach(async () => {
-          try {
-            await components.voiceDB.deletePrivateVoiceChat(roomName, anAddress)
-          } catch (_e) {
-            // Do nothing if deleting the room fails.
-          }
+          await components.voiceDB.deletePrivateVoiceChat(roomName)
         })
 
         describe('and the user is in a voice chat as not connected', () => {
