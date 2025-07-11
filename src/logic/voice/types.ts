@@ -46,4 +46,42 @@ export interface IVoiceComponent {
    * Deletes expired private voice chats.
    */
   expirePrivateVoiceChats(): Promise<void>
+
+  /**
+   * Generates credentials for a community voice chat room for a moderator.
+   * @param communityId - The ID of the community to generate credentials for.
+   * @param userAddress - The address of the moderator.
+   * @returns The connection URL for the moderator.
+   */
+  getCommunityVoiceChatCredentialsForModerator(
+    communityId: string,
+    userAddress: string
+  ): Promise<{ connectionUrl: string }>
+
+  /**
+   * Generates credentials for a community voice chat room for a member.
+   * @param communityId - The ID of the community to generate credentials for.
+   * @param userAddress - The address of the member.
+   * @returns The connection URL for the member.
+   */
+  getCommunityVoiceChatCredentialsForMember(
+    communityId: string,
+    userAddress: string
+  ): Promise<{ connectionUrl: string }>
+
+  /**
+   * Deletes expired community voice chats.
+   */
+  expireCommunityVoiceChats(): Promise<void>
+
+  /**
+   * Gets the status of a community voice chat.
+   * @param communityId - The ID of the community to check.
+   * @returns Status information including if it's active and participant counts.
+   */
+  getCommunityVoiceChatStatus(communityId: string): Promise<{
+    active: boolean
+    participantCount: number
+    moderatorCount: number
+  }>
 }

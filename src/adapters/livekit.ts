@@ -123,6 +123,18 @@ export async function createLivekitComponent(
     return room
   }
 
+  async function getRoomInfo(roomName: string): Promise<Room | null> {
+    try {
+      const existingRooms = await roomClient.listRooms([roomName])
+      return existingRooms.length > 0 ? existingRooms[0] : null
+    } catch (error) {
+      logger.warn(
+        `Error getting room info for ${roomName}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
+      )
+      return null
+    }
+  }
+
   async function getOrCreateIngress(roomName: string, participantIdentity: string): Promise<IngressInfo> {
     const ingresses = await ingressClient.listIngress({
       roomName: roomName
@@ -179,6 +191,7 @@ export async function createLivekitComponent(
     getSceneRoomName,
     muteParticipant,
     getRoom,
+    getRoomInfo,
     getOrCreateIngress,
     removeIngress,
     getWebhookEvent
