@@ -122,7 +122,7 @@ describe('CommunityVoiceLogic', () => {
           cast: [],
           canPublish: true,
           canSubscribe: true,
-          canUpdateOwnMetadata: true
+          canUpdateOwnMetadata: false
         },
         false,
         {
@@ -185,7 +185,7 @@ describe('CommunityVoiceLogic', () => {
           cast: [],
           canPublish: false,
           canSubscribe: true,
-          canUpdateOwnMetadata: true
+          canUpdateOwnMetadata: false
         },
         false,
         {
