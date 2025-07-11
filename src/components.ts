@@ -132,6 +132,12 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     everyMinuteExpression,
     { startOnInit: isProduction, waitForCompletion: true }
   )
+  const communityVoiceChatExpirationJob = await createCronJobComponent(
+    { logs },
+    voice.expireCommunityVoiceChats,
+    everyMinuteExpression,
+    { startOnInit: isProduction, waitForCompletion: true }
+  )
 
   return {
     analytics,
@@ -143,6 +149,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     statusChecks,
     fetch: tracedFetch,
     voiceChatExpirationJob,
+    communityVoiceChatExpirationJob,
     metrics,
     cachedFetch,
     worlds,

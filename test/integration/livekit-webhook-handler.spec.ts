@@ -31,8 +31,11 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     describe('and the room is a voice chat room', () => {
       beforeEach(async () => {
-        webhookEvent.room.name = 'voice-chat-123'
+        webhookEvent.room.name = 'voice-chat-private-123'  // Use correct private voice chat format
         await components.voiceDB.createVoiceChatRoom(webhookEvent.room.name, [callerAddress, calleeAddress])
+        // Join the users to the room so they exist when we process the webhook
+        await components.voiceDB.joinUserToRoom(callerAddress, webhookEvent.room.name)
+        await components.voiceDB.joinUserToRoom(calleeAddress, webhookEvent.room.name)
       })
 
       afterEach(async () => {
@@ -160,7 +163,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     describe('and the room is a voice chat room', () => {
       beforeEach(async () => {
-        webhookEvent.room.name = 'voice-chat-123'
+        webhookEvent.room.name = 'voice-chat-private-123'  // Use correct private voice chat format
         await components.voiceDB.createVoiceChatRoom(webhookEvent.room.name, [callerAddress, calleeAddress])
       })
 
@@ -183,7 +186,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
           beforeEach(async () => {
             oldRoomName = webhookEvent.room.name
-            webhookEvent.room.name = 'voice-chat-456'
+            webhookEvent.room.name = 'voice-chat-private-456'  // Use correct private voice chat format
             await components.voiceDB.createVoiceChatRoom(webhookEvent.room.name, [callerAddress, calleeAddress])
             spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
           })
@@ -234,7 +237,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
         describe('and the user is joining the same room', () => {
           beforeEach(() => {
-            webhookEvent.room.name = 'voice-chat-123'
+            webhookEvent.room.name = 'voice-chat-private-123'
           })
 
           it('should respond with a 200 and join the user to the room', async () => {

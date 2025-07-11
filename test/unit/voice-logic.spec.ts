@@ -72,7 +72,7 @@ describe('voice logic component', () => {
 
   describe('when handling that a participant joined a room', () => {
     const userAddress = '0x123'
-    const roomName = 'test-room'
+    const roomName = 'voice-chat-private-test-room'  // Use correct private voice chat format
 
     describe('and the room is inactive', () => {
       beforeEach(() => {
@@ -104,7 +104,7 @@ describe('voice logic component', () => {
       })
 
       describe('and the user is in a different room', () => {
-        const oldRoom = 'old-room'
+        const oldRoom = 'voice-chat-private-old-room'  // Use correct private voice chat format
 
         beforeEach(() => {
           joinUserToRoomMock.mockResolvedValue({ oldRoom })
@@ -122,7 +122,7 @@ describe('voice logic component', () => {
 
   describe('when handling that a participant left a room', () => {
     const userAddress = '0x123'
-    const roomName = 'test-room'
+    const roomName = 'voice-chat-private-test-room'  // Use correct private voice chat format
 
     describe('and the participant left because of a duplicate identity', () => {
       const disconnectReason = DisconnectReason.DUPLICATE_IDENTITY

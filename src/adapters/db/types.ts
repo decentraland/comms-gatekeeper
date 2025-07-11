@@ -17,6 +17,15 @@ export interface VoiceChatUser {
   statusUpdatedAt: number
 }
 
+export interface CommunityVoiceChatUser {
+  address: string
+  status: VoiceChatUserStatus
+  roomName: string
+  isModerator: boolean
+  joinedAt: number
+  statusUpdatedAt: number
+}
+
 export interface IVoiceDBComponent {
   /**
    * Checks if a private room is active. A private room is active if:
@@ -92,4 +101,55 @@ export interface IVoiceDBComponent {
    * @returns The names of the rooms that were deleted when the users were in the rooms.
    */
   deleteExpiredPrivateVoiceChats: () => Promise<string[]>
+
+  // Community voice chat methods
+  /**
+   * Creates a community voice chat room.
+   * @param roomName - The name of the community room to create.
+   * @param moderatorAddress - The address of the initial moderator.
+   */
+  createCommunityVoiceChatRoom: (roomName: string, moderatorAddress: string) => Promise<void>
+
+  /**
+   * Joins a user to a community voice chat room.
+   * @param userAddress - The address of the user to join.
+   * @param roomName - The name of the community room.
+   * @param isModerator - Whether the user is a moderator.
+   */
+  joinUserToCommunityRoom: (userAddress: string, roomName: string, isModerator?: boolean) => Promise<void>
+
+  /**
+   * Updates the status of a user in a community room.
+   * @param userAddress - The address of the user to update the status for.
+   * @param roomName - The name of the community room.
+   * @param status - The new status of the user.
+   */
+  updateCommunityUserStatus: (userAddress: string, roomName: string, status: VoiceChatUserStatus) => Promise<void>
+
+  /**
+   * Gets users in a community voice chat room.
+   * @param roomName - The name of the community room.
+   * @returns The users in the community room.
+   */
+  getCommunityUsersInRoom: (roomName: string) => Promise<CommunityVoiceChatUser[]>
+
+  /**
+   * Checks if a community room should be destroyed.
+   * @param roomName - The name of the community room.
+   * @returns True if the room should be destroyed, false otherwise.
+   */
+  shouldDestroyCommunityRoom: (roomName: string) => Promise<boolean>
+
+  /**
+   * Deletes a community voice chat room.
+   * @param roomName - The name of the community room.
+   * @returns The addresses of the users that were in the deleted room.
+   */
+  deleteCommunityVoiceChat: (roomName: string) => Promise<string[]>
+
+  /**
+   * Deletes expired community voice chats and returns the names of the rooms that were deleted.
+   * @returns The names of the rooms that were deleted.
+   */
+  deleteExpiredCommunityVoiceChats: () => Promise<string[]>
 }
