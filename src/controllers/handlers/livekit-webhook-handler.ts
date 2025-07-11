@@ -35,8 +35,7 @@ export async function livekitWebhookHandler(
   const webhookEvent = await livekit.getWebhookEvent(body, authorization)
 
   const event = webhookEvent.event as WebhookEventNames
-  const isVoiceChatRoom = !!webhookEvent.room?.name?.startsWith('voice-chat')
-  logger.debug(`Is voice chat room: ${JSON.stringify(webhookEvent)}`)
+  const isVoiceChatRoom = webhookEvent.room?.name?.startsWith('voice-chat') ?? false
 
   if (event === 'ingress_started' && webhookEvent.ingressInfo) {
     const isStreaming = await sceneStreamAccessManager.isStreaming(webhookEvent.ingressInfo.ingressId)
@@ -46,10 +45,6 @@ export async function livekitWebhookHandler(
   } else if (event === 'ingress_ended' && webhookEvent.ingressInfo) {
     await sceneStreamAccessManager.stopStreaming(webhookEvent.ingressInfo.ingressId)
   } else if (event === 'participant_joined') {
-    logger.debug(`Participant ${webhookEvent.participant?.identity} joined room ${webhookEvent.room?.name}`, {
-      webhookEvent: JSON.stringify(webhookEvent)
-    })
-
     analytics.fireEvent(AnalyticsEvent.PARTICIPANT_JOINED_ROOM, {
       room: webhookEvent.room?.name ?? 'Unknown',
       address: webhookEvent.participant?.identity ?? 'Unknown'
