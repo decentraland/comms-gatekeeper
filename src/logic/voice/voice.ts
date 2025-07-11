@@ -57,8 +57,8 @@ export function createVoiceComponent(
       await livekit.deleteRoom(roomName)
 
       analytics.fireEvent(AnalyticsEvent.END_CALL, {
-        room: getCallIdFromRoomName(roomName),
-        address: userAddress
+        call_id: getCallIdFromRoomName(roomName),
+        user_id: userAddress
       })
 
       // Remove the user from the room.
@@ -66,10 +66,6 @@ export function createVoiceComponent(
     } else if (disconnectReason === DisconnectReason.ROOM_DELETED) {
       // If the room was deleted, remove the room from the database to prevent the room from being re-created.
       logger.debug(`User ${userAddress} left the room ${roomName} because the room was deleted`)
-      analytics.fireEvent(AnalyticsEvent.END_CALL, {
-        room: getCallIdFromRoomName(roomName),
-        address: userAddress
-      })
       await voiceDB.deletePrivateVoiceChat(roomName)
       return
     }
