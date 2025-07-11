@@ -53,8 +53,8 @@ export function createVoiceComponent(
       await livekit.deleteRoom(roomName)
 
       analytics.fireEvent(AnalyticsEvent.END_CALL, {
-        room: getCallIdFromRoomName(roomName),
-        address: userAddress
+        call_id: getCallIdFromRoomName(roomName),
+        user_id: userAddress
       })
 
       // Remove the user from the room.
