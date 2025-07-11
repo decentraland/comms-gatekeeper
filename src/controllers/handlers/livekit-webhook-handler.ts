@@ -35,7 +35,7 @@ export async function livekitWebhookHandler(
   const webhookEvent = await livekit.getWebhookEvent(body, authorization)
 
   const event = webhookEvent.event as WebhookEventNames
-  const isVoiceChatRoom = webhookEvent.room?.name.startsWith('voice-chat')
+  const isVoiceChatRoom = webhookEvent.room?.name?.startsWith('voice-chat') ?? false
 
   if (event === 'ingress_started' && webhookEvent.ingressInfo) {
     const isStreaming = await sceneStreamAccessManager.isStreaming(webhookEvent.ingressInfo.ingressId)
