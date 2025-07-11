@@ -70,7 +70,7 @@ export function createVoiceComponent(
         room: getCallIdFromRoomName(roomName),
         address: userAddress
       })
-      await voiceDB.deletePrivateVoiceChat(roomName, userAddress)
+      await voiceDB.deletePrivateVoiceChat(roomName)
       return
     }
 
@@ -207,7 +207,7 @@ export function createVoiceComponent(
    */
   async function endPrivateVoiceChat(roomId: string, address: string): Promise<string[]> {
     const roomName = getPrivateVoiceChatRoomName(roomId)
-    const usersInRoom = await voiceDB.deletePrivateVoiceChat(roomName, address)
+    const usersInRoom = await voiceDB.deletePrivateVoiceChatUserIsOrWasIn(roomName, address)
     await livekit.deleteRoom(roomName)
     return usersInRoom
   }
@@ -223,6 +223,10 @@ export function createVoiceComponent(
         call_id: getCallIdFromRoomName(roomName)
       })
       await livekit.deleteRoom(roomName)
+    }
+
+    if (expiredRoomNames.length > 0) {
+      logger.info(`Deleted ${expiredRoomNames.length} expired private voice chats`)
     }
   }
 

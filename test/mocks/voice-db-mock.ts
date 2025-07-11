@@ -14,6 +14,7 @@ export const createVoiceDBMockedComponent = (
     createVoiceChatRoom: overrides?.createVoiceChatRoom ?? jest.fn(),
     deletePrivateVoiceChat: overrides?.deletePrivateVoiceChat ?? jest.fn(),
     deleteExpiredPrivateVoiceChats: overrides?.deleteExpiredPrivateVoiceChats ?? jest.fn(),
+    deletePrivateVoiceChatUserIsOrWasIn: overrides?.deletePrivateVoiceChatUserIsOrWasIn ?? jest.fn(),
 
     // Community voice chat methods
     createCommunityVoiceChatRoom: overrides?.createCommunityVoiceChatRoom ?? jest.fn(),

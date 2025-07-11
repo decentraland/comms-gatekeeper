@@ -37,7 +37,7 @@ test('GET /users/:address/voice-chat-status', ({ components, spyComponents }) =>
       })
 
       afterEach(async () => {
-        await components.voiceDB.deletePrivateVoiceChat(roomName, anAddress)
+        await components.voiceDB.deletePrivateVoiceChat(roomName)
       })
 
       describe('and is not expired', () => {
@@ -86,7 +86,7 @@ test('GET /users/:address/voice-chat-status', ({ components, spyComponents }) =>
       })
 
       afterEach(async () => {
-        await components.voiceDB.deletePrivateVoiceChat(roomName, anAddress)
+        await components.voiceDB.deletePrivateVoiceChat(roomName)
       })
 
       describe('and is not expired', () => {
@@ -135,7 +135,7 @@ test('GET /users/:address/voice-chat-status', ({ components, spyComponents }) =>
       })
 
       afterEach(async () => {
-        await components.voiceDB.deletePrivateVoiceChat(roomName, anAddress)
+        await components.voiceDB.deletePrivateVoiceChat(roomName)
       })
 
       it('should respond with a 200 and the property is_user_in_voice_chat as true', async () => {

@@ -1,146 +1,185 @@
+import { generateRandomWalletAddresses } from '@dcl/platform-server-commons'
 import { test } from '../../components'
-import { getCommunityVoiceChatRoomName } from '../../../src/logic/voice/utils'
-import { VoiceChatUserStatus } from '../../../src/adapters/db/types'
+import { setUserJoinedAt, setUserStatusUpdatedAt } from '../../db-utils'
 
-test('Community voice chat expiration job', ({ components }) => {
-  const communityId = 'test-community-expiration'
-  const roomName = getCommunityVoiceChatRoomName(communityId)
-  const moderatorAddress = '0x1234567890123456789012345678901234567890'
-  const memberAddress = '0x1234567890123456789012345678901234567891'
+test('when expiring private voice chats', async ({ components, spyComponents }) => {
+  let VOICE_CHAT_INITIAL_CONNECTION_TTL: number
+  let VOICE_CHAT_CONNECTION_INTERRUPTED_TTL: number
+  let rooms: {
+    roomName: string
+    addresses: string[]
+  }[] = []
 
   beforeEach(async () => {
-    // Clean up any existing test data
-    try {
-      await components.voiceDB.deleteCommunityVoiceChat(roomName)
-    } catch (error) {
-      // Ignore if room doesn't exist
-    }
+    VOICE_CHAT_INITIAL_CONNECTION_TTL = await components.config.requireNumber('VOICE_CHAT_INITIAL_CONNECTION_TTL')
+    VOICE_CHAT_CONNECTION_INTERRUPTED_TTL = await components.config.requireNumber(
+      'VOICE_CHAT_CONNECTION_INTERRUPTED_TTL'
+    )
+    spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
+    spyComponents.analytics.fireEvent.mockReturnValue(undefined)
   })
 
   afterEach(async () => {
-    try {
-      await components.voiceDB.deleteCommunityVoiceChat(roomName)
-    } catch (error) {
-      // Ignore if room doesn't exist
-    }
+    await Promise.all(rooms.map(async (room) => components.voiceDB.deletePrivateVoiceChat(room.roomName)))
   })
 
-  describe('when a community room has no active moderators for more than 5 minutes', () => {
-    it('should be deleted by the expiration job', async () => {
-      // Create a community room with a moderator
-      await components.voiceDB.joinUserToCommunityRoom(moderatorAddress, roomName, true)
-      
-      // Add a member
-      await components.voiceDB.joinUserToCommunityRoom(memberAddress, roomName, false)
-      
-      // Verify room exists
-      const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(roomName)
-      expect(usersInRoom).toHaveLength(2)
-      
-      // Simulate moderator disconnecting (but not leaving voluntarily)
-      await components.voiceDB.updateCommunityUserStatus(
-        moderatorAddress, 
-        roomName, 
-        VoiceChatUserStatus.ConnectionInterrupted
-      )
-      
-      // Move the moderator's disconnect time to 6 minutes ago (simulate time passing)
-      const sixMinutesAgo = Date.now() - (6 * 60 * 1000)
-      await components.database.query(
-        `UPDATE community_voice_chat_users 
-         SET status_updated_at = ${sixMinutesAgo} 
-         WHERE address = '${moderatorAddress}' AND room_name = '${roomName}'`
-      )
-      
-      // Verify the room should be destroyed
-      const shouldDestroy = await components.voiceDB.shouldDestroyCommunityRoom(roomName)
-      expect(shouldDestroy).toBe(true)
-      
-      // Run the expiration job
-      await components.voice.expireCommunityVoiceChats()
-      
-      // Verify the room was deleted
-      const usersAfterExpiration = await components.voiceDB.getCommunityUsersInRoom(roomName)
-      expect(usersAfterExpiration).toHaveLength(0)
+  describe('and there are no expired private voice chats', () => {
+    beforeEach(async () => {
+      rooms = [
+        {
+          roomName: 'room-123',
+          addresses: generateRandomWalletAddresses(2)
+        },
+        {
+          roomName: 'room-456',
+          addresses: generateRandomWalletAddresses(2)
+        }
+      ]
+
+      // Create the rooms and join the users to them
+      for (const room of rooms) {
+        await components.voiceDB.createVoiceChatRoom(room.roomName, room.addresses)
+        for (const address of room.addresses) {
+          await components.voiceDB.joinUserToRoom(address, room.roomName)
+        }
+      }
+    })
+
+    it('should not delete any private voice chats nor delete any LiveKit rooms', async () => {
+      await components.voice.expirePrivateVoiceChats()
+
+      for (const room of rooms) {
+        const users = await components.voiceDB.getUsersInRoom(room.roomName)
+        expect(users.map((user) => user.address)).toEqual(expect.arrayContaining(room.addresses))
+      }
+
+      await expect(spyComponents.livekit.deleteRoom).not.toHaveBeenCalled()
     })
   })
 
-  describe('when a community room has active moderators', () => {
-    it('should NOT be deleted by the expiration job', async () => {
-      // Create a community room with a moderator
-      await components.voiceDB.joinUserToCommunityRoom(moderatorAddress, roomName, true)
-      
-      // Add a member
-      await components.voiceDB.joinUserToCommunityRoom(memberAddress, roomName, false)
-      
-      // Keep moderator connected
-      await components.voiceDB.updateCommunityUserStatus(
-        moderatorAddress, 
-        roomName, 
-        VoiceChatUserStatus.Connected
+  describe('and there are expired private voice chats due to initial connection timeout', () => {
+    beforeEach(async () => {
+      rooms = [
+        {
+          roomName: 'room-123',
+          addresses: generateRandomWalletAddresses(2)
+        },
+        {
+          roomName: 'room-456',
+          addresses: generateRandomWalletAddresses(2)
+        }
+      ]
+
+      // Create the first room and join the users to it
+      await components.voiceDB.createVoiceChatRoom(rooms[0].roomName, rooms[0].addresses)
+      for (const address of rooms[0].addresses) {
+        await components.voiceDB.joinUserToRoom(address, rooms[0].roomName)
+      }
+
+      // Create the second room and join only the first user to it
+      await components.voiceDB.createVoiceChatRoom(rooms[1].roomName, rooms[1].addresses)
+      await components.voiceDB.joinUserToRoom(rooms[1].addresses[0], rooms[1].roomName)
+
+      // Set the second user as not for longer than the initial connection timeout
+      await setUserJoinedAt(
+        components.database,
+        rooms[1].addresses[1],
+        rooms[1].roomName,
+        Date.now() - VOICE_CHAT_INITIAL_CONNECTION_TTL - 1
       )
-      
-      // Verify the room should NOT be destroyed
-      const shouldDestroy = await components.voiceDB.shouldDestroyCommunityRoom(roomName)
-      expect(shouldDestroy).toBe(false)
-      
-      // Run the expiration job
-      await components.voice.expireCommunityVoiceChats()
-      
-      // Verify the room still exists
-      const usersAfterExpiration = await components.voiceDB.getCommunityUsersInRoom(roomName)
-      expect(usersAfterExpiration).toHaveLength(2)
+    })
+
+    it('should delete the expired private voice chats and delete the rooms from LiveKit', async () => {
+      await components.voice.expirePrivateVoiceChats()
+
+      const usersInFirstRoom = await components.voiceDB.getUsersInRoom(rooms[0].roomName)
+      expect(usersInFirstRoom.map((user) => user.address)).toEqual(rooms[0].addresses)
+      await expect(spyComponents.livekit.deleteRoom).not.toHaveBeenCalledWith(rooms[0].roomName)
+
+      const usersInSecondRoom = await components.voiceDB.getUsersInRoom(rooms[1].roomName)
+      expect(usersInSecondRoom.map((user) => user.address)).toEqual([])
+
+      await expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(rooms[1].roomName)
     })
   })
 
-  describe('when a community room has a moderator with recent connection interruption', () => {
-    it('should NOT be deleted by the expiration job', async () => {
-      // Create a community room with a moderator
-      await components.voiceDB.joinUserToCommunityRoom(moderatorAddress, roomName, true)
-      
-      // Simulate moderator disconnecting recently (2 minutes ago)
-      await components.voiceDB.updateCommunityUserStatus(
-        moderatorAddress, 
-        roomName, 
-        VoiceChatUserStatus.ConnectionInterrupted
+  describe('and there are expired private voice chats due to connection interruption', () => {
+    beforeEach(async () => {
+      rooms = [
+        {
+          roomName: 'room-123',
+          addresses: generateRandomWalletAddresses(2)
+        },
+        {
+          roomName: 'room-456',
+          addresses: generateRandomWalletAddresses(2)
+        }
+      ]
+
+      // Create the rooms and join the users to them
+      for (const room of rooms) {
+        await components.voiceDB.createVoiceChatRoom(room.roomName, room.addresses)
+        for (const address of room.addresses) {
+          await components.voiceDB.joinUserToRoom(address, room.roomName)
+        }
+      }
+
+      // Set the first user as connection interrupted for longer than the connection interrupted timeout
+      await components.voiceDB.updateUserStatusAsConnectionInterrupted(rooms[0].addresses[0], rooms[0].roomName)
+      await setUserStatusUpdatedAt(
+        components.database,
+        rooms[0].addresses[0],
+        rooms[0].roomName,
+        Date.now() - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL - 1
       )
-      
-      // Move the moderator's disconnect time to 2 minutes ago (within tolerance)
-      const twoMinutesAgo = Date.now() - (2 * 60 * 1000)
-      await components.database.query(
-        `UPDATE community_voice_chat_users 
-         SET status_updated_at = ${twoMinutesAgo} 
-         WHERE address = '${moderatorAddress}' AND room_name = '${roomName}'`
-      )
-      
-      // Verify the room should NOT be destroyed
-      const shouldDestroy = await components.voiceDB.shouldDestroyCommunityRoom(roomName)
-      expect(shouldDestroy).toBe(false)
-      
-      // Run the expiration job
-      await components.voice.expireCommunityVoiceChats()
-      
-      // Verify the room still exists
-      const usersAfterExpiration = await components.voiceDB.getCommunityUsersInRoom(roomName)
-      expect(usersAfterExpiration).toHaveLength(1)
+    })
+
+    it('should delete the expired private voice chats and delete the rooms from LiveKit', async () => {
+      await components.voice.expirePrivateVoiceChats()
+
+      const usersInFirstRoom = await components.voiceDB.getUsersInRoom(rooms[0].roomName)
+      expect(usersInFirstRoom.map((user) => user.address)).toEqual([])
+      await expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(rooms[0].roomName)
+
+      const usersInSecondRoom = await components.voiceDB.getUsersInRoom(rooms[1].roomName)
+      expect(usersInSecondRoom.map((user) => user.address)).toEqual(rooms[1].addresses)
+      await expect(spyComponents.livekit.deleteRoom).not.toHaveBeenCalledWith(rooms[1].roomName)
     })
   })
 
-  describe('when a community room has only members (no moderators)', () => {
-    it('should be deleted by the expiration job immediately', async () => {
-      // Create a community room with only members, no moderators
-      await components.voiceDB.joinUserToCommunityRoom(memberAddress, roomName, false)
-      
-      // Verify the room should be destroyed (no moderators at all)
-      const shouldDestroy = await components.voiceDB.shouldDestroyCommunityRoom(roomName)
-      expect(shouldDestroy).toBe(true)
-      
-      // Run the expiration job
-      await components.voice.expireCommunityVoiceChats()
-      
-      // Verify the room was deleted
-      const usersAfterExpiration = await components.voiceDB.getCommunityUsersInRoom(roomName)
-      expect(usersAfterExpiration).toHaveLength(0)
+  describe('and there are expired private voice chats due to disconnection', () => {
+    beforeEach(async () => {
+      rooms = [
+        {
+          roomName: 'room-123',
+          addresses: generateRandomWalletAddresses(2)
+        },
+        {
+          roomName: 'room-456',
+          addresses: generateRandomWalletAddresses(2)
+        }
+      ]
+
+      // Create the rooms and join the users to them
+      for (const room of rooms) {
+        await components.voiceDB.createVoiceChatRoom(room.roomName, room.addresses)
+        for (const address of room.addresses) {
+          await components.voiceDB.joinUserToRoom(address, room.roomName)
+        }
+      }
+
+      await components.voiceDB.updateUserStatusAsDisconnected(rooms[0].addresses[0], rooms[0].roomName)
+    })
+
+    it('should delete the expired private voice chats and not delete the rooms from LiveKit', async () => {
+      await components.voice.expirePrivateVoiceChats()
+
+      await expect(components.voiceDB.getUsersInRoom(rooms[0].roomName)).resolves.toEqual([])
+      await expect(spyComponents.livekit.deleteRoom).not.toHaveBeenCalledWith(rooms[0].roomName)
+
+      const usersInSecondRoom = await components.voiceDB.getUsersInRoom(rooms[1].roomName)
+      expect(usersInSecondRoom.map((user) => user.address)).toEqual(rooms[1].addresses)
+      await expect(spyComponents.livekit.deleteRoom).not.toHaveBeenCalledWith(rooms[1].roomName)
     })
   })
 })

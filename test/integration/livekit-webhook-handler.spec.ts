@@ -39,11 +39,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
       })
 
       afterEach(async () => {
-        try {
-          await components.voiceDB.deletePrivateVoiceChat(webhookEvent.room.name, callerAddress)
-        } catch (_e) {
-          // Do nothing if deleting the room fails.
-        }
+        await components.voiceDB.deletePrivateVoiceChat(webhookEvent.room.name)
       })
 
       describe('and the user left voluntarily', () => {
@@ -168,11 +164,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
       })
 
       afterEach(async () => {
-        try {
-          await components.voiceDB.deletePrivateVoiceChat(webhookEvent.room.name, callerAddress)
-        } catch (_e) {
-          // Do nothing if deleting the room fails.
-        }
+        await components.voiceDB.deletePrivateVoiceChat(webhookEvent.room.name)
       })
 
       describe('and the private room is active', () => {
@@ -192,14 +184,8 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           })
 
           afterEach(async () => {
-            try {
-              await components.voiceDB.deletePrivateVoiceChat(webhookEvent.room.name, calleeAddress)
-            } catch (_e) {
-              // Do nothing if deleting the room fails.
-            } finally {
-              // Restore the room name to the first room.
-              webhookEvent.room.name = oldRoomName
-            }
+            await components.voiceDB.deletePrivateVoiceChat(webhookEvent.room.name)
+            webhookEvent.room.name = oldRoomName
           })
 
           it('should respond with a 200, join the user to the new room, disconnect the user from the old one and delete the old room in livekit', async () => {
@@ -286,7 +272,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
       describe('and the private room does not exist', () => {
         beforeEach(async () => {
           spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
-          await components.voiceDB.deletePrivateVoiceChat(webhookEvent.room.name, calleeAddress)
+          await components.voiceDB.deletePrivateVoiceChat(webhookEvent.room.name)
         })
 
         it('should respond with a 200 and delete the livekit room', async () => {
