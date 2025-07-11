@@ -27,7 +27,6 @@ export async function createVoiceDBComponent({
     txClient?: PoolClient
   ): Promise<void> {
     const now = Date.now()
-    logger.debug(`Updating user ${userAddress} in room ${roomName} to status ${status}`)
     const query = SQL`UPDATE voice_chat_users SET status = ${status}, status_updated_at = ${now} WHERE address = ${userAddress} AND room_name = ${roomName}`
     await (txClient ? txClient.query(query) : database.query(query))
   }
@@ -61,7 +60,6 @@ export async function createVoiceDBComponent({
    * @param txClient - The transaction client to use.
    */
   async function _deletePrivateVoiceChat(roomName: string, txClient?: PoolClient): Promise<void> {
-    logger.debug(`Deleting private voice chat for room ${roomName}`)
     const query = SQL`DELETE FROM voice_chat_users WHERE room_name = ${roomName}`
     await (txClient ? txClient.query(query) : database.query(query))
   }
@@ -116,9 +114,6 @@ export async function createVoiceDBComponent({
       const hasLeftVoluntarily = user.status === VoiceChatUserStatus.Disconnected
       return hasBeenInterruptedLongerThanTTL || hasNotJoinedLongerThanTTL || hasLeftVoluntarily
     })
-    logger.debug(
-      `Users in room ${roomName} - hasInactiveUser: ${hasInactiveUser} - usersInRoom.length: ${usersInRoom.length}`
-    )
     return !hasInactiveUser && usersInRoom.length >= 2
   }
 
@@ -170,23 +165,19 @@ export async function createVoiceDBComponent({
   async function joinUserToRoom(userAddress: string, roomName: string): Promise<{ oldRoom: string }> {
     return _executeTx(async (txClient) => {
       const roomUserIsIn = await _getRoomUserIsIn(userAddress, txClient)
-      logger.debug(`User ${userAddress} is in room ${roomUserIsIn} - joining to ${roomName}`)
 
       // Joining users must always be in a room, as they're being added to the DB upon creating the voice chat room.
       if (roomUserIsIn === null) {
-        logger.error(`User ${userAddress} is not in a room`)
         throw new Error(`User ${userAddress} is not in a room`)
       }
 
       // If the user is in another room, disconnect them from the other room.
       if (roomUserIsIn !== roomName) {
-        logger.debug(`User ${userAddress} is in another room ${roomUserIsIn}, disconnecting them from it`)
         await _updateUserStatus(userAddress, roomUserIsIn, VoiceChatUserStatus.Disconnected, txClient)
       }
 
       // Set the user to connected.
       await _updateUserStatus(userAddress, roomName, VoiceChatUserStatus.Connected, txClient)
-      logger.debug(`User ${userAddress} joined the room ${roomName}`)
 
       return { oldRoom: roomUserIsIn }
     })
