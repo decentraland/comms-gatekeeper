@@ -16,10 +16,7 @@ import { livekitWebhookHandler } from './handlers/livekit-webhook-handler'
 import { patchUserPrivateMessagesPrivacyHandler } from './handlers/private-messages/patch-user-metadata-handler'
 import { getVoiceChatStatusHandler, createPrivateVoiceChatCredentialsHandler } from './handlers/voice-chat'
 import { deletePrivateVoiceChatHandler } from './handlers/voice-chat/delete-private-voice-chat.handler'
-import {
-  createCommunityVoiceChatHandler,
-  getCommunityVoiceChatStatusHandler
-} from './handlers/community-voice-chat'
+import { createCommunityVoiceChatHandler, getCommunityVoiceChatStatusHandler } from './handlers/community-voice-chat'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {

@@ -357,23 +357,24 @@ export function createVoiceComponent(
       }
 
       // Count active participants (connected or recently interrupted)
-      const activeParticipants = usersInRoom.filter(user => 
-        user.status === VoiceChatUserStatus.Connected ||
-        user.status === VoiceChatUserStatus.ConnectionInterrupted
+      const activeParticipants = usersInRoom.filter(
+        (user) =>
+          user.status === VoiceChatUserStatus.Connected || user.status === VoiceChatUserStatus.ConnectionInterrupted
       )
 
       // Count active moderators (includes those with recent connection interruptions within grace period)
-      const activeModerators = usersInRoom.filter(user => 
-        user.isModerator && (
-          user.status === VoiceChatUserStatus.Connected ||
-          user.status === VoiceChatUserStatus.ConnectionInterrupted
-        )
+      const activeModerators = usersInRoom.filter(
+        (user) =>
+          user.isModerator &&
+          (user.status === VoiceChatUserStatus.Connected || user.status === VoiceChatUserStatus.ConnectionInterrupted)
       )
 
       // Room is active if there are active moderators
       const active = activeModerators.length > 0
 
-      logger.debug(`Community voice chat ${roomName} status: active=${active}, participants=${activeParticipants.length}, moderators=${activeModerators.length}`)
+      logger.debug(
+        `Community voice chat ${roomName} status: active=${active}, participants=${activeParticipants.length}, moderators=${activeModerators.length}`
+      )
 
       return {
         active,
@@ -381,7 +382,9 @@ export function createVoiceComponent(
         moderatorCount: activeModerators.length
       }
     } catch (error) {
-      logger.warn(`Error getting community voice chat status for ${roomName}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.warn(
+        `Error getting community voice chat status for ${roomName}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
       return {
         active: false,
         participantCount: 0,

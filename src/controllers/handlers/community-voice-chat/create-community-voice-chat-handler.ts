@@ -10,9 +10,9 @@ export async function createCommunityVoiceChatHandler(
   } = context
   const logger = logs.getLogger('community-voice-chat-handler')
 
-  let body: { 
-    community_id: string; 
-    user_address: string; 
+  let body: {
+    community_id: string
+    user_address: string
     action: CommunityVoiceChatAction
   }
 
@@ -41,19 +41,13 @@ export async function createCommunityVoiceChatHandler(
 
   if (body.action === CommunityVoiceChatAction.CREATE) {
     logger.debug('Creating community voice chat credentials for moderator')
-    credentials = await voice.getCommunityVoiceChatCredentialsForModerator(
-      body.community_id,
-      lowerCaseUserAddress
-    )
+    credentials = await voice.getCommunityVoiceChatCredentialsForModerator(body.community_id, lowerCaseUserAddress)
     logger.debug(
       `Created community voice chat credentials for moderator ${lowerCaseUserAddress} in community ${body.community_id}`
     )
   } else {
     logger.debug('Joining community voice chat as member')
-    credentials = await voice.getCommunityVoiceChatCredentialsForMember(
-      body.community_id, 
-      lowerCaseUserAddress
-    )
+    credentials = await voice.getCommunityVoiceChatCredentialsForMember(body.community_id, lowerCaseUserAddress)
     logger.info(
       `Community voice chat access granted for member ${lowerCaseUserAddress} in community ${body.community_id}`
     )

@@ -11,4 +11,4 @@ export interface CommunityVoiceChatRequest {
 
 export interface CommunityVoiceChatResponse {
   connection_url: string
-} 
+}
