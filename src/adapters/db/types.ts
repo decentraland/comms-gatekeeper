@@ -150,9 +150,8 @@ export interface IVoiceDBComponent {
   /**
    * Deletes a community voice chat room.
    * @param roomName - The name of the community room.
-   * @returns The addresses of the users that were in the deleted room.
    */
-  deleteCommunityVoiceChat: (roomName: string) => Promise<string[]>
+  deleteCommunityVoiceChat: (roomName: string) => Promise<void>
 
   /**
    * Deletes expired community voice chats and returns the names of the rooms that were deleted.

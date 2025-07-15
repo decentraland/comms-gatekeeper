@@ -8,8 +8,9 @@ import { createVoiceDBMockedComponent } from '../mocks/voice-db-mock'
 import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createAnalyticsMockedComponent } from '../mocks/analytics-mocks'
+import { VoiceChatUserStatus } from '../../src/adapters/db/types'
 
-describe('voice logic component', () => {
+describe('Voice Logic Component', () => {
   let voiceComponent: IVoiceComponent
   let voiceDB: jest.Mocked<IVoiceDBComponent>
   let livekit: jest.Mocked<ILivekitComponent>
@@ -318,6 +319,171 @@ describe('voice logic component', () => {
       expect(deleteRoomMock).toHaveBeenCalledTimes(expiredRoomNames.length)
       expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[0])
       expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[1])
+    })
+  })
+
+  describe('when handling community participant joined', () => {
+    const userAddress = '0x123'
+    const roomName = 'voice-chat-community-test-room'
+    let updateCommunityUserStatusMock: jest.MockedFunction<IVoiceDBComponent['updateCommunityUserStatus']>
+
+    beforeEach(() => {
+      updateCommunityUserStatusMock = jest.fn()
+      voiceDB.updateCommunityUserStatus = updateCommunityUserStatusMock
+    })
+
+    it('should update user status to connected', async () => {
+      await voiceComponent.handleParticipantJoined(userAddress, roomName)
+      
+      expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
+        userAddress, 
+        roomName, 
+        VoiceChatUserStatus.Connected
+      )
+    })
+  })
+
+  describe('when handling community participant left', () => {
+    const userAddress = '0x123'
+    const roomName = 'voice-chat-community-test-room'
+    let updateCommunityUserStatusMock: jest.MockedFunction<IVoiceDBComponent['updateCommunityUserStatus']>
+    let getCommunityUsersInRoomMock: jest.MockedFunction<IVoiceDBComponent['getCommunityUsersInRoom']>
+    let deleteCommunityVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deleteCommunityVoiceChat']>
+
+    beforeEach(() => {
+      updateCommunityUserStatusMock = jest.fn()
+      getCommunityUsersInRoomMock = jest.fn()
+      deleteCommunityVoiceChatMock = jest.fn()
+      voiceDB.updateCommunityUserStatus = updateCommunityUserStatusMock
+      voiceDB.getCommunityUsersInRoom = getCommunityUsersInRoomMock
+      voiceDB.deleteCommunityVoiceChat = deleteCommunityVoiceChatMock
+    })
+
+    describe('when user leaving is not a moderator', () => {
+      beforeEach(() => {
+        getCommunityUsersInRoomMock.mockResolvedValue([
+          {
+            address: userAddress,
+            roomName,
+            isModerator: false,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          }
+        ])
+      })
+
+      it('should update user status as disconnected without destroying room', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
+        
+        expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
+          userAddress, 
+          roomName, 
+          VoiceChatUserStatus.Disconnected
+        )
+        expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('when moderator leaves but other moderators remain', () => {
+      beforeEach(() => {
+        getCommunityUsersInRoomMock.mockResolvedValue([
+          {
+            address: userAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          },
+          {
+            address: '0x456',
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          }
+        ])
+      })
+
+      it('should update user status without destroying room', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
+        
+        expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
+          userAddress, 
+          roomName, 
+          VoiceChatUserStatus.Disconnected
+        )
+        expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('when last moderator leaves', () => {
+      beforeEach(() => {
+        getCommunityUsersInRoomMock.mockResolvedValue([
+          {
+            address: userAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          },
+          {
+            address: '0x456',
+            roomName,
+            isModerator: false,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          }
+        ])
+      })
+
+      it('should destroy the community room', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
+        
+        expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
+          userAddress, 
+          roomName, 
+          VoiceChatUserStatus.Disconnected
+        )
+        expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
+        expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+      })
+    })
+  })
+
+  describe('when expiring community voice chats', () => {
+    let deleteExpiredCommunityVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredCommunityVoiceChats']>
+
+    beforeEach(() => {
+      deleteExpiredCommunityVoiceChatsMock = jest.fn()
+      voiceDB.deleteExpiredCommunityVoiceChats = deleteExpiredCommunityVoiceChatsMock
+    })
+
+    it('should delete expired community voice chats and destroy their rooms', async () => {
+      const expiredRoomNames = ['voice-chat-community-room1', 'voice-chat-community-room2']
+      deleteExpiredCommunityVoiceChatsMock.mockResolvedValue(expiredRoomNames)
+
+      await voiceComponent.expireCommunityVoiceChats()
+
+      expect(deleteExpiredCommunityVoiceChatsMock).toHaveBeenCalled()
+      expect(deleteRoomMock).toHaveBeenCalledTimes(2)
+      expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[0])
+      expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[1])
+    })
+
+    it('should handle empty expired rooms list', async () => {
+      deleteExpiredCommunityVoiceChatsMock.mockResolvedValue([])
+
+      await voiceComponent.expireCommunityVoiceChats()
+
+      expect(deleteExpiredCommunityVoiceChatsMock).toHaveBeenCalled()
+      expect(deleteRoomMock).not.toHaveBeenCalled()
     })
   })
 })

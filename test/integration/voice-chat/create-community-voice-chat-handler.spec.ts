@@ -1,17 +1,19 @@
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
+import { CommunityVoiceChatAction } from '../../../src/types/community-voice'
 
 test('POST /community-voice-chat', ({ components, spyComponents }) => {
   let token: string
-  let requestBody: { community_id: string; moderator_address: string }
-  const validModeratorAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
+  let requestBody: { community_id: string; user_address: string; action: CommunityVoiceChatAction }
+  const validUserAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
   const validCommunityId = 'test-community-123'
 
   describe('when no authorization header is provided', () => {
     beforeEach(() => {
       requestBody = {
         community_id: validCommunityId,
-        moderator_address: validModeratorAddress
+        user_address: validUserAddress,
+        action: CommunityVoiceChatAction.CREATE
       }
     })
 
@@ -32,7 +34,8 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
       token = 'an-invalid-token'
       requestBody = {
         community_id: validCommunityId,
-        moderator_address: validModeratorAddress
+        user_address: validUserAddress,
+        action: CommunityVoiceChatAction.CREATE
       }
     })
 
@@ -80,7 +83,8 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
     describe('when community_id is missing', () => {
       beforeEach(() => {
         requestBody = {
-          moderator_address: validModeratorAddress
+          user_address: validUserAddress,
+          action: CommunityVoiceChatAction.CREATE
         } as any
       })
 
@@ -125,7 +129,8 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
       beforeEach(() => {
         requestBody = {
           community_id: validCommunityId,
-          moderator_address: validModeratorAddress
+          user_address: validUserAddress,
+          action: CommunityVoiceChatAction.CREATE
         }
       })
 
@@ -175,44 +180,94 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
 
           expect(spyComponents.voice.getCommunityVoiceChatCredentialsForModerator).toHaveBeenCalledWith(
             validCommunityId,
-            validModeratorAddress.toLowerCase()
+            validUserAddress.toLowerCase()
           )
         })
       })
     })
+  })
 
-    describe('when the authorization token is valid (aToken)', () => {
-      beforeEach(() => {
-        token = 'aToken'
-        requestBody = {
-          community_id: validCommunityId,
-          moderator_address: validModeratorAddress
-        }
-        spyComponents.voice.getCommunityVoiceChatCredentialsForModerator.mockResolvedValueOnce({
-          connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=valid-moderator-token'
-        })
-      })
-
-      it('should respond with a 200 and the community voice chat credentials when using the valid auth token', async () => {
-        const response = await makeRequest(components.localFetch, '/community-voice-chat', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify(requestBody)
-        })
-        const body = await response.json()
-
-        expect(response.status).toBe(200)
-        expect(body).toEqual({
-          connection_url: 'livekit:wss://voice.livekit.cloud?access_token=valid-moderator-token'
-        })
-
-        expect(spyComponents.voice.getCommunityVoiceChatCredentialsForModerator).toHaveBeenCalledWith(
-          validCommunityId,
-          validModeratorAddress.toLowerCase()
-        )
+  describe('when action is "join"', () => {
+    beforeEach(() => {
+      token = 'aToken'
+      requestBody = {
+        community_id: validCommunityId,
+        user_address: validUserAddress,
+        action: CommunityVoiceChatAction.JOIN
+      }
+      spyComponents.voice.getCommunityVoiceChatCredentialsForMember.mockResolvedValueOnce({
+        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=valid-member-token'
       })
     })
+
+    it('should respond with a 200 and the community voice chat credentials for member', async () => {
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const body = await response.json()
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        connection_url: 'livekit:wss://voice.livekit.cloud?access_token=valid-member-token'
+      })
+
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsForMember).toHaveBeenCalledWith(
+        validCommunityId,
+        validUserAddress.toLowerCase()
+      )
+    })
   })
-}) 
+
+  describe('when action is missing', () => {
+    beforeEach(() => {
+      token = 'aToken'
+      requestBody = {
+        community_id: validCommunityId,
+        user_address: validUserAddress
+      } as any
+    })
+
+    it('should respond with a 400 and a message saying that action is required', async () => {
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+      })
+      const body = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(body).toEqual({ error: 'The property action is required and must be either "create" or "join"' })
+    })
+  })
+
+  describe('when action is invalid', () => {
+    beforeEach(() => {
+      token = 'aToken'
+      requestBody = {
+        community_id: validCommunityId,
+        user_address: validUserAddress,
+        action: 'invalid-action'
+      } as any
+    })
+
+    it('should respond with a 400 and a message saying that action must be create or join', async () => {
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+      })
+      const body = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(body).toEqual({ error: 'The property action is required and must be either "create" or "join"' })
+    })
+  })
+})

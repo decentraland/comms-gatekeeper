@@ -18,7 +18,6 @@ import { getVoiceChatStatusHandler, createPrivateVoiceChatCredentialsHandler } f
 import { deletePrivateVoiceChatHandler } from './handlers/voice-chat/delete-private-voice-chat.handler'
 import {
   createCommunityVoiceChatHandler,
-  joinCommunityVoiceChatHandler,
   getCommunityVoiceChatStatusHandler
 } from './handlers/community-voice-chat'
 
@@ -71,7 +70,6 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   // Community voice chat routes
   router.post('/community-voice-chat', tokenAuthMiddleware, createCommunityVoiceChatHandler)
-  router.post('/community-voice-chat/join', tokenAuthMiddleware, joinCommunityVoiceChatHandler)
   router.get('/community-voice-chat/:communityId/status', tokenAuthMiddleware, getCommunityVoiceChatStatusHandler)
 
   return router

@@ -13,7 +13,7 @@ export async function createVoiceDBComponent({
   const VOICE_CHAT_CONNECTION_INTERRUPTED_TTL = await config.requireNumber('VOICE_CHAT_CONNECTION_INTERRUPTED_TTL')
   const VOICE_CHAT_INITIAL_CONNECTION_TTL = await config.requireNumber('VOICE_CHAT_INITIAL_CONNECTION_TTL')
   const VOICE_CHAT_EXPIRED_BATCH_SIZE = await config.requireNumber('VOICE_CHAT_EXPIRED_BATCH_SIZE')
-  const COMMUNITY_VOICE_CHAT_NO_MODERATOR_TTL = 5 * 60 * 1000 // 5 minutes
+  const COMMUNITY_VOICE_CHAT_NO_MODERATOR_TTL = await config.requireNumber('COMMUNITY_VOICE_CHAT_NO_MODERATOR_TTL')
 
   /**
    * Private function to update the status of a participant in a room.
@@ -299,24 +299,16 @@ export async function createVoiceDBComponent({
     const now = Date.now()
 
     return _executeTx(async (txClient) => {
-      // Check if user is already in the room
-      const existingQuery = SQL`SELECT * FROM community_voice_chat_users WHERE address = ${userAddress} AND room_name = ${roomName}`
-      const existingResult = await txClient.query(existingQuery)
-
-      if (existingResult.rows.length > 0) {
-        // Update existing user - keep them as NotConnected until webhook confirms connection
-        const updateQuery = SQL`UPDATE community_voice_chat_users 
-                               SET status = ${VoiceChatUserStatus.NotConnected}, 
-                                   status_updated_at = ${now},
-                                   is_moderator = ${isModerator}
-                               WHERE address = ${userAddress} AND room_name = ${roomName}`
-        await txClient.query(updateQuery)
-      } else {
-        // Insert new user - start as NotConnected until webhook confirms connection
-        const insertQuery = SQL`INSERT INTO community_voice_chat_users (address, room_name, is_moderator, status, joined_at, status_updated_at) 
-                               VALUES (${userAddress}, ${roomName}, ${isModerator}, ${VoiceChatUserStatus.NotConnected}, ${now}, ${now})`
-        await txClient.query(insertQuery)
-      }
+      // Use ON CONFLICT to handle insert or update in a single query
+      const query = SQL`
+        INSERT INTO community_voice_chat_users (address, room_name, is_moderator, status, joined_at, status_updated_at) 
+        VALUES (${userAddress}, ${roomName}, ${isModerator}, ${VoiceChatUserStatus.NotConnected}, ${now}, ${now}) 
+        ON CONFLICT (address, room_name) DO UPDATE SET 
+          status = ${VoiceChatUserStatus.NotConnected}, 
+          status_updated_at = ${now}, 
+          is_moderator = ${isModerator}
+      `
+      await txClient.query(query)
     })
   }
 
@@ -383,14 +375,10 @@ export async function createVoiceDBComponent({
   /**
    * Deletes a community voice chat room.
    */
-  async function deleteCommunityVoiceChat(roomName: string): Promise<string[]> {
+  async function deleteCommunityVoiceChat(roomName: string): Promise<void> {
     return _executeTx(async (txClient) => {
-      const result = await txClient.query(
-        SQL`SELECT address FROM community_voice_chat_users WHERE room_name = ${roomName}`
-      )
       const query = SQL`DELETE FROM community_voice_chat_users WHERE room_name = ${roomName}`
       await txClient.query(query)
-      return result.rows.map((row) => row.address)
     })
   }
 

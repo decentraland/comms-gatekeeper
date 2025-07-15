@@ -1,5 +1,6 @@
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
+import { CommunityVoiceChatAction } from '../../../types/community-voice'
 
 export async function createCommunityVoiceChatHandler(
   context: HandlerContextWithPath<'logs' | 'voice', '/community-voice-chat'>
@@ -7,11 +8,13 @@ export async function createCommunityVoiceChatHandler(
   const {
     components: { logs, voice }
   } = context
-  const logger = logs.getLogger('create-community-voice-chat-handler')
+  const logger = logs.getLogger('community-voice-chat-handler')
 
-  logger.debug('Creating community voice chat credentials for moderator')
-
-  let body: { community_id: string; moderator_address: string }
+  let body: { 
+    community_id: string; 
+    user_address: string; 
+    action: CommunityVoiceChatAction
+  }
 
   try {
     body = await context.request.json()
@@ -24,20 +27,37 @@ export async function createCommunityVoiceChatHandler(
     throw new InvalidRequestError('The property community_id is required')
   }
 
-  if (!body.moderator_address) {
-    throw new InvalidRequestError('The property moderator_address is required')
+  if (!body.user_address) {
+    throw new InvalidRequestError('The property user_address is required')
   }
 
-  const lowerCaseModeratorAddress = body.moderator_address.toLowerCase()
+  if (!body.action || !Object.values(CommunityVoiceChatAction).includes(body.action)) {
+    throw new InvalidRequestError('The property action is required and must be either "create" or "join"')
+  }
 
-  const credentials = await voice.getCommunityVoiceChatCredentialsForModerator(
-    body.community_id,
-    lowerCaseModeratorAddress
-  )
+  const lowerCaseUserAddress = body.user_address.toLowerCase()
 
-  logger.debug(
-    `Created community voice chat credentials for moderator ${lowerCaseModeratorAddress} in community ${body.community_id}`
-  )
+  let credentials: { connectionUrl: string }
+
+  if (body.action === CommunityVoiceChatAction.CREATE) {
+    logger.debug('Creating community voice chat credentials for moderator')
+    credentials = await voice.getCommunityVoiceChatCredentialsForModerator(
+      body.community_id,
+      lowerCaseUserAddress
+    )
+    logger.debug(
+      `Created community voice chat credentials for moderator ${lowerCaseUserAddress} in community ${body.community_id}`
+    )
+  } else {
+    logger.debug('Joining community voice chat as member')
+    credentials = await voice.getCommunityVoiceChatCredentialsForMember(
+      body.community_id, 
+      lowerCaseUserAddress
+    )
+    logger.info(
+      `Community voice chat access granted for member ${lowerCaseUserAddress} in community ${body.community_id}`
+    )
+  }
 
   return {
     status: 200,

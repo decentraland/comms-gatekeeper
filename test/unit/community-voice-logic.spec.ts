@@ -1,9 +1,9 @@
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { IAnalyticsComponent } from '@dcl/analytics-component'
 import { createVoiceComponent } from '../../src/logic/voice/voice'
-import { getCommunityVoiceChatRoomName, getCommunityIdFromRoomName } from '../../src/logic/voice/utils'
+import { getCommunityVoiceChatRoomName } from '../../src/logic/voice/utils'
 import { IVoiceComponent } from '../../src/logic/voice/types'
-import { IVoiceDBComponent } from '../../src/adapters/db/types'
+import { IVoiceDBComponent, VoiceChatUserStatus } from '../../src/adapters/db/types'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 import { AnalyticsEventPayload } from '../../src/types/analytics'
 import { CommunityRole } from '../../src/types/social.type'
@@ -82,7 +82,7 @@ describe('CommunityVoiceLogic', () => {
     })
   })
 
-  describe('getCommunityVoiceChatCredentialsForModerator', () => {
+  describe('when getting the community voice chat credentials for a moderator', () => {
     beforeEach(() => {
       mockLivekit.getRoom.mockResolvedValue({
         name: 'voice-chat-community-test-community-123',
@@ -105,6 +105,11 @@ describe('CommunityVoiceLogic', () => {
     })
 
     it('should generate credentials for moderator with correct permissions', async () => {
+      mockLivekit.generateCredentials.mockResolvedValue({
+        token: 'moderator-token',
+        url: 'wss://voice.livekit.cloud'
+      })
+
       const result = await voiceComponent.getCommunityVoiceChatCredentialsForModerator(
         validCommunityId,
         validModeratorAddress
@@ -113,8 +118,6 @@ describe('CommunityVoiceLogic', () => {
       expect(result).toEqual({
         connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=moderator-token'
       })
-
-      expect(mockLivekit.getRoom).toHaveBeenCalledWith(getCommunityVoiceChatRoomName(validCommunityId))
 
       expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
         validModeratorAddress,
@@ -127,8 +130,7 @@ describe('CommunityVoiceLogic', () => {
         },
         false,
         {
-          role: CommunityRole.Moderator,
-          community_id: validCommunityId
+          role: CommunityRole.Moderator
         }
       )
 
@@ -139,7 +141,7 @@ describe('CommunityVoiceLogic', () => {
       )
     })
 
-    it('should insert moderator as NotConnected in database (not Connected)', async () => {
+    it('should store the join the moderator to the community room', async () => {
       await voiceComponent.getCommunityVoiceChatCredentialsForModerator(validCommunityId, validModeratorAddress)
 
       // Verify that joinUserToCommunityRoom is called to insert user in DB
@@ -151,8 +153,11 @@ describe('CommunityVoiceLogic', () => {
       )
     })
 
-    it('should handle livekit errors properly', async () => {
-      mockLivekit.getRoom.mockRejectedValue(new Error('LiveKit error'))
+  })
+
+  describe('when LiveKit fails to generate credentials for moderator', () => {
+    it('should propagate LiveKit errors', async () => {
+      mockLivekit.generateCredentials.mockRejectedValue(new Error('LiveKit error'))
 
       await expect(
         voiceComponent.getCommunityVoiceChatCredentialsForModerator(validCommunityId, validModeratorAddress)
@@ -160,7 +165,7 @@ describe('CommunityVoiceLogic', () => {
     })
   })
 
-  describe('getCommunityVoiceChatCredentialsForMember', () => {
+  describe('when getting the community voice chat credentials for a member', () => {
     beforeEach(() => {
       mockLivekit.generateCredentials.mockResolvedValue({
         url: 'wss://voice.livekit.cloud',
@@ -214,7 +219,10 @@ describe('CommunityVoiceLogic', () => {
       )
     })
 
-    it('should handle livekit errors properly', async () => {
+  })
+
+  describe('when LiveKit fails to generate credentials for member', () => {
+    it('should propagate LiveKit errors', async () => {
       mockLivekit.generateCredentials.mockRejectedValue(new Error('LiveKit error'))
 
       await expect(
@@ -223,33 +231,213 @@ describe('CommunityVoiceLogic', () => {
     })
   })
 
-  describe('community voice chat room utilities', () => {
-    describe('getCommunityVoiceChatRoomName', () => {
-      it('should generate correct room name for community voice chat', () => {
-        const roomName = getCommunityVoiceChatRoomName(validCommunityId)
-        expect(roomName).toBe(`voice-chat-community-${validCommunityId}`)
+  describe('when getting community voice chat status', () => {
+    const roomName = getCommunityVoiceChatRoomName(validCommunityId)
+
+    describe('and there are no users in the room', () => {
+      beforeEach(() => {
+        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([])
       })
 
-      it('should handle special characters in community id', () => {
-        const specialCommunityId = 'test-community-with-special-chars_123'
-        const roomName = getCommunityVoiceChatRoomName(specialCommunityId)
-        expect(roomName).toBe(`voice-chat-community-${specialCommunityId}`)
+      it('should return inactive status with zero counts', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: false,
+          participantCount: 0,
+          moderatorCount: 0
+        })
+
+        expect(mockVoiceDB.getCommunityUsersInRoom).toHaveBeenCalledWith(roomName)
       })
     })
 
-    describe('getCommunityIdFromRoomName', () => {
-      it('should extract community id from room name', () => {
-        const roomName = 'voice-chat-community-test-community-123'
-        const communityId = getCommunityIdFromRoomName(roomName)
-        expect(communityId).toBe('test-community-123')
+    describe('and there are connected users', () => {
+      beforeEach(() => {
+        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
+          {
+            address: validModeratorAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          },
+          {
+            address: validMemberAddress,
+            roomName,
+            isModerator: false,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          }
+        ])
       })
 
-      it('should handle complex community ids', () => {
-        const complexCommunityId = 'my-community-with-dashes-and_underscores_123'
-        const roomName = `voice-chat-community-${complexCommunityId}`
-        const extractedId = getCommunityIdFromRoomName(roomName)
-        expect(extractedId).toBe(complexCommunityId)
+      it('should return active status with correct counts', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: true,
+          participantCount: 2,
+          moderatorCount: 1
+        })
+      })
+    })
+
+    describe('and there are users with connection interruptions', () => {
+      beforeEach(() => {
+        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
+          {
+            address: validModeratorAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.ConnectionInterrupted,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          },
+          {
+            address: validMemberAddress,
+            roomName,
+            isModerator: false,
+            status: VoiceChatUserStatus.ConnectionInterrupted,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          }
+        ])
+      })
+
+      it('should count interrupted users as active participants and moderators', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: true,
+          participantCount: 2,
+          moderatorCount: 1
+        })
+      })
+    })
+
+    describe('and there are disconnected users', () => {
+      beforeEach(() => {
+        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
+          {
+            address: validModeratorAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Disconnected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          },
+          {
+            address: validMemberAddress,
+            roomName,
+            isModerator: false,
+            status: VoiceChatUserStatus.Disconnected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          }
+        ])
+      })
+
+      it('should not count disconnected users', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: false,
+          participantCount: 0,
+          moderatorCount: 0
+        })
+      })
+    })
+
+    describe('and there are only members without moderators', () => {
+      beforeEach(() => {
+        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
+          {
+            address: validMemberAddress,
+            roomName,
+            isModerator: false,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          }
+        ])
+      })
+
+      it('should return inactive status even with connected members', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: false,
+          participantCount: 1,
+          moderatorCount: 0
+        })
+      })
+    })
+
+    describe('and there are mixed user statuses', () => {
+      beforeEach(() => {
+        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
+          {
+            address: validModeratorAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          },
+          {
+            address: validMemberAddress,
+            roomName,
+            isModerator: false,
+            status: VoiceChatUserStatus.Disconnected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          },
+          {
+            address: '0x742d35Cc6635C0532925a3b8D6Ac6C2b6000b8B1',
+            roomName,
+            isModerator: false,
+            status: VoiceChatUserStatus.ConnectionInterrupted,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          }
+        ])
+      })
+
+      it('should count only connected and interrupted users', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: true,
+          participantCount: 2, // connected moderator + interrupted member
+          moderatorCount: 1 // connected moderator
+        })
+      })
+    })
+
+    describe('when database query fails', () => {
+      beforeEach(() => {
+        mockVoiceDB.getCommunityUsersInRoom.mockRejectedValue(new Error('Database error'))
+      })
+
+      it('should return inactive status and log error', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: false,
+          participantCount: 0,
+          moderatorCount: 0
+        })
+
+        // Verify that the logger was called with a warning
+        const mockLogger = mockLogs.getLogger('voice')
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`Error getting community voice chat status for ${roomName}`)
+        )
       })
     })
   })
+
 })

@@ -28,6 +28,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       type: 'BIGINT',
       notNull: true
     },
+    // Adding created_at for debugging purposes
     created_at: {
       type: 'TIMESTAMPTZ',
       notNull: true,

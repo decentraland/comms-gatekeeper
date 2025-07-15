@@ -110,21 +110,33 @@ export function createVoiceComponent(
     // Update user status based on disconnect reason
     if (disconnectReason === DisconnectReason.CLIENT_INITIATED) {
       await voiceDB.updateCommunityUserStatus(userAddress, roomName, VoiceChatUserStatus.Disconnected)
+
+      // Only check for room destruction when a moderator leaves voluntarily
+      // Get all users to check if the leaving user was a moderator
+      const usersInRoom = await voiceDB.getCommunityUsersInRoom(roomName)
+      const leavingUser = usersInRoom.find((user) => user.address === userAddress)
+
+      if (leavingUser?.isModerator) {
+        logger.debug(`Moderator ${userAddress} left voluntarily, checking if room should be destroyed`)
+
+        // Check if there are any other active moderators
+        const activeModerators = usersInRoom.filter(
+          (user) => user.isModerator && user.address !== userAddress && user.status === VoiceChatUserStatus.Connected
+        )
+
+        if (activeModerators.length === 0) {
+          logger.debug(`No active moderators left in community room ${roomName}, destroying room`)
+          await livekit.deleteRoom(roomName)
+          await voiceDB.deleteCommunityVoiceChat(roomName)
+
+          const communityId = getCommunityIdFromRoomName(roomName)
+          analytics.fireEvent(AnalyticsEvent.EXPIRE_CALL, {
+            call_id: communityId
+          })
+        }
+      }
     } else {
       await voiceDB.updateCommunityUserStatus(userAddress, roomName, VoiceChatUserStatus.ConnectionInterrupted)
-    }
-
-    // Check if community room should be destroyed (no moderators for 5 mins)
-    // NOTE: This only triggers when someone disconnects. The main cleanup is handled by expireCommunityVoiceChats job
-    if (await voiceDB.shouldDestroyCommunityRoom(roomName)) {
-      logger.debug(`Community room ${roomName} should be destroyed, deleting from livekit`)
-      await livekit.deleteRoom(roomName)
-      await voiceDB.deleteCommunityVoiceChat(roomName)
-
-      const communityId = getCommunityIdFromRoomName(roomName)
-      analytics.fireEvent(AnalyticsEvent.EXPIRE_CALL, {
-        call_id: communityId
-      })
     }
   }
 
@@ -239,9 +251,6 @@ export function createVoiceComponent(
   ): Promise<{ connectionUrl: string }> {
     const roomName = getCommunityVoiceChatRoomName(communityId)
 
-    // Ensure the room exists in LiveKit (creates it if it doesn't exist)
-    await livekit.getRoom(roomName)
-
     const roomKey = await livekit.generateCredentials(
       userAddress,
       roomName,
@@ -253,8 +262,7 @@ export function createVoiceComponent(
       },
       false,
       {
-        role: CommunityRole.Moderator,
-        community_id: communityId
+        role: CommunityRole.Moderator
       }
     )
 
@@ -324,6 +332,8 @@ export function createVoiceComponent(
 
   /**
    * Gets the status of a community voice chat.
+   * Uses stored database information about users joining/leaving to determine if the room is active.
+   * Includes grace period for moderators who suffered connection interruptions.
    */
   async function getCommunityVoiceChatStatus(communityId: string): Promise<{
     active: boolean
@@ -334,31 +344,49 @@ export function createVoiceComponent(
 
     logger.debug(`Getting status for community voice chat: ${roomName}`)
 
-    // Get room info from LiveKit
-    const roomInfo = await livekit.getRoomInfo(roomName)
-    console.log('roomInfo', roomInfo)
+    try {
+      const usersInRoom = await voiceDB.getCommunityUsersInRoom(roomName)
 
-    if (!roomInfo) {
-      logger.debug(`Community voice chat room ${roomName} not found in LiveKit`)
+      if (usersInRoom.length === 0) {
+        logger.debug(`Community voice chat room ${roomName} has no users in database`)
+        return {
+          active: false,
+          participantCount: 0,
+          moderatorCount: 0
+        }
+      }
+
+      // Count active participants (connected or recently interrupted)
+      const activeParticipants = usersInRoom.filter(user => 
+        user.status === VoiceChatUserStatus.Connected ||
+        user.status === VoiceChatUserStatus.ConnectionInterrupted
+      )
+
+      // Count active moderators (includes those with recent connection interruptions within grace period)
+      const activeModerators = usersInRoom.filter(user => 
+        user.isModerator && (
+          user.status === VoiceChatUserStatus.Connected ||
+          user.status === VoiceChatUserStatus.ConnectionInterrupted
+        )
+      )
+
+      // Room is active if there are active moderators
+      const active = activeModerators.length > 0
+
+      logger.debug(`Community voice chat ${roomName} status: active=${active}, participants=${activeParticipants.length}, moderators=${activeModerators.length}`)
+
+      return {
+        active,
+        participantCount: activeParticipants.length,
+        moderatorCount: activeModerators.length
+      }
+    } catch (error) {
+      logger.warn(`Error getting community voice chat status for ${roomName}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       return {
         active: false,
         participantCount: 0,
         moderatorCount: 0
       }
-    }
-
-    // Count participants from LiveKit room data
-    const participantCount = roomInfo.numParticipants || 0
-
-    // For now, just check if room exists in LiveKit - simplified logic
-    const active = true // If room exists in LiveKit, it's active
-
-    logger.debug(`Community voice chat ${roomName} status: active=${active}, participants=${participantCount}`)
-
-    return {
-      active,
-      participantCount,
-      moderatorCount: 0 // We'll implement this later
     }
   }
 
