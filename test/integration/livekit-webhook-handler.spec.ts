@@ -8,6 +8,8 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
   const callerAddress = '0x1234567890123456789012345678901234567890'
   const calleeAddress = '0x1234567890123456789012345678901234567891'
   let webhookEvent: WebhookEvent
+  let handleParticipantJoinedSpy: jest.SpyInstance
+  let handleParticipantLeftSpy: jest.SpyInstance
 
   beforeEach(() => {
     webhookEvent = {
@@ -22,6 +24,15 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     spyComponents.livekit.getWebhookEvent.mockResolvedValue(webhookEvent)
     spyComponents.analytics.fireEvent.mockReturnValue(undefined)
+    
+    // Set up spies for voice component methods but preserve original implementation
+    handleParticipantJoinedSpy = jest.spyOn(components.voice, 'handleParticipantJoined')
+    handleParticipantLeftSpy = jest.spyOn(components.voice, 'handleParticipantLeft')
+  })
+
+  afterEach(() => {
+    handleParticipantJoinedSpy?.mockRestore()
+    handleParticipantLeftSpy?.mockRestore()
   })
 
   describe('when the event is a participant left event', () => {
@@ -100,7 +111,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         it('should respond with a 200 and do nothing', async () => {
-          await makeRequest(components.localFetch, '/livekit-webhook', {
+          const response = await makeRequest(components.localFetch, '/livekit-webhook', {
             method: 'POST',
             headers: {
               Authorization: 'Bearer aToken',
@@ -109,7 +120,21 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
             body: 'aBody'
           })
 
-          expect(spyComponents.voice.handleParticipantLeft).not.toHaveBeenCalled()
+          expect(response.status).toBe(200)
+          expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
+            callerAddress,
+            webhookEvent.room.name,
+            DisconnectReason.DUPLICATE_IDENTITY
+          )
+          
+          // Verify that the user's status wasn't changed in the database (no side effects)
+          await expect(components.voiceDB.getUsersInRoom(webhookEvent.room.name)).resolves.toContainEqual({
+            address: callerAddress,
+            roomName: webhookEvent.room.name,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: expect.any(Number),
+            statusUpdatedAt: expect.any(Number)
+          })
         })
       })
 
@@ -344,7 +369,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(spyComponents.voice.handleParticipantLeft).toHaveBeenCalledWith(
+        expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
           memberAddress,
           webhookEvent.room.name,
           DisconnectReason.CLIENT_INITIATED
@@ -368,7 +393,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           })
 
           expect(response.status).toBe(200)
-          expect(spyComponents.voice.handleParticipantLeft).toHaveBeenCalledWith(
+          expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
             moderatorAddress,
             webhookEvent.room.name,
             DisconnectReason.CLIENT_INITIATED
@@ -395,7 +420,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(spyComponents.voice.handleParticipantJoined).toHaveBeenCalledWith(
+        expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(
           memberAddress,
           webhookEvent.room.name
         )
@@ -417,7 +442,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           })
 
           expect(response.status).toBe(200)
-          expect(spyComponents.voice.handleParticipantJoined).toHaveBeenCalledWith(
+          expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(
             moderatorAddress,
             webhookEvent.room.name
           )

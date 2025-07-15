@@ -103,14 +103,14 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
       })
     })
 
-    describe('when moderator_address is missing', () => {
+    describe('when user_address is missing', () => {
       beforeEach(() => {
         requestBody = {
           community_id: validCommunityId
         } as any
       })
 
-      it('should respond with a 400 and a message saying that moderator_address is required', async () => {
+      it('should respond with a 400 and a message saying that user_address is required', async () => {
         const response = await makeRequest(components.localFetch, '/community-voice-chat', {
           method: 'POST',
           headers: {
@@ -121,7 +121,7 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
         const body = await response.json()
 
         expect(response.status).toBe(400)
-        expect(body).toEqual({ error: 'The property moderator_address is required' })
+        expect(body).toEqual({ error: 'The property user_address is required' })
       })
     })
 
