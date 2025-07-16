@@ -10,3 +10,8 @@ export enum PrivateMessagesPrivacy {
 export type PrivacySettings = {
   private_messages_privacy: PrivateMessagesPrivacy
 }
+
+export enum CommunityRole {
+  Moderator = 'moderator',
+  Member = 'member'
+}

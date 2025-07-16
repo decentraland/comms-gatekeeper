@@ -14,6 +14,7 @@ export const createLivekitMockedComponent = (
     updateParticipantMetadata: overrides?.updateParticipantMetadata ?? jest.fn(),
     getRoom: overrides?.getRoom ?? jest.fn(),
     muteParticipant: overrides?.muteParticipant ?? jest.fn(),
-    getWebhookEvent: overrides?.getWebhookEvent ?? jest.fn()
+    getWebhookEvent: overrides?.getWebhookEvent ?? jest.fn(),
+    getRoomInfo: overrides?.getRoomInfo ?? jest.fn()
   }
 }

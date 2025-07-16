@@ -16,6 +16,7 @@ import { livekitWebhookHandler } from './handlers/livekit-webhook-handler'
 import { patchUserPrivateMessagesPrivacyHandler } from './handlers/private-messages/patch-user-metadata-handler'
 import { getVoiceChatStatusHandler, createPrivateVoiceChatCredentialsHandler } from './handlers/voice-chat'
 import { deletePrivateVoiceChatHandler } from './handlers/voice-chat/delete-private-voice-chat.handler'
+import { createCommunityVoiceChatHandler, getCommunityVoiceChatStatusHandler } from './handlers/community-voice-chat'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -59,9 +60,14 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.get('/private-messages/token', authExplorer, getPrivateMessagesTokenHandler)
   router.patch('/users/:address/private-messages-privacy', tokenAuthMiddleware, patchUserPrivateMessagesPrivacyHandler)
 
+  // Private voice chat routes
   router.get('/users/:address/voice-chat-status', tokenAuthMiddleware, getVoiceChatStatusHandler)
   router.post('/private-voice-chat', tokenAuthMiddleware, createPrivateVoiceChatCredentialsHandler)
   router.delete('/private-voice-chat/:id', tokenAuthMiddleware, deletePrivateVoiceChatHandler)
+
+  // Community voice chat routes
+  router.post('/community-voice-chat', tokenAuthMiddleware, createCommunityVoiceChatHandler)
+  router.get('/community-voice-chat/:communityId/status', tokenAuthMiddleware, getCommunityVoiceChatStatusHandler)
 
   return router
 }

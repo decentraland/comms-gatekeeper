@@ -12,7 +12,17 @@ export const createVoiceDBMockedComponent = (
     isPrivateRoomActive: overrides?.isPrivateRoomActive ?? jest.fn(),
     createVoiceChatRoom: overrides?.createVoiceChatRoom ?? jest.fn(),
     deletePrivateVoiceChat: overrides?.deletePrivateVoiceChat ?? jest.fn(),
+    deleteExpiredPrivateVoiceChats: overrides?.deleteExpiredPrivateVoiceChats ?? jest.fn(),
     deletePrivateVoiceChatUserIsOrWasIn: overrides?.deletePrivateVoiceChatUserIsOrWasIn ?? jest.fn(),
-    deleteExpiredPrivateVoiceChats: overrides?.deleteExpiredPrivateVoiceChats ?? jest.fn()
+
+    // Community voice chat methods
+    joinUserToCommunityRoom: overrides?.joinUserToCommunityRoom ?? jest.fn(),
+    updateCommunityUserStatus: overrides?.updateCommunityUserStatus ?? jest.fn(),
+    getCommunityUsersInRoom: overrides?.getCommunityUsersInRoom ?? jest.fn(),
+    isCommunityRoomActive: overrides?.isCommunityRoomActive ?? jest.fn(),
+    shouldDestroyCommunityRoom: overrides?.shouldDestroyCommunityRoom ?? jest.fn(),
+    deleteCommunityVoiceChat: overrides?.deleteCommunityVoiceChat ?? jest.fn(),
+    deleteExpiredCommunityVoiceChats: overrides?.deleteExpiredCommunityVoiceChats ?? jest.fn(),
+    isActiveCommunityUser: overrides?.isActiveCommunityUser ?? jest.fn(),
   }
 }

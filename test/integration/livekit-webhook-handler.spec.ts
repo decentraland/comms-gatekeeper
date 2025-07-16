@@ -8,6 +8,8 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
   const callerAddress = '0x1234567890123456789012345678901234567890'
   const calleeAddress = '0x1234567890123456789012345678901234567891'
   let webhookEvent: WebhookEvent
+  let handleParticipantJoinedSpy: jest.SpyInstance
+  let handleParticipantLeftSpy: jest.SpyInstance
 
   beforeEach(() => {
     webhookEvent = {
@@ -22,6 +24,15 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     spyComponents.livekit.getWebhookEvent.mockResolvedValue(webhookEvent)
     spyComponents.analytics.fireEvent.mockReturnValue(undefined)
+    
+    // Set up spies for voice component methods but preserve original implementation
+    handleParticipantJoinedSpy = jest.spyOn(components.voice, 'handleParticipantJoined')
+    handleParticipantLeftSpy = jest.spyOn(components.voice, 'handleParticipantLeft')
+  })
+
+  afterEach(() => {
+    handleParticipantJoinedSpy?.mockRestore()
+    handleParticipantLeftSpy?.mockRestore()
   })
 
   describe('when the event is a participant left event', () => {
@@ -31,8 +42,11 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     describe('and the room is a voice chat room', () => {
       beforeEach(async () => {
-        webhookEvent.room.name = 'voice-chat-123'
+        webhookEvent.room.name = 'voice-chat-private-123'  // Use correct private voice chat format
         await components.voiceDB.createVoiceChatRoom(webhookEvent.room.name, [callerAddress, calleeAddress])
+        // Join the users to the room so they exist when we process the webhook
+        await components.voiceDB.joinUserToRoom(callerAddress, webhookEvent.room.name)
+        await components.voiceDB.joinUserToRoom(calleeAddress, webhookEvent.room.name)
       })
 
       afterEach(async () => {
@@ -97,7 +111,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         it('should respond with a 200 and do nothing', async () => {
-          await makeRequest(components.localFetch, '/livekit-webhook', {
+          const response = await makeRequest(components.localFetch, '/livekit-webhook', {
             method: 'POST',
             headers: {
               Authorization: 'Bearer aToken',
@@ -106,7 +120,21 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
             body: 'aBody'
           })
 
-          expect(spyComponents.voice.handleParticipantLeft).not.toHaveBeenCalled()
+          expect(response.status).toBe(200)
+          expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
+            callerAddress,
+            webhookEvent.room.name,
+            DisconnectReason.DUPLICATE_IDENTITY
+          )
+          
+          // Verify that the user's status wasn't changed in the database (no side effects)
+          await expect(components.voiceDB.getUsersInRoom(webhookEvent.room.name)).resolves.toContainEqual({
+            address: callerAddress,
+            roomName: webhookEvent.room.name,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: expect.any(Number),
+            statusUpdatedAt: expect.any(Number)
+          })
         })
       })
 
@@ -156,7 +184,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     describe('and the room is a voice chat room', () => {
       beforeEach(async () => {
-        webhookEvent.room.name = 'voice-chat-123'
+        webhookEvent.room.name = 'voice-chat-private-123'  // Use correct private voice chat format
         await components.voiceDB.createVoiceChatRoom(webhookEvent.room.name, [callerAddress, calleeAddress])
       })
 
@@ -175,7 +203,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
           beforeEach(async () => {
             oldRoomName = webhookEvent.room.name
-            webhookEvent.room.name = 'voice-chat-456'
+            webhookEvent.room.name = 'voice-chat-private-456'  // Use correct private voice chat format
             await components.voiceDB.createVoiceChatRoom(webhookEvent.room.name, [callerAddress, calleeAddress])
             spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
           })
@@ -220,7 +248,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
         describe('and the user is joining the same room', () => {
           beforeEach(() => {
-            webhookEvent.room.name = 'voice-chat-123'
+            webhookEvent.room.name = 'voice-chat-private-123'
           })
 
           it('should respond with a 200 and join the user to the room', async () => {
@@ -303,6 +331,238 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(spyComponents.voice.handleParticipantJoined).not.toHaveBeenCalled()
+      })
+    })
+  })
+
+  describe('when the room is a community voice chat room', () => {
+    const communityId = 'test-community-123'
+    const moderatorAddress = '0x1234567890123456789012345678901234567890'
+    const memberAddress = '0x1234567890123456789012345678901234567891'
+
+    beforeEach(async () => {
+      webhookEvent.room.name = `voice-chat-community-${communityId}`
+      await components.voiceDB.joinUserToCommunityRoom(moderatorAddress, webhookEvent.room.name, true)
+      await components.voiceDB.joinUserToCommunityRoom(memberAddress, webhookEvent.room.name, false)
+    })
+
+    afterEach(async () => {
+      await components.voiceDB.deleteCommunityVoiceChat(webhookEvent.room.name)
+    })
+
+    describe('when a participant leaves', () => {
+      beforeEach(() => {
+        webhookEvent.event = 'participant_left'
+        webhookEvent.participant.identity = memberAddress
+        webhookEvent.participant.disconnectReason = DisconnectReason.CLIENT_INITIATED
+      })
+
+      it('should handle community participant left event', async () => {
+        const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer aToken',
+            'Content-Type': 'application/json'
+          },
+          body: 'aBody'
+        })
+
+        expect(response.status).toBe(200)
+        expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
+          memberAddress,
+          webhookEvent.room.name,
+          DisconnectReason.CLIENT_INITIATED
+        )
+
+        // Verify the database was updated correctly
+        const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
+        const memberUser = usersInRoom.find((user) => user.address === memberAddress)
+        expect(memberUser).toBeDefined()
+        expect(memberUser!.status).toBe(VoiceChatUserStatus.Disconnected)
+      })
+
+      describe('when the last moderator leaves', () => {
+        beforeEach(() => {
+          webhookEvent.participant.identity = moderatorAddress
+          spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
+        })
+
+        it('should handle moderator leaving and destroy room if no other moderators', async () => {
+          const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer aToken',
+              'Content-Type': 'application/json'
+            },
+            body: 'aBody'
+          })
+
+          expect(response.status).toBe(200)
+          expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
+            moderatorAddress,
+            webhookEvent.room.name,
+            DisconnectReason.CLIENT_INITIATED
+          )
+
+          // Verify the room was destroyed in the database since no other moderators
+          const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
+          expect(usersInRoom).toHaveLength(0)
+          
+          // Verify LiveKit room was deleted
+          expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(webhookEvent.room.name)
+        })
+
+        it('should handle moderator leaving but keep room when other moderators exist', async () => {
+          // Add another moderator to the room
+          const anotherModeratorAddress = '0x1234567890123456789012345678901234567892'
+          await components.voiceDB.joinUserToCommunityRoom(anotherModeratorAddress, webhookEvent.room.name, true)
+          await components.voiceDB.updateCommunityUserStatus(anotherModeratorAddress, webhookEvent.room.name, VoiceChatUserStatus.Connected)
+
+          const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer aToken',
+              'Content-Type': 'application/json'
+            },
+            body: 'aBody'
+          })
+
+          expect(response.status).toBe(200)
+          expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
+            moderatorAddress,
+            webhookEvent.room.name,
+            DisconnectReason.CLIENT_INITIATED
+          )
+
+          // Verify the room was NOT destroyed since there's another active moderator
+          const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
+          expect(usersInRoom.length).toBeGreaterThan(0)
+          
+          // The leaving moderator should be marked as disconnected
+          const leavingModerator = usersInRoom.find((user) => user.address === moderatorAddress)
+          expect(leavingModerator!.status).toBe(VoiceChatUserStatus.Disconnected)
+          
+          // The other moderator should still be connected
+          const remainingModerator = usersInRoom.find((user) => user.address === anotherModeratorAddress)
+          expect(remainingModerator!.status).toBe(VoiceChatUserStatus.Connected)
+          expect(remainingModerator!.isModerator).toBe(true)
+          
+                     // Verify LiveKit room was NOT deleted
+           expect(spyComponents.livekit.deleteRoom).not.toHaveBeenCalledWith(webhookEvent.room.name)
+         })
+       })
+
+       describe('when a participant leaves due to connection interruption', () => {
+         beforeEach(() => {
+           webhookEvent.participant.identity = memberAddress
+           webhookEvent.participant.disconnectReason = DisconnectReason.MIGRATION
+         })
+
+         it('should mark user as connection interrupted in database', async () => {
+           const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+             method: 'POST',
+             headers: {
+               Authorization: 'Bearer aToken',
+               'Content-Type': 'application/json'
+             },
+             body: 'aBody'
+           })
+
+           expect(response.status).toBe(200)
+           expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
+             memberAddress,
+             webhookEvent.room.name,
+             DisconnectReason.MIGRATION
+           )
+
+           // Verify the database was updated correctly
+           const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
+           const memberUser = usersInRoom.find((user) => user.address === memberAddress)
+           expect(memberUser).toBeDefined()
+           expect(memberUser!.status).toBe(VoiceChatUserStatus.ConnectionInterrupted)
+         })
+       })
+     })
+
+    describe('when a participant joins', () => {
+      beforeEach(() => {
+        webhookEvent.event = 'participant_joined'
+        webhookEvent.participant.identity = memberAddress
+        delete webhookEvent.participant.disconnectReason
+      })
+
+      it('should handle community participant joined event', async () => {
+        const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer aToken',
+            'Content-Type': 'application/json'
+          },
+          body: 'aBody'
+        })
+
+        expect(response.status).toBe(200)
+        expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(
+          memberAddress,
+          webhookEvent.room.name
+        )
+
+        // Verify the database was updated correctly
+        const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
+        const memberUser = usersInRoom.find((user) => user.address === memberAddress)
+        expect(memberUser).toBeDefined()
+        expect(memberUser!.status).toBe(VoiceChatUserStatus.Connected)
+      })
+
+      describe('when a moderator joins', () => {
+        beforeEach(() => {
+          webhookEvent.participant.identity = moderatorAddress
+        })
+
+        it('should handle moderator joining', async () => {
+          const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer aToken',
+              'Content-Type': 'application/json'
+            },
+            body: 'aBody'
+          })
+
+          expect(response.status).toBe(200)
+          expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(
+            moderatorAddress,
+            webhookEvent.room.name
+          )
+
+          // Verify the database was updated correctly
+          const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
+          const moderatorUser = usersInRoom.find((user) => user.address === moderatorAddress)
+          expect(moderatorUser).toBeDefined()
+          expect(moderatorUser!.status).toBe(VoiceChatUserStatus.Connected)
+          expect(moderatorUser!.isModerator).toBe(true)
+        })
+      })
+    })
+
+    describe('when a room is deleted', () => {
+      beforeEach(() => {
+        webhookEvent.event = 'room_finished'
+        delete webhookEvent.participant.disconnectReason
+      })
+
+      it('should handle community room deletion', async () => {
+        const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer aToken',
+            'Content-Type': 'application/json'
+          },
+          body: 'aBody'
+        })
+
+        expect(response.status).toBe(200)
+        // The room_finished event should be handled but not call participant-specific handlers
       })
     })
   })

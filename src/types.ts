@@ -61,6 +61,7 @@ export type BaseComponents = {
   analytics: IAnalyticsComponent<AnalyticsEventPayload>
   publisher: IPublisherComponent
   voiceChatExpirationJob?: ICronJobComponent
+  communityVoiceChatExpirationJob?: ICronJobComponent
 }
 
 export type AppComponents = BaseComponents & {
