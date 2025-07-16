@@ -17,6 +17,7 @@ describe('CommunityVoiceLogic', () => {
   const validCommunityId = 'test-community-123'
   const validModeratorAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
   const validMemberAddress = '0x742d35Cc6635C0532925a3b8D6Ac6C2b6000b8B0'
+  const validUserAddress = '0x1234567890123456789012345678901234567890'
 
   beforeEach(() => {
     mockVoiceDB = {
@@ -54,7 +55,9 @@ describe('CommunityVoiceLogic', () => {
       getOrCreateIngress: jest.fn(),
       removeIngress: jest.fn(),
       getWebhookEvent: jest.fn(),
-      updateParticipantMetadata: jest.fn()
+      updateParticipantMetadata: jest.fn(),
+      updateParticipantPermissions: jest.fn(),
+      removeParticipant: jest.fn()
     } as jest.Mocked<ILivekitComponent>
 
     const mockLogger = {
@@ -416,6 +419,109 @@ describe('CommunityVoiceLogic', () => {
           expect.stringContaining(`Error getting community voice chat status for ${roomName}`)
         )
       })
+    })
+  })
+
+  describe('when requesting to speak in community voice chat', () => {
+    it('should call livekit updateParticipantMetadata with correct parameters', async () => {
+      await voiceComponent.requestToSpeakInCommunity(validCommunityId, validUserAddress)
+
+      expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
+        getCommunityVoiceChatRoomName(validCommunityId),
+        validUserAddress,
+        { isRequestingToSpeak: true }
+      )
+    })
+
+    it('should log success message', async () => {
+      await voiceComponent.requestToSpeakInCommunity(validCommunityId, validUserAddress)
+
+      const mockLogger = mockLogs.getLogger('voice')
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        `Successfully updated metadata for user ${validUserAddress} in community ${validCommunityId}`
+      )
+    })
+  })
+
+  describe('when promoting a user to speaker in community voice chat', () => {
+    it('should call livekit updateParticipantPermissions and updateParticipantMetadata', async () => {
+      await voiceComponent.promoteSpeakerInCommunity(validCommunityId, validUserAddress)
+
+      expect(mockLivekit.updateParticipantPermissions).toHaveBeenCalledWith(
+        getCommunityVoiceChatRoomName(validCommunityId),
+        validUserAddress,
+        {
+          canPublish: true,
+          canSubscribe: true,
+          canPublishData: true
+        }
+      )
+
+      expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
+        getCommunityVoiceChatRoomName(validCommunityId),
+        validUserAddress,
+        { isRequestingToSpeak: false }
+      )
+    })
+
+    it('should log success message', async () => {
+      await voiceComponent.promoteSpeakerInCommunity(validCommunityId, validUserAddress)
+
+      const mockLogger = mockLogs.getLogger('voice')
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        `Successfully promoted user ${validUserAddress} to speaker in community ${validCommunityId}`
+      )
+    })
+  })
+
+  describe('when demoting a speaker to listener in community voice chat', () => {
+    it('should call livekit updateParticipantPermissions and updateParticipantMetadata', async () => {
+      await voiceComponent.demoteSpeakerInCommunity(validCommunityId, validUserAddress)
+
+      expect(mockLivekit.updateParticipantPermissions).toHaveBeenCalledWith(
+        getCommunityVoiceChatRoomName(validCommunityId),
+        validUserAddress,
+        {
+          canPublish: false,
+          canSubscribe: true,
+          canPublishData: true
+        }
+      )
+
+      expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
+        getCommunityVoiceChatRoomName(validCommunityId),
+        validUserAddress,
+        { isRequestingToSpeak: false }
+      )
+    })
+
+    it('should log success message', async () => {
+      await voiceComponent.demoteSpeakerInCommunity(validCommunityId, validUserAddress)
+
+      const mockLogger = mockLogs.getLogger('voice')
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        `Successfully demoted user ${validUserAddress} to listener in community ${validCommunityId}`
+      )
+    })
+  })
+
+  describe('when kicking a player from community voice chat', () => {
+    it('should call livekit removeParticipant with correct parameters', async () => {
+      await voiceComponent.kickPlayerFromCommunity(validCommunityId, validUserAddress)
+
+      expect(mockLivekit.removeParticipant).toHaveBeenCalledWith(
+        getCommunityVoiceChatRoomName(validCommunityId),
+        validUserAddress
+      )
+    })
+
+    it('should log success message', async () => {
+      await voiceComponent.kickPlayerFromCommunity(validCommunityId, validUserAddress)
+
+      const mockLogger = mockLogs.getLogger('voice')
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        `Successfully kicked user ${validUserAddress} from community ${validCommunityId}`
+      )
     })
   })
 

@@ -84,4 +84,32 @@ export interface IVoiceComponent {
     participantCount: number
     moderatorCount: number
   }>
+
+  /**
+   * Handles request to speak action for a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user requesting to speak.
+   */
+  requestToSpeakInCommunity(communityId: string, userAddress: string): Promise<void>
+
+  /**
+   * Promotes a user to speaker in a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user to promote.
+   */
+  promoteSpeakerInCommunity(communityId: string, userAddress: string): Promise<void>
+
+  /**
+   * Demotes a speaker to listener in a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user to demote.
+   */
+  demoteSpeakerInCommunity(communityId: string, userAddress: string): Promise<void>
+
+  /**
+   * Kicks a player from a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user to kick.
+   */
+  kickPlayerFromCommunity(communityId: string, userAddress: string): Promise<void>
 }

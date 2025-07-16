@@ -2,7 +2,7 @@ import { test } from '../../components'
 import { makeRequest } from '../../utils'
 import { CommunityVoiceChatAction } from '../../../src/types/community-voice'
 
-test('POST /community-voice-chat', ({ components, spyComponents }) => {
+test('POST /community-voice-chat (consolidated actions handler)', ({ components, spyComponents }) => {
   let token: string
   let requestBody: { community_id: string; user_address: string; action: CommunityVoiceChatAction }
   const validUserAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
@@ -125,7 +125,7 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
       })
     })
 
-    describe('when the request is valid', () => {
+    describe('when creating a community voice chat', () => {
       beforeEach(() => {
         requestBody = {
           community_id: validCommunityId,
@@ -152,7 +152,7 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
           const body = await response.json()
 
           expect(response.status).toBe(500)
-          expect(body).toEqual({ error: 'Internal Server Error' })
+          expect(body).toEqual({ message: 'Internal server error' })
         })
       })
 
@@ -187,7 +187,7 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
     })
   })
 
-  describe('when action is "join"', () => {
+  describe('when joining a community voice chat', () => {
     beforeEach(() => {
       token = 'aToken'
       requestBody = {
@@ -242,7 +242,7 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
       const body = await response.json()
 
       expect(response.status).toBe(400)
-      expect(body).toEqual({ error: 'The property action is required and must be either "create" or "join"' })
+      expect(body).toEqual({ error: 'The property action is required and must be one of: create, join, request-to-speak, promote-speaker, demote-speaker, kick-player' })
     })
   })
 
@@ -256,7 +256,7 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
       } as any
     })
 
-    it('should respond with a 400 and a message saying that action must be create or join', async () => {
+    it('should respond with a 400 and a message saying that action must be valid', async () => {
       const response = await makeRequest(components.localFetch, '/community-voice-chat', {
         method: 'POST',
         headers: {
@@ -267,7 +267,139 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
       const body = await response.json()
 
       expect(response.status).toBe(400)
-      expect(body).toEqual({ error: 'The property action is required and must be either "create" or "join"' })
+      expect(body).toEqual({ error: 'The property action is required and must be one of: create, join, request-to-speak, promote-speaker, demote-speaker, kick-player' })
+    })
+  })
+
+  describe('when requesting to speak in community voice chat', () => {
+    beforeEach(() => {
+      token = 'aToken'
+      requestBody = {
+        community_id: validCommunityId,
+        user_address: validUserAddress,
+        action: CommunityVoiceChatAction.REQUEST_TO_SPEAK
+      }
+      spyComponents.voice.requestToSpeakInCommunity.mockResolvedValueOnce(undefined)
+    })
+
+    it('should respond with a 200 and success message', async () => {
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const body = await response.json()
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        message: 'Request to speak sent successfully'
+      })
+
+      expect(spyComponents.voice.requestToSpeakInCommunity).toHaveBeenCalledWith(
+        validCommunityId,
+        validUserAddress.toLowerCase()
+      )
+    })
+  })
+
+  describe('when promoting a user to speaker in community voice chat', () => {
+    beforeEach(() => {
+      token = 'aToken'
+      requestBody = {
+        community_id: validCommunityId,
+        user_address: validUserAddress,
+        action: CommunityVoiceChatAction.PROMOTE_SPEAKER
+      }
+      spyComponents.voice.promoteSpeakerInCommunity.mockResolvedValueOnce(undefined)
+    })
+
+    it('should respond with a 200 and success message', async () => {
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const body = await response.json()
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        message: 'User promoted to speaker successfully'
+      })
+
+      expect(spyComponents.voice.promoteSpeakerInCommunity).toHaveBeenCalledWith(
+        validCommunityId,
+        validUserAddress.toLowerCase()
+      )
+    })
+  })
+
+  describe('when demoting a speaker to listener in community voice chat', () => {
+    beforeEach(() => {
+      token = 'aToken'
+      requestBody = {
+        community_id: validCommunityId,
+        user_address: validUserAddress,
+        action: CommunityVoiceChatAction.DEMOTE_SPEAKER
+      }
+      spyComponents.voice.demoteSpeakerInCommunity.mockResolvedValueOnce(undefined)
+    })
+
+    it('should respond with a 200 and success message', async () => {
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const body = await response.json()
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        message: 'User demoted to listener successfully'
+      })
+
+      expect(spyComponents.voice.demoteSpeakerInCommunity).toHaveBeenCalledWith(
+        validCommunityId,
+        validUserAddress.toLowerCase()
+      )
+    })
+  })
+
+  describe('when kicking a player from community voice chat', () => {
+    beforeEach(() => {
+      token = 'aToken'
+      requestBody = {
+        community_id: validCommunityId,
+        user_address: validUserAddress,
+        action: CommunityVoiceChatAction.KICK_PLAYER
+      }
+      spyComponents.voice.kickPlayerFromCommunity.mockResolvedValueOnce(undefined)
+    })
+
+    it('should respond with a 200 and success message', async () => {
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const body = await response.json()
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        message: 'User kicked from voice chat successfully'
+      })
+
+      expect(spyComponents.voice.kickPlayerFromCommunity).toHaveBeenCalledWith(
+        validCommunityId,
+        validUserAddress.toLowerCase()
+      )
     })
   })
 })

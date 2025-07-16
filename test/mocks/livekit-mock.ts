@@ -12,8 +12,10 @@ export const createLivekitMockedComponent = (
     getOrCreateIngress: overrides?.getOrCreateIngress ?? jest.fn(),
     removeIngress: overrides?.removeIngress ?? jest.fn(),
     updateParticipantMetadata: overrides?.updateParticipantMetadata ?? jest.fn(),
+    updateParticipantPermissions: overrides?.updateParticipantPermissions ?? jest.fn(),
     getRoom: overrides?.getRoom ?? jest.fn(),
     muteParticipant: overrides?.muteParticipant ?? jest.fn(),
+    removeParticipant: overrides?.removeParticipant ?? jest.fn(),
     getWebhookEvent: overrides?.getWebhookEvent ?? jest.fn(),
     getRoomInfo: overrides?.getRoomInfo ?? jest.fn()
   }

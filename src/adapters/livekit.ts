@@ -11,7 +11,7 @@ import {
 } from 'livekit-server-sdk'
 import { AppComponents, Permissions } from '../types'
 import { LivekitIngressNotFoundError } from '../types/errors'
-import { ILivekitComponent, LivekitCredentials, LivekitSettings } from '../types/livekit.type'
+import { ILivekitComponent, LivekitCredentials, LivekitSettings, ParticipantPermissions } from '../types/livekit.type'
 import { isErrorWithMessage } from '../logic/errors'
 
 export async function createLivekitComponent(
@@ -99,6 +99,10 @@ export async function createLivekitComponent(
     })
   }
 
+  async function removeParticipant(roomId: string, participantId: string): Promise<void> {
+    await roomClient.removeParticipant(roomId, participantId)
+  }
+
   async function deleteRoom(roomName: string): Promise<void> {
     logger.info(`Deleting room ${roomName}`)
     try {
@@ -174,6 +178,14 @@ export async function createLivekitComponent(
     await roomClient.updateParticipant(roomId, participantId, JSON.stringify(metadata))
   }
 
+  async function updateParticipantPermissions(
+    roomId: string,
+    participantId: string,
+    permissions: ParticipantPermissions
+  ): Promise<void> {
+    await roomClient.updateParticipant(roomId, participantId, undefined, permissions)
+  }
+
   async function getWebhookEvent(body: string, authorization: string) {
     return receiver.receive(body, authorization)
   }
@@ -186,10 +198,12 @@ export async function createLivekitComponent(
     buildConnectionUrl,
     deleteRoom,
     updateParticipantMetadata,
+    updateParticipantPermissions,
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
     muteParticipant,
+    removeParticipant,
     getRoom,
     getRoomInfo,
     getOrCreateIngress,

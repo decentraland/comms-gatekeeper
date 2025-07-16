@@ -1,6 +1,10 @@
 export enum CommunityVoiceChatAction {
   CREATE = 'create',
-  JOIN = 'join'
+  JOIN = 'join',
+  REQUEST_TO_SPEAK = 'request-to-speak',
+  PROMOTE_SPEAKER = 'promote-speaker',
+  DEMOTE_SPEAKER = 'demote-speaker',
+  KICK_PLAYER = 'kick-player'
 }
 
 export interface CommunityVoiceChatRequest {
@@ -10,5 +14,6 @@ export interface CommunityVoiceChatRequest {
 }
 
 export interface CommunityVoiceChatResponse {
-  connection_url: string
+  connection_url?: string
+  message?: string
 }

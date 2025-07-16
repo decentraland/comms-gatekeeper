@@ -426,6 +426,76 @@ export function createVoiceComponent(
     }
   }
 
+  /**
+   * Handles request to speak action for a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user requesting to speak.
+   */
+    async function requestToSpeakInCommunity(communityId: string, userAddress: string): Promise<void> {
+    const roomName = getCommunityVoiceChatRoomName(communityId)
+
+    await livekit.updateParticipantMetadata(roomName, userAddress, {
+      isRequestingToSpeak: true
+    })
+
+    logger.info(`Successfully updated metadata for user ${userAddress} in community ${communityId}`)
+  }
+
+  /**
+   * Promotes a user to speaker in a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user to promote.
+   */
+  async function promoteSpeakerInCommunity(communityId: string, userAddress: string): Promise<void> {
+    const roomName = getCommunityVoiceChatRoomName(communityId)
+
+    await livekit.updateParticipantPermissions(roomName, userAddress, {
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true
+    })
+
+    await livekit.updateParticipantMetadata(roomName, userAddress, {
+      isRequestingToSpeak: false
+    })
+
+    logger.info(`Successfully promoted user ${userAddress} to speaker in community ${communityId}`)
+  }
+
+  /**
+   * Demotes a speaker to listener in a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user to demote.
+   */
+  async function demoteSpeakerInCommunity(communityId: string, userAddress: string): Promise<void> {
+    const roomName = getCommunityVoiceChatRoomName(communityId)
+
+    await livekit.updateParticipantPermissions(roomName, userAddress, {
+      canPublish: false,
+      canSubscribe: true,
+      canPublishData: true
+    })
+
+    await livekit.updateParticipantMetadata(roomName, userAddress, {
+      isRequestingToSpeak: false
+    })
+
+    logger.info(`Successfully demoted user ${userAddress} to listener in community ${communityId}`)
+  }
+
+  /**
+   * Kicks a player from a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user to kick.
+   */
+  async function kickPlayerFromCommunity(communityId: string, userAddress: string): Promise<void> {
+    const roomName = getCommunityVoiceChatRoomName(communityId)
+
+    await livekit.removeParticipant(roomName, userAddress)
+
+    logger.info(`Successfully kicked user ${userAddress} from community ${communityId}`)
+  }
+
   return {
     isUserInVoiceChat,
     handleParticipantJoined,
@@ -436,6 +506,10 @@ export function createVoiceComponent(
     getCommunityVoiceChatCredentialsForModerator,
     getCommunityVoiceChatCredentialsForMember,
     expireCommunityVoiceChats,
-    getCommunityVoiceChatStatus
+    getCommunityVoiceChatStatus,
+    requestToSpeakInCommunity,
+    promoteSpeakerInCommunity,
+    demoteSpeakerInCommunity,
+    kickPlayerFromCommunity
   }
 }
