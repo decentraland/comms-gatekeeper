@@ -18,7 +18,7 @@ export type AnalyticsEventPayload = {
     call_id: string
   }
   [AnalyticsEvent.END_CALL]: {
-    room: string
-    address: string
+    call_id: string
+    user_id: string
   }
 }

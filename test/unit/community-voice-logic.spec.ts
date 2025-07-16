@@ -156,7 +156,6 @@ describe('CommunityVoiceLogic', () => {
         true // isModerator = true
       )
     })
-
   })
 
   describe('when LiveKit fails to generate credentials for moderator', () => {
@@ -221,7 +220,6 @@ describe('CommunityVoiceLogic', () => {
         false // isModerator = false
       )
     })
-
   })
 
   describe('when LiveKit fails to generate credentials for member', () => {
@@ -320,7 +318,7 @@ describe('CommunityVoiceLogic', () => {
         expect(result).toEqual({
           active: true,
           participantCount: 1, // Should count the NotConnected moderator within TTL
-          moderatorCount: 1   // Should count the NotConnected moderator within TTL
+          moderatorCount: 1 // Should count the NotConnected moderator within TTL
         })
 
         expect(mockVoiceDB.isCommunityRoomActive).toHaveBeenCalledWith(roomName)
@@ -354,7 +352,7 @@ describe('CommunityVoiceLogic', () => {
         expect(result).toEqual({
           active: true,
           participantCount: 1, // Should count the ConnectionInterrupted moderator within TTL
-          moderatorCount: 1   // Should count the ConnectionInterrupted moderator within TTL
+          moderatorCount: 1 // Should count the ConnectionInterrupted moderator within TTL
         })
 
         expect(mockVoiceDB.isCommunityRoomActive).toHaveBeenCalledWith(roomName)
@@ -388,7 +386,7 @@ describe('CommunityVoiceLogic', () => {
         expect(result).toEqual({
           active: false, // No active moderators
           participantCount: 0, // Should NOT count the expired moderator
-          moderatorCount: 0   // Should NOT count the expired moderator
+          moderatorCount: 0 // Should NOT count the expired moderator
         })
 
         expect(mockVoiceDB.isCommunityRoomActive).toHaveBeenCalledWith(roomName)
@@ -524,5 +522,4 @@ describe('CommunityVoiceLogic', () => {
       )
     })
   })
-
 })
