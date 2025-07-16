@@ -129,10 +129,15 @@ export function createVoiceComponent(
       if (leavingUser?.isModerator) {
         logger.debug(`Moderator ${userAddress} left voluntarily, checking if room should be destroyed`)
 
-        // Use the existing shouldDestroyCommunityRoom function to check if room should be destroyed
-        const shouldDestroy = await voiceDB.shouldDestroyCommunityRoom(roomName)
+        // Check immediately if there are any other active moderators remaining
+        const remainingActiveModerators = usersInRoom.filter(
+          (user) =>
+            user.isModerator &&
+            user.address !== userAddress && // Exclude the leaving user
+            user.status === VoiceChatUserStatus.Connected
+        )
 
-        if (shouldDestroy) {
+        if (remainingActiveModerators.length === 0) {
           logger.debug(`No active moderators left in community room ${roomName}, destroying room`)
           await Promise.all([livekit.deleteRoom(roomName), voiceDB.deleteCommunityVoiceChat(roomName)])
 
