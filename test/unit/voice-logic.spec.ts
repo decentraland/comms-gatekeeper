@@ -461,7 +461,7 @@ describe('Voice Logic Component', () => {
           roomName, 
           VoiceChatUserStatus.Disconnected
         )
-        expect(shouldDestroyCommunityRoomMock).toHaveBeenCalledWith(roomName)
+        expect(getCommunityUsersInRoomMock).toHaveBeenCalledWith(roomName)
         expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
         expect(deleteRoomMock).not.toHaveBeenCalled()
       })
@@ -498,7 +498,7 @@ describe('Voice Logic Component', () => {
           roomName, 
           VoiceChatUserStatus.Disconnected
         )
-        expect(shouldDestroyCommunityRoomMock).toHaveBeenCalledWith(roomName)
+        expect(getCommunityUsersInRoomMock).toHaveBeenCalledWith(roomName)
         expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
         expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
       })
