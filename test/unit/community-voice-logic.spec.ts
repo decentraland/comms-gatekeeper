@@ -35,6 +35,7 @@ describe('CommunityVoiceLogic', () => {
       joinUserToCommunityRoom: jest.fn(),
       updateCommunityUserStatus: jest.fn(),
       getCommunityUsersInRoom: jest.fn(),
+      isCommunityRoomActive: jest.fn(),
       shouldDestroyCommunityRoom: jest.fn(),
       deleteCommunityVoiceChat: jest.fn(),
       deleteExpiredCommunityVoiceChats: jest.fn(),
@@ -195,8 +196,7 @@ describe('CommunityVoiceLogic', () => {
         },
         false,
         {
-          role: CommunityRole.Member,
-          community_id: validCommunityId
+          role: CommunityRole.Member
         }
       )
 
@@ -234,9 +234,9 @@ describe('CommunityVoiceLogic', () => {
   describe('when getting community voice chat status', () => {
     const roomName = getCommunityVoiceChatRoomName(validCommunityId)
 
-    describe('and there are no users in the room', () => {
+    describe('and the room is not active', () => {
       beforeEach(() => {
-        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([])
+        mockVoiceDB.isCommunityRoomActive.mockResolvedValue(false)
       })
 
       it('should return inactive status with zero counts', async () => {
@@ -248,12 +248,14 @@ describe('CommunityVoiceLogic', () => {
           moderatorCount: 0
         })
 
-        expect(mockVoiceDB.getCommunityUsersInRoom).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.isCommunityRoomActive).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.getCommunityUsersInRoom).not.toHaveBeenCalled()
       })
     })
 
-    describe('and there are connected users', () => {
+    describe('and the room is active', () => {
       beforeEach(() => {
+        mockVoiceDB.isCommunityRoomActive.mockResolvedValue(true)
         mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
           {
             address: validModeratorAddress,
@@ -282,144 +284,17 @@ describe('CommunityVoiceLogic', () => {
           participantCount: 2,
           moderatorCount: 1
         })
-      })
-    })
 
-    describe('and there are users with connection interruptions', () => {
-      beforeEach(() => {
-        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
-          {
-            address: validModeratorAddress,
-            roomName,
-            isModerator: true,
-            status: VoiceChatUserStatus.ConnectionInterrupted,
-            joinedAt: Date.now(),
-            statusUpdatedAt: Date.now()
-          },
-          {
-            address: validMemberAddress,
-            roomName,
-            isModerator: false,
-            status: VoiceChatUserStatus.ConnectionInterrupted,
-            joinedAt: Date.now(),
-            statusUpdatedAt: Date.now()
-          }
-        ])
-      })
-
-      it('should count interrupted users as active participants and moderators', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
-
-        expect(result).toEqual({
-          active: true,
-          participantCount: 2,
-          moderatorCount: 1
-        })
-      })
-    })
-
-    describe('and there are disconnected users', () => {
-      beforeEach(() => {
-        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
-          {
-            address: validModeratorAddress,
-            roomName,
-            isModerator: true,
-            status: VoiceChatUserStatus.Disconnected,
-            joinedAt: Date.now(),
-            statusUpdatedAt: Date.now()
-          },
-          {
-            address: validMemberAddress,
-            roomName,
-            isModerator: false,
-            status: VoiceChatUserStatus.Disconnected,
-            joinedAt: Date.now(),
-            statusUpdatedAt: Date.now()
-          }
-        ])
-      })
-
-      it('should not count disconnected users', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
-
-        expect(result).toEqual({
-          active: false,
-          participantCount: 0,
-          moderatorCount: 0
-        })
-      })
-    })
-
-    describe('and there are only members without moderators', () => {
-      beforeEach(() => {
-        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
-          {
-            address: validMemberAddress,
-            roomName,
-            isModerator: false,
-            status: VoiceChatUserStatus.Connected,
-            joinedAt: Date.now(),
-            statusUpdatedAt: Date.now()
-          }
-        ])
-      })
-
-      it('should return inactive status even with connected members', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
-
-        expect(result).toEqual({
-          active: false,
-          participantCount: 1,
-          moderatorCount: 0
-        })
-      })
-    })
-
-    describe('and there are mixed user statuses', () => {
-      beforeEach(() => {
-        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
-          {
-            address: validModeratorAddress,
-            roomName,
-            isModerator: true,
-            status: VoiceChatUserStatus.Connected,
-            joinedAt: Date.now(),
-            statusUpdatedAt: Date.now()
-          },
-          {
-            address: validMemberAddress,
-            roomName,
-            isModerator: false,
-            status: VoiceChatUserStatus.Disconnected,
-            joinedAt: Date.now(),
-            statusUpdatedAt: Date.now()
-          },
-          {
-            address: '0x742d35Cc6635C0532925a3b8D6Ac6C2b6000b8B1',
-            roomName,
-            isModerator: false,
-            status: VoiceChatUserStatus.ConnectionInterrupted,
-            joinedAt: Date.now(),
-            statusUpdatedAt: Date.now()
-          }
-        ])
-      })
-
-      it('should count only connected and interrupted users', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
-
-        expect(result).toEqual({
-          active: true,
-          participantCount: 2, // connected moderator + interrupted member
-          moderatorCount: 1 // connected moderator
-        })
+        expect(mockVoiceDB.isCommunityRoomActive).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.getCommunityUsersInRoom).toHaveBeenCalledWith(roomName)
       })
     })
 
     describe('when database query fails', () => {
+      const error = new Error('Database error')
+
       beforeEach(() => {
-        mockVoiceDB.getCommunityUsersInRoom.mockRejectedValue(new Error('Database error'))
+        mockVoiceDB.isCommunityRoomActive.mockRejectedValue(error)
       })
 
       it('should return inactive status and log error', async () => {

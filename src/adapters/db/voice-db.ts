@@ -298,18 +298,16 @@ export async function createVoiceDBComponent({
   ): Promise<void> {
     const now = Date.now()
 
-    return _executeTx(async (txClient) => {
-      // Use ON CONFLICT to handle insert or update in a single query
-      const query = SQL`
-        INSERT INTO community_voice_chat_users (address, room_name, is_moderator, status, joined_at, status_updated_at) 
-        VALUES (${userAddress}, ${roomName}, ${isModerator}, ${VoiceChatUserStatus.NotConnected}, ${now}, ${now}) 
-        ON CONFLICT (address, room_name) DO UPDATE SET 
-          status = ${VoiceChatUserStatus.NotConnected}, 
-          status_updated_at = ${now}, 
-          is_moderator = ${isModerator}
-      `
-      await txClient.query(query)
-    })
+    // Use ON CONFLICT to handle insert or update in a single query
+    const query = SQL`
+      INSERT INTO community_voice_chat_users (address, room_name, is_moderator, status, joined_at, status_updated_at) 
+      VALUES (${userAddress}, ${roomName}, ${isModerator}, ${VoiceChatUserStatus.NotConnected}, ${now}, ${now}) 
+      ON CONFLICT (address, room_name) DO UPDATE SET 
+        status = ${VoiceChatUserStatus.NotConnected}, 
+        status_updated_at = ${now}, 
+        is_moderator = ${isModerator}
+    `
+    await database.query(query)
   }
 
   /**
@@ -344,6 +342,40 @@ export async function createVoiceDBComponent({
   }
 
   /**
+   * Checks if a community room is active. A community room is active if there are active moderators.
+   * A moderator is active if:
+   * - Connected, OR
+   * - Connection interrupted but within TTL, OR
+   * - Not connected but joined recently (within initial connection TTL)
+   * @param roomName - The name of the community room to check.
+   * @returns True if the room is active (has active moderators), false otherwise.
+   */
+  async function isCommunityRoomActive(roomName: string): Promise<boolean> {
+    const now = Date.now()
+    const users = await getCommunityUsersInRoom(roomName)
+
+    const activeModerators = users.filter((user) => user.isModerator && isActiveCommunityUser(user, now))
+
+    return activeModerators.length > 0
+  }
+
+  /**
+   * Helper function to determine if a community user is currently active.
+   * A user is active if:
+   * - Connected, OR
+   * - Connection interrupted but within TTL, OR
+   * - Not connected but joined recently (within initial connection TTL)
+   */
+  function isActiveCommunityUser(user: CommunityVoiceChatUser, now: number): boolean {
+    return (
+      user.status === VoiceChatUserStatus.Connected ||
+      (user.status === VoiceChatUserStatus.ConnectionInterrupted &&
+        user.statusUpdatedAt + VOICE_CHAT_CONNECTION_INTERRUPTED_TTL > now) ||
+      (user.status === VoiceChatUserStatus.NotConnected && user.joinedAt + VOICE_CHAT_INITIAL_CONNECTION_TTL > now)
+    )
+  }
+
+  /**
    * Checks if a community room should be destroyed.
    * A community room should be destroyed if there are no moderators connected for more than 5 minutes.
    */
@@ -351,14 +383,7 @@ export async function createVoiceDBComponent({
     const now = Date.now()
     const users = await getCommunityUsersInRoom(roomName)
 
-    const activeModerators = users.filter(
-      (user) =>
-        user.isModerator &&
-        (user.status === VoiceChatUserStatus.Connected ||
-          (user.status === VoiceChatUserStatus.ConnectionInterrupted &&
-            user.statusUpdatedAt + VOICE_CHAT_CONNECTION_INTERRUPTED_TTL > now) ||
-          (user.status === VoiceChatUserStatus.NotConnected && user.joinedAt + VOICE_CHAT_INITIAL_CONNECTION_TTL > now))
-    )
+    const activeModerators = users.filter((user) => user.isModerator && isActiveCommunityUser(user, now))
 
     if (activeModerators.length === 0) {
       // Check when the last moderator left
@@ -376,10 +401,8 @@ export async function createVoiceDBComponent({
    * Deletes a community voice chat room.
    */
   async function deleteCommunityVoiceChat(roomName: string): Promise<void> {
-    return _executeTx(async (txClient) => {
-      const query = SQL`DELETE FROM community_voice_chat_users WHERE room_name = ${roomName}`
-      await txClient.query(query)
-    })
+    const query = SQL`DELETE FROM community_voice_chat_users WHERE room_name = ${roomName}`
+    await database.query(query)
   }
 
   /**
@@ -387,40 +410,38 @@ export async function createVoiceDBComponent({
    */
   async function deleteExpiredCommunityVoiceChats(): Promise<string[]> {
     const now = Date.now()
-    return _executeTx(async (txClient) => {
-      // Get rooms where:
-      // 1. No moderators have been active for more than 5 minutes, OR
-      // 2. Room has no moderators at all
-      const expiredQuery = SQL`
-        WITH room_moderator_status AS (
-          SELECT 
-            room_name,
-            COUNT(CASE WHEN is_moderator = true THEN 1 END) as moderator_count,
-            MAX(CASE WHEN is_moderator = true THEN status_updated_at ELSE 0 END) as last_moderator_activity
-          FROM community_voice_chat_users 
-          GROUP BY room_name
-        ),
-        expired_rooms AS (
-          SELECT room_name 
-          FROM room_moderator_status 
-          WHERE (
-            -- Case 1: Room has no moderators at all
-            moderator_count = 0
-          ) OR (
-            -- Case 2: Room has moderators but none active for more than 5 minutes
-            moderator_count > 0 
-            AND last_moderator_activity > 0 
-            AND last_moderator_activity <= ${now - COMMUNITY_VOICE_CHAT_NO_MODERATOR_TTL}
-          )
-          LIMIT ${VOICE_CHAT_EXPIRED_BATCH_SIZE}
+    // Get rooms where:
+    // 1. No moderators have been active for more than 5 minutes, OR
+    // 2. Room has no moderators at all
+    const expiredQuery = SQL`
+      WITH room_moderator_status AS (
+        SELECT 
+          room_name,
+          COUNT(CASE WHEN is_moderator = true THEN 1 END) as moderator_count,
+          MAX(CASE WHEN is_moderator = true THEN status_updated_at ELSE 0 END) as last_moderator_activity
+        FROM community_voice_chat_users 
+        GROUP BY room_name
+      ),
+      expired_rooms AS (
+        SELECT room_name 
+        FROM room_moderator_status 
+        WHERE (
+          -- Case 1: Room has no moderators at all
+          moderator_count = 0
+        ) OR (
+          -- Case 2: Room has moderators but none active for more than 5 minutes
+          moderator_count > 0 
+          AND last_moderator_activity > 0 
+          AND last_moderator_activity <= ${now - COMMUNITY_VOICE_CHAT_NO_MODERATOR_TTL}
         )
-        DELETE FROM community_voice_chat_users USING expired_rooms 
-        WHERE community_voice_chat_users.room_name = expired_rooms.room_name
-        RETURNING expired_rooms.room_name`
+        LIMIT ${VOICE_CHAT_EXPIRED_BATCH_SIZE}
+      )
+      DELETE FROM community_voice_chat_users USING expired_rooms 
+      WHERE community_voice_chat_users.room_name = expired_rooms.room_name
+      RETURNING expired_rooms.room_name`
 
-      const expiredResult = await txClient.query(expiredQuery)
-      return [...new Set(expiredResult.rows.map((row) => row.room_name))]
-    })
+    const expiredResult = await database.query(expiredQuery)
+    return [...new Set(expiredResult.rows.map((row) => row.room_name))]
   }
 
   return {
@@ -439,6 +460,7 @@ export async function createVoiceDBComponent({
     joinUserToCommunityRoom,
     updateCommunityUserStatus,
     getCommunityUsersInRoom,
+    isCommunityRoomActive,
     shouldDestroyCommunityRoom,
     deleteCommunityVoiceChat,
     deleteExpiredCommunityVoiceChats

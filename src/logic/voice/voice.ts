@@ -19,6 +19,8 @@ export function createVoiceComponent(
 
   /**
    * Handles the event when a participant joins a PRIVATE voice chat room.
+   * @param userAddress - The address of the user that joined the room.
+   * @param roomName - The name of the room the user joined.
    */
   async function handlePrivateParticipantJoined(userAddress: string, roomName: string): Promise<void> {
     // Check if the room is active.
@@ -40,6 +42,9 @@ export function createVoiceComponent(
 
   /**
    * Handles the event when a participant leaves a PRIVATE voice chat room.
+   * @param userAddress - The address of the user that left the room.
+   * @param roomName - The name of the room the user left.
+   * @param disconnectReason - The reason the user left the room.
    */
   async function handlePrivateParticipantLeft(
     userAddress: string,
@@ -80,6 +85,8 @@ export function createVoiceComponent(
 
   /**
    * Handles the event when a participant joins a COMMUNITY voice chat room.
+   * @param userAddress - The address of the user that joined the room.
+   * @param roomName - The name of the room the user joined.
    */
   async function handleCommunityParticipantJoined(userAddress: string, roomName: string): Promise<void> {
     logger.debug(`Community participant joined: ${userAddress} in room ${roomName}`)
@@ -89,6 +96,9 @@ export function createVoiceComponent(
 
   /**
    * Handles the event when a participant leaves a COMMUNITY voice chat room.
+   * @param userAddress - The address of the user that left the room.
+   * @param roomName - The name of the room the user left.
+   * @param disconnectReason - The reason the user left the room.
    */
   async function handleCommunityParticipantLeft(
     userAddress: string,
@@ -119,18 +129,15 @@ export function createVoiceComponent(
       if (leavingUser?.isModerator) {
         logger.debug(`Moderator ${userAddress} left voluntarily, checking if room should be destroyed`)
 
-        // Check if there are any other active moderators
-        const activeModerators = usersInRoom.filter(
-          (user) => user.isModerator && user.address !== userAddress && user.status === VoiceChatUserStatus.Connected
-        )
+        // Use the existing shouldDestroyCommunityRoom function to check if room should be destroyed
+        const shouldDestroy = await voiceDB.shouldDestroyCommunityRoom(roomName)
 
-        if (activeModerators.length === 0) {
+        if (shouldDestroy) {
           logger.debug(`No active moderators left in community room ${roomName}, destroying room`)
-          await livekit.deleteRoom(roomName)
-          await voiceDB.deleteCommunityVoiceChat(roomName)
+          await Promise.all([livekit.deleteRoom(roomName), voiceDB.deleteCommunityVoiceChat(roomName)])
 
           const communityId = getCommunityIdFromRoomName(roomName)
-          analytics.fireEvent(AnalyticsEvent.EXPIRE_CALL, {
+          analytics.fireEvent(AnalyticsEvent.END_CALL, {
             call_id: communityId
           })
         }
@@ -142,6 +149,8 @@ export function createVoiceComponent(
 
   /**
    * Main handler that routes to private or community handlers based on room name.
+   * @param userAddress - The address of the user that joined the room.
+   * @param roomName - The name of the room the user joined.
    */
   async function handleParticipantJoined(userAddress: string, roomName: string): Promise<void> {
     if (roomName.startsWith('voice-chat-private-')) {
@@ -155,6 +164,9 @@ export function createVoiceComponent(
 
   /**
    * Main handler that routes to private or community handlers based on room name.
+   * @param userAddress - The address of the user that left the room.
+   * @param roomName - The name of the room the user left.
+   * @param disconnectReason - The reason the user left the room.
    */
   async function handleParticipantLeft(
     userAddress: string,
@@ -172,6 +184,8 @@ export function createVoiceComponent(
 
   /**
    * Checks if a user is in a voice chat.
+   * @param userAddress - The address of the user to check.
+   * @returns True if the user is in a voice chat, false otherwise.
    */
   async function isUserInVoiceChat(userAddress: string): Promise<boolean> {
     const roomUserIsIn = await voiceDB.getRoomUserIsIn(userAddress)
@@ -180,6 +194,9 @@ export function createVoiceComponent(
 
   /**
    * Generates credentials for a private voice chat room.
+   * @param roomId - The ID suffix of the room to generate credentials for.
+   * @param userAddresses - The addresses of the users to generate credentials for.
+   * @returns A record of user addresses and their credentials.
    */
   async function getPrivateVoiceChatRoomCredentials(
     roomId: string,
@@ -216,6 +233,9 @@ export function createVoiceComponent(
 
   /**
    * Ends a private voice chat room.
+   * @param roomId - The ID suffix of the room to end.
+   * @param address - The address of the user to end the private voice chat for.
+   * @returns The addresses of the users that were in the deleted room.
    */
   async function endPrivateVoiceChat(roomId: string, address: string): Promise<string[]> {
     const roomName = getPrivateVoiceChatRoomName(roomId)
@@ -226,6 +246,7 @@ export function createVoiceComponent(
 
   /**
    * Deletes expired private voice chats.
+   * Cleans up rooms that have become inactive due to connection timeouts or voluntary disconnections.
    */
   async function expirePrivateVoiceChats(): Promise<void> {
     const expiredRoomNames = await voiceDB.deleteExpiredPrivateVoiceChats()
@@ -244,6 +265,9 @@ export function createVoiceComponent(
 
   /**
    * Generates credentials for a community voice chat room for a moderator.
+   * @param communityId - The ID of the community to generate credentials for.
+   * @param userAddress - The address of the moderator.
+   * @returns The connection URL for the moderator.
    */
   async function getCommunityVoiceChatCredentialsForModerator(
     communityId: string,
@@ -276,6 +300,9 @@ export function createVoiceComponent(
 
   /**
    * Generates credentials for a community voice chat room for a member.
+   * @param communityId - The ID of the community to generate credentials for.
+   * @param userAddress - The address of the member.
+   * @returns The connection URL for the member.
    */
   async function getCommunityVoiceChatCredentialsForMember(
     communityId: string,
@@ -294,8 +321,7 @@ export function createVoiceComponent(
       },
       false,
       {
-        role: CommunityRole.Member,
-        community_id: communityId
+        role: CommunityRole.Member
       }
     )
 
@@ -309,7 +335,8 @@ export function createVoiceComponent(
 
   /**
    * Deletes expired community voice chats.
-   * THIS IS THE KEY FUNCTION - runs every minute to check for rooms with no moderators for 5+ minutes
+   * This is the key function - runs every minute to check for rooms with no moderators for 5+ minutes.
+   * Cleans up community rooms that have become inactive due to lack of moderation.
    */
   async function expireCommunityVoiceChats(): Promise<void> {
     logger.debug('Running community voice chat expiration job')
@@ -334,6 +361,8 @@ export function createVoiceComponent(
    * Gets the status of a community voice chat.
    * Uses stored database information about users joining/leaving to determine if the room is active.
    * Includes grace period for moderators who suffered connection interruptions.
+   * @param communityId - The ID of the community to get the status for.
+   * @returns The status information including active state, participant count, and moderator count.
    */
   async function getCommunityVoiceChatStatus(communityId: string): Promise<{
     active: boolean
@@ -345,10 +374,10 @@ export function createVoiceComponent(
     logger.debug(`Getting status for community voice chat: ${roomName}`)
 
     try {
-      const usersInRoom = await voiceDB.getCommunityUsersInRoom(roomName)
+      const isRoomActive = await voiceDB.isCommunityRoomActive(roomName)
 
-      if (usersInRoom.length === 0) {
-        logger.debug(`Community voice chat room ${roomName} has no users in database`)
+      if (!isRoomActive) {
+        logger.debug(`Community voice chat room ${roomName} is not active`)
         return {
           active: false,
           participantCount: 0,
@@ -356,17 +385,13 @@ export function createVoiceComponent(
         }
       }
 
-      // Count active participants (connected or recently interrupted)
-      const activeParticipants = usersInRoom.filter(
-        (user) =>
-          user.status === VoiceChatUserStatus.Connected || user.status === VoiceChatUserStatus.ConnectionInterrupted
-      )
+      // Count active participants using helper function
+      const usersInRoom = await voiceDB.getCommunityUsersInRoom(roomName)
+      const activeParticipants = usersInRoom.filter((user) => user.status === VoiceChatUserStatus.Connected)
 
-      // Count active moderators (includes those with recent connection interruptions within grace period)
+      // Count active moderators using helper function
       const activeModerators = usersInRoom.filter(
-        (user) =>
-          user.isModerator &&
-          (user.status === VoiceChatUserStatus.Connected || user.status === VoiceChatUserStatus.ConnectionInterrupted)
+        (user) => user.isModerator && user.status === VoiceChatUserStatus.Connected
       )
 
       // Room is active if there are active moderators

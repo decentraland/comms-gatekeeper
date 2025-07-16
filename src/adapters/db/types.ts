@@ -141,6 +141,13 @@ export interface IVoiceDBComponent {
   getCommunityUsersInRoom: (roomName: string) => Promise<CommunityVoiceChatUser[]>
 
   /**
+   * Checks if a community room is active (has active moderators).
+   * @param roomName - The name of the community room.
+   * @returns True if the room is active, false otherwise.
+   */
+  isCommunityRoomActive: (roomName: string) => Promise<boolean>
+
+  /**
    * Checks if a community room should be destroyed.
    * @param roomName - The name of the community room.
    * @returns True if the room should be destroyed, false otherwise.

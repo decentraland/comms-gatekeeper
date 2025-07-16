@@ -27,6 +27,7 @@ describe('Voice Logic Component', () => {
     IVoiceDBComponent['deletePrivateVoiceChatUserIsOrWasIn']
   >
   let deleteExpiredPrivateVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredPrivateVoiceChats']>
+  let isCommunityRoomActiveMock: jest.MockedFunction<IVoiceDBComponent['isCommunityRoomActive']>
   let logs: jest.Mocked<ILoggerComponent>
 
   beforeEach(() => {
@@ -43,6 +44,7 @@ describe('Voice Logic Component', () => {
     deletePrivateVoiceChatMock = jest.fn()
     deletePrivateVoiceChatUserIsOrWasInMock = jest.fn()
     deleteExpiredPrivateVoiceChatsMock = jest.fn()
+    isCommunityRoomActiveMock = jest.fn()
 
     livekit = createLivekitMockedComponent({
       deleteRoom: deleteRoomMock,
@@ -61,7 +63,8 @@ describe('Voice Logic Component', () => {
       createVoiceChatRoom: createVoiceChatRoomMock,
       deletePrivateVoiceChat: deletePrivateVoiceChatMock,
       deletePrivateVoiceChatUserIsOrWasIn: deletePrivateVoiceChatUserIsOrWasInMock,
-      deleteExpiredPrivateVoiceChats: deleteExpiredPrivateVoiceChatsMock
+      deleteExpiredPrivateVoiceChats: deleteExpiredPrivateVoiceChatsMock,
+      isCommunityRoomActive: isCommunityRoomActiveMock
     })
 
     logs = createLoggerMockedComponent()
@@ -349,14 +352,54 @@ describe('Voice Logic Component', () => {
     let updateCommunityUserStatusMock: jest.MockedFunction<IVoiceDBComponent['updateCommunityUserStatus']>
     let getCommunityUsersInRoomMock: jest.MockedFunction<IVoiceDBComponent['getCommunityUsersInRoom']>
     let deleteCommunityVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deleteCommunityVoiceChat']>
+    let shouldDestroyCommunityRoomMock: jest.MockedFunction<IVoiceDBComponent['shouldDestroyCommunityRoom']>
 
     beforeEach(() => {
       updateCommunityUserStatusMock = jest.fn()
       getCommunityUsersInRoomMock = jest.fn()
       deleteCommunityVoiceChatMock = jest.fn()
+      shouldDestroyCommunityRoomMock = jest.fn()
       voiceDB.updateCommunityUserStatus = updateCommunityUserStatusMock
       voiceDB.getCommunityUsersInRoom = getCommunityUsersInRoomMock
       voiceDB.deleteCommunityVoiceChat = deleteCommunityVoiceChatMock
+      voiceDB.shouldDestroyCommunityRoom = shouldDestroyCommunityRoomMock
+    })
+
+    describe('when participant left because of a duplicate identity', () => {
+      it('should do nothing and resolve', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.DUPLICATE_IDENTITY)
+
+        expect(updateCommunityUserStatusMock).not.toHaveBeenCalled()
+        expect(getCommunityUsersInRoomMock).not.toHaveBeenCalled()
+        expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('when room was deleted', () => {
+      it('should delete the community voice chat and resolve', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.ROOM_DELETED)
+
+        expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
+        expect(updateCommunityUserStatusMock).not.toHaveBeenCalled()
+        expect(getCommunityUsersInRoomMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('when participant left due to connection interruption', () => {
+      it('should update user status as connection interrupted', async () => {
+        await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.MIGRATION)
+
+        expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
+          userAddress,
+          roomName,
+          VoiceChatUserStatus.ConnectionInterrupted
+        )
+        expect(getCommunityUsersInRoomMock).not.toHaveBeenCalled()
+        expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+      })
     })
 
     describe('when user leaving is not a moderator', () => {
@@ -381,6 +424,7 @@ describe('Voice Logic Component', () => {
           roomName, 
           VoiceChatUserStatus.Disconnected
         )
+        expect(shouldDestroyCommunityRoomMock).not.toHaveBeenCalled()
         expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
         expect(deleteRoomMock).not.toHaveBeenCalled()
       })
@@ -406,6 +450,7 @@ describe('Voice Logic Component', () => {
             statusUpdatedAt: Date.now()
           }
         ])
+        shouldDestroyCommunityRoomMock.mockResolvedValue(false)
       })
 
       it('should update user status without destroying room', async () => {
@@ -416,6 +461,7 @@ describe('Voice Logic Component', () => {
           roomName, 
           VoiceChatUserStatus.Disconnected
         )
+        expect(shouldDestroyCommunityRoomMock).toHaveBeenCalledWith(roomName)
         expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
         expect(deleteRoomMock).not.toHaveBeenCalled()
       })
@@ -441,6 +487,7 @@ describe('Voice Logic Component', () => {
             statusUpdatedAt: Date.now()
           }
         ])
+        shouldDestroyCommunityRoomMock.mockResolvedValue(true)
       })
 
       it('should destroy the community room', async () => {
@@ -451,8 +498,202 @@ describe('Voice Logic Component', () => {
           roomName, 
           VoiceChatUserStatus.Disconnected
         )
+        expect(shouldDestroyCommunityRoomMock).toHaveBeenCalledWith(roomName)
         expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
         expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+      })
+    })
+  })
+
+  describe('when getting community voice chat credentials for moderator', () => {
+    const communityId = 'test-community-123'
+    const userAddress = '0x123'
+    const expectedRoomName = 'voice-chat-community-test-community-123'
+    let joinUserToCommunityRoomMock: jest.MockedFunction<IVoiceDBComponent['joinUserToCommunityRoom']>
+
+    beforeEach(() => {
+      joinUserToCommunityRoomMock = jest.fn()
+      voiceDB.joinUserToCommunityRoom = joinUserToCommunityRoomMock
+    })
+
+    describe('and generating credentials fails', () => {
+      const error = new Error('Livekit error')
+
+      beforeEach(() => {
+        generateCredentialsMock.mockRejectedValue(error)
+      })
+
+      it('should reject with the error', async () => {
+        await expect(voiceComponent.getCommunityVoiceChatCredentialsForModerator(communityId, userAddress)).rejects.toThrow(error)
+      })
+    })
+
+    describe('and generating credentials succeeds', () => {
+      const mockCredentials = { token: 'moderator-token', url: 'wss://voice.livekit.cloud' }
+
+      beforeEach(() => {
+        generateCredentialsMock.mockResolvedValue(mockCredentials)
+        joinUserToCommunityRoomMock.mockResolvedValue(undefined)
+      })
+
+      it('should generate credentials for moderator, join to room and return connection URL', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsForModerator(communityId, userAddress)
+
+        expect(generateCredentialsMock).toHaveBeenCalledWith(
+          userAddress,
+          expectedRoomName,
+          {
+            cast: [],
+            canPublish: true,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          {
+            role: 'moderator'
+          }
+        )
+        expect(joinUserToCommunityRoomMock).toHaveBeenCalledWith(userAddress, expectedRoomName, true)
+        expect(result).toEqual({
+          connectionUrl: `livekit:${mockCredentials.url}?access_token=${mockCredentials.token}`
+        })
+      })
+    })
+  })
+
+  describe('when getting community voice chat credentials for member', () => {
+    const communityId = 'test-community-123'
+    const userAddress = '0x123'
+    const expectedRoomName = 'voice-chat-community-test-community-123'
+    let joinUserToCommunityRoomMock: jest.MockedFunction<IVoiceDBComponent['joinUserToCommunityRoom']>
+
+    beforeEach(() => {
+      joinUserToCommunityRoomMock = jest.fn()
+      voiceDB.joinUserToCommunityRoom = joinUserToCommunityRoomMock
+    })
+
+    describe('and generating credentials fails', () => {
+      const error = new Error('Livekit error')
+
+      beforeEach(() => {
+        generateCredentialsMock.mockRejectedValue(error)
+      })
+
+      it('should reject with the error', async () => {
+        await expect(voiceComponent.getCommunityVoiceChatCredentialsForMember(communityId, userAddress)).rejects.toThrow(error)
+      })
+    })
+
+    describe('and generating credentials succeeds', () => {
+      const mockCredentials = { token: 'member-token', url: 'wss://voice.livekit.cloud' }
+
+      beforeEach(() => {
+        generateCredentialsMock.mockResolvedValue(mockCredentials)
+        joinUserToCommunityRoomMock.mockResolvedValue(undefined)
+      })
+
+      it('should generate credentials for member, join to room and return connection URL', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsForMember(communityId, userAddress)
+
+        expect(generateCredentialsMock).toHaveBeenCalledWith(
+          userAddress,
+          expectedRoomName,
+          {
+            cast: [],
+            canPublish: false,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          {
+            role: 'member'
+          }
+        )
+        expect(joinUserToCommunityRoomMock).toHaveBeenCalledWith(userAddress, expectedRoomName, false)
+        expect(result).toEqual({
+          connectionUrl: `livekit:${mockCredentials.url}?access_token=${mockCredentials.token}`
+        })
+      })
+    })
+  })
+
+  describe('when getting community voice chat status', () => {
+    const communityId = 'test-community-123'
+    const expectedRoomName = 'voice-chat-community-test-community-123'
+    let getCommunityUsersInRoomMock: jest.MockedFunction<IVoiceDBComponent['getCommunityUsersInRoom']>
+
+    beforeEach(() => {
+      getCommunityUsersInRoomMock = jest.fn()
+      voiceDB.getCommunityUsersInRoom = getCommunityUsersInRoomMock
+    })
+
+    describe('when room is not active', () => {
+      beforeEach(() => {
+        isCommunityRoomActiveMock.mockResolvedValue(false)
+      })
+
+      it('should return inactive status with zero counts', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(communityId)
+
+        expect(result).toEqual({
+          active: false,
+          participantCount: 0,
+          moderatorCount: 0
+        })
+
+        expect(isCommunityRoomActiveMock).toHaveBeenCalledWith(expectedRoomName)
+      })
+    })
+
+    describe('when room is active', () => {
+      beforeEach(() => {
+        isCommunityRoomActiveMock.mockResolvedValue(true)
+        getCommunityUsersInRoomMock.mockResolvedValue([
+          {
+            address: '0x456',
+            roomName: expectedRoomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          },
+          {
+            address: '0x123',
+            roomName: expectedRoomName,
+            isModerator: false,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now()
+          }
+        ])
+      })
+
+      it('should return active status with correct counts', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(communityId)
+
+        expect(result).toEqual({
+          active: true,
+          participantCount: 2,
+          moderatorCount: 1
+        })
+      })
+    })
+
+    describe('when database query fails', () => {
+      const error = new Error('Database error')
+
+      beforeEach(() => {
+        isCommunityRoomActiveMock.mockRejectedValue(error)
+      })
+
+      it('should return inactive status', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(communityId)
+
+        expect(result).toEqual({
+          active: false,
+          participantCount: 0,
+          moderatorCount: 0
+        })
       })
     })
   })
