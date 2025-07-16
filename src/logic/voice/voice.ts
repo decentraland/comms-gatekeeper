@@ -431,7 +431,7 @@ export function createVoiceComponent(
    * @param communityId - The ID of the community.
    * @param userAddress - The address of the user requesting to speak.
    */
-    async function requestToSpeakInCommunity(communityId: string, userAddress: string): Promise<void> {
+  async function requestToSpeakInCommunity(communityId: string, userAddress: string): Promise<void> {
     const roomName = getCommunityVoiceChatRoomName(communityId)
 
     await livekit.updateParticipantMetadata(roomName, userAddress, {
