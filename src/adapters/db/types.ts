@@ -111,13 +111,6 @@ export interface IVoiceDBComponent {
 
   // Community voice chat methods
   /**
-   * Creates a community voice chat room.
-   * @param roomName - The name of the community room to create.
-   * @param moderatorAddress - The address of the initial moderator.
-   */
-  createCommunityVoiceChatRoom: (roomName: string, moderatorAddress: string) => Promise<void>
-
-  /**
    * Joins a user to a community voice chat room.
    * @param userAddress - The address of the user to join.
    * @param roomName - The name of the community room.
@@ -165,4 +158,12 @@ export interface IVoiceDBComponent {
    * @returns The names of the rooms that were deleted.
    */
   deleteExpiredCommunityVoiceChats: () => Promise<string[]>
+
+  /**
+   * Helper function to determine if a community user is currently active.
+   * @param user - The community user to check.
+   * @param now - Current timestamp in milliseconds.
+   * @returns True if the user is active, false otherwise.
+   */
+  isActiveCommunityUser: (user: CommunityVoiceChatUser, now: number) => boolean
 }

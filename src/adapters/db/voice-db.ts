@@ -274,18 +274,6 @@ export async function createVoiceDBComponent({
   }
 
   /**
-   * Creates a community voice chat room. Unlike private rooms, community rooms don't pre-populate users.
-   * @param roomName - The name of the community room to create.
-   * @param moderatorAddress - The address of the initial moderator.
-   */
-  async function createCommunityVoiceChatRoom(roomName: string, moderatorAddress: string): Promise<void> {
-    const now = Date.now()
-    const query = SQL`INSERT INTO community_voice_chat_users (address, room_name, is_moderator, status, joined_at, status_updated_at) 
-                      VALUES (${moderatorAddress}, ${roomName}, true, ${VoiceChatUserStatus.NotConnected}, ${now}, ${now})`
-    await database.query(query)
-  }
-
-  /**
    * Joins a user to a community voice chat room.
    * @param userAddress - The address of the user to join.
    * @param roomName - The name of the community room.
@@ -456,13 +444,14 @@ export async function createVoiceDBComponent({
     updateUserStatusAsConnectionInterrupted,
     getRoomUserIsIn,
     // Community voice chat methods
-    createCommunityVoiceChatRoom,
     joinUserToCommunityRoom,
     updateCommunityUserStatus,
     getCommunityUsersInRoom,
     isCommunityRoomActive,
     shouldDestroyCommunityRoom,
     deleteCommunityVoiceChat,
-    deleteExpiredCommunityVoiceChats
+    deleteExpiredCommunityVoiceChats,
+    // Export helper function for reuse
+    isActiveCommunityUser: (user: CommunityVoiceChatUser, now: number) => isActiveCommunityUser(user, now)
   }
 }

@@ -28,6 +28,7 @@ describe('Voice Logic Component', () => {
   >
   let deleteExpiredPrivateVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredPrivateVoiceChats']>
   let isCommunityRoomActiveMock: jest.MockedFunction<IVoiceDBComponent['isCommunityRoomActive']>
+  let isActiveCommunityUserMock: jest.MockedFunction<IVoiceDBComponent['isActiveCommunityUser']>
   let logs: jest.Mocked<ILoggerComponent>
 
   beforeEach(() => {
@@ -45,6 +46,7 @@ describe('Voice Logic Component', () => {
     deletePrivateVoiceChatUserIsOrWasInMock = jest.fn()
     deleteExpiredPrivateVoiceChatsMock = jest.fn()
     isCommunityRoomActiveMock = jest.fn()
+    isActiveCommunityUserMock = jest.fn()
 
     livekit = createLivekitMockedComponent({
       deleteRoom: deleteRoomMock,
@@ -64,7 +66,8 @@ describe('Voice Logic Component', () => {
       deletePrivateVoiceChat: deletePrivateVoiceChatMock,
       deletePrivateVoiceChatUserIsOrWasIn: deletePrivateVoiceChatUserIsOrWasInMock,
       deleteExpiredPrivateVoiceChats: deleteExpiredPrivateVoiceChatsMock,
-      isCommunityRoomActive: isCommunityRoomActiveMock
+      isCommunityRoomActive: isCommunityRoomActiveMock,
+      isActiveCommunityUser: isActiveCommunityUserMock
     })
 
     logs = createLoggerMockedComponent()
@@ -451,6 +454,8 @@ describe('Voice Logic Component', () => {
           }
         ])
         shouldDestroyCommunityRoomMock.mockResolvedValue(false)
+        // Mock isActiveCommunityUser to return true for both users (they're both connected)
+        isActiveCommunityUserMock.mockReturnValue(true)
       })
 
       it('should update user status without destroying room', async () => {
@@ -666,6 +671,8 @@ describe('Voice Logic Component', () => {
             statusUpdatedAt: Date.now()
           }
         ])
+        // Both users are connected, so they should be considered active
+        isActiveCommunityUserMock.mockReturnValue(true)
       })
 
       it('should return active status with correct counts', async () => {

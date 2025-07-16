@@ -4,7 +4,6 @@ export const createVoiceDBMockedComponent = (
   overrides?: Partial<jest.Mocked<IVoiceDBComponent>>
 ): jest.Mocked<IVoiceDBComponent> => {
   return {
-    // Private voice chat methods
     getUsersInRoom: overrides?.getUsersInRoom ?? jest.fn(),
     getRoomUserIsIn: overrides?.getRoomUserIsIn ?? jest.fn(),
     joinUserToRoom: overrides?.joinUserToRoom ?? jest.fn(),
@@ -17,13 +16,13 @@ export const createVoiceDBMockedComponent = (
     deletePrivateVoiceChatUserIsOrWasIn: overrides?.deletePrivateVoiceChatUserIsOrWasIn ?? jest.fn(),
 
     // Community voice chat methods
-    createCommunityVoiceChatRoom: overrides?.createCommunityVoiceChatRoom ?? jest.fn(),
     joinUserToCommunityRoom: overrides?.joinUserToCommunityRoom ?? jest.fn(),
     updateCommunityUserStatus: overrides?.updateCommunityUserStatus ?? jest.fn(),
     getCommunityUsersInRoom: overrides?.getCommunityUsersInRoom ?? jest.fn(),
     isCommunityRoomActive: overrides?.isCommunityRoomActive ?? jest.fn(),
     shouldDestroyCommunityRoom: overrides?.shouldDestroyCommunityRoom ?? jest.fn(),
     deleteCommunityVoiceChat: overrides?.deleteCommunityVoiceChat ?? jest.fn(),
-    deleteExpiredCommunityVoiceChats: overrides?.deleteExpiredCommunityVoiceChats ?? jest.fn()
+    deleteExpiredCommunityVoiceChats: overrides?.deleteExpiredCommunityVoiceChats ?? jest.fn(),
+    isActiveCommunityUser: overrides?.isActiveCommunityUser ?? jest.fn(),
   }
 }

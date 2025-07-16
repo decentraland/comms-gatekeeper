@@ -342,7 +342,6 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     beforeEach(async () => {
       webhookEvent.room.name = `voice-chat-community-${communityId}`
-      await components.voiceDB.createCommunityVoiceChatRoom(webhookEvent.room.name, moderatorAddress)
       await components.voiceDB.joinUserToCommunityRoom(moderatorAddress, webhookEvent.room.name, true)
       await components.voiceDB.joinUserToCommunityRoom(memberAddress, webhookEvent.room.name, false)
     })

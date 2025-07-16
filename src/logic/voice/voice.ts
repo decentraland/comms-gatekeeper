@@ -130,11 +130,12 @@ export function createVoiceComponent(
         logger.debug(`Moderator ${userAddress} left voluntarily, checking if room should be destroyed`)
 
         // Check immediately if there are any other active moderators remaining
+        const now = Date.now()
         const remainingActiveModerators = usersInRoom.filter(
           (user) =>
             user.isModerator &&
             user.address !== userAddress && // Exclude the leaving user
-            user.status === VoiceChatUserStatus.Connected
+            voiceDB.isActiveCommunityUser(user, now)
         )
 
         if (remainingActiveModerators.length === 0) {
@@ -392,11 +393,13 @@ export function createVoiceComponent(
 
       // Count active participants using helper function
       const usersInRoom = await voiceDB.getCommunityUsersInRoom(roomName)
-      const activeParticipants = usersInRoom.filter((user) => user.status === VoiceChatUserStatus.Connected)
+      const now = Date.now()
+
+      const activeParticipants = usersInRoom.filter((user) => voiceDB.isActiveCommunityUser(user, now))
 
       // Count active moderators using helper function
       const activeModerators = usersInRoom.filter(
-        (user) => user.isModerator && user.status === VoiceChatUserStatus.Connected
+        (user) => user.isModerator && voiceDB.isActiveCommunityUser(user, now)
       )
 
       // Room is active if there are active moderators

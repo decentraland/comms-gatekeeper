@@ -29,9 +29,9 @@ describe('CommunityVoiceLogic', () => {
       createVoiceChatRoom: jest.fn(),
       getUsersInRoom: jest.fn(),
       deleteExpiredPrivateVoiceChats: jest.fn(),
+      deletePrivateVoiceChatUserIsOrWasIn: jest.fn(),
 
       // Community voice chat methods
-      createCommunityVoiceChatRoom: jest.fn(),
       joinUserToCommunityRoom: jest.fn(),
       updateCommunityUserStatus: jest.fn(),
       getCommunityUsersInRoom: jest.fn(),
@@ -39,7 +39,7 @@ describe('CommunityVoiceLogic', () => {
       shouldDestroyCommunityRoom: jest.fn(),
       deleteCommunityVoiceChat: jest.fn(),
       deleteExpiredCommunityVoiceChats: jest.fn(),
-      deletePrivateVoiceChatUserIsOrWasIn: jest.fn()
+      isActiveCommunityUser: jest.fn()
     } as jest.Mocked<IVoiceDBComponent>
 
     mockLivekit = {
@@ -274,6 +274,8 @@ describe('CommunityVoiceLogic', () => {
             statusUpdatedAt: Date.now()
           }
         ])
+        // Both users are connected, so they should be considered active
+        mockVoiceDB.isActiveCommunityUser.mockReturnValue(true)
       })
 
       it('should return active status with correct counts', async () => {
@@ -287,6 +289,108 @@ describe('CommunityVoiceLogic', () => {
 
         expect(mockVoiceDB.isCommunityRoomActive).toHaveBeenCalledWith(roomName)
         expect(mockVoiceDB.getCommunityUsersInRoom).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.isActiveCommunityUser).toHaveBeenCalledTimes(3) // 2 for participants + 1 for moderator filter
+      })
+    })
+
+    describe('and the room has a moderator who just created it but has not connected yet', () => {
+      beforeEach(() => {
+        mockVoiceDB.isCommunityRoomActive.mockResolvedValue(true)
+        const now = Date.now()
+        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
+          {
+            address: validModeratorAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.NotConnected, // Just created, not connected yet
+            joinedAt: now, // Just joined, within TTL
+            statusUpdatedAt: now
+          }
+        ])
+        // Moderator is NotConnected but within TTL, should be considered active
+        mockVoiceDB.isActiveCommunityUser.mockReturnValue(true)
+      })
+
+      it('should return active status and count the moderator as active participant', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: true,
+          participantCount: 1, // Should count the NotConnected moderator within TTL
+          moderatorCount: 1   // Should count the NotConnected moderator within TTL
+        })
+
+        expect(mockVoiceDB.isCommunityRoomActive).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.getCommunityUsersInRoom).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.isActiveCommunityUser).toHaveBeenCalledTimes(2) // 1 for participants + 1 for moderators
+      })
+    })
+
+    describe('and the room has a moderator with connection interrupted but within TTL', () => {
+      beforeEach(() => {
+        mockVoiceDB.isCommunityRoomActive.mockResolvedValue(true)
+        const now = Date.now()
+        const oneMinuteAgo = now - 1 * 60 * 1000 // 1 minute ago, within 5-minute TTL
+        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
+          {
+            address: validModeratorAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.ConnectionInterrupted,
+            joinedAt: now - 10 * 60 * 1000, // Joined 10 minutes ago
+            statusUpdatedAt: oneMinuteAgo // Connection interrupted 1 minute ago, within TTL
+          }
+        ])
+        // Moderator is ConnectionInterrupted but within TTL, should be considered active
+        mockVoiceDB.isActiveCommunityUser.mockReturnValue(true)
+      })
+
+      it('should return active status and count the moderator as active participant', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: true,
+          participantCount: 1, // Should count the ConnectionInterrupted moderator within TTL
+          moderatorCount: 1   // Should count the ConnectionInterrupted moderator within TTL
+        })
+
+        expect(mockVoiceDB.isCommunityRoomActive).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.getCommunityUsersInRoom).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.isActiveCommunityUser).toHaveBeenCalledTimes(2) // 1 for participants + 1 for moderators
+      })
+    })
+
+    describe('and the room has a moderator who has not connected and is beyond TTL', () => {
+      beforeEach(() => {
+        mockVoiceDB.isCommunityRoomActive.mockResolvedValue(true)
+        const now = Date.now()
+        const sixMinutesAgo = now - 6 * 60 * 1000 // 6 minutes ago, beyond 5-minute TTL
+        mockVoiceDB.getCommunityUsersInRoom.mockResolvedValue([
+          {
+            address: validModeratorAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.NotConnected,
+            joinedAt: sixMinutesAgo, // Joined 6 minutes ago, beyond TTL
+            statusUpdatedAt: sixMinutesAgo
+          }
+        ])
+        // Moderator is NotConnected and beyond TTL, should NOT be considered active
+        mockVoiceDB.isActiveCommunityUser.mockReturnValue(false)
+      })
+
+      it('should NOT count the expired moderator as active participant', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
+
+        expect(result).toEqual({
+          active: false, // No active moderators
+          participantCount: 0, // Should NOT count the expired moderator
+          moderatorCount: 0   // Should NOT count the expired moderator
+        })
+
+        expect(mockVoiceDB.isCommunityRoomActive).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.getCommunityUsersInRoom).toHaveBeenCalledWith(roomName)
+        expect(mockVoiceDB.isActiveCommunityUser).toHaveBeenCalledTimes(2) // 1 for participants + 1 for moderators
       })
     })
 
