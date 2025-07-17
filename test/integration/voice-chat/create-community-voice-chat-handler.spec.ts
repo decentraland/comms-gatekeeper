@@ -136,9 +136,9 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
 
       describe('and getting community voice chat credentials for moderator fails', () => {
         beforeEach(() => {
-          spyComponents.voice.getCommunityVoiceChatCredentialsForModerator.mockRejectedValueOnce(
-            new Error('Failed to get community voice chat credentials')
-          )
+          components.voice.getCommunityVoiceChatCredentialsForModerator = jest
+            .fn()
+            .mockRejectedValue(new Error('Failed to get community voice chat credentials'))
         })
 
         it('should respond with a 500', async () => {
@@ -242,7 +242,10 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
       const body = await response.json()
 
       expect(response.status).toBe(400)
-      expect(body).toEqual({ error: 'The property action is required and must be either "create" or "join"' })
+      expect(body).toEqual({
+        error:
+          'The property action is required and must be one of: create, join, request-to-speak, promote-speaker, demote-speaker, kick-player'
+      })
     })
   })
 
@@ -267,7 +270,10 @@ test('POST /community-voice-chat', ({ components, spyComponents }) => {
       const body = await response.json()
 
       expect(response.status).toBe(400)
-      expect(body).toEqual({ error: 'The property action is required and must be either "create" or "join"' })
+      expect(body).toEqual({
+        error:
+          'The property action is required and must be one of: create, join, request-to-speak, promote-speaker, demote-speaker, kick-player'
+      })
     })
   })
 })
