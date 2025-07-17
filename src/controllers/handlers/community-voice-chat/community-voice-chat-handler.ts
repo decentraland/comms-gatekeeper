@@ -32,9 +32,7 @@ export async function communityVoiceChatHandler(
   }
 
   if (!body.action || !Object.values(CommunityVoiceChatAction).includes(body.action)) {
-    throw new InvalidRequestError(
-      'The property action is required and must be one of: create, join, request-to-speak, promote-speaker, demote-speaker, kick-player'
-    )
+    throw new InvalidRequestError('The property action is required and must be one of: create, join')
   }
 
   const lowerCaseUserAddress = body.user_address.toLowerCase()
@@ -67,58 +65,6 @@ export async function communityVoiceChatHandler(
         status: 200,
         body: {
           connection_url: credentials.connectionUrl
-        }
-      }
-    }
-
-    case CommunityVoiceChatAction.REQUEST_TO_SPEAK: {
-      logger.info(`User ${lowerCaseUserAddress} requesting to speak in community ${body.community_id}`)
-
-      await voice.requestToSpeakInCommunity(body.community_id, lowerCaseUserAddress)
-
-      return {
-        status: 200,
-        body: {
-          message: 'Request to speak sent successfully'
-        }
-      }
-    }
-
-    case CommunityVoiceChatAction.PROMOTE_SPEAKER: {
-      logger.info(`Promoting user ${lowerCaseUserAddress} to speaker in community ${body.community_id}`)
-
-      await voice.promoteSpeakerInCommunity(body.community_id, lowerCaseUserAddress)
-
-      return {
-        status: 200,
-        body: {
-          message: 'User promoted to speaker successfully'
-        }
-      }
-    }
-
-    case CommunityVoiceChatAction.DEMOTE_SPEAKER: {
-      logger.info(`Demoting user ${lowerCaseUserAddress} to listener in community ${body.community_id}`)
-
-      await voice.demoteSpeakerInCommunity(body.community_id, lowerCaseUserAddress)
-
-      return {
-        status: 200,
-        body: {
-          message: 'User demoted to listener successfully'
-        }
-      }
-    }
-
-    case CommunityVoiceChatAction.KICK_PLAYER: {
-      logger.info(`Kicking user ${lowerCaseUserAddress} from community ${body.community_id}`)
-
-      await voice.kickPlayerFromCommunity(body.community_id, lowerCaseUserAddress)
-
-      return {
-        status: 200,
-        body: {
-          message: 'User kicked from voice chat successfully'
         }
       }
     }
