@@ -4,6 +4,7 @@ import {
   IngressClient,
   IngressInfo,
   IngressInput,
+  ParticipantInfo,
   Room,
   RoomServiceClient,
   TrackSource,
@@ -170,12 +171,55 @@ export async function createLivekitComponent(
     }
   }
 
+  async function getParticipantInfo(roomId: string, participantId: string): Promise<ParticipantInfo | null> {
+    try {
+      const participants = await roomClient.listParticipants(roomId)
+      return participants.find((p) => p.identity === participantId) || null
+    } catch (error) {
+      logger.warn(
+        `Error getting participant info for ${participantId} in room ${roomId}: ${
+          isErrorWithMessage(error) ? error.message : 'Unknown error'
+        }`
+      )
+      return null
+    }
+  }
+
   async function updateParticipantMetadata(
     roomId: string,
     participantId: string,
-    metadata: Record<string, unknown>
+    newMetadata: Record<string, unknown>
   ): Promise<void> {
-    await roomClient.updateParticipant(roomId, participantId, JSON.stringify(metadata))
+    try {
+      // Get existing participant metadata
+      const participant = await getParticipantInfo(roomId, participantId)
+      let existingMetadata: Record<string, unknown> = {}
+
+      if (participant?.metadata) {
+        try {
+          existingMetadata = JSON.parse(participant.metadata)
+        } catch (error) {
+          logger.warn(
+            `Error parsing existing metadata for participant ${participantId}: ${
+              isErrorWithMessage(error) ? error.message : 'Unknown error'
+            }`
+          )
+          existingMetadata = {}
+        }
+      }
+
+      // Merge existing metadata with new metadata
+      const mergedMetadata = { ...existingMetadata, ...newMetadata }
+
+      await roomClient.updateParticipant(roomId, participantId, JSON.stringify(mergedMetadata))
+    } catch (error) {
+      logger.error(
+        `Error updating participant metadata for ${participantId} in room ${roomId}: ${
+          isErrorWithMessage(error) ? error.message : 'Unknown error'
+        }`
+      )
+      throw error
+    }
   }
 
   async function updateParticipantPermissions(
@@ -199,6 +243,7 @@ export async function createLivekitComponent(
     deleteRoom,
     updateParticipantMetadata,
     updateParticipantPermissions,
+    getParticipantInfo,
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,

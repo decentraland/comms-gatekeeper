@@ -152,7 +152,7 @@ test('POST /community-voice-chat (consolidated actions handler)', ({ components,
           const body = await response.json()
 
           expect(response.status).toBe(500)
-          expect(body).toEqual({ message: 'Internal server error' })
+          expect(body).toEqual({ error: 'Internal Server Error' })
         })
       })
 

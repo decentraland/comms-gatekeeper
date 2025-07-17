@@ -57,6 +57,7 @@ describe('CommunityVoiceLogic', () => {
       getWebhookEvent: jest.fn(),
       updateParticipantMetadata: jest.fn(),
       updateParticipantPermissions: jest.fn(),
+      getParticipantInfo: jest.fn(),
       removeParticipant: jest.fn()
     } as jest.Mocked<ILivekitComponent>
 

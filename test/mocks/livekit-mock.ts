@@ -4,19 +4,23 @@ export const createLivekitMockedComponent = (
   overrides?: Partial<jest.Mocked<ILivekitComponent>>
 ): jest.Mocked<ILivekitComponent> => {
   return {
-    deleteRoom: overrides?.deleteRoom ?? jest.fn(),
-    generateCredentials: overrides?.generateCredentials ?? jest.fn(),
-    buildConnectionUrl: overrides?.buildConnectionUrl ?? jest.fn(),
-    getWorldRoomName: overrides?.getWorldRoomName ?? jest.fn(),
-    getSceneRoomName: overrides?.getSceneRoomName ?? jest.fn(),
-    getOrCreateIngress: overrides?.getOrCreateIngress ?? jest.fn(),
-    removeIngress: overrides?.removeIngress ?? jest.fn(),
-    updateParticipantMetadata: overrides?.updateParticipantMetadata ?? jest.fn(),
-    updateParticipantPermissions: overrides?.updateParticipantPermissions ?? jest.fn(),
-    getRoom: overrides?.getRoom ?? jest.fn(),
-    muteParticipant: overrides?.muteParticipant ?? jest.fn(),
-    removeParticipant: overrides?.removeParticipant ?? jest.fn(),
-    getWebhookEvent: overrides?.getWebhookEvent ?? jest.fn(),
-    getRoomInfo: overrides?.getRoomInfo ?? jest.fn()
+    deleteRoom: jest.fn(),
+    buildConnectionUrl: jest.fn(),
+    generateCredentials: jest.fn(),
+    muteParticipant: jest.fn(),
+    removeParticipant: jest.fn(),
+    getWorldRoomName: jest.fn(),
+    getSceneRoomName: jest.fn(),
+    getRoom: jest.fn(),
+    getRoomInfo: jest.fn(),
+    getOrCreateIngress: jest.fn(),
+    removeIngress: jest.fn(),
+    getWebhookEvent: jest.fn(),
+    getParticipantInfo: jest.fn(),
+    updateParticipantMetadata: jest.fn(),
+    updateParticipantPermissions: jest.fn(),
+    start: jest.fn(),
+    stop: jest.fn(),
+    ...overrides
   }
 }

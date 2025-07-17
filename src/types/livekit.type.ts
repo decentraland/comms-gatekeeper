@@ -1,5 +1,5 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
-import { IngressInfo, Room, WebhookEvent } from 'livekit-server-sdk'
+import { IngressInfo, Room, WebhookEvent, ParticipantInfo } from 'livekit-server-sdk'
 import { Permissions } from '../types'
 
 export type LivekitCredentials = {
@@ -38,6 +38,7 @@ export type ILivekitComponent = IBaseComponent & {
   getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
   removeIngress: (ingressId: string) => Promise<IngressInfo>
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
+  getParticipantInfo: (roomId: string, participantId: string) => Promise<ParticipantInfo | null>
   updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>
   updateParticipantPermissions: (
     roomId: string,
