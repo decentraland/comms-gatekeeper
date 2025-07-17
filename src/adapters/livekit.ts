@@ -4,6 +4,7 @@ import {
   IngressClient,
   IngressInfo,
   IngressInput,
+  ParticipantInfo,
   Room,
   RoomServiceClient,
   TrackSource,
@@ -11,7 +12,7 @@ import {
 } from 'livekit-server-sdk'
 import { AppComponents, Permissions } from '../types'
 import { LivekitIngressNotFoundError } from '../types/errors'
-import { ILivekitComponent, LivekitCredentials, LivekitSettings } from '../types/livekit.type'
+import { ILivekitComponent, LivekitCredentials, LivekitSettings, ParticipantPermissions } from '../types/livekit.type'
 import { isErrorWithMessage } from '../logic/errors'
 
 export async function createLivekitComponent(
@@ -99,6 +100,10 @@ export async function createLivekitComponent(
     })
   }
 
+  async function removeParticipant(roomId: string, participantId: string): Promise<void> {
+    await roomClient.removeParticipant(roomId, participantId)
+  }
+
   async function deleteRoom(roomName: string): Promise<void> {
     logger.info(`Deleting room ${roomName}`)
     try {
@@ -166,12 +171,63 @@ export async function createLivekitComponent(
     }
   }
 
+  async function getParticipantInfo(roomId: string, participantId: string): Promise<ParticipantInfo | null> {
+    try {
+      const participants = await roomClient.listParticipants(roomId)
+      return participants.find((p) => p.identity === participantId) || null
+    } catch (error) {
+      logger.warn(
+        `Error getting participant info for ${participantId} in room ${roomId}: ${
+          isErrorWithMessage(error) ? error.message : 'Unknown error'
+        }`
+      )
+      return null
+    }
+  }
+
   async function updateParticipantMetadata(
     roomId: string,
     participantId: string,
-    metadata: Record<string, unknown>
+    newMetadata: Record<string, unknown>
   ): Promise<void> {
-    await roomClient.updateParticipant(roomId, participantId, JSON.stringify(metadata))
+    try {
+      // Get existing participant metadata
+      const participant = await getParticipantInfo(roomId, participantId)
+      let existingMetadata: Record<string, unknown> = {}
+
+      if (participant?.metadata) {
+        try {
+          existingMetadata = JSON.parse(participant.metadata)
+        } catch (error) {
+          logger.warn(
+            `Error parsing existing metadata for participant ${participantId}: ${
+              isErrorWithMessage(error) ? error.message : 'Unknown error'
+            }`
+          )
+          existingMetadata = {}
+        }
+      }
+
+      // Merge existing metadata with new metadata
+      const mergedMetadata = { ...existingMetadata, ...newMetadata }
+
+      await roomClient.updateParticipant(roomId, participantId, JSON.stringify(mergedMetadata))
+    } catch (error) {
+      logger.error(
+        `Error updating participant metadata for ${participantId} in room ${roomId}: ${
+          isErrorWithMessage(error) ? error.message : 'Unknown error'
+        }`
+      )
+      throw error
+    }
+  }
+
+  async function updateParticipantPermissions(
+    roomId: string,
+    participantId: string,
+    permissions: ParticipantPermissions
+  ): Promise<void> {
+    await roomClient.updateParticipant(roomId, participantId, undefined, permissions)
   }
 
   async function getWebhookEvent(body: string, authorization: string) {
@@ -186,10 +242,13 @@ export async function createLivekitComponent(
     buildConnectionUrl,
     deleteRoom,
     updateParticipantMetadata,
+    updateParticipantPermissions,
+    getParticipantInfo,
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
     muteParticipant,
+    removeParticipant,
     getRoom,
     getRoomInfo,
     getOrCreateIngress,

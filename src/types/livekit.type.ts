@@ -1,5 +1,5 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
-import { IngressInfo, Room, WebhookEvent } from 'livekit-server-sdk'
+import { IngressInfo, Room, WebhookEvent, ParticipantInfo } from 'livekit-server-sdk'
 import { Permissions } from '../types'
 
 export type LivekitCredentials = {
@@ -13,6 +13,12 @@ export type LivekitSettings = {
   secret: string
 }
 
+export type ParticipantPermissions = {
+  canPublish?: boolean
+  canSubscribe?: boolean
+  canPublishData?: boolean
+}
+
 export type ILivekitComponent = IBaseComponent & {
   deleteRoom: (roomName: string) => Promise<void>
   buildConnectionUrl: (url: string, token: string) => string
@@ -24,6 +30,7 @@ export type ILivekitComponent = IBaseComponent & {
     metadata?: Record<string, unknown>
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
+  removeParticipant: (roomId: string, participantId: string) => Promise<void>
   getWorldRoomName: (worldName: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
   getRoom: (roomName: string) => Promise<Room>
@@ -31,5 +38,11 @@ export type ILivekitComponent = IBaseComponent & {
   getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
   removeIngress: (ingressId: string) => Promise<IngressInfo>
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
+  getParticipantInfo: (roomId: string, participantId: string) => Promise<ParticipantInfo | null>
   updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>
+  updateParticipantPermissions: (
+    roomId: string,
+    participantId: string,
+    permissions: ParticipantPermissions
+  ) => Promise<void>
 }
