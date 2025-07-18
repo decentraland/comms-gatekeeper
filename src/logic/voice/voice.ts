@@ -9,7 +9,11 @@ import {
 } from './utils'
 import { AnalyticsEvent } from '../../types/analytics'
 import { VoiceChatUserStatus } from '../../adapters/db/types'
-import { CommunityRole } from '../../types/social.type'
+import {
+  CommunityRole,
+  CommunityVoiceChatUserMetadata,
+  CommunityVoiceChatUserProfileMetadata
+} from '../../types/social.type'
 
 export function createVoiceComponent(
   components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit' | 'analytics'>
@@ -270,73 +274,69 @@ export function createVoiceComponent(
   }
 
   /**
-   * Generates credentials for a community voice chat room for a moderator.
-   * @param communityId - The ID of the community to generate credentials for.
-   * @param userAddress - The address of the moderator.
-   * @returns The connection URL for the moderator.
+   * Private helper function to generate community voice chat credentials with shared logic
    */
-  async function getCommunityVoiceChatCredentialsForModerator(
+  async function _getCommunityVoiceChatCredentials(
     communityId: string,
-    userAddress: string
+    userAddress: string,
+    isModerator: boolean,
+    profileData?: CommunityVoiceChatUserProfileMetadata
   ): Promise<{ connectionUrl: string }> {
     const roomName = getCommunityVoiceChatRoomName(communityId)
+
+    const metadata: CommunityVoiceChatUserMetadata = {
+      role: isModerator ? CommunityRole.Moderator : CommunityRole.Member
+    }
+
+    // Add profile data if provided
+    if (profileData) {
+      metadata.name = profileData.name
+      metadata.hasClaimedName = profileData.hasClaimedName
+      metadata.profilePictureUrl = profileData.profilePictureUrl
+    }
 
     const roomKey = await livekit.generateCredentials(
       userAddress,
       roomName,
       {
         cast: [],
-        canPublish: true,
+        canPublish: isModerator, // Moderators can publish, members need to be promoted
         canSubscribe: true,
         canUpdateOwnMetadata: false
       },
       false,
-      {
-        role: CommunityRole.Moderator
-      }
+      metadata
     )
 
-    // Create or update moderator in the community room
-    await voiceDB.joinUserToCommunityRoom(userAddress, roomName, true)
+    // Join user to the community room
+    await voiceDB.joinUserToCommunityRoom(userAddress, roomName, isModerator)
 
     return {
       connectionUrl: `livekit:${roomKey.url}?access_token=${roomKey.token}`
     }
   }
 
+  async function getCommunityVoiceChatCredentialsForModerator(
+    communityId: string,
+    userAddress: string,
+    profileData?: CommunityVoiceChatUserProfileMetadata
+  ): Promise<{ connectionUrl: string }> {
+    return _getCommunityVoiceChatCredentials(communityId, userAddress, true, profileData)
+  }
+
   /**
    * Generates credentials for a community voice chat room for a member.
    * @param communityId - The ID of the community to generate credentials for.
    * @param userAddress - The address of the member.
+   * @param profileData - Optional profile data for the member.
    * @returns The connection URL for the member.
    */
   async function getCommunityVoiceChatCredentialsForMember(
     communityId: string,
-    userAddress: string
+    userAddress: string,
+    profileData?: CommunityVoiceChatUserProfileMetadata
   ): Promise<{ connectionUrl: string }> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
-
-    const roomKey = await livekit.generateCredentials(
-      userAddress,
-      roomName,
-      {
-        cast: [],
-        canPublish: false, // can't publish until they are promoted
-        canSubscribe: true,
-        canUpdateOwnMetadata: false
-      },
-      false,
-      {
-        role: CommunityRole.Member
-      }
-    )
-
-    // Add member to the community room
-    await voiceDB.joinUserToCommunityRoom(userAddress, roomName, false)
-
-    return {
-      connectionUrl: `livekit:${roomKey.url}?access_token=${roomKey.token}`
-    }
+    return _getCommunityVoiceChatCredentials(communityId, userAddress, false, profileData)
   }
 
   /**

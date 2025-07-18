@@ -15,3 +15,13 @@ export enum CommunityRole {
   Moderator = 'moderator',
   Member = 'member'
 }
+
+export type CommunityVoiceChatUserMetadata = {
+  role: CommunityRole
+} & CommunityVoiceChatUserProfileMetadata
+
+export type CommunityVoiceChatUserProfileMetadata = {
+  name?: string
+  hasClaimedName?: boolean
+  profilePictureUrl?: string
+}

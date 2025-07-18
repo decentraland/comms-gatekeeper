@@ -1,4 +1,5 @@
 import { DisconnectReason } from '@livekit/protocol'
+import { CommunityVoiceChatUserProfileMetadata } from '../../types/social.type'
 
 export interface IVoiceComponent {
   /**
@@ -51,22 +52,26 @@ export interface IVoiceComponent {
    * Generates credentials for a community voice chat room for a moderator.
    * @param communityId - The ID of the community to generate credentials for.
    * @param userAddress - The address of the moderator.
+   * @param profileData - Optional profile data for the moderator.
    * @returns The connection URL for the moderator.
    */
   getCommunityVoiceChatCredentialsForModerator(
     communityId: string,
-    userAddress: string
+    userAddress: string,
+    profileData?: CommunityVoiceChatUserProfileMetadata
   ): Promise<{ connectionUrl: string }>
 
   /**
    * Generates credentials for a community voice chat room for a member.
    * @param communityId - The ID of the community to generate credentials for.
    * @param userAddress - The address of the member.
+   * @param profileData - Optional profile data for the member.
    * @returns The connection URL for the member.
    */
   getCommunityVoiceChatCredentialsForMember(
     communityId: string,
-    userAddress: string
+    userAddress: string,
+    profileData?: CommunityVoiceChatUserProfileMetadata
   ): Promise<{ connectionUrl: string }>
 
   /**

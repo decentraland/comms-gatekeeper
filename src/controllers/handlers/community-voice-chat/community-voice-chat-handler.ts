@@ -1,6 +1,7 @@
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
 import { CommunityVoiceChatAction } from '../../../types/community-voice'
+import { CommunityVoiceChatUserProfileMetadata } from '../../../types/social.type'
 
 export async function communityVoiceChatHandler(
   context: HandlerContextWithPath<'logs' | 'voice', '/community-voice-chat'>
@@ -14,6 +15,7 @@ export async function communityVoiceChatHandler(
     community_id: string
     user_address: string
     action: CommunityVoiceChatAction
+    profile_data?: CommunityVoiceChatUserProfileMetadata
   }
 
   try {
@@ -42,7 +44,8 @@ export async function communityVoiceChatHandler(
       logger.debug('Creating community voice chat credentials for moderator')
       const credentials = await voice.getCommunityVoiceChatCredentialsForModerator(
         body.community_id,
-        lowerCaseUserAddress
+        lowerCaseUserAddress,
+        body.profile_data
       )
       logger.debug(
         `Created community voice chat credentials for moderator ${lowerCaseUserAddress} in community ${body.community_id}`
@@ -57,7 +60,11 @@ export async function communityVoiceChatHandler(
 
     case CommunityVoiceChatAction.JOIN: {
       logger.debug('Joining community voice chat as member')
-      const credentials = await voice.getCommunityVoiceChatCredentialsForMember(body.community_id, lowerCaseUserAddress)
+      const credentials = await voice.getCommunityVoiceChatCredentialsForMember(
+        body.community_id,
+        lowerCaseUserAddress,
+        body.profile_data
+      )
       logger.info(
         `Community voice chat access granted for member ${lowerCaseUserAddress} in community ${body.community_id}`
       )
