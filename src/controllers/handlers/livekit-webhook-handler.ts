@@ -58,7 +58,8 @@ export async function livekitWebhookHandler(
   } else if (event === 'participant_left') {
     analytics.fireEvent(AnalyticsEvent.PARTICIPANT_LEFT_ROOM, {
       room: webhookEvent.room?.name ?? 'Unknown',
-      address: webhookEvent.participant?.identity ?? 'Unknown'
+      address: webhookEvent.participant?.identity ?? 'Unknown',
+      reason: (webhookEvent.participant?.disconnectReason ?? 'Unknown').toString()
     })
 
     if (isVoiceChatRoom && isRoomEventValid(webhookEvent)) {
