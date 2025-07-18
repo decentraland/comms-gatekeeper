@@ -248,4 +248,131 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(response.status).toBe(401)
     })
   })
+
+  describe('when creating community voice chat with profile data', () => {
+    it('should create voice chat with profile data for moderator', async () => {
+      const profileData = {
+        name: 'TestModerator',
+        hasClaimedName: true,
+        profilePictureUrl: 'https://example.com/avatar.png'
+      }
+
+      const requestBody = {
+        community_id: communityId,
+        user_address: userAddress,
+        action: 'create',
+        profile_data: profileData
+      }
+
+      spyComponents.voice.getCommunityVoiceChatCredentialsForModerator.mockResolvedValue({
+        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      })
+
+      const response = await makeRequest(
+        components.localFetch,
+        '/community-voice-chat',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        }
+      )
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        connection_url: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      })
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsForModerator).toHaveBeenCalledWith(
+        communityId,
+        userAddress.toLowerCase(),
+        profileData
+      )
+    })
+
+    it('should join voice chat with profile data for member', async () => {
+      const profileData = {
+        name: 'TestMember',
+        hasClaimedName: false,
+        profilePictureUrl: 'https://example.com/member-avatar.png'
+      }
+
+      const requestBody = {
+        community_id: communityId,
+        user_address: userAddress,
+        action: 'join',
+        profile_data: profileData
+      }
+
+      spyComponents.voice.getCommunityVoiceChatCredentialsForMember.mockResolvedValue({
+        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=member-token'
+      })
+
+      const response = await makeRequest(
+        components.localFetch,
+        '/community-voice-chat',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        }
+      )
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        connection_url: 'livekit:wss://voice.livekit.cloud?access_token=member-token'
+      })
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsForMember).toHaveBeenCalledWith(
+        communityId,
+        userAddress.toLowerCase(),
+        profileData
+      )
+    })
+
+    it('should work without profile data', async () => {
+      const requestBody = {
+        community_id: communityId,
+        user_address: userAddress,
+        action: 'create'
+      }
+
+      spyComponents.voice.getCommunityVoiceChatCredentialsForModerator.mockResolvedValue({
+        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      })
+
+      const response = await makeRequest(
+        components.localFetch,
+        '/community-voice-chat',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        }
+      )
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        connection_url: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      })
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsForModerator).toHaveBeenCalledWith(
+        communityId,
+        userAddress.toLowerCase(),
+        undefined
+      )
+    })
+  })
 }) 

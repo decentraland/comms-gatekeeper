@@ -146,6 +146,74 @@ describe('CommunityVoiceLogic', () => {
       )
     })
 
+    it('should generate credentials for moderator with profile data in metadata', async () => {
+      const profileData = {
+        name: 'TestModerator',
+        hasClaimedName: true,
+        profilePictureUrl: 'https://example.com/avatar.png'
+      }
+
+      mockLivekit.generateCredentials.mockResolvedValue({
+        token: 'moderator-token',
+        url: 'wss://voice.livekit.cloud'
+      })
+
+      const result = await voiceComponent.getCommunityVoiceChatCredentialsForModerator(
+        validCommunityId,
+        validModeratorAddress,
+        profileData
+      )
+
+      expect(result).toEqual({
+        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=moderator-token'
+      })
+
+      expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+        validModeratorAddress,
+        getCommunityVoiceChatRoomName(validCommunityId),
+        {
+          cast: [],
+          canPublish: true,
+          canSubscribe: true,
+          canUpdateOwnMetadata: false
+        },
+        false,
+        {
+          role: CommunityRole.Moderator,
+          name: 'TestModerator',
+          hasClaimedName: true,
+          profilePictureUrl: 'https://example.com/avatar.png'
+        }
+      )
+    })
+
+    it('should generate credentials for moderator without profile data in metadata when not provided', async () => {
+      mockLivekit.generateCredentials.mockResolvedValue({
+        token: 'moderator-token',
+        url: 'wss://voice.livekit.cloud'
+      })
+
+      await voiceComponent.getCommunityVoiceChatCredentialsForModerator(
+        validCommunityId,
+        validModeratorAddress
+      )
+
+      expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+        validModeratorAddress,
+        getCommunityVoiceChatRoomName(validCommunityId),
+        {
+          cast: [],
+          canPublish: true,
+          canSubscribe: true,
+          canUpdateOwnMetadata: false
+        },
+        false,
+        {
+          role: CommunityRole.Moderator
+        }
+      )
+    })
+
     it('should store the join the moderator to the community room', async () => {
       await voiceComponent.getCommunityVoiceChatCredentialsForModerator(validCommunityId, validModeratorAddress)
 
@@ -207,6 +275,64 @@ describe('CommunityVoiceLogic', () => {
         validMemberAddress,
         getCommunityVoiceChatRoomName(validCommunityId),
         false
+      )
+    })
+
+    it('should generate credentials for member with profile data in metadata', async () => {
+      const profileData = {
+        name: 'TestMember',
+        hasClaimedName: false,
+        profilePictureUrl: 'https://example.com/member-avatar.png'
+      }
+
+      const result = await voiceComponent.getCommunityVoiceChatCredentialsForMember(
+        validCommunityId,
+        validMemberAddress,
+        profileData
+      )
+
+      expect(result).toEqual({
+        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=member-token'
+      })
+
+      expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+        validMemberAddress,
+        getCommunityVoiceChatRoomName(validCommunityId),
+        {
+          cast: [],
+          canPublish: false,
+          canSubscribe: true,
+          canUpdateOwnMetadata: false
+        },
+        false,
+        {
+          role: CommunityRole.Member,
+          name: 'TestMember',
+          hasClaimedName: false,
+          profilePictureUrl: 'https://example.com/member-avatar.png'
+        }
+      )
+    })
+
+    it('should generate credentials for member without profile data when not provided', async () => {
+      await voiceComponent.getCommunityVoiceChatCredentialsForMember(
+        validCommunityId,
+        validMemberAddress
+      )
+
+      expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+        validMemberAddress,
+        getCommunityVoiceChatRoomName(validCommunityId),
+        {
+          cast: [],
+          canPublish: false,
+          canSubscribe: true,
+          canUpdateOwnMetadata: false
+        },
+        false,
+        {
+          role: CommunityRole.Member
+        }
       )
     })
 
