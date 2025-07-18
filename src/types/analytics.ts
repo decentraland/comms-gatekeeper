@@ -13,6 +13,7 @@ export type AnalyticsEventPayload = {
   [AnalyticsEvent.PARTICIPANT_LEFT_ROOM]: {
     room: string
     address: string
+    reason: string
   }
   [AnalyticsEvent.EXPIRE_CALL]: {
     call_id: string
