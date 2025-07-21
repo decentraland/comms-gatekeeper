@@ -149,8 +149,8 @@ describe('CommunityVoiceLogic', () => {
     it('should generate credentials for moderator with profile data in metadata', async () => {
       const profileData = {
         name: 'TestModerator',
-        hasClaimedName: true,
-        profilePictureUrl: 'https://example.com/avatar.png'
+        has_claimed_name: true,
+        profile_picture_url: 'https://example.com/avatar.png'
       }
 
       mockLivekit.generateCredentials.mockResolvedValue({
@@ -181,8 +181,8 @@ describe('CommunityVoiceLogic', () => {
         {
           role: CommunityRole.Moderator,
           name: 'TestModerator',
-          hasClaimedName: true,
-          profilePictureUrl: 'https://example.com/avatar.png'
+          has_claimed_name: true,
+          profile_picture_url: 'https://example.com/avatar.png'
         }
       )
     })
@@ -281,8 +281,8 @@ describe('CommunityVoiceLogic', () => {
     it('should generate credentials for member with profile data in metadata', async () => {
       const profileData = {
         name: 'TestMember',
-        hasClaimedName: false,
-        profilePictureUrl: 'https://example.com/member-avatar.png'
+        has_claimed_name: false,
+        profile_picture_url: 'https://example.com/member-avatar.png'
       }
 
       const result = await voiceComponent.getCommunityVoiceChatCredentialsForMember(
@@ -308,8 +308,8 @@ describe('CommunityVoiceLogic', () => {
         {
           role: CommunityRole.Member,
           name: 'TestMember',
-          hasClaimedName: false,
-          profilePictureUrl: 'https://example.com/member-avatar.png'
+          has_claimed_name: false,
+          profile_picture_url: 'https://example.com/member-avatar.png'
         }
       )
     })

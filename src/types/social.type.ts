@@ -20,6 +20,12 @@ export type CommunityVoiceChatUserMetadata = {
   role: CommunityRole
 } & CommunityVoiceChatUserProfileMetadata
 
+export type CommunityVoiceChatUserProfile = {
+  name?: string
+  has_claimed_name?: boolean
+  profile_picture_url?: string
+}
+
 export type CommunityVoiceChatUserProfileMetadata = {
   name?: string
   hasClaimedName?: boolean

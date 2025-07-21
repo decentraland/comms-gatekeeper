@@ -253,8 +253,8 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
     it('should create voice chat with profile data for moderator', async () => {
       const profileData = {
         name: 'TestModerator',
-        hasClaimedName: true,
-        profilePictureUrl: 'https://example.com/avatar.png'
+        has_claimed_name: true,
+        profile_picture_url: 'https://example.com/avatar.png'
       }
 
       const requestBody = {
@@ -297,8 +297,8 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
     it('should join voice chat with profile data for member', async () => {
       const profileData = {
         name: 'TestMember',
-        hasClaimedName: false,
-        profilePictureUrl: 'https://example.com/member-avatar.png'
+        has_claimed_name: false,
+        profile_picture_url: 'https://example.com/member-avatar.png'
       }
 
       const requestBody = {

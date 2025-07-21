@@ -1,5 +1,5 @@
 import { DisconnectReason } from '@livekit/protocol'
-import { CommunityVoiceChatUserProfileMetadata } from '../../types/social.type'
+import { CommunityVoiceChatUserProfile, CommunityVoiceChatUserProfileMetadata } from '../../types/social.type'
 
 export interface IVoiceComponent {
   /**
@@ -58,7 +58,7 @@ export interface IVoiceComponent {
   getCommunityVoiceChatCredentialsForModerator(
     communityId: string,
     userAddress: string,
-    profileData?: CommunityVoiceChatUserProfileMetadata
+    profileData?: CommunityVoiceChatUserProfile
   ): Promise<{ connectionUrl: string }>
 
   /**
@@ -71,7 +71,7 @@ export interface IVoiceComponent {
   getCommunityVoiceChatCredentialsForMember(
     communityId: string,
     userAddress: string,
-    profileData?: CommunityVoiceChatUserProfileMetadata
+    profileData?: CommunityVoiceChatUserProfile
   ): Promise<{ connectionUrl: string }>
 
   /**

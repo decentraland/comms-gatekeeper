@@ -12,6 +12,7 @@ import { VoiceChatUserStatus } from '../../adapters/db/types'
 import {
   CommunityRole,
   CommunityVoiceChatUserMetadata,
+  CommunityVoiceChatUserProfile,
   CommunityVoiceChatUserProfileMetadata
 } from '../../types/social.type'
 
@@ -280,7 +281,7 @@ export function createVoiceComponent(
     communityId: string,
     userAddress: string,
     isModerator: boolean,
-    profileData?: CommunityVoiceChatUserProfileMetadata
+    profileData?: CommunityVoiceChatUserProfile
   ): Promise<{ connectionUrl: string }> {
     const roomName = getCommunityVoiceChatRoomName(communityId)
 
@@ -291,8 +292,8 @@ export function createVoiceComponent(
     // Add profile data if provided
     if (profileData) {
       metadata.name = profileData.name
-      metadata.hasClaimedName = profileData.hasClaimedName
-      metadata.profilePictureUrl = profileData.profilePictureUrl
+      metadata.hasClaimedName = profileData.has_claimed_name
+      metadata.profilePictureUrl = profileData.profile_picture_url
     }
 
     const roomKey = await livekit.generateCredentials(
