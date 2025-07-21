@@ -716,17 +716,17 @@
   dependencies:
     "@jridgewell/trace-mapping" "0.3.9"
 
-"@dcl/analytics-component@^0.2.2":
-  version "0.2.2"
-  resolved "https://registry.yarnpkg.com/@dcl/analytics-component/-/analytics-component-0.2.2.tgz#0bfcec4ec19dd1fc8ac90b9d0e1ee28cb153d813"
-  integrity sha512-7W8EWdRV3tIBupJqSjoKdC+h52kkHOfEqY07ZTYl2/YUkJ4XUomPmJuGGy20zeRoOQaeq21E5ajF0LQcuE5kxw==
+"@dcl/analytics-component@^0.2.3":
+  version "0.2.3"
+  resolved "https://registry.yarnpkg.com/@dcl/analytics-component/-/analytics-component-0.2.3.tgz#538c76e855a4fb28393f7d2ad14dc9d486bf7a05"
+  integrity sha512-XriAC6FJrzFHbPxs4o3VGYR8O/5z+yMPUTfM0KQknW6MvkgE5/l5UrgGkmomEAyFhOmxdcmfQgm+lCiwZAMnkQ==
   dependencies:
-    "@dcl/core-commons" "0.2.2"
+    "@dcl/core-commons" "0.2.3"
 
-"@dcl/core-commons@0.2.2":
-  version "0.2.2"
-  resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.2.2.tgz#61fb5af3f246a1adac2944afd8c305647476cce4"
-  integrity sha512-P98N1DQHs8fXdM3bP2oHoegHXTpe3YO2/Tlhni2eJC78k/NEx75/wV2PFOFz0D+QJ2Q/J5c/oL03kAVFs5zDKQ==
+"@dcl/core-commons@0.2.3":
+  version "0.2.3"
+  resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.2.3.tgz#03f0519051b2c83d02827dbe32f60fe7b17c349d"
+  integrity sha512-csSFAIMrfjxSwJ7eOWj/UN7cD/92fNpnjk7lTUTRsY14JACZUXQlg0RnIDJus78iLeUILOWm94v4atNMRuLEyA==
 
 "@dcl/crypto@^3.4.3", "@dcl/crypto@^3.4.5":
   version "3.4.5"
