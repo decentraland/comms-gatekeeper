@@ -109,53 +109,96 @@ describe('CommunityVoiceLogic', () => {
       mockLivekit.buildConnectionUrl.mockReturnValue('livekit:wss://voice.livekit.cloud?access_token=moderator-token')
     })
 
-    it('should generate credentials for moderator with correct permissions', async () => {
-      mockLivekit.generateCredentials.mockResolvedValue({
-        token: 'moderator-token',
-        url: 'wss://voice.livekit.cloud'
+    describe('when profile data is available', () => {
+      const profileData = {
+        name: 'TestModerator',
+        has_claimed_name: true,
+        profile_picture_url: 'https://example.com/avatar.png'
+      }
+
+      beforeEach(() => {
+        mockLivekit.generateCredentials.mockResolvedValue({
+          token: 'moderator-token',
+          url: 'wss://voice.livekit.cloud'
+        })
       })
 
-      const result = await voiceComponent.getCommunityVoiceChatCredentialsForModerator(
-        validCommunityId,
-        validModeratorAddress
-      )
+      it('should generate credentials for moderator with correct permissions and profile data', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsForModerator(
+          validCommunityId,
+          validModeratorAddress,
+          profileData
+        )
 
-      expect(result).toEqual({
-        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=moderator-token'
+        expect(result).toEqual({
+          connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=moderator-token'
+        })
+
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validModeratorAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: true,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          {
+            role: CommunityRole.Moderator,
+            name: 'TestModerator',
+            hasClaimedName: true,
+            profilePictureUrl: 'https://example.com/avatar.png'
+          }
+        )
+
+        expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
+          validModeratorAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          true
+        )
       })
-
-      expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
-        validModeratorAddress,
-        getCommunityVoiceChatRoomName(validCommunityId),
-        {
-          cast: [],
-          canPublish: true,
-          canSubscribe: true,
-          canUpdateOwnMetadata: false
-        },
-        false,
-        {
-          role: CommunityRole.Moderator
-        }
-      )
-
-      expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
-        validModeratorAddress,
-        getCommunityVoiceChatRoomName(validCommunityId),
-        true
-      )
     })
 
-    it('should store the join the moderator to the community room', async () => {
-      await voiceComponent.getCommunityVoiceChatCredentialsForModerator(validCommunityId, validModeratorAddress)
+    describe('when profile data is not available', () => {
+      beforeEach(() => {
+        mockLivekit.generateCredentials.mockResolvedValue({
+          token: 'moderator-token',
+          url: 'wss://voice.livekit.cloud'
+        })
+      })
 
-      // Verify that joinUserToCommunityRoom is called to insert user in DB
-      // The actual implementation will insert with NotConnected status
-      expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
-        validModeratorAddress,
-        getCommunityVoiceChatRoomName(validCommunityId),
-        true // isModerator = true
-      )
+      it('should generate credentials for moderator with correct permissions without profile data', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsForModerator(
+          validCommunityId,
+          validModeratorAddress
+        )
+
+        expect(result).toEqual({
+          connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=moderator-token'
+        })
+
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validModeratorAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: true,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          {
+            role: CommunityRole.Moderator
+          }
+        )
+
+        expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
+          validModeratorAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          true // isModerator = true
+        )
+      })
     })
   })
 
@@ -178,48 +221,96 @@ describe('CommunityVoiceLogic', () => {
       mockLivekit.buildConnectionUrl.mockReturnValue('livekit:wss://voice.livekit.cloud?access_token=member-token')
     })
 
-    it('should generate credentials for member with correct permissions', async () => {
-      const result = await voiceComponent.getCommunityVoiceChatCredentialsForMember(
-        validCommunityId,
-        validMemberAddress
-      )
+    describe('when profile data is available', () => {
+      const profileData = {
+        name: 'TestMember',
+        has_claimed_name: false,
+        profile_picture_url: 'https://example.com/member-avatar.png'
+      }
 
-      expect(result).toEqual({
-        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=member-token'
+      beforeEach(() => {
+        mockLivekit.generateCredentials.mockResolvedValue({
+          url: 'wss://voice.livekit.cloud',
+          token: 'member-token'
+        })
       })
 
-      expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
-        validMemberAddress,
-        getCommunityVoiceChatRoomName(validCommunityId),
-        {
-          cast: [],
-          canPublish: false,
-          canSubscribe: true,
-          canUpdateOwnMetadata: false
-        },
-        false,
-        {
-          role: CommunityRole.Member
-        }
-      )
+      it('should generate credentials for member with correct permissions and profile data', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsForMember(
+          validCommunityId,
+          validMemberAddress,
+          profileData
+        )
 
-      expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
-        validMemberAddress,
-        getCommunityVoiceChatRoomName(validCommunityId),
-        false
-      )
+        expect(result).toEqual({
+          connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=member-token'
+        })
+
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validMemberAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: false,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          {
+            role: CommunityRole.Member,
+            name: 'TestMember',
+            hasClaimedName: false,
+            profilePictureUrl: 'https://example.com/member-avatar.png'
+          }
+        )
+
+        expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
+          validMemberAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          false
+        )
+      })
     })
 
-    it('should insert member as NotConnected in database (not Connected)', async () => {
-      await voiceComponent.getCommunityVoiceChatCredentialsForMember(validCommunityId, validMemberAddress)
+    describe('when profile data is not available', () => {
+      beforeEach(() => {
+        mockLivekit.generateCredentials.mockResolvedValue({
+          url: 'wss://voice.livekit.cloud',
+          token: 'member-token'
+        })
+      })
 
-      // Verify that joinUserToCommunityRoom is called to insert user in DB
-      // The actual implementation will insert with NotConnected status
-      expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
-        validMemberAddress,
-        getCommunityVoiceChatRoomName(validCommunityId),
-        false // isModerator = false
-      )
+      it('should generate credentials for member with correct permissions without profile data', async () => {
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsForMember(
+          validCommunityId,
+          validMemberAddress
+        )
+
+        expect(result).toEqual({
+          connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=member-token'
+        })
+
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validMemberAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: false,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          {
+            role: CommunityRole.Member
+          }
+        )
+
+        expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
+          validMemberAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          false // isModerator = false
+        )
+      })
     })
   })
 
