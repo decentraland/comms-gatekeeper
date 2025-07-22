@@ -550,7 +550,7 @@ describe('CommunityVoiceLogic', () => {
       expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
         getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress,
-        { isRequestingToSpeak: false }
+        { isRequestingToSpeak: false, isSpeaker: true }
       )
     })
 
@@ -581,7 +581,7 @@ describe('CommunityVoiceLogic', () => {
       expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
         getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress,
-        { isRequestingToSpeak: false }
+        { isRequestingToSpeak: false, isSpeaker: false }
       )
     })
 
