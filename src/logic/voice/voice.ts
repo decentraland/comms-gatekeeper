@@ -457,7 +457,8 @@ export function createVoiceComponent(
     })
 
     await livekit.updateParticipantMetadata(roomName, userAddress, {
-      isRequestingToSpeak: false
+      isRequestingToSpeak: false,
+      isSpeaker: true
     })
 
     logger.info(`Successfully promoted user ${userAddress} to speaker in community ${communityId}`)
@@ -478,7 +479,8 @@ export function createVoiceComponent(
     })
 
     await livekit.updateParticipantMetadata(roomName, userAddress, {
-      isRequestingToSpeak: false
+      isRequestingToSpeak: false,
+      isSpeaker: false
     })
 
     logger.info(`Successfully demoted user ${userAddress} to listener in community ${communityId}`)
