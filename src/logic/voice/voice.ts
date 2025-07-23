@@ -286,7 +286,8 @@ export function createVoiceComponent(
     const roomName = getCommunityVoiceChatRoomName(communityId)
 
     const metadata: CommunityVoiceChatUserMetadata = {
-      role: isModerator ? CommunityRole.Moderator : CommunityRole.Member
+      role: isModerator ? CommunityRole.Moderator : CommunityRole.Member,
+      isSpeaker: isModerator // Moderators are speakers by default
     }
 
     // Add profile data if provided

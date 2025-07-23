@@ -146,6 +146,7 @@ describe('CommunityVoiceLogic', () => {
           false,
           {
             role: CommunityRole.Moderator,
+            isSpeaker: true,
             name: 'TestModerator',
             hasClaimedName: true,
             profilePictureUrl: 'https://example.com/avatar.png'
@@ -189,7 +190,8 @@ describe('CommunityVoiceLogic', () => {
           },
           false,
           {
-            role: CommunityRole.Moderator
+            role: CommunityRole.Moderator,
+            isSpeaker: true
           }
         )
 
@@ -197,6 +199,36 @@ describe('CommunityVoiceLogic', () => {
           validModeratorAddress,
           getCommunityVoiceChatRoomName(validCommunityId),
           true // isModerator = true
+        )
+      })
+    })
+
+    describe('when assigning the metadata to the user', () => {
+      beforeEach(() => {
+        mockLivekit.generateCredentials.mockResolvedValue({
+          url: 'wss://voice.livekit.cloud',
+          token: 'moderator-token'
+        })
+      })
+
+      it('should assign isSpeaker: true by default to moderators', async () => {
+        await voiceComponent.getCommunityVoiceChatCredentialsForModerator(validCommunityId, validModeratorAddress)
+
+        // Verify that the metadata passed to generateCredentials includes isSpeaker: true
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validModeratorAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: true,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          expect.objectContaining({
+            role: CommunityRole.Moderator,
+            isSpeaker: true
+          })
         )
       })
     })
@@ -258,6 +290,7 @@ describe('CommunityVoiceLogic', () => {
           false,
           {
             role: CommunityRole.Member,
+            isSpeaker: false,
             name: 'TestMember',
             hasClaimedName: false,
             profilePictureUrl: 'https://example.com/member-avatar.png'
@@ -301,7 +334,8 @@ describe('CommunityVoiceLogic', () => {
           },
           false,
           {
-            role: CommunityRole.Member
+            role: CommunityRole.Member,
+            isSpeaker: false
           }
         )
 
@@ -309,6 +343,35 @@ describe('CommunityVoiceLogic', () => {
           validMemberAddress,
           getCommunityVoiceChatRoomName(validCommunityId),
           false // isModerator = false
+        )
+      })
+    })
+    describe('when assigning the metadata to the user', () => {
+      beforeEach(() => {
+        mockLivekit.generateCredentials.mockResolvedValue({
+          url: 'wss://voice.livekit.cloud',
+          token: 'member-token'
+        })
+      })
+
+      it('should assign isSpeaker: false by default to members', async () => {
+        await voiceComponent.getCommunityVoiceChatCredentialsForMember(validCommunityId, validMemberAddress)
+
+        // Verify that the metadata passed to generateCredentials includes isSpeaker: false
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validMemberAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: false,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          expect.objectContaining({
+            role: CommunityRole.Member,
+            isSpeaker: false
+          })
         )
       })
     })
