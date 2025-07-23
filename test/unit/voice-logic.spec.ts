@@ -9,6 +9,7 @@ import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createAnalyticsMockedComponent } from '../mocks/analytics-mocks'
 import { VoiceChatUserStatus } from '../../src/adapters/db/types'
+import { CommunityRole } from '../../src/types/social.type'
 
 describe('Voice Logic Component', () => {
   let voiceComponent: IVoiceComponent
@@ -555,7 +556,8 @@ describe('Voice Logic Component', () => {
           },
           false,
           {
-            role: 'moderator'
+            role: CommunityRole.Moderator,
+            isSpeaker: true
           }
         )
         expect(joinUserToCommunityRoomMock).toHaveBeenCalledWith(userAddress, expectedRoomName, true)
@@ -611,7 +613,8 @@ describe('Voice Logic Component', () => {
           },
           false,
           {
-            role: 'member'
+            role: CommunityRole.Member,
+            isSpeaker: false
           }
         )
         expect(joinUserToCommunityRoomMock).toHaveBeenCalledWith(userAddress, expectedRoomName, false)
