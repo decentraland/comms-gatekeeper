@@ -1,0 +1,91 @@
+import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
+import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { HandlerContextWithPath, Permissions } from '../../types'
+import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
+import { oldValidate, validate } from '../../logic/utils'
+
+export async function commsServerSceneHandler(
+  context: HandlerContextWithPath<
+    'fetch' | 'config' | 'livekit' | 'logs' | 'blockList' | 'publisher',
+    '/get-scene-adapter'
+  >
+): Promise<IHttpServerComponent.IResponse> {
+  const {
+    components: { livekit, logs, blockList, publisher, config }
+  } = context
+
+  const logger = logs.getLogger('comms-scene-handler')
+  const { sceneId, identity, parcel, realm } = await validate(context)
+
+  let room: string
+  const permissions: Permissions = {
+    cast: [],
+    mute: []
+  }
+
+  const isBlacklisted = await blockList.isBlacklisted(identity)
+  if (isBlacklisted) {
+    logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
+    throw new UnauthorizedError('Access denied, deny-listed wallet')
+  }
+  const realmName = realm.serverName
+  const isWorld = realmName.endsWith('.eth')
+  
+  // TODO: when running preview how to handle this case ?
+  const serverPublicKey = await config.getString('AUTHORATIVE_SERVER_PUBLIC_KEY')
+  const preview = true
+  if (!preview && identity !== serverPublicKey) {
+    throw new UnauthorizedError('Access denied, invalid server public key')
+  }
+
+  if (isWorld) {
+    room = livekit.getWorldRoomName(realmName)
+  } else {
+    if (!sceneId) {
+      throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+    }
+    room = livekit.getSceneRoomName(realmName, sceneId)
+  }
+
+  if (!permissions) {
+    throw new NotFoundError('Realm or scene not found')
+  }
+
+  const AUTH_SERVER_IDENTITY = 'authorative-server'
+  const credentials = await livekit.generateCredentials(AUTH_SERVER_IDENTITY, room, permissions, false)
+  logger.debug(`Token generated for ${identity} as ${AUTH_SERVER_IDENTITY} to join room ${room}`)
+
+  setImmediate(async () => {
+    const event: UserJoinedRoomEvent = {
+      type: Events.Type.COMMS,
+      subType: Events.SubType.Comms.USER_JOINED_ROOM,
+      key: `user-joined-room-${room}`,
+      timestamp: Date.now(),
+      metadata: {
+        sceneId: sceneId || '',
+        userAddress: identity.toLowerCase(),
+        parcel,
+        realmName,
+        isWorld
+      }
+    }
+
+    try {
+      await publisher.publishMessages([event])
+      logger.debug(`Published UserJoinedRoomEvent for ${identity} in room ${room}`)
+    } catch (error: any) {
+      logger.error(`Failed to publish UserJoinedRoomEvent: ${error}`, {
+        error,
+        event: JSON.stringify(event),
+        room
+      })
+    }
+  })
+
+  return {
+    status: 200,
+    body: {
+      adapter: livekit.buildConnectionUrl(credentials.url, credentials.token)
+    }
+  }
+}

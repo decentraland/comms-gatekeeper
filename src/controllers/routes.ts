@@ -32,6 +32,7 @@ import {
   endCommunityVoiceChatHandler
 } from './handlers/community-voice-chat'
 import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-active-community-voice-chats-handler'
+import { commsServerSceneHandler } from './handlers/comms-server-scene-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -59,6 +60,8 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.get('/status', statusHandler)
 
   router.post('/get-scene-adapter', commsSceneHandler)
+  router.post('/get-server-scene-adapter', commsServerSceneHandler)
+  
   router.post('/mute', muteHandler)
 
   // Scene admin routes
