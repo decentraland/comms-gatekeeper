@@ -89,7 +89,8 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
   })
@@ -146,7 +147,8 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     const response = await makeRequest(
@@ -185,7 +187,8 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: true,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     const response = await makeRequest(
@@ -224,7 +227,8 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 

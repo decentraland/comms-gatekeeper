@@ -115,7 +115,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwner.resolves(false)
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
@@ -134,7 +135,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: true,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
@@ -161,7 +163,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: true,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
@@ -188,7 +191,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
@@ -215,7 +219,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     const response = await makeRequest(
@@ -240,7 +245,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
@@ -308,13 +314,15 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       .resolves({
         owner: true,
         admin: false,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
       .onSecondCall()
       .resolves({
         owner: true,
         admin: false,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
 
     stubComponents.sceneAdminManager.isAdmin.resolves(true)
@@ -346,13 +354,15 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       .resolves({
         owner: true,
         admin: false,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
       .onSecondCall()
       .resolves({
         owner: false,
         admin: false,
-        hasExtendedPermissions: true
+        hasExtendedPermissions: true,
+        hasLandLease: false
       })
 
     const response = await makeRequest(
@@ -379,7 +389,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: true,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     stubComponents.sceneAdminManager.isAdmin.resolves(true)

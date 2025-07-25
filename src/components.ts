@@ -32,6 +32,7 @@ import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
 import { createCronJobComponent } from './logic/cron-job'
 import { AnalyticsEventPayload } from './types/analytics'
+import { createLandLeaseComponent } from './adapters/land-lease'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -88,7 +89,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const places = await createPlacesComponent({ config, logs, cachedFetch, fetch: tracedFetch })
   const lands = await createLandsComponent({ config, logs, cachedFetch })
   const names = await createNamesComponent({ config, logs, fetch: tracedFetch })
-  const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager })
+  const landLease = await createLandLeaseComponent({ fetch: tracedFetch, logs })
+  const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager, landLease })
   const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
@@ -169,6 +171,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     streamingKeyTTLChecker,
     publisher,
     sceneAdmins,
-    notifications
+    notifications,
+    landLease
   }
 }

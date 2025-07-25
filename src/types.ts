@@ -27,6 +27,7 @@ import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
 import { ICronJobComponent } from './logic/cron-job/types'
 import { AnalyticsEventPayload } from './types/analytics'
+import { ILandLeaseComponent } from './types/land-lease.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -58,6 +59,7 @@ export type BaseComponents = {
   streamingKeyTTLChecker: IStreamingKeyChecker
   voiceDB: IVoiceDBComponent
   voice: IVoiceComponent
+  landLease: ILandLeaseComponent
   analytics: IAnalyticsComponent<AnalyticsEventPayload>
   publisher: IPublisherComponent
   voiceChatExpirationJob?: ICronJobComponent

@@ -77,7 +77,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
@@ -110,7 +111,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
@@ -151,7 +153,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves([
@@ -208,7 +211,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     stubComponents.sceneAdminManager.listActiveAdmins.resolves([
@@ -300,7 +304,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
@@ -328,13 +333,15 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       .resolves({
         owner: false,
         admin: true,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
       .onSecondCall()
       .resolves({
         owner: false,
         admin: true,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
 
     const response = await makeRequest(
@@ -361,13 +368,15 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       .resolves({
         owner: true,
         admin: false,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
       .onSecondCall()
       .resolves({
         owner: true,
         admin: false,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
 
     const response = await makeRequest(
