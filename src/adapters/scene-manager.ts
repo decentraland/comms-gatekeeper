@@ -3,9 +3,9 @@ import { ISceneManager, UserScenePermissions } from '../types/scene-manager.type
 import { PlaceAttributes } from '../types/places.type'
 
 export async function createSceneManagerComponent(
-  components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager'>
+  components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager' | 'landLease'>
 ): Promise<ISceneManager> {
-  const { worlds, lands, sceneAdminManager } = components
+  const { worlds, lands, sceneAdminManager, landLease } = components
 
   const { hasWorldOwnerPermission, hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
   const { getLandPermissions } = lands
@@ -23,6 +23,8 @@ export async function createSceneManagerComponent(
     const isOwner = await isSceneOwner(place, address)
     const isAdmin = await sceneAdminManager.isAdmin(place.id, address)
     let hasExtendedPermissions = false
+    let hasLandLease = false
+
     if (!isAdmin && place.world) {
       const [hasStreamingPermission, hasDeployPermission] = await Promise.all([
         hasWorldStreamingPermission(address, place.world_name!),
@@ -36,11 +38,18 @@ export async function createSceneManagerComponent(
         landParcelPermission.updateOperator ||
         landParcelPermission.updateManager ||
         landParcelPermission.approvedForAll
+
+      // Check for land lease permissions for Genesis City scenes
+      if (!isOwner && !hasExtendedPermissions) {
+        hasLandLease = await landLease.hasLandLease(address, place.positions)
+      }
     }
+
     return {
       owner: isOwner,
       admin: isAdmin,
-      hasExtendedPermissions
+      hasExtendedPermissions,
+      hasLandLease
     }
   }
 
@@ -49,7 +58,8 @@ export async function createSceneManagerComponent(
     return (
       authenticatedUserScenePermissions.owner ||
       authenticatedUserScenePermissions.admin ||
-      authenticatedUserScenePermissions.hasExtendedPermissions
+      authenticatedUserScenePermissions.hasExtendedPermissions ||
+      authenticatedUserScenePermissions.hasLandLease
     )
   }
 

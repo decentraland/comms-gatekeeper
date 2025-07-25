@@ -5,6 +5,7 @@ export type UserScenePermissions = {
   owner: boolean
   admin: boolean
   hasExtendedPermissions: boolean
+  hasLandLease: boolean
 }
 
 export type ISceneManager = IBaseComponent & {
