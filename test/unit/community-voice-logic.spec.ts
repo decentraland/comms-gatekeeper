@@ -253,14 +253,16 @@ describe('CommunityVoiceLogic', () => {
         await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
           validCommunityId,
           validModeratorAddress,
-          CommunityRole.Owner
+          CommunityRole.Owner,
+          undefined,
+          CommunityVoiceChatAction.CREATE
         )
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validModeratorAddress,
           getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
-            canPublish: true, // Owners are speakers by default
+            canPublish: true, // Just owners are speakers by default
             canSubscribe: true,
             canUpdateOwnMetadata: false
           },
@@ -282,14 +284,14 @@ describe('CommunityVoiceLogic', () => {
           getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
-            canPublish: true, // Moderators are speakers by default
+            canPublish: false, // Moderators are not speakers by default unless they create the room
             canSubscribe: true,
             canUpdateOwnMetadata: false
           },
           false,
           expect.objectContaining({
             role: CommunityRole.Moderator,
-            isSpeaker: true // Moderators are speakers by default
+            isSpeaker: false // Moderators are not speakers by default unless they create the room
           })
         )
 
@@ -334,30 +336,6 @@ describe('CommunityVoiceLogic', () => {
           expect.objectContaining({
             role: CommunityRole.None,
             isSpeaker: false
-          })
-        )
-
-        // Test creator mode - any role creating the room becomes a speaker (though owner is the only speaker)
-        await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
-          validCommunityId,
-          validMemberAddress,
-          CommunityRole.Member,
-          undefined,
-          CommunityVoiceChatAction.CREATE
-        )
-        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
-          validMemberAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
-          {
-            cast: [],
-            canPublish: true, // Members creating the room start as speakers
-            canSubscribe: true,
-            canUpdateOwnMetadata: false
-          },
-          false,
-          expect.objectContaining({
-            role: CommunityRole.Member,
-            isSpeaker: true // Members creating the room start as speakers
           })
         )
       })
