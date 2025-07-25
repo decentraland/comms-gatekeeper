@@ -85,7 +85,7 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
       )
     })
 
-    it('should default to member role when role not provided', async () => {
+    it('should default to none role when role not provided', async () => {
       const response = await makeRequest(components.localFetch, `/community-voice-chat`, {
         method: 'POST',
         headers: {
@@ -103,9 +103,8 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
       expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
         communityId,
         userAddress.toLowerCase(),
-        CommunityRole.Member,
-        undefined,
-        CommunityVoiceChatAction.CREATE
+        CommunityRole.None,
+        undefined
       )
     })
   })
@@ -145,8 +144,7 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
           name: 'Joining User',
           hasClaimedName: false,
           profilePictureUrl: 'https://example.com/join-pic.jpg'
-        },
-        CommunityVoiceChatAction.JOIN
+        }
       )
     })
   })

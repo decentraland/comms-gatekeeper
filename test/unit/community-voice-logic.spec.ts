@@ -337,13 +337,13 @@ describe('CommunityVoiceLogic', () => {
           })
         )
 
-        // Test creator mode - any role creating the room becomes a speaker (though owners/moderators are already speakers)
+        // Test creator mode - any role creating the room becomes a speaker (though owner is the only speaker)
         await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
           validCommunityId,
           validMemberAddress,
           CommunityRole.Member,
           undefined,
-          true
+          CommunityVoiceChatAction.CREATE
         )
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validMemberAddress,

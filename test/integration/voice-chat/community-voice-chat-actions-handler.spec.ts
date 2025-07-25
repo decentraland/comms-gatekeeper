@@ -283,7 +283,7 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
         communityId,
         userAddress.toLowerCase(),
-        'owner',
+        CommunityRole.Owner,
         {
           name: 'TestOwner',
           has_claimed_name: true,
@@ -326,7 +326,7 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
         communityId,
         userAddress.toLowerCase(),
-        'moderator',
+        CommunityRole.Moderator,
         {
           name: 'TestModerator',
           has_claimed_name: true,
@@ -369,7 +369,7 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
         communityId,
         userAddress.toLowerCase(),
-        'member',
+        CommunityRole.Member,
         {
           name: 'TestMember',
           has_claimed_name: false,
@@ -411,17 +411,16 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
         communityId,
         userAddress.toLowerCase(),
-        'none',
+        CommunityRole.None,
         {
           name: 'TestUser',
           has_claimed_name: false,
           profile_picture_url: 'https://example.com/user-avatar.png'
-        },
-        CommunityVoiceChatAction.JOIN
+        }
       )
     })
 
-    it('should default to member role when no role is provided', async () => {
+    it('should default to none role when no role is provided', async () => {
       const requestBody = {
         community_id: communityId,
         user_address: userAddress,
@@ -446,9 +445,8 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
         communityId,
         userAddress.toLowerCase(),
-        CommunityRole.Member, // Should default to member
-        undefined,
-        CommunityVoiceChatAction.CREATE
+        CommunityRole.None,
+        undefined
       )
     })
 
