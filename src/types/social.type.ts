@@ -12,8 +12,10 @@ export type PrivacySettings = {
 }
 
 export enum CommunityRole {
+  Owner = 'owner',
   Moderator = 'moderator',
-  Member = 'member'
+  Member = 'member',
+  None = 'none'
 }
 
 export type CommunityVoiceChatUserMetadata = {
