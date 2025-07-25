@@ -1,5 +1,6 @@
 import { DisconnectReason } from '@livekit/protocol'
-import { CommunityVoiceChatUserProfile, CommunityVoiceChatUserProfileMetadata } from '../../types/social.type'
+import { CommunityVoiceChatUserProfileMetadata, CommunityRole } from '../../types/social.type'
+import { CommunityVoiceChatAction } from '../../types/community-voice'
 
 export interface IVoiceComponent {
   /**
@@ -49,29 +50,20 @@ export interface IVoiceComponent {
   expirePrivateVoiceChats(): Promise<void>
 
   /**
-   * Generates credentials for a community voice chat room for a moderator.
+   * Generates credentials for a community voice chat room with a specific role.
    * @param communityId - The ID of the community to generate credentials for.
-   * @param userAddress - The address of the moderator.
-   * @param profileData - Optional profile data for the moderator.
-   * @returns The connection URL for the moderator.
+   * @param userAddress - The address of the user.
+   * @param userRole - The role of the user in the community.
+   * @param profileData - Optional profile data for the user.
+   * @param action - The action the user is performing (affects speaker status).
+   * @returns The connection URL for the user.
    */
-  getCommunityVoiceChatCredentialsForModerator(
+  getCommunityVoiceChatCredentialsWithRole(
     communityId: string,
     userAddress: string,
-    profileData?: CommunityVoiceChatUserProfile
-  ): Promise<{ connectionUrl: string }>
-
-  /**
-   * Generates credentials for a community voice chat room for a member.
-   * @param communityId - The ID of the community to generate credentials for.
-   * @param userAddress - The address of the member.
-   * @param profileData - Optional profile data for the member.
-   * @returns The connection URL for the member.
-   */
-  getCommunityVoiceChatCredentialsForMember(
-    communityId: string,
-    userAddress: string,
-    profileData?: CommunityVoiceChatUserProfile
+    userRole: CommunityRole,
+    profileData?: CommunityVoiceChatUserProfileMetadata,
+    action?: CommunityVoiceChatAction
   ): Promise<{ connectionUrl: string }>
 
   /**

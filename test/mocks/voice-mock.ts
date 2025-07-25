@@ -10,8 +10,7 @@ export const createVoiceMockedComponent = (
     getPrivateVoiceChatRoomCredentials: jest.fn(),
     endPrivateVoiceChat: jest.fn(),
     expirePrivateVoiceChats: jest.fn(),
-    getCommunityVoiceChatCredentialsForModerator: jest.fn(),
-    getCommunityVoiceChatCredentialsForMember: jest.fn(),
+    getCommunityVoiceChatCredentialsWithRole: jest.fn(),
     expireCommunityVoiceChats: jest.fn(),
     getCommunityVoiceChatStatus: jest.fn(),
     requestToSpeakInCommunity: jest.fn(),
@@ -20,4 +19,4 @@ export const createVoiceMockedComponent = (
     kickPlayerFromCommunity: jest.fn(),
     ...overrides
   }
-} 
+}

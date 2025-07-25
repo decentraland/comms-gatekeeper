@@ -2,6 +2,7 @@ import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
 import { CommunityVoiceChatAction } from '../../../types/community-voice'
 import { CommunityVoiceChatUserProfileMetadata } from '../../../types/social.type'
+import { CommunityRole } from '../../../types/social.type'
 
 export async function communityVoiceChatHandler(
   context: HandlerContextWithPath<'logs' | 'voice', '/community-voice-chat'>
@@ -15,6 +16,7 @@ export async function communityVoiceChatHandler(
     community_id: string
     user_address: string
     action: CommunityVoiceChatAction
+    user_role?: string
     profile_data?: CommunityVoiceChatUserProfileMetadata
   }
 
@@ -38,45 +40,37 @@ export async function communityVoiceChatHandler(
   }
 
   const lowerCaseUserAddress = body.user_address.toLowerCase()
+  const userRoleString = body.user_role || CommunityRole.None // Default to none if not provided
 
-  switch (body.action) {
-    case CommunityVoiceChatAction.CREATE: {
-      logger.debug('Creating community voice chat credentials for moderator')
-      const credentials = await voice.getCommunityVoiceChatCredentialsForModerator(
-        body.community_id,
-        lowerCaseUserAddress,
-        body.profile_data
-      )
-      logger.debug(
-        `Created community voice chat credentials for moderator ${lowerCaseUserAddress} in community ${body.community_id}`
-      )
-      return {
-        status: 200,
-        body: {
-          connection_url: credentials.connectionUrl
-        }
-      }
+  // Validate that the role is valid
+  const validRoles = Object.values(CommunityRole)
+  if (!validRoles.includes(userRoleString as CommunityRole)) {
+    throw new InvalidRequestError(`Invalid user_role. Must be one of: ${validRoles.join(', ')}`)
+  }
+
+  const userRole = userRoleString as CommunityRole
+
+  // Generate credentials for the user with their role and action
+  logger.debug(
+    `${body.action === CommunityVoiceChatAction.CREATE ? 'Creating' : 'Joining'} community voice chat credentials for user with role: ${userRole}`
+  )
+
+  const credentials = await voice.getCommunityVoiceChatCredentialsWithRole(
+    body.community_id,
+    lowerCaseUserAddress,
+    userRole,
+    body.profile_data,
+    body.action
+  )
+
+  logger.debug(
+    `${body.action === CommunityVoiceChatAction.CREATE ? 'Created' : 'Joined'} community voice chat credentials for user ${lowerCaseUserAddress} with role ${userRole} in community ${body.community_id}`
+  )
+
+  return {
+    status: 200,
+    body: {
+      connection_url: credentials.connectionUrl
     }
-
-    case CommunityVoiceChatAction.JOIN: {
-      logger.debug('Joining community voice chat as member')
-      const credentials = await voice.getCommunityVoiceChatCredentialsForMember(
-        body.community_id,
-        lowerCaseUserAddress,
-        body.profile_data
-      )
-      logger.info(
-        `Community voice chat access granted for member ${lowerCaseUserAddress} in community ${body.community_id}`
-      )
-      return {
-        status: 200,
-        body: {
-          connection_url: credentials.connectionUrl
-        }
-      }
-    }
-
-    default:
-      throw new InvalidRequestError(`Unknown action: ${body.action}`)
   }
 }

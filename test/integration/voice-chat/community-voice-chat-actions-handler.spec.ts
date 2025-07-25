@@ -1,3 +1,5 @@
+import { CommunityVoiceChatAction } from '../../../src/types/community-voice'
+import { CommunityRole } from '../../../src/types/social.type'
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
 
@@ -12,6 +14,9 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
     spyComponents.voice.promoteSpeakerInCommunity.mockResolvedValue(undefined)
     spyComponents.voice.demoteSpeakerInCommunity.mockResolvedValue(undefined)
     spyComponents.voice.kickPlayerFromCommunity.mockResolvedValue(undefined)
+    spyComponents.voice.getCommunityVoiceChatCredentialsWithRole.mockResolvedValue({
+      connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+    })
   })
 
   describe('when requesting to speak', () => {
@@ -33,10 +38,7 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(body).toEqual({
         message: 'Request to speak sent successfully'
       })
-      expect(spyComponents.voice.requestToSpeakInCommunity).toHaveBeenCalledWith(
-        communityId,
-        userAddress.toLowerCase()
-      )
+      expect(spyComponents.voice.requestToSpeakInCommunity).toHaveBeenCalledWith(communityId, userAddress.toLowerCase())
     })
 
     it('should return 400 when communityId is missing', async () => {
@@ -107,10 +109,7 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(body).toEqual({
         message: 'User promoted to speaker successfully'
       })
-      expect(spyComponents.voice.promoteSpeakerInCommunity).toHaveBeenCalledWith(
-        communityId,
-        userAddress.toLowerCase()
-      )
+      expect(spyComponents.voice.promoteSpeakerInCommunity).toHaveBeenCalledWith(communityId, userAddress.toLowerCase())
     })
 
     it('should return 500 when voice component throws error', async () => {
@@ -151,10 +150,7 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(body).toEqual({
         message: 'User demoted to listener successfully'
       })
-      expect(spyComponents.voice.demoteSpeakerInCommunity).toHaveBeenCalledWith(
-        communityId,
-        userAddress.toLowerCase()
-      )
+      expect(spyComponents.voice.demoteSpeakerInCommunity).toHaveBeenCalledWith(communityId, userAddress.toLowerCase())
     })
 
     it('should return 500 when voice component throws error', async () => {
@@ -195,10 +191,7 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(body).toEqual({
         message: 'User kicked from voice chat successfully'
       })
-      expect(spyComponents.voice.kickPlayerFromCommunity).toHaveBeenCalledWith(
-        communityId,
-        userAddress.toLowerCase()
-      )
+      expect(spyComponents.voice.kickPlayerFromCommunity).toHaveBeenCalledWith(communityId, userAddress.toLowerCase())
     })
 
     it('should return 500 when voice component throws error', async () => {
@@ -249,37 +242,37 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
     })
   })
 
-  describe('when creating community voice chat with profile data', () => {
-    it('should create voice chat with profile data for moderator', async () => {
+  describe('when creating community voice chat with user roles', () => {
+    beforeEach(() => {
+      // Mock the new function with role parameter
+      spyComponents.voice.getCommunityVoiceChatCredentialsWithRole.mockResolvedValue({
+        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      })
+    })
+
+    it('should create voice chat for owner with profile data', async () => {
       const profileData = {
-        name: 'TestModerator',
+        name: 'TestOwner',
         has_claimed_name: true,
-        profile_picture_url: 'https://example.com/avatar.png'
+        profile_picture_url: 'https://example.com/owner-avatar.png'
       }
 
       const requestBody = {
         community_id: communityId,
         user_address: userAddress,
         action: 'create',
+        user_role: 'owner',
         profile_data: profileData
       }
 
-      spyComponents.voice.getCommunityVoiceChatCredentialsForModerator.mockResolvedValue({
-        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
       })
-
-      const response = await makeRequest(
-        components.localFetch,
-        '/community-voice-chat',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
-        }
-      )
 
       const body = await response.json()
 
@@ -287,14 +280,63 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(body).toEqual({
         connection_url: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
       })
-      expect(spyComponents.voice.getCommunityVoiceChatCredentialsForModerator).toHaveBeenCalledWith(
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
         communityId,
         userAddress.toLowerCase(),
-        profileData
+        CommunityRole.Owner,
+        {
+          name: 'TestOwner',
+          has_claimed_name: true,
+          profile_picture_url: 'https://example.com/owner-avatar.png'
+        },
+        CommunityVoiceChatAction.CREATE
       )
     })
 
-    it('should join voice chat with profile data for member', async () => {
+    it('should create voice chat for moderator with profile data', async () => {
+      const profileData = {
+        name: 'TestModerator',
+        has_claimed_name: true,
+        profile_picture_url: 'https://example.com/moderator-avatar.png'
+      }
+
+      const requestBody = {
+        community_id: communityId,
+        user_address: userAddress,
+        action: CommunityVoiceChatAction.CREATE,
+        user_role: CommunityRole.Moderator,
+        profile_data: profileData
+      }
+
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        connection_url: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      })
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
+        communityId,
+        userAddress.toLowerCase(),
+        CommunityRole.Moderator,
+        {
+          name: 'TestModerator',
+          has_claimed_name: true,
+          profile_picture_url: 'https://example.com/moderator-avatar.png'
+        },
+        CommunityVoiceChatAction.CREATE
+      )
+    })
+
+    it('should join voice chat for member with profile data', async () => {
       const profileData = {
         name: 'TestMember',
         has_claimed_name: false,
@@ -304,63 +346,19 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       const requestBody = {
         community_id: communityId,
         user_address: userAddress,
-        action: 'join',
+        action: CommunityVoiceChatAction.JOIN,
+        user_role: CommunityRole.Member,
         profile_data: profileData
       }
 
-      spyComponents.voice.getCommunityVoiceChatCredentialsForMember.mockResolvedValue({
-        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=member-token'
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
       })
-
-      const response = await makeRequest(
-        components.localFetch,
-        '/community-voice-chat',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
-        }
-      )
-
-      const body = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(body).toEqual({
-        connection_url: 'livekit:wss://voice.livekit.cloud?access_token=member-token'
-      })
-      expect(spyComponents.voice.getCommunityVoiceChatCredentialsForMember).toHaveBeenCalledWith(
-        communityId,
-        userAddress.toLowerCase(),
-        profileData
-      )
-    })
-
-    it('should work without profile data', async () => {
-      const requestBody = {
-        community_id: communityId,
-        user_address: userAddress,
-        action: 'create'
-      }
-
-      spyComponents.voice.getCommunityVoiceChatCredentialsForModerator.mockResolvedValue({
-        connectionUrl: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
-      })
-
-      const response = await makeRequest(
-        components.localFetch,
-        '/community-voice-chat',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
-        }
-      )
 
       const body = await response.json()
 
@@ -368,11 +366,123 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
       expect(body).toEqual({
         connection_url: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
       })
-      expect(spyComponents.voice.getCommunityVoiceChatCredentialsForModerator).toHaveBeenCalledWith(
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
         communityId,
         userAddress.toLowerCase(),
-        undefined
+        CommunityRole.Member,
+        {
+          name: 'TestMember',
+          has_claimed_name: false,
+          profile_picture_url: 'https://example.com/member-avatar.png'
+        },
+        CommunityVoiceChatAction.JOIN
+      )
+    })
+
+    it('should join voice chat for none role with profile data', async () => {
+      const profileData = {
+        name: 'TestUser',
+        has_claimed_name: false,
+        profile_picture_url: 'https://example.com/user-avatar.png'
+      }
+
+      const requestBody = {
+        community_id: communityId,
+        user_address: userAddress,
+        action: CommunityVoiceChatAction.JOIN,
+        user_role: CommunityRole.None,
+        profile_data: profileData
+      }
+
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        connection_url: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      })
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
+        communityId,
+        userAddress.toLowerCase(),
+        CommunityRole.None,
+        {
+          name: 'TestUser',
+          has_claimed_name: false,
+          profile_picture_url: 'https://example.com/user-avatar.png'
+        },
+        CommunityVoiceChatAction.JOIN
+      )
+    })
+
+    it('should default to none role when no role is provided', async () => {
+      const requestBody = {
+        community_id: communityId,
+        user_address: userAddress,
+        action: CommunityVoiceChatAction.CREATE
+      }
+
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        connection_url: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      })
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
+        communityId,
+        userAddress.toLowerCase(),
+        CommunityRole.None,
+        undefined,
+        CommunityVoiceChatAction.CREATE
+      )
+    })
+
+    it('should work without profile data but with role', async () => {
+      const requestBody = {
+        community_id: communityId,
+        user_address: userAddress,
+        action: CommunityVoiceChatAction.CREATE,
+        user_role: CommunityRole.Owner
+      }
+
+      const response = await makeRequest(components.localFetch, '/community-voice-chat', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      })
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body).toEqual({
+        connection_url: 'livekit:wss://voice.livekit.cloud?access_token=test-token'
+      })
+      expect(spyComponents.voice.getCommunityVoiceChatCredentialsWithRole).toHaveBeenCalledWith(
+        communityId,
+        userAddress.toLowerCase(),
+        'owner',
+        undefined,
+        CommunityVoiceChatAction.CREATE
       )
     })
   })
-}) 
+})

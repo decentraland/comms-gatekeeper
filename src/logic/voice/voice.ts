@@ -12,9 +12,9 @@ import { VoiceChatUserStatus } from '../../adapters/db/types'
 import {
   CommunityRole,
   CommunityVoiceChatUserMetadata,
-  CommunityVoiceChatUserProfile,
   CommunityVoiceChatUserProfileMetadata
 } from '../../types/social.type'
+import { CommunityVoiceChatAction } from '../../types/community-voice'
 
 export function createVoiceComponent(
   components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit' | 'analytics'>
@@ -275,26 +275,39 @@ export function createVoiceComponent(
   }
 
   /**
-   * Private helper function to generate community voice chat credentials with shared logic
+   * Generates credentials for a community voice chat room with a specific role.
+   * @param communityId - The ID of the community to generate credentials for.
+   * @param userAddress - The address of the user.
+   * @param userRole - The role of the user in the community.
+   * @param profileData - Optional profile data for the user.
+   * @param isCreating - Whether the user is creating the room (affects speaker status).
+   * @returns The connection URL for the user.
    */
-  async function _getCommunityVoiceChatCredentials(
+  async function getCommunityVoiceChatCredentialsWithRole(
     communityId: string,
     userAddress: string,
-    isModerator: boolean,
-    profileData?: CommunityVoiceChatUserProfile
+    userRole: CommunityRole,
+    profileData?: CommunityVoiceChatUserProfileMetadata,
+    action: CommunityVoiceChatAction = CommunityVoiceChatAction.JOIN
   ): Promise<{ connectionUrl: string }> {
     const roomName = getCommunityVoiceChatRoomName(communityId)
 
+    // Determine if user is a speaker:
+    // - Creator of the room is the only speaker by default
+    const isSpeaker =
+      action === CommunityVoiceChatAction.CREATE &&
+      (userRole === CommunityRole.Moderator || userRole === CommunityRole.Owner)
+
     const metadata: CommunityVoiceChatUserMetadata = {
-      role: isModerator ? CommunityRole.Moderator : CommunityRole.Member,
-      isSpeaker: isModerator // Moderators are speakers by default
+      role: userRole,
+      isSpeaker
     }
 
     // Add profile data if provided
     if (profileData) {
       metadata.name = profileData.name
-      metadata.hasClaimedName = profileData.has_claimed_name
-      metadata.profilePictureUrl = profileData.profile_picture_url
+      metadata.hasClaimedName = profileData.hasClaimedName
+      metadata.profilePictureUrl = profileData.profilePictureUrl
     }
 
     const roomKey = await livekit.generateCredentials(
@@ -302,7 +315,7 @@ export function createVoiceComponent(
       roomName,
       {
         cast: [],
-        canPublish: isModerator, // Moderators can publish, members need to be promoted
+        canPublish: isSpeaker, // Speakers can publish, listeners need to be promoted
         canSubscribe: true,
         canUpdateOwnMetadata: false
       },
@@ -311,34 +324,15 @@ export function createVoiceComponent(
     )
 
     // Join user to the community room
-    await voiceDB.joinUserToCommunityRoom(userAddress, roomName, isModerator)
+    await voiceDB.joinUserToCommunityRoom(
+      userAddress,
+      roomName,
+      userRole === CommunityRole.Owner || userRole === CommunityRole.Moderator
+    )
 
     return {
       connectionUrl: `livekit:${roomKey.url}?access_token=${roomKey.token}`
     }
-  }
-
-  async function getCommunityVoiceChatCredentialsForModerator(
-    communityId: string,
-    userAddress: string,
-    profileData?: CommunityVoiceChatUserProfileMetadata
-  ): Promise<{ connectionUrl: string }> {
-    return _getCommunityVoiceChatCredentials(communityId, userAddress, true, profileData)
-  }
-
-  /**
-   * Generates credentials for a community voice chat room for a member.
-   * @param communityId - The ID of the community to generate credentials for.
-   * @param userAddress - The address of the member.
-   * @param profileData - Optional profile data for the member.
-   * @returns The connection URL for the member.
-   */
-  async function getCommunityVoiceChatCredentialsForMember(
-    communityId: string,
-    userAddress: string,
-    profileData?: CommunityVoiceChatUserProfileMetadata
-  ): Promise<{ connectionUrl: string }> {
-    return _getCommunityVoiceChatCredentials(communityId, userAddress, false, profileData)
   }
 
   /**
@@ -507,8 +501,7 @@ export function createVoiceComponent(
     getPrivateVoiceChatRoomCredentials,
     endPrivateVoiceChat,
     expirePrivateVoiceChats,
-    getCommunityVoiceChatCredentialsForModerator,
-    getCommunityVoiceChatCredentialsForMember,
+    getCommunityVoiceChatCredentialsWithRole,
     expireCommunityVoiceChats,
     getCommunityVoiceChatStatus,
     requestToSpeakInCommunity,

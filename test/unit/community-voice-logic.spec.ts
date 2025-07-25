@@ -7,6 +7,7 @@ import { IVoiceDBComponent, VoiceChatUserStatus } from '../../src/adapters/db/ty
 import { ILivekitComponent } from '../../src/types/livekit.type'
 import { AnalyticsEventPayload } from '../../src/types/analytics'
 import { CommunityRole } from '../../src/types/social.type'
+import { CommunityVoiceChatAction } from '../../src/types/community-voice'
 
 describe('CommunityVoiceLogic', () => {
   let voiceComponent: IVoiceComponent
@@ -124,10 +125,16 @@ describe('CommunityVoiceLogic', () => {
       })
 
       it('should generate credentials for moderator with correct permissions and profile data', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatCredentialsForModerator(
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
           validCommunityId,
           validModeratorAddress,
-          profileData
+          CommunityRole.Moderator,
+          {
+            name: 'TestModerator',
+            hasClaimedName: true,
+            profilePictureUrl: 'https://example.com/avatar.png'
+          },
+          CommunityVoiceChatAction.CREATE
         )
 
         expect(result).toEqual({
@@ -170,9 +177,12 @@ describe('CommunityVoiceLogic', () => {
       })
 
       it('should generate credentials for moderator with correct permissions without profile data', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatCredentialsForModerator(
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
           validCommunityId,
-          validModeratorAddress
+          validModeratorAddress,
+          CommunityRole.Moderator,
+          undefined,
+          CommunityVoiceChatAction.CREATE
         )
 
         expect(result).toEqual({
@@ -198,7 +208,7 @@ describe('CommunityVoiceLogic', () => {
         expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
           validModeratorAddress,
           getCommunityVoiceChatRoomName(validCommunityId),
-          true // isModerator = true
+          true
         )
       })
     })
@@ -212,7 +222,13 @@ describe('CommunityVoiceLogic', () => {
       })
 
       it('should assign isSpeaker: true by default to moderators', async () => {
-        await voiceComponent.getCommunityVoiceChatCredentialsForModerator(validCommunityId, validModeratorAddress)
+        await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          validCommunityId,
+          validModeratorAddress,
+          CommunityRole.Moderator,
+          undefined,
+          CommunityVoiceChatAction.CREATE
+        )
 
         // Verify that the metadata passed to generateCredentials includes isSpeaker: true
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
@@ -225,9 +241,101 @@ describe('CommunityVoiceLogic', () => {
             canUpdateOwnMetadata: false
           },
           false,
-          expect.objectContaining({
+          {
             role: CommunityRole.Moderator,
             isSpeaker: true
+          }
+        )
+      })
+
+      it('should handle different roles correctly with getCommunityVoiceChatCredentialsWithRole', async () => {
+        // Test Owner role - owners are speakers by default
+        await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          validCommunityId,
+          validModeratorAddress,
+          CommunityRole.Owner,
+          undefined,
+          CommunityVoiceChatAction.CREATE
+        )
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validModeratorAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: true, // Just owners are speakers by default
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          expect.objectContaining({
+            role: CommunityRole.Owner,
+            isSpeaker: true // Owners are speakers by default
+          })
+        )
+
+        // Test Moderator role - moderators are speakers by default
+        await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          validCommunityId,
+          validModeratorAddress,
+          CommunityRole.Moderator
+        )
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validModeratorAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: false, // Moderators are not speakers by default unless they create the room
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          expect.objectContaining({
+            role: CommunityRole.Moderator,
+            isSpeaker: false // Moderators are not speakers by default unless they create the room
+          })
+        )
+
+        // Test Member role - members are listeners by default
+        await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          validCommunityId,
+          validMemberAddress,
+          CommunityRole.Member
+        )
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validMemberAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: false,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          expect.objectContaining({
+            role: CommunityRole.Member,
+            isSpeaker: false
+          })
+        )
+
+        // Test None role - non-members are listeners
+        await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          validCommunityId,
+          validMemberAddress,
+          CommunityRole.None
+        )
+        expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+          validMemberAddress,
+          getCommunityVoiceChatRoomName(validCommunityId),
+          {
+            cast: [],
+            canPublish: false,
+            canSubscribe: true,
+            canUpdateOwnMetadata: false
+          },
+          false,
+          expect.objectContaining({
+            role: CommunityRole.None,
+            isSpeaker: false
           })
         )
       })
@@ -239,7 +347,13 @@ describe('CommunityVoiceLogic', () => {
       mockLivekit.generateCredentials.mockRejectedValue(new Error('LiveKit error'))
 
       await expect(
-        voiceComponent.getCommunityVoiceChatCredentialsForModerator(validCommunityId, validModeratorAddress)
+        voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          validCommunityId,
+          validModeratorAddress,
+          CommunityRole.Moderator,
+          undefined,
+          CommunityVoiceChatAction.CREATE
+        )
       ).rejects.toThrow('LiveKit error')
     })
   })
@@ -268,10 +382,15 @@ describe('CommunityVoiceLogic', () => {
       })
 
       it('should generate credentials for member with correct permissions and profile data', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatCredentialsForMember(
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
           validCommunityId,
           validMemberAddress,
-          profileData
+          CommunityRole.Member,
+          {
+            name: 'TestMember',
+            hasClaimedName: false,
+            profilePictureUrl: 'https://example.com/member-avatar.png'
+          }
         )
 
         expect(result).toEqual({
@@ -314,9 +433,11 @@ describe('CommunityVoiceLogic', () => {
       })
 
       it('should generate credentials for member with correct permissions without profile data', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatCredentialsForMember(
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
           validCommunityId,
-          validMemberAddress
+          validMemberAddress,
+          CommunityRole.Member,
+          undefined
         )
 
         expect(result).toEqual({
@@ -342,7 +463,7 @@ describe('CommunityVoiceLogic', () => {
         expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
           validMemberAddress,
           getCommunityVoiceChatRoomName(validCommunityId),
-          false // isModerator = false
+          false
         )
       })
     })
@@ -355,7 +476,12 @@ describe('CommunityVoiceLogic', () => {
       })
 
       it('should assign isSpeaker: false by default to members', async () => {
-        await voiceComponent.getCommunityVoiceChatCredentialsForMember(validCommunityId, validMemberAddress)
+        await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          validCommunityId,
+          validMemberAddress,
+          CommunityRole.Member,
+          undefined
+        )
 
         // Verify that the metadata passed to generateCredentials includes isSpeaker: false
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
@@ -368,10 +494,10 @@ describe('CommunityVoiceLogic', () => {
             canUpdateOwnMetadata: false
           },
           false,
-          expect.objectContaining({
+          {
             role: CommunityRole.Member,
             isSpeaker: false
-          })
+          }
         )
       })
     })
@@ -382,7 +508,12 @@ describe('CommunityVoiceLogic', () => {
       mockLivekit.generateCredentials.mockRejectedValue(new Error('LiveKit error'))
 
       await expect(
-        voiceComponent.getCommunityVoiceChatCredentialsForMember(validCommunityId, validMemberAddress)
+        voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          validCommunityId,
+          validMemberAddress,
+          CommunityRole.Member,
+          undefined
+        )
       ).rejects.toThrow('LiveKit error')
     })
   })

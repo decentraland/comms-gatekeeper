@@ -10,6 +10,7 @@ import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createAnalyticsMockedComponent } from '../mocks/analytics-mocks'
 import { VoiceChatUserStatus } from '../../src/adapters/db/types'
 import { CommunityRole } from '../../src/types/social.type'
+import { CommunityVoiceChatAction } from '../../src/types/community-voice'
 
 describe('Voice Logic Component', () => {
   let voiceComponent: IVoiceComponent
@@ -85,7 +86,7 @@ describe('Voice Logic Component', () => {
 
   describe('when handling that a participant joined a room', () => {
     const userAddress = '0x123'
-    const roomName = 'voice-chat-private-test-room'  // Use correct private voice chat format
+    const roomName = 'voice-chat-private-test-room' // Use correct private voice chat format
 
     describe('and the room is inactive', () => {
       beforeEach(() => {
@@ -117,7 +118,7 @@ describe('Voice Logic Component', () => {
       })
 
       describe('and the user is in a different room', () => {
-        const oldRoom = 'voice-chat-private-old-room'  // Use correct private voice chat format
+        const oldRoom = 'voice-chat-private-old-room' // Use correct private voice chat format
 
         beforeEach(() => {
           joinUserToRoomMock.mockResolvedValue({ oldRoom })
@@ -135,7 +136,7 @@ describe('Voice Logic Component', () => {
 
   describe('when handling that a participant left a room', () => {
     const userAddress = '0x123'
-    const roomName = 'voice-chat-private-test-room'  // Use correct private voice chat format
+    const roomName = 'voice-chat-private-test-room' // Use correct private voice chat format
 
     describe('and the participant left because of a duplicate identity', () => {
       const disconnectReason = DisconnectReason.DUPLICATE_IDENTITY
@@ -341,12 +342,8 @@ describe('Voice Logic Component', () => {
 
     it('should update user status to connected', async () => {
       await voiceComponent.handleParticipantJoined(userAddress, roomName)
-      
-      expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
-        userAddress, 
-        roomName, 
-        VoiceChatUserStatus.Connected
-      )
+
+      expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(userAddress, roomName, VoiceChatUserStatus.Connected)
     })
   })
 
@@ -422,10 +419,10 @@ describe('Voice Logic Component', () => {
 
       it('should update user status as disconnected without destroying room', async () => {
         await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
-        
+
         expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
-          userAddress, 
-          roomName, 
+          userAddress,
+          roomName,
           VoiceChatUserStatus.Disconnected
         )
         expect(shouldDestroyCommunityRoomMock).not.toHaveBeenCalled()
@@ -461,10 +458,10 @@ describe('Voice Logic Component', () => {
 
       it('should update user status without destroying room', async () => {
         await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
-        
+
         expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
-          userAddress, 
-          roomName, 
+          userAddress,
+          roomName,
           VoiceChatUserStatus.Disconnected
         )
         expect(getCommunityUsersInRoomMock).toHaveBeenCalledWith(roomName)
@@ -498,10 +495,10 @@ describe('Voice Logic Component', () => {
 
       it('should destroy the community room', async () => {
         await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
-        
+
         expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
-          userAddress, 
-          roomName, 
+          userAddress,
+          roomName,
           VoiceChatUserStatus.Disconnected
         )
         expect(getCommunityUsersInRoomMock).toHaveBeenCalledWith(roomName)
@@ -530,7 +527,15 @@ describe('Voice Logic Component', () => {
       })
 
       it('should reject with the error', async () => {
-        await expect(voiceComponent.getCommunityVoiceChatCredentialsForModerator(communityId, userAddress)).rejects.toThrow(error)
+        await expect(
+          voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+            communityId,
+            userAddress,
+            CommunityRole.Moderator,
+            undefined,
+            CommunityVoiceChatAction.CREATE
+          )
+        ).rejects.toThrow(error)
       })
     })
 
@@ -543,7 +548,13 @@ describe('Voice Logic Component', () => {
       })
 
       it('should generate credentials for moderator, join to room and return connection URL', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatCredentialsForModerator(communityId, userAddress)
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          communityId,
+          userAddress,
+          CommunityRole.Moderator,
+          undefined,
+          CommunityVoiceChatAction.CREATE
+        )
 
         expect(generateCredentialsMock).toHaveBeenCalledWith(
           userAddress,
@@ -587,7 +598,14 @@ describe('Voice Logic Component', () => {
       })
 
       it('should reject with the error', async () => {
-        await expect(voiceComponent.getCommunityVoiceChatCredentialsForMember(communityId, userAddress)).rejects.toThrow(error)
+        await expect(
+          voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+            communityId,
+            userAddress,
+            CommunityRole.Member,
+            undefined
+          )
+        ).rejects.toThrow(error)
       })
     })
 
@@ -600,7 +618,12 @@ describe('Voice Logic Component', () => {
       })
 
       it('should generate credentials for member, join to room and return connection URL', async () => {
-        const result = await voiceComponent.getCommunityVoiceChatCredentialsForMember(communityId, userAddress)
+        const result = await voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+          communityId,
+          userAddress,
+          CommunityRole.Member,
+          undefined
+        )
 
         expect(generateCredentialsMock).toHaveBeenCalledWith(
           userAddress,
