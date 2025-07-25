@@ -374,7 +374,8 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
           name: 'TestMember',
           has_claimed_name: false,
           profile_picture_url: 'https://example.com/member-avatar.png'
-        }
+        },
+        CommunityVoiceChatAction.JOIN
       )
     })
 
@@ -416,7 +417,8 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
           name: 'TestUser',
           has_claimed_name: false,
           profile_picture_url: 'https://example.com/user-avatar.png'
-        }
+        },
+        CommunityVoiceChatAction.JOIN
       )
     })
 
@@ -446,7 +448,8 @@ test('Community Voice Chat Actions', ({ components, spyComponents }) => {
         communityId,
         userAddress.toLowerCase(),
         CommunityRole.None,
-        undefined
+        undefined,
+        CommunityVoiceChatAction.CREATE
       )
     })
 

@@ -293,7 +293,7 @@ export function createVoiceComponent(
     const roomName = getCommunityVoiceChatRoomName(communityId)
 
     // Determine if user is a speaker:
-    // - Owner is the only speaker by default. Moderators start as listeners unless they're creating the room
+    // - Creator of the room is the only speaker by default
     const isSpeaker =
       action === CommunityVoiceChatAction.CREATE &&
       (userRole === CommunityRole.Moderator || userRole === CommunityRole.Owner)

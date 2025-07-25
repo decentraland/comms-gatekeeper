@@ -50,47 +50,27 @@ export async function communityVoiceChatHandler(
 
   const userRole = userRoleString as CommunityRole
 
-  switch (body.action) {
-    case CommunityVoiceChatAction.CREATE: {
-      logger.debug('Creating community voice chat credentials for user with role: ' + userRole)
-      const credentials = await voice.getCommunityVoiceChatCredentialsWithRole(
-        body.community_id,
-        lowerCaseUserAddress,
-        userRole,
-        body.profile_data,
-        body.action
-      )
-      logger.debug(
-        `Created community voice chat credentials for user ${lowerCaseUserAddress} with role ${userRole} in community ${body.community_id}`
-      )
-      return {
-        status: 200,
-        body: {
-          connection_url: credentials.connectionUrl
-        }
-      }
-    }
+  // Generate credentials for the user with their role and action
+  logger.debug(
+    `${body.action === CommunityVoiceChatAction.CREATE ? 'Creating' : 'Joining'} community voice chat credentials for user with role: ${userRole}`
+  )
 
-    case CommunityVoiceChatAction.JOIN: {
-      logger.debug('Joining community voice chat with role: ' + userRole)
-      const credentials = await voice.getCommunityVoiceChatCredentialsWithRole(
-        body.community_id,
-        lowerCaseUserAddress,
-        userRole,
-        body.profile_data
-      )
-      logger.info(
-        `Community voice chat access granted for user ${lowerCaseUserAddress} with role ${userRole} in community ${body.community_id}`
-      )
-      return {
-        status: 200,
-        body: {
-          connection_url: credentials.connectionUrl
-        }
-      }
-    }
+  const credentials = await voice.getCommunityVoiceChatCredentialsWithRole(
+    body.community_id,
+    lowerCaseUserAddress,
+    userRole,
+    body.profile_data,
+    body.action
+  )
 
-    default:
-      throw new InvalidRequestError(`Unknown action: ${body.action}`)
+  logger.debug(
+    `${body.action === CommunityVoiceChatAction.CREATE ? 'Created' : 'Joined'} community voice chat credentials for user ${lowerCaseUserAddress} with role ${userRole} in community ${body.community_id}`
+  )
+
+  return {
+    status: 200,
+    body: {
+      connection_url: credentials.connectionUrl
+    }
   }
 }

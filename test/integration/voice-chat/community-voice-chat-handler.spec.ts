@@ -104,7 +104,8 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
         communityId,
         userAddress.toLowerCase(),
         CommunityRole.None,
-        undefined
+        undefined,
+        CommunityVoiceChatAction.CREATE
       )
     })
   })
@@ -144,7 +145,8 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
           name: 'Joining User',
           hasClaimedName: false,
           profilePictureUrl: 'https://example.com/join-pic.jpg'
-        }
+        },
+        CommunityVoiceChatAction.JOIN
       )
     })
   })
