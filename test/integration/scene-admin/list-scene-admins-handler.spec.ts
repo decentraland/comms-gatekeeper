@@ -699,7 +699,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         realm: {
           serverName: 'test-realm',
           hostname: 'https://peer.decentraland.zone',
-          protocol: 'https'
+          protocol: 'v3'
         }
       }
 
