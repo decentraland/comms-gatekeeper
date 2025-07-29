@@ -101,7 +101,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
   })
@@ -190,7 +191,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: true,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     const response = await makeRequest(
@@ -269,7 +271,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
@@ -424,7 +427,8 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
@@ -511,7 +515,8 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: true,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
 
     const response = await makeRequest(
@@ -550,7 +555,8 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: false,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
@@ -588,7 +594,8 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     stubComponents.sceneManager.getUserScenePermissions.resolves({
       owner: true,
       admin: false,
-      hasExtendedPermissions: false
+      hasExtendedPermissions: false,
+      hasLandLease: false
     })
     stubComponents.livekit.getOrCreateIngress.resolves({
       name: 'mock-ingress',

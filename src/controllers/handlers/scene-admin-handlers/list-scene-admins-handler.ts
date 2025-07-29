@@ -7,14 +7,14 @@ import { PlaceAttributes } from '../../../types/places.type'
 export async function listSceneAdminsHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'names' | 'sceneAdmins',
+      'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'names' | 'sceneAdmins' | 'landLease',
       '/scene-admin'
     >,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, sceneManager, places, names, sceneAdmins },
+    components: { logs, sceneManager, places, names, sceneAdmins, landLease },
     url,
     verification
   } = ctx
@@ -66,7 +66,24 @@ export async function listSceneAdminsHandler(
 
   const allAddresses = await sceneAdmins.getAdminsAndExtraAddresses(place, validationResult.value.admin)
 
-  const allNames = await names.getNamesFromAddresses(Array.from(allAddresses.addresses))
+  // Get land lease owners
+  const landLeaseOwners = new Set<string>()
+  if (!isWorlds) {
+    const { authorizations } = await landLease.getAuthorizations()
+    if (authorizations) {
+      for (const auth of authorizations) {
+        const existLease = place.positions.some((position) => auth.plots.includes(position))
+        if (existLease) {
+          auth.addresses.forEach((address: string) => landLeaseOwners.add(address.toLowerCase()))
+        }
+      }
+    }
+  }
+
+  // Combine all addresses including land lease owners
+  const allAddressesWithLandLease = new Set([...allAddresses.addresses, ...landLeaseOwners])
+
+  const allNames = await names.getNamesFromAddresses(Array.from(allAddressesWithLandLease))
 
   const adminsWithNames = Array.from(allAddresses.admins).map((admin) => ({
     ...admin,
@@ -80,8 +97,15 @@ export async function listSceneAdminsHandler(
     canBeRemoved: false
   }))
 
+  // Add land lease owners
+  const landLeaseOwnersWithNames = Array.from(landLeaseOwners).map((address) => ({
+    admin: address,
+    name: allNames[address] || '',
+    canBeRemoved: false // Land lease owners cannot be removed
+  }))
+
   return {
     status: 200,
-    body: [...adminsWithNames, ...extraAdminsWithNames]
+    body: [...adminsWithNames, ...extraAdminsWithNames, ...landLeaseOwnersWithNames]
   }
 }

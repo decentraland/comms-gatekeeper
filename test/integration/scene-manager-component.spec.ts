@@ -23,11 +23,13 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       approvedForAll: false
     })
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
+    stubComponents.landLease.hasLandLease.resolves(false)
 
     sceneManager = await createSceneManagerComponent({
       worlds: stubComponents.worlds,
       lands: stubComponents.lands,
-      sceneAdminManager: stubComponents.sceneAdminManager
+      sceneAdminManager: stubComponents.sceneAdminManager,
+      landLease: stubComponents.landLease
     })
 
     scenePlace = {
@@ -75,7 +77,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: true,
         admin: false,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
     })
 
@@ -85,7 +88,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: false,
         admin: true,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
     })
 
@@ -95,7 +99,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: false,
         admin: false,
-        hasExtendedPermissions: true
+        hasExtendedPermissions: true,
+        hasLandLease: false
       })
     })
 
@@ -105,7 +110,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: false,
         admin: false,
-        hasExtendedPermissions: true
+        hasExtendedPermissions: true,
+        hasLandLease: false
       })
     })
 
@@ -122,7 +128,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: false,
         admin: false,
-        hasExtendedPermissions: true
+        hasExtendedPermissions: true,
+        hasLandLease: false
       })
     })
 
@@ -139,7 +146,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: false,
         admin: false,
-        hasExtendedPermissions: true
+        hasExtendedPermissions: true,
+        hasLandLease: false
       })
     })
 
@@ -156,7 +164,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: false,
         admin: false,
-        hasExtendedPermissions: true
+        hasExtendedPermissions: true,
+        hasLandLease: false
       })
     })
 
@@ -173,7 +182,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: false,
         admin: false,
-        hasExtendedPermissions: true
+        hasExtendedPermissions: true,
+        hasLandLease: false
       })
     })
 
@@ -190,7 +200,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: false,
         admin: false,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
     })
 
@@ -199,7 +210,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toEqual({
         owner: false,
         admin: false,
-        hasExtendedPermissions: false
+        hasExtendedPermissions: false,
+        hasLandLease: false
       })
     })
   })

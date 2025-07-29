@@ -685,4 +685,106 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(response.status).toBe(500)
     expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses.calledOnce).toBe(true)
   })
+
+  describe('when the user has land lease permission', () => {
+    let testPlaceId: string
+    let metadataLandLease: Metadata
+
+    beforeEach(async () => {
+      testPlaceId = 'place-id-land-lease'
+      metadataLandLease = {
+        identity: nonOwner.authChain[0].payload,
+        parcel: '-73,50',
+        sceneId: 'test-scene',
+        realm: {
+          serverName: 'test-realm',
+          hostname: 'https://peer.decentraland.zone',
+          protocol: 'v3'
+        }
+      }
+
+      jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLandLease)
+
+      stubComponents.places.getPlaceByParcel.resolves({
+        positions: [metadataLandLease.parcel],
+        id: testPlaceId,
+        world: false
+      } as PlaceAttributes)
+
+      // User is not owner, admin, or has extended permissions
+      stubComponents.lands.getLandPermissions.resolves({
+        owner: false,
+        operator: false,
+        updateOperator: false,
+        updateManager: false,
+        approvedForAll: false
+      })
+      
+      stubComponents.sceneManager.getUserScenePermissions.resolves({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: false,
+        hasLandLease: true // User has land lease
+      })
+      
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true) // Should be true due to land lease
+      
+      stubComponents.sceneAdminManager.isAdmin.resolves(false)
+      stubComponents.sceneManager.isSceneOwner.resolves(false)
+      
+      // Mock land lease component to return true for this user and parcel
+      stubComponents.landLease.hasLandLease.resolves(true)
+      
+      // Mock getAuthorizations to return authorizations for the test parcel
+      stubComponents.landLease.getAuthorizations.resolves({
+        authorizations: [
+          {
+            name: 'Test Land Lease',
+            desc: 'Test description',
+            contactInfo: { name: 'Test Contact' },
+            addresses: [nonOwner.authChain[0].payload.toLowerCase()],
+            plots: [metadataLandLease.parcel]
+          }
+        ]
+      })
+
+      stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+        admins: new Set([
+          {
+            id: 'test-admin-id',
+            place_id: testPlaceId,
+            admin: '0x1234567890123456789012345678901234567890',
+            added_by: owner.authChain[0].payload.toLowerCase(),
+            active: true,
+            created_at: Date.now()
+          }
+        ]),
+        extraAddresses: new Set(),
+        addresses: new Set(['0x1234567890123456789012345678901234567890'])
+      })
+
+      stubComponents.names.getNamesFromAddresses.resolves({
+        '0x1234567890123456789012345678901234567890': 'Test User'
+      })
+    })
+
+    it('should return 200 status with admin list', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-admin',
+        {
+          method: 'GET',
+          metadata: metadataLandLease
+        },
+        nonOwner
+      )
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(Array.isArray(body)).toBe(true)
+      expect(body.length).toBeGreaterThan(0)
+    })
+  })
 })
