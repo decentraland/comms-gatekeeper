@@ -734,6 +734,19 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       
       // Mock land lease component to return true for this user and parcel
       stubComponents.landLease.hasLandLease.resolves(true)
+      
+      // Mock getAuthorizations to return authorizations for the test parcel
+      stubComponents.landLease.getAuthorizations.resolves({
+        authorizations: [
+          {
+            name: 'Test Land Lease',
+            desc: 'Test description',
+            contactInfo: { name: 'Test Contact' },
+            addresses: [nonOwner.authChain[0].payload.toLowerCase()],
+            plots: [metadataLandLease.parcel]
+          }
+        ]
+      })
 
       stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
         admins: new Set([
