@@ -69,9 +69,9 @@ export async function listSceneAdminsHandler(
   // Get land lease owners
   const landLeaseOwners = new Set<string>()
   if (!isWorlds) {
-    const authorizations = await landLease.getAuthorizations()
-    if (authorizations?.authorizations) {
-      for (const auth of authorizations.authorizations) {
+    const { authorizations } = await landLease.getAuthorizations()
+    if (authorizations) {
+      for (const auth of authorizations) {
         const existLease = place.positions.some((position) => auth.plots.includes(position))
         if (existLease) {
           auth.addresses.forEach((address: string) => landLeaseOwners.add(address.toLowerCase()))
