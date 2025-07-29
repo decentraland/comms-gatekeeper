@@ -10,14 +10,6 @@ export interface LandLeaseAuthorizations {
   authorizations: LandLeaseAuthorization[]
 }
 
-export interface RawLandLeaseAuthorization {
-  name?: string
-  desc?: string
-  contactInfo?: { name?: string }
-  addresses?: string[]
-  plots?: string[]
-}
-
 export interface ILandLeaseComponent {
   hasLandLease(address: string, parcels: string[]): Promise<boolean>
   getAuthorizations(): Promise<LandLeaseAuthorizations>

@@ -1,5 +1,5 @@
 import { AppComponents } from '../types'
-import { LandLeaseAuthorizations, ILandLeaseComponent, RawLandLeaseAuthorization } from '../types/land-lease.type'
+import { LandLeaseAuthorizations, ILandLeaseComponent, LandLeaseAuthorization } from '../types/land-lease.type'
 
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes in milliseconds
 
@@ -29,7 +29,7 @@ export async function createLandLeaseComponent({
       }
 
       return {
-        authorizations: data.map((auth: RawLandLeaseAuthorization) => ({
+        authorizations: data.map((auth: any) => ({
           name: auth.name || '',
           desc: auth.desc || '',
           contactInfo: { name: auth.contactInfo?.name || '' },
