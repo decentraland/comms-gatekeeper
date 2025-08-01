@@ -494,6 +494,33 @@ export function createVoiceComponent(
     logger.info(`Successfully kicked user ${userAddress} from community ${communityId}`)
   }
 
+  /**
+   * Gets all active community voice chats.
+   * @returns Array of active community voice chats with status information.
+   */
+  async function getAllActiveCommunityVoiceChats(): Promise<
+    Array<{
+      communityId: string
+      participantCount: number
+      moderatorCount: number
+    }>
+  > {
+    logger.debug('Getting all active community voice chats')
+
+    try {
+      const activeChats = await voiceDB.getAllActiveCommunityVoiceChats()
+
+      logger.debug(`Found ${activeChats.length} active community voice chats`)
+
+      return activeChats
+    } catch (error) {
+      logger.warn(
+        `Error getting all active community voice chats: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return []
+    }
+  }
+
   return {
     isUserInVoiceChat,
     handleParticipantJoined,
@@ -507,6 +534,7 @@ export function createVoiceComponent(
     requestToSpeakInCommunity,
     promoteSpeakerInCommunity,
     demoteSpeakerInCommunity,
-    kickPlayerFromCommunity
+    kickPlayerFromCommunity,
+    getAllActiveCommunityVoiceChats
   }
 }

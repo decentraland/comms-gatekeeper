@@ -24,6 +24,7 @@ import {
   demoteSpeakerHandler,
   kickPlayerHandler
 } from './handlers/community-voice-chat'
+import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-active-community-voice-chats-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -75,6 +76,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   // Community voice chat routes
   router.post('/community-voice-chat', tokenAuthMiddleware, communityVoiceChatHandler)
   router.get('/community-voice-chat/:communityId/status', tokenAuthMiddleware, getCommunityVoiceChatStatusHandler)
+  router.get('/active-community-voice-chats', tokenAuthMiddleware, getAllActiveCommunityVoiceChatsHandler)
   router.post(
     '/community-voice-chat/:communityId/users/:userAddress/speak-request',
     tokenAuthMiddleware,
