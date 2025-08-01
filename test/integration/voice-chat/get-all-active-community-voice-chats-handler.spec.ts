@@ -105,6 +105,8 @@ test('GET /community-voice-chats/active', ({ components, spyComponents }) => {
       beforeEach(async () => {
         // Create community voice chat rooms with only regular users (no moderators)
         await components.voiceDB.joinUserToCommunityRoom(userAddress, roomName1, false) // regular user only
+        // Simulate connected user to ensure they're considered "active"
+        await components.voiceDB.updateCommunityUserStatus(userAddress, roomName1, VoiceChatUserStatus.Connected)
       })
 
       afterEach(async () => {
