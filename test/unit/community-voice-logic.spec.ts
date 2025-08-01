@@ -41,7 +41,8 @@ describe('CommunityVoiceLogic', () => {
       shouldDestroyCommunityRoom: jest.fn(),
       deleteCommunityVoiceChat: jest.fn(),
       deleteExpiredCommunityVoiceChats: jest.fn(),
-      isActiveCommunityUser: jest.fn()
+      isActiveCommunityUser: jest.fn(),
+      getAllActiveCommunityVoiceChats: jest.fn()
     } as jest.Mocked<IVoiceDBComponent>
 
     mockLivekit = {

@@ -109,4 +109,16 @@ export interface IVoiceComponent {
    * @param userAddress - The address of the user to kick.
    */
   kickPlayerFromCommunity(communityId: string, userAddress: string): Promise<void>
+
+  /**
+   * Gets all active community voice chats.
+   * @returns Array of active community voice chats with status information.
+   */
+  getAllActiveCommunityVoiceChats(): Promise<
+    Array<{
+      communityId: string
+      participantCount: number
+      moderatorCount: number
+    }>
+  >
 }
