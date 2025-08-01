@@ -441,35 +441,41 @@ export async function createVoiceDBComponent({
   > {
     const now = Date.now()
 
+    const isConnectedQuery = SQL`
+      status = ${VoiceChatUserStatus.Connected}
+      OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
+      OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+    `
+
     const activeChatsQuery = SQL`
       SELECT 
         room_name,
         REPLACE(room_name, 'community-', '') as community_id,
         COUNT(CASE 
           WHEN (
-            status = ${VoiceChatUserStatus.Connected}
-            OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
-            OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+            `
+      .append(isConnectedQuery)
+      .append(
+        SQL`
           ) THEN 1 
         END) as participant_count,
         COUNT(CASE 
           WHEN is_moderator = true AND (
-            status = ${VoiceChatUserStatus.Connected}
-            OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
-            OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+            `
+          .append(isConnectedQuery)
+          .append(
+            SQL`
           ) THEN 1 
         END) as moderator_count
       FROM community_voice_chat_users 
       WHERE room_name LIKE 'community-%'
       GROUP BY room_name
       HAVING COUNT(CASE 
-        WHEN is_moderator = true AND (
-          status = ${VoiceChatUserStatus.Connected}
-          OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
-          OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
-        ) THEN 1 
+        WHEN is_moderator = true AND `.append(isConnectedQuery).append(SQL` THEN 1 
       END) > 0
-    `
+    `)
+          )
+      )
 
     const result = await database.query(activeChatsQuery)
 

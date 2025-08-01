@@ -76,7 +76,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   // Community voice chat routes
   router.post('/community-voice-chat', tokenAuthMiddleware, communityVoiceChatHandler)
   router.get('/community-voice-chat/:communityId/status', tokenAuthMiddleware, getCommunityVoiceChatStatusHandler)
-  router.get('/active-community-voice-chats', tokenAuthMiddleware, getAllActiveCommunityVoiceChatsHandler)
+  router.get('/community-voice-chat/active', tokenAuthMiddleware, getAllActiveCommunityVoiceChatsHandler)
   router.post(
     '/community-voice-chat/:communityId/users/:userAddress/speak-request',
     tokenAuthMiddleware,

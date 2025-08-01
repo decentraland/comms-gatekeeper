@@ -1,10 +1,11 @@
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
+import { VoiceChatUserStatus } from '../../../src/adapters/db/types'
 
 test('GET /active-community-voice-chats', ({ components, spyComponents }) => {
   let token: string
-  const communityId1 = 'community-test-1'
-  const communityId2 = 'community-test-2'
+  const communityId1 = 'test-1'
+  const communityId2 = 'test-2'
   const roomName1 = `community-${communityId1}`
   const roomName2 = `community-${communityId2}`
   const moderatorAddress = '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd'
@@ -57,6 +58,10 @@ test('GET /active-community-voice-chats', ({ components, spyComponents }) => {
         await components.voiceDB.joinUserToCommunityRoom(moderatorAddress, roomName1, true) // moderator
         await components.voiceDB.joinUserToCommunityRoom(userAddress, roomName1, false) // regular user
         await components.voiceDB.joinUserToCommunityRoom(moderatorAddress, roomName2, true) // moderator only
+
+        await components.voiceDB.updateCommunityUserStatus(moderatorAddress, roomName1, VoiceChatUserStatus.Connected)
+        await components.voiceDB.updateCommunityUserStatus(userAddress, roomName1, VoiceChatUserStatus.Connected)
+        await components.voiceDB.updateCommunityUserStatus(moderatorAddress, roomName2, VoiceChatUserStatus.Connected)
       })
 
       afterEach(async () => {
