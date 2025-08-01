@@ -2,7 +2,7 @@ import { test } from '../../components'
 import { makeRequest } from '../../utils'
 import { VoiceChatUserStatus } from '../../../src/adapters/db/types'
 
-test('GET /active-community-voice-chats', ({ components, spyComponents }) => {
+test('GET /community-voice-chats/active', ({ components, spyComponents }) => {
   let token: string
   const communityId1 = 'test-1'
   const communityId2 = 'test-2'
@@ -17,7 +17,7 @@ test('GET /active-community-voice-chats', ({ components, spyComponents }) => {
     })
 
     it('should respond with a 401 and a message saying that the token is invalid', async () => {
-      const response = await makeRequest(components.localFetch, '/active-community-voice-chats', {
+      const response = await makeRequest(components.localFetch, '/community-voice-chat/active', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`
@@ -36,7 +36,7 @@ test('GET /active-community-voice-chats', ({ components, spyComponents }) => {
 
     describe('and there are no active community voice chats', () => {
       it('should respond with a 200 and an empty array', async () => {
-        const response = await makeRequest(components.localFetch, '/active-community-voice-chats', {
+        const response = await makeRequest(components.localFetch, '/community-voice-chat/active', {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`
@@ -70,7 +70,7 @@ test('GET /active-community-voice-chats', ({ components, spyComponents }) => {
       })
 
       it('should respond with a 200 and return active community voice chats', async () => {
-        const response = await makeRequest(components.localFetch, '/active-community-voice-chats', {
+        const response = await makeRequest(components.localFetch, '/community-voice-chat/active', {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`
@@ -112,7 +112,7 @@ test('GET /active-community-voice-chats', ({ components, spyComponents }) => {
       })
 
       it('should respond with a 200 and return empty array since rooms without moderators are not active', async () => {
-        const response = await makeRequest(components.localFetch, '/active-community-voice-chats', {
+        const response = await makeRequest(components.localFetch, '/community-voice-chat/active', {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`
@@ -140,7 +140,7 @@ test('GET /active-community-voice-chats', ({ components, spyComponents }) => {
       })
 
       it('should respond with a 500 and an error message', async () => {
-        const response = await makeRequest(components.localFetch, '/active-community-voice-chats', {
+        const response = await makeRequest(components.localFetch, '/community-voice-chat/active', {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`
