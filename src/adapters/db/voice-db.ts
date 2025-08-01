@@ -432,6 +432,54 @@ export async function createVoiceDBComponent({
     return [...new Set(expiredResult.rows.map((row) => row.room_name))]
   }
 
+  async function getAllActiveCommunityVoiceChats(): Promise<
+    Array<{
+      communityId: string
+      participantCount: number
+      moderatorCount: number
+    }>
+  > {
+    const now = Date.now()
+
+    const activeChatsQuery = SQL`
+      SELECT 
+        room_name,
+        REPLACE(room_name, 'community-', '') as community_id,
+        COUNT(CASE 
+          WHEN (
+            status = ${VoiceChatUserStatus.Connected}
+            OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
+            OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+          ) THEN 1 
+        END) as participant_count,
+        COUNT(CASE 
+          WHEN is_moderator = true AND (
+            status = ${VoiceChatUserStatus.Connected}
+            OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
+            OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+          ) THEN 1 
+        END) as moderator_count
+      FROM community_voice_chat_users 
+      WHERE room_name LIKE 'community-%'
+      GROUP BY room_name
+      HAVING COUNT(CASE 
+        WHEN is_moderator = true AND (
+          status = ${VoiceChatUserStatus.Connected}
+          OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
+          OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+        ) THEN 1 
+      END) > 0
+    `
+
+    const result = await database.query(activeChatsQuery)
+
+    return result.rows.map((row) => ({
+      communityId: row.community_id,
+      participantCount: parseInt(row.participant_count),
+      moderatorCount: parseInt(row.moderator_count)
+    }))
+  }
+
   return {
     deleteExpiredPrivateVoiceChats,
     deletePrivateVoiceChat,
@@ -451,6 +499,7 @@ export async function createVoiceDBComponent({
     shouldDestroyCommunityRoom,
     deleteCommunityVoiceChat,
     deleteExpiredCommunityVoiceChats,
+    getAllActiveCommunityVoiceChats,
     // Export helper function for reuse
     isActiveCommunityUser: (user: CommunityVoiceChatUser, now: number) => isActiveCommunityUser(user, now)
   }

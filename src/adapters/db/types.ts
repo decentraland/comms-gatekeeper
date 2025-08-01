@@ -160,6 +160,18 @@ export interface IVoiceDBComponent {
   deleteExpiredCommunityVoiceChats: () => Promise<string[]>
 
   /**
+   * Gets all active community voice chat rooms with their community IDs.
+   * @returns Array of objects with communityId and status information.
+   */
+  getAllActiveCommunityVoiceChats: () => Promise<
+    Array<{
+      communityId: string
+      participantCount: number
+      moderatorCount: number
+    }>
+  >
+
+  /**
    * Helper function to determine if a community user is currently active.
    * @param user - The community user to check.
    * @param now - Current timestamp in milliseconds.
