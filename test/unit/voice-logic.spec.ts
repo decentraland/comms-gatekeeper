@@ -760,4 +760,50 @@ describe('Voice Logic Component', () => {
       expect(deleteRoomMock).not.toHaveBeenCalled()
     })
   })
+
+  describe('when ending community voice chat', () => {
+    const communityId = 'test-community'
+    const userAddress = '0x1234567890123456789012345678901234567890'
+    const roomName = 'voice-chat-community-test-community'
+    let deleteCommunityVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deleteCommunityVoiceChat']>
+
+    beforeEach(() => {
+      deleteCommunityVoiceChatMock = jest.fn()
+      voiceDB.deleteCommunityVoiceChat = deleteCommunityVoiceChatMock
+    })
+
+    it('should end community voice chat successfully', async () => {
+      deleteRoomMock.mockResolvedValue(undefined)
+      deleteCommunityVoiceChatMock.mockResolvedValue(undefined)
+
+      await voiceComponent.endCommunityVoiceChat(communityId, userAddress)
+
+      expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+      expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
+    })
+
+    it('should handle livekit deletion error and not clean database', async () => {
+      deleteRoomMock.mockRejectedValue(new Error('LiveKit deletion failed'))
+      deleteCommunityVoiceChatMock.mockResolvedValue(undefined)
+
+      await expect(voiceComponent.endCommunityVoiceChat(communityId, userAddress)).rejects.toThrow(
+        'LiveKit deletion failed'
+      )
+
+      expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+      expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
+    })
+
+    it('should handle database deletion error', async () => {
+      deleteRoomMock.mockResolvedValue(undefined)
+      deleteCommunityVoiceChatMock.mockRejectedValue(new Error('Database deletion failed'))
+
+      await expect(voiceComponent.endCommunityVoiceChat(communityId, userAddress)).rejects.toThrow(
+        'Database deletion failed'
+      )
+
+      expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+      expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
+    })
+  })
 })
