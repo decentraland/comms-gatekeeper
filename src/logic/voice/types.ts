@@ -111,6 +111,13 @@ export interface IVoiceComponent {
   kickPlayerFromCommunity(communityId: string, userAddress: string): Promise<void>
 
   /**
+   * Ends a community voice chat (force end regardless of participants).
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user ending the chat.
+   */
+  endCommunityVoiceChat(communityId: string, userAddress: string): Promise<void>
+
+  /**
    * Gets all active community voice chats.
    * @returns Array of active community voice chats with status information.
    */

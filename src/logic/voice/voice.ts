@@ -495,6 +495,32 @@ export function createVoiceComponent(
   }
 
   /**
+   * Ends a community voice chat (force end regardless of participants).
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user ending the chat.
+   */
+  async function endCommunityVoiceChat(communityId: string, userAddress: string): Promise<void> {
+    const roomName = getCommunityVoiceChatRoomName(communityId)
+
+    logger.info(`Ending community voice chat for community ${communityId} by user ${userAddress}`)
+
+    try {
+      // Delete the room in LiveKit (this will disconnect all participants)
+      await livekit.deleteRoom(roomName)
+
+      // Remove all records from the database
+      await voiceDB.deleteCommunityVoiceChat(roomName)
+
+      logger.info(`Successfully ended community voice chat for community ${communityId}`)
+    } catch (error) {
+      logger.error(
+        `Error ending community voice chat for community ${communityId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      throw error
+    }
+  }
+
+  /**
    * Gets all active community voice chats.
    * @returns Array of active community voice chats with status information.
    */
@@ -535,6 +561,7 @@ export function createVoiceComponent(
     promoteSpeakerInCommunity,
     demoteSpeakerInCommunity,
     kickPlayerFromCommunity,
+    endCommunityVoiceChat,
     getAllActiveCommunityVoiceChats
   }
 }
