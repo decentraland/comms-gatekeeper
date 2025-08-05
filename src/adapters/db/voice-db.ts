@@ -1,5 +1,6 @@
 import SQL from 'sql-template-strings'
 import { PoolClient } from 'pg'
+import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX } from '../../logic/voice/utils'
 import { AppComponents } from '../../types'
 import { IVoiceDBComponent, VoiceChatUser, VoiceChatUserStatus, CommunityVoiceChatUser } from './types'
 import { RoomDoesNotExistError } from './errors'
@@ -441,20 +442,23 @@ export async function createVoiceDBComponent({
   > {
     const now = Date.now()
 
-    const isConnectedQuery = SQL`
-      status = ${VoiceChatUserStatus.Connected}
-      OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
-      OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+    const isConnectedQuery = `
+      status = '${VoiceChatUserStatus.Connected}'
+      OR (status = '${VoiceChatUserStatus.ConnectionInterrupted}' AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
+      OR (status = '${VoiceChatUserStatus.NotConnected}' AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
     `
 
     const activeChatsQuery = SQL`
       SELECT 
         room_name,
-        REPLACE(room_name, 'community-', '') as community_id,
+        REPLACE(room_name, '`
+      .append(COMMUNITY_VOICE_CHAT_ROOM_PREFIX)
+      .append(
+        SQL`-', '') as community_id,
         COUNT(CASE 
           WHEN (
-            `
-      .append(isConnectedQuery)
+            `.append(isConnectedQuery)
+      )
       .append(
         SQL`
           ) THEN 1 
@@ -468,12 +472,16 @@ export async function createVoiceDBComponent({
           ) THEN 1 
         END) as moderator_count
       FROM community_voice_chat_users 
-      WHERE room_name LIKE 'community-%'
+      WHERE room_name LIKE '`
+              .append(COMMUNITY_VOICE_CHAT_ROOM_PREFIX)
+              .append(
+                SQL`-%'
       GROUP BY room_name
       HAVING COUNT(CASE 
         WHEN is_moderator = true AND `.append(isConnectedQuery).append(SQL` THEN 1 
       END) > 0
     `)
+              )
           )
       )
 
