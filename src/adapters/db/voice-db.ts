@@ -475,7 +475,7 @@ export async function createVoiceDBComponent({
       WHERE room_name LIKE '`
               .append(COMMUNITY_VOICE_CHAT_ROOM_PREFIX)
               .append(
-                SQL`-%')
+                SQL`-%'
       GROUP BY room_name
       HAVING COUNT(CASE 
         WHEN is_moderator = true AND `.append(isConnectedQuery).append(SQL` THEN 1 
