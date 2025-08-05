@@ -20,6 +20,7 @@ import {
   communityVoiceChatHandler,
   getCommunityVoiceChatStatusHandler,
   requestToSpeakHandler,
+  rejectSpeakRequestHandler,
   promoteSpeakerHandler,
   demoteSpeakerHandler,
   kickPlayerHandler,
@@ -82,6 +83,11 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     '/community-voice-chat/:communityId/users/:userAddress/speak-request',
     tokenAuthMiddleware,
     requestToSpeakHandler
+  )
+  router.delete(
+    '/community-voice-chat/:communityId/users/:userAddress/speak-request',
+    tokenAuthMiddleware,
+    rejectSpeakRequestHandler
   )
   router.post(
     '/community-voice-chat/:communityId/users/:userAddress/speaker',

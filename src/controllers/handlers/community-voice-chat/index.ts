@@ -1,6 +1,7 @@
 export { communityVoiceChatHandler } from './community-voice-chat-handler'
 export { getCommunityVoiceChatStatusHandler } from './get-community-voice-chat-status-handler'
 export { requestToSpeakHandler } from './request-to-speak-handler'
+export { rejectSpeakRequestHandler } from './reject-speak-request-handler'
 export { promoteSpeakerHandler } from './promote-speaker-handler'
 export { demoteSpeakerHandler } from './demote-speaker-handler'
 export { kickPlayerHandler } from './kick-player-handler'

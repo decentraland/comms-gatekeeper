@@ -90,6 +90,13 @@ export interface IVoiceComponent {
   requestToSpeakInCommunity(communityId: string, userAddress: string): Promise<void>
 
   /**
+   * Rejects a speak request for a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user whose speak request is being rejected.
+   */
+  rejectSpeakRequestInCommunity(communityId: string, userAddress: string): Promise<void>
+
+  /**
    * Promotes a user to speaker in a community voice chat.
    * @param communityId - The ID of the community.
    * @param userAddress - The address of the user to promote.
