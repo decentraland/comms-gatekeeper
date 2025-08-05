@@ -1,13 +1,14 @@
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
 import { VoiceChatUserStatus } from '../../../src/adapters/db/types'
+import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX } from '../../../src/logic/voice/utils'
 
 test('GET /community-voice-chats/active', ({ components, spyComponents }) => {
   let token: string
   const communityId1 = 'test-1'
   const communityId2 = 'test-2'
-  const roomName1 = `community-${communityId1}`
-  const roomName2 = `community-${communityId2}`
+  const roomName1 = `${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-${communityId1}`
+  const roomName2 = `${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-${communityId2}`
   const moderatorAddress = '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd'
   const userAddress = '0x1234567890123456789012345678901234567890'
 
@@ -77,8 +78,11 @@ test('GET /community-voice-chats/active', ({ components, spyComponents }) => {
           }
         })
 
+        console.log(response)
+
         expect(response.status).toBe(200)
         const body = await response.json()
+        console.log(body)
 
         expect(body.total).toBe(2)
         expect(body.data).toHaveLength(2)
