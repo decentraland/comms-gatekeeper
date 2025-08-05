@@ -485,9 +485,6 @@ export async function createVoiceDBComponent({
           )
       )
 
-    console.log(activeChatsQuery.sql)
-    console.log(activeChatsQuery.values)
-
     const result = await database.query(activeChatsQuery)
 
     return result.rows.map((row) => ({
