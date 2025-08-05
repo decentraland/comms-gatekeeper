@@ -2,7 +2,7 @@ import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../types'
 
 export async function getAllActiveCommunityVoiceChatsHandler(
-  context: HandlerContextWithPath<'logs' | 'voice', '/active-community-voice-chats'>
+  context: HandlerContextWithPath<'logs' | 'voice', '/community-voice-chat/active'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
     components: { logs, voice }
