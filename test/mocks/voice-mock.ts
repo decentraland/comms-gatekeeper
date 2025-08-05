@@ -14,6 +14,7 @@ export const createVoiceMockedComponent = (
     expireCommunityVoiceChats: jest.fn(),
     getCommunityVoiceChatStatus: jest.fn(),
     requestToSpeakInCommunity: jest.fn(),
+    rejectSpeakRequestInCommunity: jest.fn(),
     promoteSpeakerInCommunity: jest.fn(),
     demoteSpeakerInCommunity: jest.fn(),
     kickPlayerFromCommunity: jest.fn(),

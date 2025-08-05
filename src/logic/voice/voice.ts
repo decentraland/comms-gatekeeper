@@ -438,6 +438,21 @@ export function createVoiceComponent(
   }
 
   /**
+   * Rejects a speak request for a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user whose speak request is being rejected.
+   */
+  async function rejectSpeakRequestInCommunity(communityId: string, userAddress: string): Promise<void> {
+    const roomName = getCommunityVoiceChatRoomName(communityId)
+
+    await livekit.updateParticipantMetadata(roomName, userAddress, {
+      isRequestingToSpeak: false
+    })
+
+    logger.info(`Successfully rejected speak request for user ${userAddress} in community ${communityId}`)
+  }
+
+  /**
    * Promotes a user to speaker in a community voice chat.
    * @param communityId - The ID of the community.
    * @param userAddress - The address of the user to promote.
@@ -558,6 +573,7 @@ export function createVoiceComponent(
     expireCommunityVoiceChats,
     getCommunityVoiceChatStatus,
     requestToSpeakInCommunity,
+    rejectSpeakRequestInCommunity,
     promoteSpeakerInCommunity,
     demoteSpeakerInCommunity,
     kickPlayerFromCommunity,
