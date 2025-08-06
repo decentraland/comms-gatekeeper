@@ -12,7 +12,7 @@ test('Check User Community Status Handler', ({ components, spyComponents }) => {
       })
 
       it('should return false', async () => {
-        const response = await makeRequest(components.localFetch, `/users/${userAddress}/community-voice-chat/status`, {
+        const response = await makeRequest(components.localFetch, `/users/${userAddress}/community-voice-chat-status`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`
@@ -36,7 +36,7 @@ test('Check User Community Status Handler', ({ components, spyComponents }) => {
       })
 
       it('should return true', async () => {
-        const response = await makeRequest(components.localFetch, `/users/${userAddress}/community-voice-chat/status`, {
+        const response = await makeRequest(components.localFetch, `/users/${userAddress}/community-voice-chat-status`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`
@@ -56,7 +56,7 @@ test('Check User Community Status Handler', ({ components, spyComponents }) => {
 
     describe('and userAddress is missing', () => {
       it('should return 404', async () => {
-        const response = await makeRequest(components.localFetch, `/users//community-voice-chat/status`, {
+        const response = await makeRequest(components.localFetch, `/users//community-voice-chat-status`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`
@@ -73,7 +73,7 @@ test('Check User Community Status Handler', ({ components, spyComponents }) => {
       })
 
       it('should return 500', async () => {
-        const response = await makeRequest(components.localFetch, `/users/${userAddress}/community-voice-chat/status`, {
+        const response = await makeRequest(components.localFetch, `/users/${userAddress}/community-voice-chat-status`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`
@@ -87,7 +87,7 @@ test('Check User Community Status Handler', ({ components, spyComponents }) => {
 
     describe('and authorization header is missing', () => {
       it('should return 401', async () => {
-        const response = await makeRequest(components.localFetch, `/users/${userAddress}/community-voice-chat/status`, {
+        const response = await makeRequest(components.localFetch, `/users/${userAddress}/community-voice-chat-status`, {
           method: 'GET'
         })
 
