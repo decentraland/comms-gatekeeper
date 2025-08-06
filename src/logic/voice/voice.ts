@@ -15,6 +15,7 @@ import {
   CommunityVoiceChatUserProfileMetadata
 } from '../../types/social.type'
 import { CommunityVoiceChatAction } from '../../types/community-voice'
+import { isErrorWithMessage } from '../errors'
 
 export function createVoiceComponent(
   components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit' | 'analytics'>
@@ -412,7 +413,7 @@ export function createVoiceComponent(
       }
     } catch (error) {
       logger.warn(
-        `Error getting community voice chat status for ${roomName}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Error getting community voice chat status for ${roomName}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
       )
       return {
         active: false,
@@ -529,7 +530,7 @@ export function createVoiceComponent(
       logger.info(`Successfully ended community voice chat for community ${communityId}`)
     } catch (error) {
       logger.error(
-        `Error ending community voice chat for community ${communityId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Error ending community voice chat for community ${communityId}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
       )
       throw error
     }
@@ -556,9 +557,25 @@ export function createVoiceComponent(
       return activeChats
     } catch (error) {
       logger.warn(
-        `Error getting all active community voice chats: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Error getting all active community voice chats: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
       )
       return []
+    }
+  }
+
+  /**
+   * Checks if a user is currently in any community voice chat.
+   * @param userAddress - The address of the user to check
+   * @returns Promise<boolean> - True if user is in a community voice chat, false otherwise
+   */
+  async function isUserInCommunityVoiceChat(userAddress: string): Promise<boolean> {
+    try {
+      return await voiceDB.isUserInAnyCommunityVoiceChat(userAddress)
+    } catch (error) {
+      logger.warn(
+        `Error checking if user ${userAddress} is in community voice chat: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
+      )
+      return false
     }
   }
 
@@ -578,6 +595,7 @@ export function createVoiceComponent(
     demoteSpeakerInCommunity,
     kickPlayerFromCommunity,
     endCommunityVoiceChat,
-    getAllActiveCommunityVoiceChats
+    getAllActiveCommunityVoiceChats,
+    isUserInCommunityVoiceChat
   }
 }
