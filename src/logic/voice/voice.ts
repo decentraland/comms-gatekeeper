@@ -562,6 +562,22 @@ export function createVoiceComponent(
     }
   }
 
+  /**
+   * Checks if a user is currently in any community voice chat.
+   * @param userAddress - The address of the user to check
+   * @returns Promise<boolean> - True if user is in a community voice chat, false otherwise
+   */
+  async function isUserInCommunityVoiceChat(userAddress: string): Promise<boolean> {
+    try {
+      return await voiceDB.isUserInAnyCommunityVoiceChat(userAddress)
+    } catch (error) {
+      logger.warn(
+        `Error checking if user ${userAddress} is in community voice chat: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+      return false
+    }
+  }
+
   return {
     isUserInVoiceChat,
     handleParticipantJoined,
@@ -578,6 +594,7 @@ export function createVoiceComponent(
     demoteSpeakerInCommunity,
     kickPlayerFromCommunity,
     endCommunityVoiceChat,
-    getAllActiveCommunityVoiceChats
+    getAllActiveCommunityVoiceChats,
+    isUserInCommunityVoiceChat
   }
 }

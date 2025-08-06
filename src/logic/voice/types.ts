@@ -135,4 +135,11 @@ export interface IVoiceComponent {
       moderatorCount: number
     }>
   >
+
+  /**
+   * Checks if a user is currently in any community voice chat.
+   * @param userAddress - The address of the user to check
+   * @returns Promise<boolean> - True if user is in a community voice chat, false otherwise
+   */
+  isUserInCommunityVoiceChat(userAddress: string): Promise<boolean>
 }

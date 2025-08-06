@@ -20,6 +20,7 @@ export const createVoiceMockedComponent = (
     kickPlayerFromCommunity: jest.fn(),
     endCommunityVoiceChat: jest.fn(),
     getAllActiveCommunityVoiceChats: jest.fn(),
+    isUserInCommunityVoiceChat: jest.fn(),
     ...overrides
   }
 }

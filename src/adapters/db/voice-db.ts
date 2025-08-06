@@ -433,6 +433,14 @@ export async function createVoiceDBComponent({
     return [...new Set(expiredResult.rows.map((row) => row.room_name))]
   }
 
+  function getIsConnectedQuery(now: number): string {
+    return `
+      status = '${VoiceChatUserStatus.Connected}'
+      OR (status = '${VoiceChatUserStatus.ConnectionInterrupted}' AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
+      OR (status = '${VoiceChatUserStatus.NotConnected}' AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+    `
+  }
+
   async function getAllActiveCommunityVoiceChats(): Promise<
     Array<{
       communityId: string
@@ -442,11 +450,7 @@ export async function createVoiceDBComponent({
   > {
     const now = Date.now()
 
-    const isConnectedQuery = `
-      status = '${VoiceChatUserStatus.Connected}'
-      OR (status = '${VoiceChatUserStatus.ConnectionInterrupted}' AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
-      OR (status = '${VoiceChatUserStatus.NotConnected}' AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
-    `
+    const isConnectedQuery = getIsConnectedQuery(now)
 
     const activeChatsQuery = SQL`
       SELECT 
@@ -494,6 +498,32 @@ export async function createVoiceDBComponent({
     }))
   }
 
+  /**
+   * Checks if a user is currently in any community voice chat room.
+   * A user is considered "in" a community voice chat if they have an active status:
+   * - Connected, OR
+   * - Connection interrupted but within TTL, OR
+   * - Not connected but joined recently (within initial connection TTL)
+   * @param userAddress - The address of the user to check.
+   * @returns True if the user is in any community voice chat, false otherwise.
+   */
+  async function isUserInAnyCommunityVoiceChat(userAddress: string): Promise<boolean> {
+    const now = Date.now()
+    const isConnectedQuery = getIsConnectedQuery(now)
+
+    const query = SQL`
+      SELECT EXISTS(
+        SELECT 1 
+        FROM community_voice_chat_users 
+        WHERE address = ${userAddress.toLowerCase()}
+        AND `.append(isConnectedQuery).append(SQL`
+      ) as user_exists
+    `)
+
+    const result = await database.query(query)
+    return result.rows[0].user_exists
+  }
+
   return {
     deleteExpiredPrivateVoiceChats,
     deletePrivateVoiceChat,
@@ -514,6 +544,7 @@ export async function createVoiceDBComponent({
     deleteCommunityVoiceChat,
     deleteExpiredCommunityVoiceChats,
     getAllActiveCommunityVoiceChats,
+    isUserInAnyCommunityVoiceChat,
     // Export helper function for reuse
     isActiveCommunityUser: (user: CommunityVoiceChatUser, now: number) => isActiveCommunityUser(user, now)
   }

@@ -14,7 +14,11 @@ import { removeSceneStreamAccessHandler } from './handlers/scene-stream-access-h
 import { resetSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/reset-scene-stream-access-handler'
 import { livekitWebhookHandler } from './handlers/livekit-webhook-handler'
 import { patchUserPrivateMessagesPrivacyHandler } from './handlers/private-messages/patch-user-metadata-handler'
-import { getVoiceChatStatusHandler, createPrivateVoiceChatCredentialsHandler } from './handlers/voice-chat'
+import {
+  getVoiceChatStatusHandler,
+  createPrivateVoiceChatCredentialsHandler,
+  checkUserCommunityStatusHandler
+} from './handlers/voice-chat'
 import { deletePrivateVoiceChatHandler } from './handlers/voice-chat/delete-private-voice-chat.handler'
 import {
   communityVoiceChatHandler,
@@ -76,6 +80,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.delete('/private-voice-chat/:id', tokenAuthMiddleware, deletePrivateVoiceChatHandler)
 
   // Community voice chat routes
+  router.get('/users/:userAddress/community-voice-chat-status', tokenAuthMiddleware, checkUserCommunityStatusHandler)
   router.post('/community-voice-chat', tokenAuthMiddleware, communityVoiceChatHandler)
   router.get('/community-voice-chat/:communityId/status', tokenAuthMiddleware, getCommunityVoiceChatStatusHandler)
   router.get('/community-voice-chat/active', tokenAuthMiddleware, getAllActiveCommunityVoiceChatsHandler)

@@ -172,6 +172,13 @@ export interface IVoiceDBComponent {
   >
 
   /**
+   * Checks if a user is currently in any community voice chat room.
+   * @param userAddress - The address of the user to check.
+   * @returns True if the user is in any community voice chat, false otherwise.
+   */
+  isUserInAnyCommunityVoiceChat: (userAddress: string) => Promise<boolean>
+
+  /**
    * Helper function to determine if a community user is currently active.
    * @param user - The community user to check.
    * @param now - Current timestamp in milliseconds.
