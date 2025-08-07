@@ -141,13 +141,6 @@ export interface IVoiceDBComponent {
   isCommunityRoomActive: (roomName: string) => Promise<boolean>
 
   /**
-   * Checks if a community room should be destroyed.
-   * @param roomName - The name of the community room.
-   * @returns True if the room should be destroyed, false otherwise.
-   */
-  shouldDestroyCommunityRoom: (roomName: string) => Promise<boolean>
-
-  /**
    * Deletes a community voice chat room.
    * @param roomName - The name of the community room.
    */

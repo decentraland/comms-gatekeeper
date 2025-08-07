@@ -365,28 +365,6 @@ export async function createVoiceDBComponent({
   }
 
   /**
-   * Checks if a community room should be destroyed.
-   * A community room should be destroyed if there are no moderators connected for more than 5 minutes.
-   */
-  async function shouldDestroyCommunityRoom(roomName: string): Promise<boolean> {
-    const now = Date.now()
-    const users = await getCommunityUsersInRoom(roomName)
-
-    const activeModerators = users.filter((user) => user.isModerator && isActiveCommunityUser(user, now))
-
-    if (activeModerators.length === 0) {
-      // Check when the last moderator left
-      const lastModeratorLeft = users
-        .filter((user) => user.isModerator)
-        .reduce((latest, user) => Math.max(latest, user.statusUpdatedAt), 0)
-
-      return now - lastModeratorLeft > COMMUNITY_VOICE_CHAT_NO_MODERATOR_TTL
-    }
-
-    return false
-  }
-
-  /**
    * Deletes a community voice chat room.
    */
   async function deleteCommunityVoiceChat(roomName: string): Promise<void> {
@@ -399,14 +377,20 @@ export async function createVoiceDBComponent({
    */
   async function deleteExpiredCommunityVoiceChats(): Promise<string[]> {
     const now = Date.now()
+
     // Get rooms where:
-    // 1. No moderators have been active for more than 5 minutes, OR
-    // 2. Room has no moderators at all
+    // 1. No moderators at all, OR
+    // 2. Room has moderators but none are currently active AND enough time has passed since last active moderator
     const expiredQuery = SQL`
       WITH room_moderator_status AS (
         SELECT 
           room_name,
           COUNT(CASE WHEN is_moderator = true THEN 1 END) as moderator_count,
+          COUNT(CASE 
+            WHEN is_moderator = true AND (
+              `.append(getIsConnectedQuery(now)).append(SQL`
+            ) THEN 1 
+          END) as active_moderator_count,
           MAX(CASE WHEN is_moderator = true THEN status_updated_at ELSE 0 END) as last_moderator_activity
         FROM community_voice_chat_users 
         GROUP BY room_name
@@ -418,8 +402,9 @@ export async function createVoiceDBComponent({
           -- Case 1: Room has no moderators at all
           moderator_count = 0
         ) OR (
-          -- Case 2: Room has moderators but none active for more than 5 minutes
+          -- Case 2: Room has moderators but none are currently active AND enough time has passed
           moderator_count > 0 
+          AND active_moderator_count = 0 
           AND last_moderator_activity > 0 
           AND last_moderator_activity <= ${now - COMMUNITY_VOICE_CHAT_NO_MODERATOR_TTL}
         )
@@ -427,7 +412,7 @@ export async function createVoiceDBComponent({
       )
       DELETE FROM community_voice_chat_users USING expired_rooms 
       WHERE community_voice_chat_users.room_name = expired_rooms.room_name
-      RETURNING expired_rooms.room_name`
+      RETURNING expired_rooms.room_name`)
 
     const expiredResult = await database.query(expiredQuery)
     return [...new Set(expiredResult.rows.map((row) => row.room_name))]
@@ -540,7 +525,7 @@ export async function createVoiceDBComponent({
     updateCommunityUserStatus,
     getCommunityUsersInRoom,
     isCommunityRoomActive,
-    shouldDestroyCommunityRoom,
+
     deleteCommunityVoiceChat,
     deleteExpiredCommunityVoiceChats,
     getAllActiveCommunityVoiceChats,

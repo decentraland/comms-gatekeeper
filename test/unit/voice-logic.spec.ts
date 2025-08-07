@@ -353,17 +353,15 @@ describe('Voice Logic Component', () => {
     let updateCommunityUserStatusMock: jest.MockedFunction<IVoiceDBComponent['updateCommunityUserStatus']>
     let getCommunityUsersInRoomMock: jest.MockedFunction<IVoiceDBComponent['getCommunityUsersInRoom']>
     let deleteCommunityVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deleteCommunityVoiceChat']>
-    let shouldDestroyCommunityRoomMock: jest.MockedFunction<IVoiceDBComponent['shouldDestroyCommunityRoom']>
 
     beforeEach(() => {
       updateCommunityUserStatusMock = jest.fn()
       getCommunityUsersInRoomMock = jest.fn()
       deleteCommunityVoiceChatMock = jest.fn()
-      shouldDestroyCommunityRoomMock = jest.fn()
+
       voiceDB.updateCommunityUserStatus = updateCommunityUserStatusMock
       voiceDB.getCommunityUsersInRoom = getCommunityUsersInRoomMock
       voiceDB.deleteCommunityVoiceChat = deleteCommunityVoiceChatMock
-      voiceDB.shouldDestroyCommunityRoom = shouldDestroyCommunityRoomMock
     })
 
     describe('when participant left because of a duplicate identity', () => {
@@ -425,7 +423,7 @@ describe('Voice Logic Component', () => {
           roomName,
           VoiceChatUserStatus.Disconnected
         )
-        expect(shouldDestroyCommunityRoomMock).not.toHaveBeenCalled()
+
         expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
         expect(deleteRoomMock).not.toHaveBeenCalled()
       })
@@ -451,7 +449,7 @@ describe('Voice Logic Component', () => {
             statusUpdatedAt: Date.now()
           }
         ])
-        shouldDestroyCommunityRoomMock.mockResolvedValue(false)
+
         // Mock isActiveCommunityUser to return true for both users (they're both connected)
         isActiveCommunityUserMock.mockReturnValue(true)
       })
@@ -490,7 +488,6 @@ describe('Voice Logic Component', () => {
             statusUpdatedAt: Date.now()
           }
         ])
-        shouldDestroyCommunityRoomMock.mockResolvedValue(true)
       })
 
       it('should destroy the community room', async () => {

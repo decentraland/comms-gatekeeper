@@ -38,7 +38,7 @@ describe('CommunityVoiceLogic', () => {
       updateCommunityUserStatus: jest.fn(),
       getCommunityUsersInRoom: jest.fn(),
       isCommunityRoomActive: jest.fn(),
-      shouldDestroyCommunityRoom: jest.fn(),
+
       deleteCommunityVoiceChat: jest.fn(),
       deleteExpiredCommunityVoiceChats: jest.fn(),
       isActiveCommunityUser: jest.fn(),
