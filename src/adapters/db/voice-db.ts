@@ -388,10 +388,7 @@ export async function createVoiceDBComponent({
           COUNT(CASE WHEN is_moderator = true THEN 1 END) as moderator_count,
           COUNT(CASE 
             WHEN is_moderator = true AND (
-              -- Same logic as isActiveCommunityUser: moderator is active if...
-              status = ${VoiceChatUserStatus.Connected}
-              OR (status = ${VoiceChatUserStatus.ConnectionInterrupted} AND status_updated_at > ${now - VOICE_CHAT_CONNECTION_INTERRUPTED_TTL})
-              OR (status = ${VoiceChatUserStatus.NotConnected} AND joined_at > ${now - VOICE_CHAT_INITIAL_CONNECTION_TTL})
+              `.append(getIsConnectedQuery(now)).append(SQL`
             ) THEN 1 
           END) as active_moderator_count,
           MAX(CASE WHEN is_moderator = true THEN status_updated_at ELSE 0 END) as last_moderator_activity
@@ -415,7 +412,7 @@ export async function createVoiceDBComponent({
       )
       DELETE FROM community_voice_chat_users USING expired_rooms 
       WHERE community_voice_chat_users.room_name = expired_rooms.room_name
-      RETURNING expired_rooms.room_name`
+      RETURNING expired_rooms.room_name`)
 
     const expiredResult = await database.query(expiredQuery)
     return [...new Set(expiredResult.rows.map((row) => row.room_name))]
