@@ -31,7 +31,7 @@
     "@dcl/crypto": "^3.4.5",
     "@dcl/platform-crypto-middleware": "^1.1.0",
     "@dcl/platform-server-commons": "^0.2.0",
-    "@dcl/schemas": "^16.8.0",
+    "@dcl/schemas": "^18.0.0",
     "@well-known-components/env-config-provider": "^1.1.1",
     "@well-known-components/fetch-component": "^3.0.0",
     "@well-known-components/http-requests-logger-component": "^2.1.0",
