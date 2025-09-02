@@ -8,6 +8,7 @@ import { ILivekitComponent } from '../../src/types/livekit.type'
 import { AnalyticsEventPayload } from '../../src/types/analytics'
 import { CommunityRole } from '../../src/types/social.type'
 import { CommunityVoiceChatAction } from '../../src/types/community-voice'
+import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 
 describe('CommunityVoiceLogic', () => {
   let voiceComponent: IVoiceComponent
@@ -46,23 +47,7 @@ describe('CommunityVoiceLogic', () => {
       isUserInAnyCommunityVoiceChat: jest.fn()
     } as jest.Mocked<IVoiceDBComponent>
 
-    mockLivekit = {
-      generateCredentials: jest.fn(),
-      buildConnectionUrl: jest.fn(),
-      deleteRoom: jest.fn(),
-      getRoom: jest.fn(),
-      getRoomInfo: jest.fn(),
-      muteParticipant: jest.fn(),
-      getWorldRoomName: jest.fn(),
-      getSceneRoomName: jest.fn(),
-      getOrCreateIngress: jest.fn(),
-      removeIngress: jest.fn(),
-      getWebhookEvent: jest.fn(),
-      updateParticipantMetadata: jest.fn(),
-      updateParticipantPermissions: jest.fn(),
-      getParticipantInfo: jest.fn(),
-      removeParticipant: jest.fn()
-    } as jest.Mocked<ILivekitComponent>
+    mockLivekit = createLivekitMockedComponent()
 
     const mockLogger = {
       debug: jest.fn(),

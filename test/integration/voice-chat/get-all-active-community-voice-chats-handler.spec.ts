@@ -78,11 +78,8 @@ test('GET /community-voice-chats/active', ({ components, spyComponents }) => {
           }
         })
 
-        console.log(response)
-
         expect(response.status).toBe(200)
         const body = await response.json()
-        console.log(body)
 
         expect(body.total).toBe(2)
         expect(body.data).toHaveLength(2)

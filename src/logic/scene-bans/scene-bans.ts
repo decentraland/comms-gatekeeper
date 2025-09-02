@@ -1,6 +1,5 @@
 import { AppComponents } from '../../types'
 import { AddSceneBanParams, ISceneBansComponent } from './types'
-import { isErrorWithMessage } from '../errors'
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 
 export function createSceneBansComponent(
@@ -17,6 +16,14 @@ export function createSceneBansComponent(
    */
   async function addSceneBan(bannedAddress: string, bannedBy: string, params: AddSceneBanParams): Promise<void> {
     const { sceneId, realmName, parcel, isWorlds } = params
+
+    logger.debug(`Banning user ${bannedAddress} by user ${bannedBy}`, {
+      sceneId: sceneId || '',
+      realmName,
+      parcel: parcel || '',
+      isWorlds: String(isWorlds)
+    })
+
     const place = await places.getPlaceByParcelOrWorldName(isWorlds ? realmName : parcel!, { isWorlds })
 
     // Check if the user performing the ban has permission
@@ -35,6 +42,11 @@ export function createSceneBansComponent(
       throw new InvalidRequestError('Cannot ban this address')
     }
 
+    const roomName = livekit.getRoomName(realmName, { isWorlds, sceneId })
+    await livekit.removeParticipant(roomName, bannedAddress.toLowerCase())
+
+    logger.info(`Successfully removed participant ${bannedAddress} from LiveKit room ${roomName}`)
+
     // Add the ban to the database
     await sceneBanManager.addBan({
       place_id: place.id,
@@ -42,28 +54,7 @@ export function createSceneBansComponent(
       banned_by: bannedBy.toLowerCase()
     })
 
-    // Remove the banned user from the LiveKit voice chat room
-    try {
-      let roomName: string
-      if (isWorlds) {
-        roomName = livekit.getWorldRoomName(realmName)
-      } else {
-        if (!sceneId) {
-          logger.warn(`No sceneId available for LiveKit room removal for place ${place.id}`)
-          return
-        } else {
-          roomName = livekit.getSceneRoomName(realmName, sceneId)
-        }
-      }
-
-      await livekit.removeParticipant(roomName, bannedAddress.toLowerCase())
-      logger.info(`Successfully removed banned user ${bannedAddress} from LiveKit room ${roomName}`)
-    } catch (error) {
-      // Log the error but don't fail the ban operation
-      logger.warn(
-        `Failed to remove banned user ${bannedAddress} from LiveKit room: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
-      )
-    }
+    logger.info(`Successfully banned user ${bannedAddress} for place ${place.id}`)
   }
 
   return {

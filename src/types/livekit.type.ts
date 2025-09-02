@@ -19,6 +19,8 @@ export type ParticipantPermissions = {
   canPublishData?: boolean
 }
 
+export type GetRoomNameParams = { isWorlds: boolean; sceneId?: string }
+
 export type ILivekitComponent = IBaseComponent & {
   deleteRoom: (roomName: string) => Promise<void>
   buildConnectionUrl: (url: string, token: string) => string
@@ -33,6 +35,7 @@ export type ILivekitComponent = IBaseComponent & {
   removeParticipant: (roomId: string, participantId: string) => Promise<void>
   getWorldRoomName: (worldName: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
+  getRoomName: (realmName: string, params: GetRoomNameParams) => string
   getRoom: (roomName: string) => Promise<Room>
   getRoomInfo: (roomName: string) => Promise<Room | null>
   getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
