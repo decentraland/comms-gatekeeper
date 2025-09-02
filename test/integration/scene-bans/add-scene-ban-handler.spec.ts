@@ -91,306 +91,350 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
     jest.restoreAllMocks()
   })
 
-  it('returns 204 when successfully adding a scene ban', async () => {
-    const { localFetch } = components
-
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: false,
-      hasLandLease: false
-    })
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          banned_address: admin.authChain[0].payload
-        }),
-        metadata: metadataLand
-      },
-      owner
-    )
-
-    expect(response.status).toBe(204)
-    expect(stubComponents.sceneBanManager.addBan.calledOnce).toBe(true)
-
-    const addBanCall = stubComponents.sceneBanManager.addBan.getCall(0)
-    expect(addBanCall.args[0]).toEqual({
-      place_id: testPlaceId,
-      banned_address: admin.authChain[0].payload.toLowerCase(),
-      banned_by: owner.authChain[0].payload.toLowerCase()
-    })
-  })
-
-  it('returns 204 when user has world streaming permission', async () => {
-    const { localFetch } = components
-
-    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: false,
-      hasLandLease: false
-    })
-
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          banned_address: admin.authChain[0].payload
-        }),
-        metadata: metadataWorld
-      },
-      nonOwner
-    )
-
-    expect(response.status).toBe(204)
-    expect(stubComponents.sceneBanManager.addBan.calledOnce).toBe(true)
-  })
-
-  it('returns 204 when user has operator permission', async () => {
-    const { localFetch } = components
-
-    stubComponents.lands.getLandPermissions.resolves({
-      owner: false,
-      operator: true,
-      updateOperator: false,
-      updateManager: false,
-      approvedForAll: false
-    })
-
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: false,
-      hasLandLease: false
-    })
-
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          banned_address: admin.authChain[0].payload
-        }),
-        metadata: metadataLand
-      },
-      nonOwner
-    )
-
-    expect(response.status).toBe(204)
-    expect(stubComponents.sceneBanManager.addBan.calledOnce).toBe(true)
-  })
-
-  it('returns 401 when authentication is provided but invalid', async () => {
-    const { localFetch } = components
-
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({ banned_address: admin.authChain[0].payload }),
-        metadata: metadataLand
-      },
-      { ...owner, authChain: [...owner.authChain, { type: AuthLinkType.SIGNER, payload: 'invalid-signature' }] }
-    )
-
-    expect(response.status).toBe(401)
-  })
-
-  it('returns 400 when no authentication is provided', async () => {
-    const { localFetch } = components
-
-    const response = await localFetch.fetch('/scene-bans', {
-      method: 'POST'
-    })
-
-    expect(response.status).toBe(400)
-  })
-
-  it('returns 400 when banned_address is invalid', async () => {
-    const { localFetch } = components
-
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          banned_address: 'invalid-address'
-        }),
-        metadata: metadataLand
-      },
-      owner
-    )
-
-    expect(response.status).toBe(400)
-  })
-
-  it('returns 400 when banned_address is missing', async () => {
-    const { localFetch } = components
-
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({}),
-        metadata: metadataLand
-      },
-      owner
-    )
-
-    expect(response.status).toBe(400)
-  })
-
-  it('returns 401 when user is not owner or admin', async () => {
-    const { localFetch } = components
-
-    stubComponents.lands.getLandPermissions.resolves({
-      owner: false,
-      operator: false,
-      updateOperator: false,
-      updateManager: false,
-      approvedForAll: false
-    })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: false,
-      hasLandLease: false
-    })
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
-
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          banned_address: admin.authChain[0].payload
-        }),
-        metadata: metadataLand
-      },
-      nonOwner
-    )
-
-    expect(response.status).toBe(401)
-  })
-
-  it('returns 400 when trying to ban an owner', async () => {
-    const { localFetch } = components
-
-    stubComponents.sceneManager.getUserScenePermissions
-      .onFirstCall()
-      .resolves({
-        owner: true,
-        admin: false,
-        hasExtendedPermissions: false,
-        hasLandLease: false
-      })
-      .onSecondCall()
-      .resolves({
-        owner: true,
-        admin: false,
-        hasExtendedPermissions: false,
-        hasLandLease: false
+  describe('when user has valid permissions', () => {
+    describe('and user is scene owner', () => {
+      beforeEach(() => {
+        stubComponents.sceneManager.getUserScenePermissions.resolves({
+          owner: false,
+          admin: false,
+          hasExtendedPermissions: false,
+          hasLandLease: false
+        })
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
       })
 
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          banned_address: owner.authChain[0].payload
-        }),
-        metadata: metadataLand
-      },
-      owner
-    )
+      it('should return 204 and add ban successfully', async () => {
+        const { localFetch } = components
 
-    expect(response.status).toBe(400)
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_address: admin.authChain[0].payload
+            }),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(204)
+        expect(stubComponents.sceneBanManager.addBan.calledOnce).toBe(true)
+
+        const addBanCall = stubComponents.sceneBanManager.addBan.getCall(0)
+        expect(addBanCall.args[0]).toEqual({
+          place_id: testPlaceId,
+          banned_address: admin.authChain[0].payload.toLowerCase(),
+          banned_by: owner.authChain[0].payload.toLowerCase()
+        })
+      })
+    })
+
+    describe('and user has world streaming permission', () => {
+      beforeEach(() => {
+        jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+        stubComponents.sceneManager.getUserScenePermissions.resolves({
+          owner: false,
+          admin: false,
+          hasExtendedPermissions: false,
+          hasLandLease: false
+        })
+      })
+
+      it('should return 204 and add ban successfully', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_address: admin.authChain[0].payload
+            }),
+            metadata: metadataWorld
+          },
+          nonOwner
+        )
+
+        expect(response.status).toBe(204)
+        expect(stubComponents.sceneBanManager.addBan.calledOnce).toBe(true)
+      })
+    })
+
+    describe('and user has operator permission', () => {
+      beforeEach(() => {
+        stubComponents.lands.getLandPermissions.resolves({
+          owner: false,
+          operator: true,
+          updateOperator: false,
+          updateManager: false,
+          approvedForAll: false
+        })
+        stubComponents.sceneManager.getUserScenePermissions.resolves({
+          owner: false,
+          admin: false,
+          hasExtendedPermissions: false,
+          hasLandLease: false
+        })
+      })
+
+      it('should return 204 and add ban successfully', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_address: admin.authChain[0].payload
+            }),
+            metadata: metadataLand
+          },
+          nonOwner
+        )
+
+        expect(response.status).toBe(204)
+        expect(stubComponents.sceneBanManager.addBan.calledOnce).toBe(true)
+      })
+    })
   })
 
-  it('returns 400 when trying to ban an admin', async () => {
-    const { localFetch } = components
+  describe('when authentication is invalid', () => {
+    describe('and authentication is provided but invalid', () => {
+      it('should return 401', async () => {
+        const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions
-      .onFirstCall()
-      .resolves({
-        owner: false,
-        admin: true,
-        hasExtendedPermissions: false,
-        hasLandLease: false
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({ banned_address: admin.authChain[0].payload }),
+            metadata: metadataLand
+          },
+          { ...owner, authChain: [...owner.authChain, { type: AuthLinkType.SIGNER, payload: 'invalid-signature' }] }
+        )
+
+        expect(response.status).toBe(401)
       })
-      .onSecondCall()
-      .resolves({
-        owner: false,
-        admin: true,
-        hasExtendedPermissions: false,
-        hasLandLease: false
+    })
+
+    describe('and no authentication is provided', () => {
+      it('should return 400', async () => {
+        const { localFetch } = components
+
+        const response = await localFetch.fetch('/scene-bans', {
+          method: 'POST'
+        })
+
+        expect(response.status).toBe(400)
       })
-
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          banned_address: admin.authChain[0].payload
-        }),
-        metadata: metadataLand
-      },
-      owner
-    )
-
-    expect(response.status).toBe(400)
+    })
   })
 
-  it('returns 400 when trying to ban a user with extended permissions', async () => {
-    const { localFetch } = components
+  describe('when request payload is invalid', () => {
+    describe('and banned_address is invalid', () => {
+      it('should return 400', async () => {
+        const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions
-      .onFirstCall()
-      .resolves({
-        owner: false,
-        admin: false,
-        hasExtendedPermissions: true,
-        hasLandLease: false
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_address: 'invalid-address'
+            }),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(400)
       })
-      .onSecondCall()
-      .resolves({
-        owner: false,
-        admin: false,
-        hasExtendedPermissions: true,
-        hasLandLease: false
+    })
+
+    describe('and banned_address is missing', () => {
+      it('should return 400', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({}),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(400)
+      })
+    })
+  })
+
+  describe('when user lacks permissions', () => {
+    describe('and user is not owner or admin', () => {
+      beforeEach(() => {
+        stubComponents.lands.getLandPermissions.resolves({
+          owner: false,
+          operator: false,
+          updateOperator: false,
+          updateManager: false,
+          approvedForAll: false
+        })
+        stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
+        stubComponents.sceneAdminManager.isAdmin.resolves(false)
+        stubComponents.sceneManager.getUserScenePermissions.resolves({
+          owner: false,
+          admin: false,
+          hasExtendedPermissions: false,
+          hasLandLease: false
+        })
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
       })
 
-    const response = await makeRequest(
-      localFetch,
-      '/scene-bans',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          banned_address: admin.authChain[0].payload
-        }),
-        metadata: metadataLand
-      },
-      owner
-    )
+      it('should return 401', async () => {
+        const { localFetch } = components
 
-    expect(response.status).toBe(400)
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_address: admin.authChain[0].payload
+            }),
+            metadata: metadataLand
+          },
+          nonOwner
+        )
+
+        expect(response.status).toBe(401)
+      })
+    })
+  })
+
+  describe('when trying to ban protected users', () => {
+    describe('and trying to ban an owner', () => {
+      beforeEach(() => {
+        stubComponents.sceneManager.getUserScenePermissions
+          .onFirstCall()
+          .resolves({
+            owner: true,
+            admin: false,
+            hasExtendedPermissions: false,
+            hasLandLease: false
+          })
+          .onSecondCall()
+          .resolves({
+            owner: true,
+            admin: false,
+            hasExtendedPermissions: false,
+            hasLandLease: false
+          })
+      })
+
+      it('should return 400', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_address: owner.authChain[0].payload
+            }),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(400)
+      })
+    })
+
+    describe('and trying to ban an admin', () => {
+      beforeEach(() => {
+        stubComponents.sceneManager.getUserScenePermissions
+          .onFirstCall()
+          .resolves({
+            owner: false,
+            admin: true,
+            hasExtendedPermissions: false,
+            hasLandLease: false
+          })
+          .onSecondCall()
+          .resolves({
+            owner: false,
+            admin: true,
+            hasExtendedPermissions: false,
+            hasLandLease: false
+          })
+      })
+
+      it('should return 400', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_address: admin.authChain[0].payload
+            }),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(400)
+      })
+    })
+
+    describe('and trying to ban a user with extended permissions', () => {
+      beforeEach(() => {
+        stubComponents.sceneManager.getUserScenePermissions
+          .onFirstCall()
+          .resolves({
+            owner: false,
+            admin: false,
+            hasExtendedPermissions: true,
+            hasLandLease: false
+          })
+          .onSecondCall()
+          .resolves({
+            owner: false,
+            admin: false,
+            hasExtendedPermissions: true,
+            hasLandLease: false
+          })
+      })
+
+      it('should return 400', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_address: admin.authChain[0].payload
+            }),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(400)
+      })
+    })
   })
 })

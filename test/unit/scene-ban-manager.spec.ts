@@ -24,147 +24,160 @@ describe('SceneBanManager', () => {
   })
 
   describe('addBan', () => {
-    it('should successfully add a new ban', async () => {
-      const input = {
+    describe('when input is valid', () => {
+      const validInput = {
         place_id: 'test-place-id',
         banned_address: '0x1234567890123456789012345678901234567890',
         banned_by: '0x0987654321098765432109876543210987654321'
       }
 
-      const mockResult = {
-        rowCount: 1,
-        rows: [
-          {
-            id: 'test-ban-id',
-            place_id: input.place_id,
-            banned_address: input.banned_address.toLowerCase(),
-            banned_by: input.banned_by.toLowerCase(),
-            banned_at: Date.now(),
-            active: true
-          } as SceneBan
-        ]
-      }
-
-      mockedComponents.database.query.mockResolvedValue(mockResult)
-
-      await sceneBanManager.addBan(input)
-
-      expect(mockedComponents.database.query).toHaveBeenCalledWith(
-        expect.objectContaining({
-          strings: expect.arrayContaining([expect.stringContaining('INSERT INTO scene_bans')]),
-          values: expect.arrayContaining([
-            input.place_id,
-            input.banned_address.toLowerCase(),
-            input.banned_by.toLowerCase(),
-            expect.any(Number)
-          ])
+      describe('and ban is successfully created', () => {
+        beforeEach(() => {
+          const mockResult = {
+            rowCount: 1,
+            rows: [
+              {
+                id: 'test-ban-id',
+                place_id: validInput.place_id,
+                banned_address: validInput.banned_address.toLowerCase(),
+                banned_by: validInput.banned_by.toLowerCase(),
+                banned_at: Date.now(),
+                active: true
+              } as SceneBan
+            ]
+          }
+          mockedComponents.database.query.mockResolvedValue(mockResult)
         })
-      )
-    })
 
-    it('should handle duplicate ban gracefully', async () => {
-      const input = {
-        place_id: 'test-place-id',
-        banned_address: '0x1234567890123456789012345678901234567890',
-        banned_by: '0x0987654321098765432109876543210987654321'
-      }
+        it('should call database query with correct parameters', async () => {
+          await sceneBanManager.addBan(validInput)
 
-      const mockResult = {
-        rowCount: 0,
-        rows: []
-      }
-
-      mockedComponents.database.query.mockResolvedValue(mockResult)
-
-      await sceneBanManager.addBan(input)
-
-      expect(mockedComponents.database.query).toHaveBeenCalledWith(
-        expect.objectContaining({
-          strings: expect.arrayContaining([
-            expect.stringContaining('ON CONFLICT (place_id, banned_address) WHERE active = true')
-          ])
+          expect(mockedComponents.database.query).toHaveBeenCalledWith(
+            expect.objectContaining({
+              strings: expect.arrayContaining([expect.stringContaining('INSERT INTO scene_bans')]),
+              values: expect.arrayContaining([
+                validInput.place_id,
+                validInput.banned_address.toLowerCase(),
+                validInput.banned_by.toLowerCase(),
+                expect.any(Number)
+              ])
+            })
+          )
         })
-      )
-    })
+      })
 
-    it('should throw error for invalid input - missing place_id', async () => {
-      const input = {
-        banned_address: '0x1234567890123456789012345678901234567890',
-        banned_by: '0x0987654321098765432109876543210987654321'
-      }
-
-      await expect(sceneBanManager.addBan(input)).rejects.toThrow('place_id is required and must be a string')
-    })
-
-    it('should throw error for invalid input - missing banned_address', async () => {
-      const input = {
-        place_id: 'test-place-id',
-        banned_by: '0x0987654321098765432109876543210987654321'
-      }
-
-      await expect(sceneBanManager.addBan(input)).rejects.toThrow('banned_address is required and must be a string')
-    })
-
-    it('should throw error for invalid input - missing banned_by', async () => {
-      const input = {
-        place_id: 'test-place-id',
-        banned_address: '0x1234567890123456789012345678901234567890'
-      }
-
-      await expect(sceneBanManager.addBan(input)).rejects.toThrow('banned_by is required and must be a string')
-    })
-
-    it('should throw error for invalid input - non-object', async () => {
-      await expect(sceneBanManager.addBan('invalid')).rejects.toThrow('Input must be an object')
-    })
-
-    it('should throw error for invalid input - null', async () => {
-      await expect(sceneBanManager.addBan(null)).rejects.toThrow('Input must be an object')
-    })
-
-    it('should throw error for invalid input - undefined', async () => {
-      await expect(sceneBanManager.addBan(undefined)).rejects.toThrow('Input must be an object')
-    })
-
-    it('should convert addresses to lowercase', async () => {
-      const input = {
-        place_id: 'test-place-id',
-        banned_address: '0x1234567890123456789012345678901234567890',
-        banned_by: '0x0987654321098765432109876543210987654321'
-      }
-
-      const mockResult = {
-        rowCount: 1,
-        rows: []
-      }
-
-      mockedComponents.database.query.mockResolvedValue(mockResult)
-
-      await sceneBanManager.addBan(input)
-
-      expect(mockedComponents.database.query).toHaveBeenCalledWith(
-        expect.objectContaining({
-          values: expect.arrayContaining([
-            input.place_id,
-            input.banned_address.toLowerCase(),
-            input.banned_by.toLowerCase(),
-            expect.any(Number)
-          ])
+      describe('and ban already exists', () => {
+        beforeEach(() => {
+          const mockResult = {
+            rowCount: 0,
+            rows: []
+          }
+          mockedComponents.database.query.mockResolvedValue(mockResult)
         })
-      )
+
+        it('should handle duplicate ban gracefully', async () => {
+          await sceneBanManager.addBan(validInput)
+
+          expect(mockedComponents.database.query).toHaveBeenCalledWith(
+            expect.objectContaining({
+              strings: expect.arrayContaining([
+                expect.stringContaining('ON CONFLICT (place_id, banned_address) WHERE active = true')
+              ])
+            })
+          )
+        })
+      })
+
+      describe('and database operation fails', () => {
+        beforeEach(() => {
+          const dbError = new Error('Database connection failed')
+          mockedComponents.database.query.mockRejectedValue(dbError)
+        })
+
+        it('should propagate database errors', async () => {
+          await expect(sceneBanManager.addBan(validInput)).rejects.toThrow('Database connection failed')
+        })
+      })
+
+      describe('and addresses need to be converted to lowercase', () => {
+        beforeEach(() => {
+          const mockResult = {
+            rowCount: 1,
+            rows: []
+          }
+          mockedComponents.database.query.mockResolvedValue(mockResult)
+        })
+
+        it('should convert addresses to lowercase in database query', async () => {
+          await sceneBanManager.addBan(validInput)
+
+          expect(mockedComponents.database.query).toHaveBeenCalledWith(
+            expect.objectContaining({
+              values: expect.arrayContaining([
+                validInput.place_id,
+                validInput.banned_address.toLowerCase(),
+                validInput.banned_by.toLowerCase(),
+                expect.any(Number)
+              ])
+            })
+          )
+        })
+      })
     })
 
-    it('should propagate database errors', async () => {
-      const input = {
-        place_id: 'test-place-id',
-        banned_address: '0x1234567890123456789012345678901234567890',
-        banned_by: '0x0987654321098765432109876543210987654321'
-      }
+    describe('when input is invalid', () => {
+      describe('and place_id is missing', () => {
+        const invalidInput = {
+          banned_address: '0x1234567890123456789012345678901234567890',
+          banned_by: '0x0987654321098765432109876543210987654321'
+        }
 
-      const dbError = new Error('Database connection failed')
-      mockedComponents.database.query.mockRejectedValue(dbError)
+        it('should throw validation error', async () => {
+          await expect(sceneBanManager.addBan(invalidInput)).rejects.toThrow(
+            'place_id is required and must be a string'
+          )
+        })
+      })
 
-      await expect(sceneBanManager.addBan(input)).rejects.toThrow('Database connection failed')
+      describe('and banned_address is missing', () => {
+        const invalidInput = {
+          place_id: 'test-place-id',
+          banned_by: '0x0987654321098765432109876543210987654321'
+        }
+
+        it('should throw validation error', async () => {
+          await expect(sceneBanManager.addBan(invalidInput)).rejects.toThrow(
+            'banned_address is required and must be a string'
+          )
+        })
+      })
+
+      describe('and banned_by is missing', () => {
+        const invalidInput = {
+          place_id: 'test-place-id',
+          banned_address: '0x1234567890123456789012345678901234567890'
+        }
+
+        it('should throw validation error', async () => {
+          await expect(sceneBanManager.addBan(invalidInput)).rejects.toThrow(
+            'banned_by is required and must be a string'
+          )
+        })
+      })
+
+      describe('and input is not an object', () => {
+        it('should throw validation error for string input', async () => {
+          await expect(sceneBanManager.addBan('invalid')).rejects.toThrow('Input must be an object')
+        })
+
+        it('should throw validation error for null input', async () => {
+          await expect(sceneBanManager.addBan(null)).rejects.toThrow('Input must be an object')
+        })
+
+        it('should throw validation error for undefined input', async () => {
+          await expect(sceneBanManager.addBan(undefined)).rejects.toThrow('Input must be an object')
+        })
+      })
     })
   })
 })
