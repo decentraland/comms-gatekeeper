@@ -7,7 +7,7 @@ import { validate } from '../../logic/utils'
 export async function commsServerSceneHandler(
   context: HandlerContextWithPath<
     'fetch' | 'config' | 'livekit' | 'logs' | 'blockList' | 'publisher',
-    '/get-scene-adapter'
+    '/get-server-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {

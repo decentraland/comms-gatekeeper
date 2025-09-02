@@ -61,7 +61,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   router.post('/get-scene-adapter', commsSceneHandler)
   router.post('/get-server-scene-adapter', commsServerSceneHandler)
-  
+
   router.post('/mute', muteHandler)
 
   // Scene admin routes
