@@ -1,5 +1,6 @@
 import { createPlacesComponent } from '../../src/adapters/places'
 import { PlaceNotFoundError } from '../../src/types/errors'
+import { PlaceAttributes, PlaceResponse } from '../../src/types/places.type'
 
 describe('PlacesComponent', () => {
   let placesComponent: Awaited<ReturnType<typeof createPlacesComponent>>
@@ -106,6 +107,47 @@ describe('PlacesComponent', () => {
 
       await expect(placesComponent.getPlaceByWorldName('nonexistent-world')).rejects.toThrow(PlaceNotFoundError)
       expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds?names=nonexistent-world')
+    })
+  })
+
+  describe('getPlaceByParcelOrWorldName', () => {
+    let mockResponse: PlaceResponse
+
+    beforeEach(() => {
+      mockResponse = {
+        data: [
+          {
+            id: 'id',
+            title: 'Test title',
+            owner: '0xOwnerAddress',
+            description: 'Test description',
+            positions: [],
+            world_name: 'test-world'
+          } as PlaceAttributes
+        ],
+        ok: true,
+        total: 1
+      }
+
+      mockFetch.mockResolvedValueOnce(mockResponse)
+    })
+
+    describe('when isWorlds is true', () => {
+      it('should call getPlaceByWorldName with the world name', async () => {
+        const result = await placesComponent.getPlaceByParcelOrWorldName('test-world', { isWorlds: true })
+
+        expect(result).toBe(mockResponse.data[0])
+        expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds?names=test-world')
+      })
+    })
+
+    describe('when isWorlds is false', () => {
+      it('should call getPlaceByParcel with the parcel coordinates', async () => {
+        const result = await placesComponent.getPlaceByParcelOrWorldName('1,2', { isWorlds: false })
+
+        expect(result).toBe(mockResponse.data[0])
+        expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places?positions=1,2')
+      })
     })
   })
 
