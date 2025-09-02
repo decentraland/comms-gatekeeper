@@ -2,7 +2,7 @@ import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
-import { oldValidate, validate } from '../../logic/utils'
+import { validate } from '../../logic/utils'
 
 export async function commsServerSceneHandler(
   context: HandlerContextWithPath<
@@ -16,7 +16,6 @@ export async function commsServerSceneHandler(
 
   const logger = logs.getLogger('comms-scene-handler')
   const { sceneId, identity, parcel, realm } = await validate(context)
-
   let room: string
   const permissions: Permissions = {
     cast: [],
@@ -30,11 +29,11 @@ export async function commsServerSceneHandler(
   }
   const realmName = realm.serverName
   const isWorld = realmName.endsWith('.eth')
-  
+
   // TODO: when running preview how to handle this case ?
+  // Should we have a list of valid public keys ?
   const serverPublicKey = await config.getString('AUTHORATIVE_SERVER_PUBLIC_KEY')
-  const preview = true
-  if (!preview && identity !== serverPublicKey) {
+  if (realmName !== 'LocalPreview' && identity !== serverPublicKey) {
     throw new UnauthorizedError('Access denied, invalid server public key')
   }
 
@@ -51,7 +50,7 @@ export async function commsServerSceneHandler(
     throw new NotFoundError('Realm or scene not found')
   }
 
-  const AUTH_SERVER_IDENTITY = 'authorative-server'
+  const AUTH_SERVER_IDENTITY = 'authoritative-server'
   const credentials = await livekit.generateCredentials(AUTH_SERVER_IDENTITY, room, permissions, false)
   logger.debug(`Token generated for ${identity} as ${AUTH_SERVER_IDENTITY} to join room ${room}`)
 
@@ -70,6 +69,7 @@ export async function commsServerSceneHandler(
       }
     }
 
+    // TODO: do we need this for the authoritative-server peer ?
     try {
       await publisher.publishMessages([event])
       logger.debug(`Published UserJoinedRoomEvent for ${identity} in room ${room}`)
