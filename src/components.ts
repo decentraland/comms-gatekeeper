@@ -12,6 +12,7 @@ import { AppComponents, GlobalContext } from './types'
 import { metricDeclarations } from './metrics'
 import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
+import { createSceneBanManagerComponent } from './adapters/scene-ban-manager'
 import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream-access-manager'
 import { createTracedFetchComponent } from './adapters/traced-fetch'
 import { createBlockListComponent } from './adapters/blocklist'
@@ -83,6 +84,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   )
 
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
+  const sceneBanManager = await createSceneBanManagerComponent({ database, logs })
   const social = await createSocialComponent({ config, logs, fetch: tracedFetch })
   const cachedFetch = await cachedFetchComponent({ fetch: tracedFetch, logs })
   const worlds = await createWorldsComponent({ config, logs, cachedFetch })
@@ -165,6 +167,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     voiceDB,
     voice,
     sceneAdminManager,
+    sceneBanManager,
     sceneStreamAccessManager,
     placesChecker,
     streamingTTLChecker,

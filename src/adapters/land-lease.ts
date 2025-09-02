@@ -1,5 +1,5 @@
 import { AppComponents } from '../types'
-import { LandLeaseAuthorizations, ILandLeaseComponent, LandLeaseAuthorization } from '../types/land-lease.type'
+import { LandLeaseAuthorizations, ILandLeaseComponent } from '../types/land-lease.type'
 
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes in milliseconds
 

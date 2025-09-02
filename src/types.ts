@@ -45,6 +45,7 @@ export type BaseComponents = {
   livekit: ILivekitComponent
   database: IPgComponent
   sceneAdminManager: ISceneAdminManager
+  sceneBanManager: ISceneBanManager
   sceneStreamAccessManager: ISceneStreamAccessManager
   cachedFetch: ICachedFetchComponent
   places: IPlacesComponent
@@ -204,4 +205,25 @@ export interface IPublisherComponent {
     successfulMessageIds: string[]
     failedEvents: any[]
   }>
+}
+
+export type SceneBan = {
+  id: string
+  place_id: string
+  banned_address: string
+  banned_by: string
+  unbanned_by?: string
+  banned_at: number
+  unbanned_at?: number
+  active: boolean
+}
+
+export interface AddSceneBanInput {
+  place_id: string
+  banned_address: string
+  banned_by: string
+}
+
+export interface ISceneBanManager {
+  addBan(input: AddSceneBanInput): Promise<void>
 }
