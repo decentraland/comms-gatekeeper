@@ -5,21 +5,22 @@ export type IBlockListComponent = {
 }
 
 export async function createBlockListComponent(
-  components: Pick<AppComponents, 'config' | 'fetch'>
+  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
 ): Promise<IBlockListComponent> {
-  const { config, fetch } = components
+  const { config, cachedFetch, logs } = components
+  const logger = logs.getLogger('blocklist-component')
 
+  const blocklistCache = cachedFetch.cache<{ users: { wallet: string }[] }>()
   const blacklistUrl = await config.requireString('BLACKLIST_JSON_URL')
 
   async function fetchBlacklistedWallets(): Promise<Set<string>> {
-    const response = await fetch.fetch(blacklistUrl)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch deny list, status: ${response.status}`)
+    const cachedBlacklist = await blocklistCache.fetch(blacklistUrl)
+
+    if (cachedBlacklist?.users && Array.isArray(cachedBlacklist?.users)) {
+      return new Set(cachedBlacklist.users.map((user: { wallet: string }) => user.wallet.toLowerCase()))
     }
-    const data = await response.json()
-    if (data.users && Array.isArray(data.users)) {
-      return new Set(data.users.map((user: { wallet: string }) => user.wallet.toLowerCase()))
-    }
+
+    logger.warn(`Failed get the deny list, did not get an array of users`)
     return new Set()
   }
 

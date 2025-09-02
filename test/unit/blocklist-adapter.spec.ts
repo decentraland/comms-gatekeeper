@@ -1,10 +1,14 @@
-import { IConfigComponent, IFetchComponent, Response } from '@well-known-components/interfaces'
+import { IConfigComponent, ILoggerComponent, Response } from '@well-known-components/interfaces'
 import { createBlockListComponent, IBlockListComponent } from '../../src/adapters/blocklist'
+import { ICachedFetchComponent } from '../../src/types/fetch.type'
+import { createCachedFetchMockedComponent } from '../mocks/cached-fetch'
+import { createLoggerMockedComponent } from '../mocks/logger-mock'
 
 let blockList: IBlockListComponent
 let config: IConfigComponent
-let fetch: IFetchComponent
-let fetchMock: jest.MockedFunction<typeof fetch.fetch>
+let cachedFetch: ICachedFetchComponent
+let fetchMock: jest.MockedFunction<ReturnType<ICachedFetchComponent['cache']>['fetch']>
+let logs: ILoggerComponent
 
 beforeEach(async () => {
   fetchMock = jest.fn()
@@ -14,36 +18,25 @@ beforeEach(async () => {
     getNumber: jest.fn(),
     requireNumber: jest.fn()
   }
-  fetch = {
-    fetch: fetchMock
-  }
-  blockList = await createBlockListComponent({ config, fetch })
+  cachedFetch = createCachedFetchMockedComponent({ fetch: fetchMock })
+  logs = createLoggerMockedComponent()
+  blockList = await createBlockListComponent({ config, cachedFetch, logs })
 })
 
 describe('when checking if a wallet is blacklisted', () => {
   describe('and fetching the blacklist fails', () => {
     beforeEach(() => {
-      fetchMock.mockRejectedValueOnce(new Error('Network error'))
+      fetchMock.mockResolvedValueOnce(undefined)
     })
 
-    it('should reject, propagating the error', async () => {
-      await expect(blockList.isBlacklisted('0x123')).rejects.toThrow('Network error')
-    })
-  })
-
-  describe('and fetching the blacklist results in a non-200 status', () => {
-    beforeEach(() => {
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 404 } as Response)
-    })
-
-    it('should reject with an error saying that the deny list could not be fetched', async () => {
-      await expect(blockList.isBlacklisted('0x123')).rejects.toThrow('Failed to fetch deny list, status: 404')
+    it('should resolve to false', async () => {
+      await expect(blockList.isBlacklisted('0x123')).resolves.toBe(false)
     })
   })
 
   describe('and the wallet is not in the blacklist', () => {
     beforeEach(() => {
-      fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) } as Response)
+      fetchMock.mockResolvedValueOnce({ users: [] })
     })
 
     it('should resolve to false', async () => {
@@ -54,7 +47,7 @@ describe('when checking if a wallet is blacklisted', () => {
 
   describe('and the wallet is in the blacklist', () => {
     beforeEach(() => {
-      fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [{ wallet: '0x123' }] }) } as Response)
+      fetchMock.mockResolvedValueOnce({ users: [{ wallet: '0x123' }] })
     })
 
     it('should resolve to true', async () => {
