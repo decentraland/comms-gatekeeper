@@ -40,7 +40,7 @@ describe('when fetching a URL for the first time', () => {
 
 describe('when fetching the same URL multiple times', () => {
   beforeEach(() => {
-    mockNodeFetch.mockResolvedValue({
+    mockNodeFetch.mockResolvedValueOnce({
       ok: true,
       json: jest.fn().mockResolvedValueOnce(mockedResponseBody)
     })
