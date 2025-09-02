@@ -10,7 +10,7 @@ const METADATA_IMAGE_URL = 'https://assets-cdn.decentraland.org/streaming/stream
 
 export async function oldValidate<T extends string>(
   context: HandlerContextWithPath<'fetch' | 'config', T>
-): Promise<Omit<AuthData, 'realm'>> {
+): Promise<Omit<AuthData, 'realm' | 'isWorlds'>> {
   const { config, fetch } = context.components
   const baseUrl = (await config.getString('HTTP_BASE_URL')) || `${context.url.protocol}//${context.url.host}`
   const path = new URL(baseUrl + context.url.pathname)
@@ -42,9 +42,12 @@ export async function validate<T extends string>(
   context: HandlerContextWithPath<'fetch' | 'config', T>
 ): Promise<Omit<AuthData, 'realmName'>> {
   const { config, fetch } = context.components
+
   const baseUrl = (await config.getString('HTTP_BASE_URL')) || `${context.url.protocol}//${context.url.host}`
   const path = new URL(baseUrl + context.url.pathname)
+
   let verification: DecentralandSignatureData<AuthData>
+
   try {
     verification = await verify(context.request.method, path.pathname, context.request.headers.raw(), {
       fetcher: fetch
@@ -54,6 +57,7 @@ export async function validate<T extends string>(
   }
 
   const { realm, sceneId, parcel } = verification.authMetadata
+
   if (!realm) {
     throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realm')
   }
@@ -64,7 +68,8 @@ export async function validate<T extends string>(
     identity,
     sceneId,
     parcel,
-    realm
+    realm,
+    isWorlds: !!realm.hostname?.includes('worlds-content-server')
   }
 }
 

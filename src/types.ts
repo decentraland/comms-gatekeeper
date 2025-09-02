@@ -25,6 +25,7 @@ import { INotifications } from './types/notification.type'
 import { ISceneAdmins } from './types/scene.type'
 import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
+import { ISceneBansComponent } from './logic/scene-bans/types'
 import { ICronJobComponent } from './logic/cron-job/types'
 import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
@@ -46,6 +47,7 @@ export type BaseComponents = {
   database: IPgComponent
   sceneAdminManager: ISceneAdminManager
   sceneBanManager: ISceneBanManager
+  sceneBans: ISceneBansComponent
   sceneStreamAccessManager: ISceneStreamAccessManager
   cachedFetch: ICachedFetchComponent
   places: IPlacesComponent
@@ -137,6 +139,7 @@ export type AuthData = {
   parcel: string
   realm: RealmAuthMetadata
   realmName: string
+  isWorlds: boolean
 }
 
 export type SceneAdmin = {

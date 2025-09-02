@@ -22,6 +22,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       hostname: string
       protocol: string
     }
+    isWorlds: boolean
   }
 
   let metadataLand: Metadata
@@ -86,7 +87,8 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         protocol: 'https'
       },
       sceneId: 'test-scene',
-      parcel: '10,20'
+      parcel: '10,20',
+      isWorlds: false
     }
 
     metadataWorld = {
@@ -97,7 +99,8 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         protocol: 'https'
       },
       sceneId: 'test-scene',
-      parcel: '20,20'
+      parcel: '20,20',
+      isWorlds: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
@@ -700,7 +703,8 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
           serverName: 'test-realm',
           hostname: 'https://peer.decentraland.zone',
           protocol: 'v3'
-        }
+        },
+        isWorlds: false
       }
 
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLandLease)
@@ -719,22 +723,22 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         updateManager: false,
         approvedForAll: false
       })
-      
+
       stubComponents.sceneManager.getUserScenePermissions.resolves({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
         hasLandLease: true // User has land lease
       })
-      
+
       stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true) // Should be true due to land lease
-      
+
       stubComponents.sceneAdminManager.isAdmin.resolves(false)
       stubComponents.sceneManager.isSceneOwner.resolves(false)
-      
+
       // Mock land lease component to return true for this user and parcel
       stubComponents.landLease.hasLandLease.resolves(true)
-      
+
       // Mock getAuthorizations to return authorizations for the test parcel
       stubComponents.landLease.getAuthorizations.resolves({
         authorizations: [

@@ -4,6 +4,7 @@ import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { AuthLinkType } from '@dcl/crypto'
+import { InvalidRequestError, UnauthorizedError } from '../../../src/types/errors'
 
 test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubComponents }) => {
   const testPlaceId = `place-id-ban`
@@ -49,7 +50,11 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
       }
     }
 
-    jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValue({
+      ...metadataLand,
+      sceneId: 'test-scene',
+      isWorlds: false
+    })
 
     stubComponents.places.getPlaceByParcel.resolves({
       positions: [metadataLand.parcel],
@@ -80,10 +85,8 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.worlds.hasWorldDeployPermission.resolves(false)
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.isSceneOwner.resolves(false)
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-
-    stubComponents.sceneBanManager.addBan.resolves()
+    // Permission validation is now handled in the logic component
+    stubComponents.sceneBans.addSceneBan.resolves()
   })
 
   afterEach(async () => {
@@ -120,20 +123,17 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
         )
 
         expect(response.status).toBe(204)
-        expect(stubComponents.sceneBanManager.addBan.calledOnce).toBe(true)
-
-        const addBanCall = stubComponents.sceneBanManager.addBan.getCall(0)
-        expect(addBanCall.args[0]).toEqual({
-          place_id: testPlaceId,
-          banned_address: admin.authChain[0].payload.toLowerCase(),
-          banned_by: owner.authChain[0].payload.toLowerCase()
-        })
+        expect(stubComponents.sceneBans.addSceneBan.calledOnce).toBe(true)
       })
     })
 
     describe('and user has world streaming permission', () => {
       beforeEach(() => {
-        jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+        jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce({
+          ...metadataWorld,
+          sceneId: 'test-scene',
+          isWorlds: true
+        })
         stubComponents.sceneManager.getUserScenePermissions.resolves({
           owner: false,
           admin: false,
@@ -159,7 +159,7 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
         )
 
         expect(response.status).toBe(204)
-        expect(stubComponents.sceneBanManager.addBan.calledOnce).toBe(true)
+        expect(stubComponents.sceneBans.addSceneBan.calledOnce).toBe(true)
       })
     })
 
@@ -197,7 +197,7 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
         )
 
         expect(response.status).toBe(204)
-        expect(stubComponents.sceneBanManager.addBan.calledOnce).toBe(true)
+        expect(stubComponents.sceneBans.addSceneBan.calledOnce).toBe(true)
       })
     })
   })
@@ -280,22 +280,9 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
   describe('when user lacks permissions', () => {
     describe('and user is not owner or admin', () => {
       beforeEach(() => {
-        stubComponents.lands.getLandPermissions.resolves({
-          owner: false,
-          operator: false,
-          updateOperator: false,
-          updateManager: false,
-          approvedForAll: false
-        })
-        stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-        stubComponents.sceneAdminManager.isAdmin.resolves(false)
-        stubComponents.sceneManager.getUserScenePermissions.resolves({
-          owner: false,
-          admin: false,
-          hasExtendedPermissions: false,
-          hasLandLease: false
-        })
-        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+        stubComponents.sceneBans.addSceneBan.rejects(
+          new UnauthorizedError('You do not have permission to ban users from this place')
+        )
       })
 
       it('should return 401', async () => {
@@ -322,21 +309,7 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
   describe('when trying to ban protected users', () => {
     describe('and trying to ban an owner', () => {
       beforeEach(() => {
-        stubComponents.sceneManager.getUserScenePermissions
-          .onFirstCall()
-          .resolves({
-            owner: true,
-            admin: false,
-            hasExtendedPermissions: false,
-            hasLandLease: false
-          })
-          .onSecondCall()
-          .resolves({
-            owner: true,
-            admin: false,
-            hasExtendedPermissions: false,
-            hasLandLease: false
-          })
+        stubComponents.sceneBans.addSceneBan.rejects(new InvalidRequestError('Cannot ban this address'))
       })
 
       it('should return 400', async () => {
@@ -361,21 +334,7 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
 
     describe('and trying to ban an admin', () => {
       beforeEach(() => {
-        stubComponents.sceneManager.getUserScenePermissions
-          .onFirstCall()
-          .resolves({
-            owner: false,
-            admin: true,
-            hasExtendedPermissions: false,
-            hasLandLease: false
-          })
-          .onSecondCall()
-          .resolves({
-            owner: false,
-            admin: true,
-            hasExtendedPermissions: false,
-            hasLandLease: false
-          })
+        stubComponents.sceneBans.addSceneBan.rejects(new InvalidRequestError('Cannot ban this address'))
       })
 
       it('should return 400', async () => {
@@ -400,21 +359,7 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
 
     describe('and trying to ban a user with extended permissions', () => {
       beforeEach(() => {
-        stubComponents.sceneManager.getUserScenePermissions
-          .onFirstCall()
-          .resolves({
-            owner: false,
-            admin: false,
-            hasExtendedPermissions: true,
-            hasLandLease: false
-          })
-          .onSecondCall()
-          .resolves({
-            owner: false,
-            admin: false,
-            hasExtendedPermissions: true,
-            hasLandLease: false
-          })
+        stubComponents.sceneBans.addSceneBan.rejects(new InvalidRequestError('Cannot ban this address'))
       })
 
       it('should return 400', async () => {

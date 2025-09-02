@@ -23,6 +23,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     }
     parcel: string
     sceneId: string
+    isWorlds: boolean
   }
 
   let metadataLand: Metadata
@@ -60,7 +61,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
         protocol: 'https'
       },
       parcel: '10,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: false
     }
 
     metadataWorld = {
@@ -71,7 +73,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
         protocol: 'https'
       },
       parcel: '20,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue({
@@ -82,7 +85,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
         protocol: 'https'
       },
       parcel: '10,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: false
     })
     stubComponents.places.getPlaceByParcel.resolves({
       id: placeId,
@@ -164,7 +168,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
         protocol: 'https'
       },
       parcel: '20,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: true
     })
 
     const response = await makeRequest(
@@ -316,7 +321,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
         protocol: 'https'
       },
       parcel: '10,20',
-      sceneId: ''
+      sceneId: '',
+      isWorlds: false
     })
 
     const response = await makeRequest(

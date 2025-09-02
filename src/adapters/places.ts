@@ -1,6 +1,6 @@
 import { AppComponents } from '../types'
 import { PlaceNotFoundError } from '../types/errors'
-import { IPlacesComponent, PlaceAttributes, PlaceResponse } from '../types/places.type'
+import { GetPlaceParams, IPlacesComponent, PlaceAttributes, PlaceResponse } from '../types/places.type'
 
 export async function createPlacesComponent(
   components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs' | 'fetch'>
@@ -34,6 +34,13 @@ export async function createPlacesComponent(
     return response.data[0]
   }
 
+  async function getPlaceByParcelOrWorldName(
+    placeIdentifier: string,
+    params: GetPlaceParams
+  ): Promise<PlaceAttributes> {
+    return params.isWorlds ? getPlaceByWorldName(placeIdentifier) : getPlaceByParcel(placeIdentifier)
+  }
+
   async function getPlaceStatusById(
     ids: string[]
   ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>[]> {
@@ -55,6 +62,7 @@ export async function createPlacesComponent(
   return {
     getPlaceByParcel,
     getPlaceByWorldName,
+    getPlaceByParcelOrWorldName,
     getPlaceStatusById
   }
 }

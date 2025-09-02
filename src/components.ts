@@ -31,6 +31,7 @@ import { createNotificationsComponent } from './adapters/notifications'
 import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
+import { createSceneBansComponent } from './logic/scene-bans'
 import { createCronJobComponent } from './logic/cron-job'
 import { AnalyticsEventPayload } from './types/analytics'
 import { createLandLeaseComponent } from './adapters/land-lease'
@@ -143,6 +144,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     { startOnInit: isProduction, waitForCompletion: true }
   )
 
+  // Scene ban components
+  const sceneBans = createSceneBansComponent({ sceneBanManager, livekit, logs, sceneManager, places })
+
   return {
     analytics,
     blockList,
@@ -168,6 +172,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     voice,
     sceneAdminManager,
     sceneBanManager,
+    sceneBans,
     sceneStreamAccessManager,
     placesChecker,
     streamingTTLChecker,
