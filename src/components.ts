@@ -51,7 +51,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   )
   const statusChecks = await createStatusCheckComponent({ server, config })
   const tracedFetch = createTracedFetchComponent({ tracer })
-  const blockList = await createBlockListComponent({ config, fetch: tracedFetch })
 
   createHttpTracerComponent({ server, tracer })
   instrumentHttpServerWithRequestLogger({ server, logger: logs })
@@ -85,6 +84,10 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
   const social = await createSocialComponent({ config, logs, fetch: tracedFetch })
   const cachedFetch = await cachedFetchComponent({ fetch: tracedFetch, logs })
+  const cachedFetchWithStale = await cachedFetchComponent(
+    { fetch: tracedFetch, logs },
+    { allowStaleOnFetchRejection: true }
+  )
   const worlds = await createWorldsComponent({ config, logs, cachedFetch })
   const places = await createPlacesComponent({ config, logs, cachedFetch, fetch: tracedFetch })
   const lands = await createLandsComponent({ config, logs, cachedFetch })
@@ -92,6 +95,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const landLease = await createLandLeaseComponent({ fetch: tracedFetch, logs })
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager, landLease })
   const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
+  const blockList = await createBlockListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
