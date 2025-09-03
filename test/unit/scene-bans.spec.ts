@@ -177,7 +177,7 @@ describe('SceneBanComponent', () => {
         livekitMockedComponent.removeParticipant.mockRejectedValue(new Error('LiveKit connection failed'))
       })
 
-      it('should propagate the LiveKit error', async () => {
+      it('should ignore the LiveKit error and ban the user in the database', async () => {
         await expect(
           sceneBanComponent.addSceneBan(
             '0x1234567890123456789012345678901234567890',
@@ -189,14 +189,21 @@ describe('SceneBanComponent', () => {
               isWorlds: false
             }
           )
-        ).rejects.toThrow('LiveKit connection failed')
+        ).resolves.not.toThrow()
+
+        expect(sceneBanManagerMockedComponent.addBan).toHaveBeenCalledWith({
+          place_id: 'test-place-id',
+          banned_address: '0x1234567890123456789012345678901234567890',
+          banned_by: '0x0987654321098765432109876543210987654321'
+        })
       })
     })
 
-    describe('when sceneBanManager.addBan fails', () => {
+    describe('when adding the ban to the database fails', () => {
       beforeEach(() => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+        livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
         sceneBanManagerMockedComponent.addBan.mockRejectedValue(new Error('Database error'))
       })
 

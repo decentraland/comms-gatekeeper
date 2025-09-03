@@ -1,13 +1,15 @@
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
-import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { AuthLinkType } from '@dcl/crypto'
-import { InvalidRequestError, UnauthorizedError } from '../../../src/types/errors'
+import SQL from 'sql-template-strings'
+import { createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
+import { UserScenePermissions } from '../../../src/types/scene-manager.type'
 
-test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubComponents }) => {
-  const testPlaceId = `place-id-ban`
+test('POST /scene-bans - integration test with real business logic', ({ components, stubComponents }) => {
+  let testPlaceId: string
+  let worldPlaceId: string
 
   type Metadata = {
     identity: string
@@ -22,12 +24,34 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
   let cleanup: TestCleanup
   let metadataLand: Metadata
   let metadataWorld: Metadata
+  let mockedPlace: PlaceAttributes
+  let mockedWorldPlace: PlaceAttributes
+  let userScenePermissions: UserScenePermissions
 
   beforeAll(async () => {
     cleanup = new TestCleanup(components.database)
   })
 
   beforeEach(async () => {
+    // Generate unique place IDs for each test to avoid interference
+    testPlaceId = `place-id-ban-${Date.now()}-${Math.random()}`
+    worldPlaceId = `world-place-id-ban-${Date.now()}-${Math.random()}`
+
+    // Reset all stubs to avoid test interference
+    stubComponents.places.getPlaceByParcel.reset()
+    stubComponents.places.getPlaceByWorldName.reset()
+    stubComponents.livekit.removeParticipant.reset()
+    stubComponents.livekit.getRoomName.reset()
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.reset()
+    stubComponents.sceneManager.getUserScenePermissions.reset()
+
+    userScenePermissions = {
+      owner: false,
+      admin: false,
+      hasExtendedPermissions: false,
+      hasLandLease: false
+    }
+
     metadataLand = {
       identity: owner.authChain[0].payload,
       parcel: '-9,-9',
@@ -50,268 +74,40 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
       }
     }
 
-    jest.spyOn(handlersUtils, 'validate').mockResolvedValue({
-      ...metadataLand,
-      sceneId: 'test-scene',
-      isWorlds: false
-    })
-
-    stubComponents.places.getPlaceByParcel.resolves({
+    mockedPlace = createMockedPlace({
       positions: [metadataLand.parcel],
       id: testPlaceId,
-      world: false
-    } as PlaceAttributes)
-
-    stubComponents.places.getPlaceByWorldName.resolves({
-      id: testPlaceId,
+      world: false,
+      title: 'Test Land Scene',
+      owner: owner.authChain[0].payload
+    })
+    mockedWorldPlace = createMockedWorldPlace({
+      id: worldPlaceId,
       world_name: 'name.dcl.eth',
-      world: true
-    } as PlaceAttributes)
+      world: true,
+      title: 'Test World',
+      owner: owner.authChain[0].payload
+    })
 
-    stubComponents.lands.getLandPermissions.resolves({
-      owner: true,
-      operator: false,
-      updateOperator: false,
-      updateManager: false,
-      approvedForAll: false
-    })
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
-      owner: false,
-      admin: false,
-      hasExtendedPermissions: false,
-      hasLandLease: false
-    })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
-    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    // Permission validation is now handled in the logic component
-    stubComponents.sceneBans.addSceneBan.resolves()
+    // Stub external dependencies to avoid complexity
+    stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
+    stubComponents.places.getPlaceByWorldName.resolves(mockedWorldPlace)
+
+    stubComponents.livekit.removeParticipant.resolves()
+    stubComponents.livekit.getRoomName.returns('test-room-name')
   })
 
   afterEach(async () => {
     await cleanup.cleanup()
-    jest.restoreAllMocks()
   })
 
-  describe('when user has valid permissions', () => {
-    describe('and user is scene owner', () => {
-      beforeEach(() => {
-        stubComponents.sceneManager.getUserScenePermissions.resolves({
-          owner: false,
-          admin: false,
-          hasExtendedPermissions: false,
-          hasLandLease: false
-        })
-        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      })
-
-      it('should return 204 and add ban successfully', async () => {
-        const { localFetch } = components
-
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              banned_address: admin.authChain[0].payload
-            }),
-            metadata: metadataLand
-          },
-          owner
-        )
-
-        expect(response.status).toBe(204)
-        expect(stubComponents.sceneBans.addSceneBan.calledOnce).toBe(true)
-      })
+  describe('when user is land owner', () => {
+    beforeEach(async () => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
     })
 
-    describe('and user has world streaming permission', () => {
-      beforeEach(() => {
-        jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce({
-          ...metadataWorld,
-          sceneId: 'test-scene',
-          isWorlds: true
-        })
-        stubComponents.sceneManager.getUserScenePermissions.resolves({
-          owner: false,
-          admin: false,
-          hasExtendedPermissions: false,
-          hasLandLease: false
-        })
-      })
-
-      it('should return 204 and add ban successfully', async () => {
-        const { localFetch } = components
-
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              banned_address: admin.authChain[0].payload
-            }),
-            metadata: metadataWorld
-          },
-          nonOwner
-        )
-
-        expect(response.status).toBe(204)
-        expect(stubComponents.sceneBans.addSceneBan.calledOnce).toBe(true)
-      })
-    })
-
-    describe('and user has operator permission', () => {
-      beforeEach(() => {
-        stubComponents.lands.getLandPermissions.resolves({
-          owner: false,
-          operator: true,
-          updateOperator: false,
-          updateManager: false,
-          approvedForAll: false
-        })
-        stubComponents.sceneManager.getUserScenePermissions.resolves({
-          owner: false,
-          admin: false,
-          hasExtendedPermissions: false,
-          hasLandLease: false
-        })
-      })
-
-      it('should return 204 and add ban successfully', async () => {
-        const { localFetch } = components
-
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              banned_address: admin.authChain[0].payload
-            }),
-            metadata: metadataLand
-          },
-          nonOwner
-        )
-
-        expect(response.status).toBe(204)
-        expect(stubComponents.sceneBans.addSceneBan.calledOnce).toBe(true)
-      })
-    })
-  })
-
-  describe('when authentication is invalid', () => {
-    describe('and authentication is provided but invalid', () => {
-      it('should return 401', async () => {
-        const { localFetch } = components
-
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({ banned_address: admin.authChain[0].payload }),
-            metadata: metadataLand
-          },
-          { ...owner, authChain: [...owner.authChain, { type: AuthLinkType.SIGNER, payload: 'invalid-signature' }] }
-        )
-
-        expect(response.status).toBe(401)
-      })
-    })
-
-    describe('and no authentication is provided', () => {
-      it('should return 400', async () => {
-        const { localFetch } = components
-
-        const response = await localFetch.fetch('/scene-bans', {
-          method: 'POST'
-        })
-
-        expect(response.status).toBe(400)
-      })
-    })
-  })
-
-  describe('when request payload is invalid', () => {
-    describe('and banned_address is invalid', () => {
-      it('should return 400', async () => {
-        const { localFetch } = components
-
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              banned_address: 'invalid-address'
-            }),
-            metadata: metadataLand
-          },
-          owner
-        )
-
-        expect(response.status).toBe(400)
-      })
-    })
-
-    describe('and banned_address is missing', () => {
-      it('should return 400', async () => {
-        const { localFetch } = components
-
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({}),
-            metadata: metadataLand
-          },
-          owner
-        )
-
-        expect(response.status).toBe(400)
-      })
-    })
-  })
-
-  describe('when user lacks permissions', () => {
-    describe('and user is not owner or admin', () => {
-      beforeEach(() => {
-        stubComponents.sceneBans.addSceneBan.rejects(
-          new UnauthorizedError('You do not have permission to ban users from this place')
-        )
-      })
-
-      it('should return 401', async () => {
-        const { localFetch } = components
-
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              banned_address: admin.authChain[0].payload
-            }),
-            metadata: metadataLand
-          },
-          nonOwner
-        )
-
-        expect(response.status).toBe(401)
-      })
-    })
-  })
-
-  describe('when trying to ban a user that cannot be banned', () => {
-    beforeEach(() => {
-      stubComponents.sceneBans.addSceneBan.rejects(new InvalidRequestError('Cannot ban this address'))
-    })
-
-    it('should return 400', async () => {
+    it('should successfully ban a user from a land scene', async () => {
       const { localFetch } = components
 
       const response = await makeRequest(
@@ -320,8 +116,262 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
         {
           method: 'POST',
           body: JSON.stringify({
-            banned_address: owner.authChain[0].payload
+            banned_address: admin.authChain[0].payload
           }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(204)
+
+      // Verify ban was added to database
+      const banResult = await components.database.query(
+        SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+      )
+      expect(banResult.rowCount).toBe(1)
+      expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
+      expect(banResult.rows[0].active).toBe(true)
+
+      // Verify LiveKit removal was called
+      expect(stubComponents.livekit.removeParticipant.calledOnce).toBe(true)
+    })
+  })
+
+  describe('when user is scene admin', () => {
+    beforeEach(async () => {
+      // Add admin to database using real sceneAdminManager
+      await components.sceneAdminManager.addAdmin({
+        place_id: testPlaceId,
+        admin: admin.authChain[0].payload,
+        added_by: owner.authChain[0].payload
+      })
+
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+    })
+
+    it('should successfully ban a user from a land scene', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: nonOwner.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        admin
+      )
+
+      expect(response.status).toBe(204)
+
+      // Verify ban was added to database
+      const banResult = await components.database.query(
+        SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${nonOwner.authChain[0].payload.toLowerCase()}`
+      )
+      expect(banResult.rowCount).toBe(1)
+      expect(banResult.rows[0].banned_by).toBe(admin.authChain[0].payload.toLowerCase())
+    })
+  })
+
+  describe('when user has land operator permission', () => {
+    beforeEach(() => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+    })
+
+    it('should successfully ban a user from a land scene', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: admin.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        nonOwner
+      )
+
+      expect(response.status).toBe(204)
+
+      // Verify ban was added to database
+      const banResult = await components.database.query(
+        SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+      )
+      expect(banResult.rowCount).toBe(1)
+      expect(banResult.rows[0].banned_by).toBe(nonOwner.authChain[0].payload.toLowerCase())
+    })
+  })
+
+  describe('when user is world owner', () => {
+    beforeEach(() => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+    })
+
+    it('should successfully ban a user from a world', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: admin.authChain[0].payload
+          }),
+          metadata: metadataWorld
+        },
+        owner
+      )
+
+      expect(response.status).toBe(204)
+
+      // Verify ban was added to database
+      const banResult = await components.database.query(
+        SQL`SELECT * FROM scene_bans WHERE place_id = ${worldPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+      )
+      expect(banResult.rowCount).toBe(1)
+      expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
+    })
+  })
+
+  describe('when user lacks permissions', () => {
+    beforeEach(() => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+    })
+
+    it('should return 401 for unauthorized user', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: admin.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        nonOwner
+      )
+
+      expect(response.status).toBe(401)
+
+      // Verify no ban was added to database
+      const banResult = await components.database.query(SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId}`)
+      expect(banResult.rowCount).toBe(0)
+    })
+  })
+
+  describe('when trying to ban a protected user', () => {
+    beforeEach(async () => {
+      // Add the user to be banned as an admin (protected user)
+      await components.sceneAdminManager.addAdmin({
+        place_id: testPlaceId,
+        admin: admin.authChain[0].payload,
+        added_by: owner.authChain[0].payload
+      })
+
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      userScenePermissions.admin = true
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+    })
+
+    it('should return 400 when trying to ban an admin', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: admin.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(400)
+
+      // Verify no ban was added to database
+      const banResult = await components.database.query(
+        SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+      )
+      expect(banResult.rowCount).toBe(0)
+    })
+  })
+
+  describe('when authentication is invalid', () => {
+    it('should return 401 for invalid auth chain', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({ banned_address: admin.authChain[0].payload }),
+          metadata: metadataLand
+        },
+        { ...owner, authChain: [...owner.authChain, { type: AuthLinkType.SIGNER, payload: 'invalid-signature' }] }
+      )
+
+      expect(response.status).toBe(401)
+    })
+
+    it('should return 400 when no authentication is provided', async () => {
+      const { localFetch } = components
+
+      const response = await localFetch.fetch('/scene-bans', {
+        method: 'POST'
+      })
+
+      expect(response.status).toBe(400)
+    })
+  })
+
+  describe('when request payload is invalid', () => {
+    it('should return 400 for invalid banned_address', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: 'invalid-address'
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(400)
+    })
+
+    it('should return 400 for missing banned_address', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({}),
           metadata: metadataLand
         },
         owner

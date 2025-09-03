@@ -50,18 +50,20 @@ export function createSceneBansComponent(
     }
 
     const roomName = livekit.getRoomName(realmName, { isWorlds, sceneId })
-    await livekit.removeParticipant(roomName, bannedAddress.toLowerCase())
+    await Promise.all([
+      livekit.removeParticipant(roomName, bannedAddress.toLowerCase()).catch((err) => {
+        logger.warn(`Error removing participant ${bannedAddress} from LiveKit room ${roomName}`, { err })
+      }),
+      sceneBanManager.addBan({
+        place_id: place.id,
+        banned_address: bannedAddress.toLowerCase(),
+        banned_by: bannedBy.toLowerCase()
+      })
+    ])
 
-    logger.info(`Successfully removed participant ${bannedAddress} from LiveKit room ${roomName}`)
-
-    // Add the ban to the database
-    await sceneBanManager.addBan({
-      place_id: place.id,
-      banned_address: bannedAddress.toLowerCase(),
-      banned_by: bannedBy.toLowerCase()
-    })
-
-    logger.info(`Successfully banned user ${bannedAddress} for place ${place.id}`)
+    logger.info(
+      `Successfully banned user ${bannedAddress} for place ${place.id} and removed participant from LiveKit room ${roomName}`
+    )
   }
 
   return {

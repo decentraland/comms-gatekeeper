@@ -41,14 +41,16 @@ const basePlace: PlaceAttributes = {
   world_name: undefined
 }
 
-export const createMockedPlace = (): PlaceAttributes => ({
+export const createMockedPlace = (overrides: Partial<PlaceAttributes> = {}): PlaceAttributes => ({
   ...basePlace,
   world: false,
-  world_name: null
+  world_name: null,
+  ...overrides
 })
 
-export const createMockedWorldPlace = (): PlaceAttributes => ({
+export const createMockedWorldPlace = (overrides: Partial<PlaceAttributes> = {}): PlaceAttributes => ({
   ...basePlace,
   world: true,
-  world_name: 'test-world.dcl.eth'
+  world_name: 'test-world.dcl.eth',
+  ...overrides
 })
