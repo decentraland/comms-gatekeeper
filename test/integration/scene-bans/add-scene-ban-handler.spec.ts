@@ -147,6 +147,14 @@ test('POST /scene-bans - integration test with real business logic', ({ componen
         added_by: owner.authChain[0].payload
       })
 
+      // Track the admin insert for cleanup
+      const adminResult = await components.database.query(
+        SQL`SELECT * FROM scene_admin WHERE place_id = ${testPlaceId} AND admin = ${admin.authChain[0].payload.toLowerCase()}`
+      )
+      if (adminResult.rows.length > 0) {
+        cleanup.trackInsert('scene_admin', { id: adminResult.rows[0].id })
+      }
+
       stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
       stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
     })
@@ -282,6 +290,14 @@ test('POST /scene-bans - integration test with real business logic', ({ componen
         admin: admin.authChain[0].payload,
         added_by: owner.authChain[0].payload
       })
+
+      // Track the admin insert for cleanup
+      const adminResult = await components.database.query(
+        SQL`SELECT * FROM scene_admin WHERE place_id = ${testPlaceId} AND admin = ${admin.authChain[0].payload.toLowerCase()}`
+      )
+      if (adminResult.rows.length > 0) {
+        cleanup.trackInsert('scene_admin', { id: adminResult.rows[0].id })
+      }
 
       stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
       userScenePermissions.admin = true
