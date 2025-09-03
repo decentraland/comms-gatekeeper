@@ -37,14 +37,6 @@ test('POST /scene-bans - integration test with real business logic', ({ componen
     testPlaceId = `place-id-ban-${Date.now()}-${Math.random()}`
     worldPlaceId = `world-place-id-ban-${Date.now()}-${Math.random()}`
 
-    // Reset all stubs to avoid test interference
-    stubComponents.places.getPlaceByParcel.reset()
-    stubComponents.places.getPlaceByWorldName.reset()
-    stubComponents.livekit.removeParticipant.reset()
-    stubComponents.livekit.getRoomName.reset()
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.reset()
-    stubComponents.sceneManager.getUserScenePermissions.reset()
-
     userScenePermissions = {
       owner: false,
       admin: false,
@@ -89,7 +81,6 @@ test('POST /scene-bans - integration test with real business logic', ({ componen
       owner: owner.authChain[0].payload
     })
 
-    // Stub external dependencies to avoid complexity
     stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
     stubComponents.places.getPlaceByWorldName.resolves(mockedWorldPlace)
 
