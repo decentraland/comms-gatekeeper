@@ -1,0 +1,10 @@
+import { ISceneBanManager } from '../../src/types'
+
+export const createSceneBanManagerMockedComponent = (
+  overrides?: Partial<jest.Mocked<ISceneBanManager>>
+): jest.Mocked<ISceneBanManager> => {
+  return {
+    addBan: jest.fn(),
+    ...overrides
+  }
+}

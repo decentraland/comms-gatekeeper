@@ -5,28 +5,34 @@ import { validate } from '../../../logic/utils'
 
 export async function addSceneBanHandler(
   ctx: Pick<
-    HandlerContextWithPath<'fetch' | 'sceneBans' | 'logs' | 'config', '/scene-bans'>,
+    HandlerContextWithPath<'fetch' | 'sceneBans' | 'config', '/scene-bans'>,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneBans },
+    components: { sceneBans },
     request,
     verification
   } = ctx
-
-  const logger = logs.getLogger('add-scene-ban-handler')
 
   if (!verification?.auth) {
     throw new InvalidRequestError('Authentication required')
   }
 
-  const payload = await request.json()
-  const bannedAddress = payload.banned_address
+  let body: { banned_address: string }
 
-  if (!bannedAddress || !EthAddress.validate(bannedAddress)) {
-    logger.warn(`Invalid scene ban payload`, payload)
-    throw new InvalidRequestError(`Invalid payload`)
+  try {
+    body = await request.json()
+  } catch (error) {
+    throw new InvalidRequestError(`Invalid request body`)
+  }
+
+  const bannedAddress = body.banned_address
+
+  if (!bannedAddress) {
+    throw new InvalidRequestError(`Invalid request body, missing banned_address`)
+  } else if (!EthAddress.validate(bannedAddress)) {
+    throw new InvalidRequestError(`Invalid request body, invalid banned_address`)
   }
 
   const {

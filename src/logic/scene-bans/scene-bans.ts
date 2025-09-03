@@ -1,6 +1,7 @@
 import { AppComponents } from '../../types'
 import { AddSceneBanParams, ISceneBansComponent } from './types'
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
+import { PlaceAttributes } from '../../types/places.type'
 
 export function createSceneBansComponent(
   components: Pick<AppComponents, 'sceneBanManager' | 'livekit' | 'logs' | 'sceneManager' | 'places'>
@@ -24,7 +25,13 @@ export function createSceneBansComponent(
       isWorlds: String(isWorlds)
     })
 
-    const place = await places.getPlaceByParcelOrWorldName(isWorlds ? realmName : parcel!, { isWorlds })
+    let place: PlaceAttributes
+
+    if (isWorlds) {
+      place = await places.getPlaceByWorldName(realmName)
+    } else {
+      place = await places.getPlaceByParcel(parcel)
+    }
 
     // Check if the user performing the ban has permission
     const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, bannedBy)

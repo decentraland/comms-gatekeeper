@@ -1,23 +1,22 @@
+import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createSceneBanManagerComponent } from '../../src/adapters/scene-ban-manager'
-import { SceneBan } from '../../src/types'
+import { AddSceneBanInput, AppComponents, ISceneBanManager, SceneBan } from '../../src/types'
+import { createLoggerMockedComponent } from '../mocks/logger-mock'
+import { IPgComponent } from '@well-known-components/pg-component'
+import { createDatabaseMockedComponent } from '../mocks/database-mock'
 
 describe('SceneBanManager', () => {
-  let mockedComponents: any
-  let sceneBanManager: any
+  let mockedComponents: jest.Mocked<Pick<AppComponents, 'database' | 'logs'>>
+  let sceneBanManager: ISceneBanManager
+  let mockedLogger: jest.Mocked<ILoggerComponent>
+  let mockedDatabase: jest.Mocked<IPgComponent>
 
   beforeEach(async () => {
+    mockedLogger = createLoggerMockedComponent()
+    mockedDatabase = createDatabaseMockedComponent()
     mockedComponents = {
-      database: {
-        query: jest.fn()
-      },
-      logs: {
-        getLogger: jest.fn().mockReturnValue({
-          info: jest.fn(),
-          error: jest.fn(),
-          warn: jest.fn(),
-          debug: jest.fn()
-        })
-      }
+      database: mockedDatabase,
+      logs: mockedLogger
     }
 
     sceneBanManager = await createSceneBanManagerComponent(mockedComponents)
@@ -46,13 +45,13 @@ describe('SceneBanManager', () => {
               } as SceneBan
             ]
           }
-          mockedComponents.database.query.mockResolvedValue(mockResult)
+          mockedDatabase.query.mockResolvedValue(mockResult)
         })
 
         it('should call database query with correct parameters', async () => {
           await sceneBanManager.addBan(validInput)
 
-          expect(mockedComponents.database.query).toHaveBeenCalledWith(
+          expect(mockedDatabase.query).toHaveBeenCalledWith(
             expect.objectContaining({
               strings: expect.arrayContaining([expect.stringContaining('INSERT INTO scene_bans')]),
               values: expect.arrayContaining([
@@ -72,13 +71,13 @@ describe('SceneBanManager', () => {
             rowCount: 0,
             rows: []
           }
-          mockedComponents.database.query.mockResolvedValue(mockResult)
+          mockedDatabase.query.mockResolvedValue(mockResult)
         })
 
         it('should handle duplicate ban gracefully', async () => {
           await sceneBanManager.addBan(validInput)
 
-          expect(mockedComponents.database.query).toHaveBeenCalledWith(
+          expect(mockedDatabase.query).toHaveBeenCalledWith(
             expect.objectContaining({
               strings: expect.arrayContaining([
                 expect.stringContaining('ON CONFLICT (place_id, banned_address) WHERE active = true')
@@ -91,7 +90,7 @@ describe('SceneBanManager', () => {
       describe('and database operation fails', () => {
         beforeEach(() => {
           const dbError = new Error('Database connection failed')
-          mockedComponents.database.query.mockRejectedValue(dbError)
+          mockedDatabase.query.mockRejectedValue(dbError)
         })
 
         it('should propagate database errors', async () => {
@@ -105,13 +104,13 @@ describe('SceneBanManager', () => {
             rowCount: 1,
             rows: []
           }
-          mockedComponents.database.query.mockResolvedValue(mockResult)
+          mockedDatabase.query.mockResolvedValue(mockResult)
         })
 
         it('should convert addresses to lowercase in database query', async () => {
           await sceneBanManager.addBan(validInput)
 
-          expect(mockedComponents.database.query).toHaveBeenCalledWith(
+          expect(mockedDatabase.query).toHaveBeenCalledWith(
             expect.objectContaining({
               values: expect.arrayContaining([
                 validInput.place_id,
@@ -126,11 +125,16 @@ describe('SceneBanManager', () => {
     })
 
     describe('when input is invalid', () => {
+      let invalidInput: AddSceneBanInput
+
       describe('and place_id is missing', () => {
-        const invalidInput = {
-          banned_address: '0x1234567890123456789012345678901234567890',
-          banned_by: '0x0987654321098765432109876543210987654321'
-        }
+        beforeEach(() => {
+          invalidInput = {
+            banned_address: '0x1234567890123456789012345678901234567890',
+            banned_by: '0x0987654321098765432109876543210987654321',
+            place_id: undefined
+          }
+        })
 
         it('should throw validation error', async () => {
           await expect(sceneBanManager.addBan(invalidInput)).rejects.toThrow(
@@ -140,10 +144,13 @@ describe('SceneBanManager', () => {
       })
 
       describe('and banned_address is missing', () => {
-        const invalidInput = {
-          place_id: 'test-place-id',
-          banned_by: '0x0987654321098765432109876543210987654321'
-        }
+        beforeEach(() => {
+          invalidInput = {
+            place_id: 'test-place-id',
+            banned_by: '0x0987654321098765432109876543210987654321',
+            banned_address: undefined
+          }
+        })
 
         it('should throw validation error', async () => {
           await expect(sceneBanManager.addBan(invalidInput)).rejects.toThrow(
@@ -153,10 +160,13 @@ describe('SceneBanManager', () => {
       })
 
       describe('and banned_by is missing', () => {
-        const invalidInput = {
-          place_id: 'test-place-id',
-          banned_address: '0x1234567890123456789012345678901234567890'
-        }
+        beforeEach(() => {
+          invalidInput = {
+            place_id: 'test-place-id',
+            banned_address: '0x1234567890123456789012345678901234567890',
+            banned_by: undefined
+          }
+        })
 
         it('should throw validation error', async () => {
           await expect(sceneBanManager.addBan(invalidInput)).rejects.toThrow(
@@ -165,17 +175,13 @@ describe('SceneBanManager', () => {
         })
       })
 
-      describe('and input is not an object', () => {
-        it('should throw validation error for string input', async () => {
-          await expect(sceneBanManager.addBan('invalid')).rejects.toThrow('Input must be an object')
+      describe.each(['string', null, undefined])('and input is %s', (input) => {
+        beforeEach(() => {
+          invalidInput = input as unknown as AddSceneBanInput
         })
 
-        it('should throw validation error for null input', async () => {
-          await expect(sceneBanManager.addBan(null)).rejects.toThrow('Input must be an object')
-        })
-
-        it('should throw validation error for undefined input', async () => {
-          await expect(sceneBanManager.addBan(undefined)).rejects.toThrow('Input must be an object')
+        it('should throw validation error', async () => {
+          await expect(sceneBanManager.addBan(invalidInput)).rejects.toThrow('Input must be an object')
         })
       })
     })

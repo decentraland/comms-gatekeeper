@@ -1,7 +1,7 @@
 export type AddSceneBanParams = {
   sceneId?: string
   realmName: string
-  parcel?: string
+  parcel: string
   isWorlds: boolean
 }
 

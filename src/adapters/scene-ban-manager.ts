@@ -45,16 +45,14 @@ export async function createSceneBanManagerComponent({
           place_id, 
           banned_address, 
           banned_by,
-          banned_at,
-          active
+          banned_at
         )
         VALUES (
           gen_random_uuid(),
           ${input.place_id},
           ${bannedAddressLowercase},
           ${bannedByLowercase},
-          ${Date.now()},
-          true
+          ${Date.now()}
         )
         ON CONFLICT (place_id, banned_address) WHERE active = true
         DO NOTHING

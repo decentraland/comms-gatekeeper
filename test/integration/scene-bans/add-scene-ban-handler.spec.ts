@@ -306,80 +306,28 @@ test('POST /scene-bans - adds ban for a user from a scene', ({ components, stubC
     })
   })
 
-  describe('when trying to ban protected users', () => {
-    describe('and trying to ban an owner', () => {
-      beforeEach(() => {
-        stubComponents.sceneBans.addSceneBan.rejects(new InvalidRequestError('Cannot ban this address'))
-      })
-
-      it('should return 400', async () => {
-        const { localFetch } = components
-
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              banned_address: owner.authChain[0].payload
-            }),
-            metadata: metadataLand
-          },
-          owner
-        )
-
-        expect(response.status).toBe(400)
-      })
+  describe('when trying to ban a user that cannot be banned', () => {
+    beforeEach(() => {
+      stubComponents.sceneBans.addSceneBan.rejects(new InvalidRequestError('Cannot ban this address'))
     })
 
-    describe('and trying to ban an admin', () => {
-      beforeEach(() => {
-        stubComponents.sceneBans.addSceneBan.rejects(new InvalidRequestError('Cannot ban this address'))
-      })
+    it('should return 400', async () => {
+      const { localFetch } = components
 
-      it('should return 400', async () => {
-        const { localFetch } = components
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: owner.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
 
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              banned_address: admin.authChain[0].payload
-            }),
-            metadata: metadataLand
-          },
-          owner
-        )
-
-        expect(response.status).toBe(400)
-      })
-    })
-
-    describe('and trying to ban a user with extended permissions', () => {
-      beforeEach(() => {
-        stubComponents.sceneBans.addSceneBan.rejects(new InvalidRequestError('Cannot ban this address'))
-      })
-
-      it('should return 400', async () => {
-        const { localFetch } = components
-
-        const response = await makeRequest(
-          localFetch,
-          '/scene-bans',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              banned_address: admin.authChain[0].payload
-            }),
-            metadata: metadataLand
-          },
-          owner
-        )
-
-        expect(response.status).toBe(400)
-      })
+      expect(response.status).toBe(400)
     })
   })
 })
