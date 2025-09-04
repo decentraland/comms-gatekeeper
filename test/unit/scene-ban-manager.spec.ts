@@ -22,70 +22,13 @@ describe('SceneBanManager', () => {
     sceneBanManager = await createSceneBanManagerComponent(mockedComponents)
   })
 
-  describe('addBan', () => {
+  describe('when adding a ban', () => {
     describe('when input is valid', () => {
       const validInput = {
         place_id: 'test-place-id',
         banned_address: '0x1234567890123456789012345678901234567890',
         banned_by: '0x0987654321098765432109876543210987654321'
       }
-
-      describe('and ban is successfully created', () => {
-        beforeEach(() => {
-          const mockResult = {
-            rowCount: 1,
-            rows: [
-              {
-                id: 'test-ban-id',
-                place_id: validInput.place_id,
-                banned_address: validInput.banned_address.toLowerCase(),
-                banned_by: validInput.banned_by.toLowerCase(),
-                banned_at: Date.now(),
-                active: true
-              } as SceneBan
-            ]
-          }
-          mockedDatabase.query.mockResolvedValue(mockResult)
-        })
-
-        it('should call database query with correct parameters', async () => {
-          await sceneBanManager.addBan(validInput)
-
-          expect(mockedDatabase.query).toHaveBeenCalledWith(
-            expect.objectContaining({
-              strings: expect.arrayContaining([expect.stringContaining('INSERT INTO scene_bans')]),
-              values: expect.arrayContaining([
-                validInput.place_id,
-                validInput.banned_address.toLowerCase(),
-                validInput.banned_by.toLowerCase(),
-                expect.any(Number)
-              ])
-            })
-          )
-        })
-      })
-
-      describe('and ban already exists', () => {
-        beforeEach(() => {
-          const mockResult = {
-            rowCount: 0,
-            rows: []
-          }
-          mockedDatabase.query.mockResolvedValue(mockResult)
-        })
-
-        it('should handle duplicate ban gracefully', async () => {
-          await sceneBanManager.addBan(validInput)
-
-          expect(mockedDatabase.query).toHaveBeenCalledWith(
-            expect.objectContaining({
-              strings: expect.arrayContaining([
-                expect.stringContaining('ON CONFLICT (place_id, banned_address) WHERE active = true')
-              ])
-            })
-          )
-        })
-      })
 
       describe('and database operation fails', () => {
         beforeEach(() => {
@@ -95,31 +38,6 @@ describe('SceneBanManager', () => {
 
         it('should propagate database errors', async () => {
           await expect(sceneBanManager.addBan(validInput)).rejects.toThrow('Database connection failed')
-        })
-      })
-
-      describe('and addresses need to be converted to lowercase', () => {
-        beforeEach(() => {
-          const mockResult = {
-            rowCount: 1,
-            rows: []
-          }
-          mockedDatabase.query.mockResolvedValue(mockResult)
-        })
-
-        it('should convert addresses to lowercase in database query', async () => {
-          await sceneBanManager.addBan(validInput)
-
-          expect(mockedDatabase.query).toHaveBeenCalledWith(
-            expect.objectContaining({
-              values: expect.arrayContaining([
-                validInput.place_id,
-                validInput.banned_address.toLowerCase(),
-                validInput.banned_by.toLowerCase(),
-                expect.any(Number)
-              ])
-            })
-          )
         })
       })
     })

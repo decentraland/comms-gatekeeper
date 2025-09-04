@@ -7,7 +7,7 @@ import SQL from 'sql-template-strings'
 import { createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { UserScenePermissions } from '../../../src/types/scene-manager.type'
 
-test('POST /scene-bans - integration test with real business logic', ({ components, stubComponents }) => {
+test('POST /scene-bans', ({ components, stubComponents }) => {
   let testPlaceId: string
   let worldPlaceId: string
 
@@ -270,6 +270,51 @@ test('POST /scene-bans - integration test with real business logic', ({ componen
       // Verify no ban was added to database
       const banResult = await components.database.query(SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId}`)
       expect(banResult.rowCount).toBe(0)
+    })
+  })
+
+  describe('when trying to ban an already banned user', () => {
+    beforeEach(async () => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+
+      await makeRequest(
+        components.localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: admin.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+    })
+
+    it('should return a 204 without adding a new row to the database', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: admin.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(204)
+
+      // Verify ban was added to database only once
+      const banResult = await components.database.query(
+        SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+      )
+      expect(banResult.rowCount).toBe(1)
     })
   })
 

@@ -31,6 +31,7 @@ export async function createSceneBanManagerComponent({
 
   async function addBan(input: AddSceneBanInput): Promise<void> {
     const validation = validateAddSceneBan(input)
+
     if (!validation.valid) {
       throw new Error(validation.error)
     }
