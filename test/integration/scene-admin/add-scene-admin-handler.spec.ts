@@ -21,6 +21,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       hostname: string
       protocol: string
     }
+    isWorlds: boolean
   }
   let cleanup: TestCleanup
   let metadataLand: Metadata
@@ -39,7 +40,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
         serverName: 'test-realm',
         hostname: 'https://peer.decentraland.zone',
         protocol: 'https'
-      }
+      },
+      isWorlds: false
     }
 
     metadataWorld = {
@@ -50,7 +52,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
         serverName: 'name.dcl.eth',
         hostname: 'https://worlds-content-server.decentraland.org/',
         protocol: 'https'
-      }
+      },
+      isWorlds: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)

@@ -1,5 +1,6 @@
 import { createPlacesComponent } from '../../src/adapters/places'
 import { PlaceNotFoundError } from '../../src/types/errors'
+import { PlaceAttributes, PlaceResponse } from '../../src/types/places.type'
 
 describe('PlacesComponent', () => {
   let placesComponent: Awaited<ReturnType<typeof createPlacesComponent>>

@@ -8,6 +8,7 @@ import { statusHandler } from './handlers/status-handler'
 import { commsSceneHandler } from './handlers/comms-scene-handler'
 import { muteHandler } from './handlers/mute-handler'
 import { addSceneAdminHandler, removeSceneAdminHandler, listSceneAdminsHandler } from './handlers/scene-admin-handlers'
+import { addSceneBanHandler } from './handlers/scene-ban-handlers'
 import { addSceneStreamAccessHandler, listSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers'
 import { getPrivateMessagesTokenHandler } from './handlers/private-messages/get-token-handler'
 import { removeSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/remove-scene-stream-access-handler'
@@ -60,17 +61,24 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post('/get-scene-adapter', commsSceneHandler)
   router.post('/mute', muteHandler)
 
+  // Scene admin routes
   router.get('/scene-admin', auth, listSceneAdminsHandler)
   router.post('/scene-admin', auth, addSceneAdminHandler)
   router.delete('/scene-admin', auth, removeSceneAdminHandler)
 
+  // Scene ban routes
+  router.post('/scene-bans', auth, addSceneBanHandler)
+
+  // Scene stream access routes
   router.get('/scene-stream-access', auth, listSceneStreamAccessHandler)
   router.post('/scene-stream-access', auth, addSceneStreamAccessHandler)
   router.delete('/scene-stream-access', auth, removeSceneStreamAccessHandler)
   router.put('/scene-stream-access', auth, resetSceneStreamAccessHandler)
 
+  // Livekit webhook routes
   router.post('/livekit-webhook', livekitWebhookHandler)
 
+  // Private messages routes
   router.get('/private-messages/token', authExplorer, getPrivateMessagesTokenHandler)
   router.patch('/users/:address/private-messages-privacy', tokenAuthMiddleware, patchUserPrivateMessagesPrivacyHandler)
 

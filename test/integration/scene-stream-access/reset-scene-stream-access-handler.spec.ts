@@ -21,6 +21,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     }
     sceneId: string
     parcel: string
+    isWorlds: boolean
   }
 
   let metadataLand: Metadata
@@ -58,7 +59,8 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
         protocol: 'https'
       },
       parcel: '10,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: false
     }
 
     metadataWorld = {
@@ -69,7 +71,8 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
         protocol: 'https'
       },
       parcel: '20,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue({
@@ -80,7 +83,8 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
         protocol: 'https'
       },
       parcel: '10,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: false
     })
 
     stubComponents.places.getPlaceByParcel.resolves({
@@ -191,7 +195,8 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
         protocol: 'https'
       },
       parcel: '20,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: true
     })
 
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)

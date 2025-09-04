@@ -1,7 +1,3 @@
-/**
- * Errores personalizados usados en la aplicación
- */
-
 export class InvalidRequestError extends Error {
   constructor(message: string) {
     super(message)

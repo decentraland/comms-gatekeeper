@@ -25,6 +25,7 @@ import { INotifications } from './types/notification.type'
 import { ISceneAdmins } from './types/scene.type'
 import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
+import { ISceneBansComponent } from './logic/scene-bans/types'
 import { ICronJobComponent } from './logic/cron-job/types'
 import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
@@ -45,6 +46,8 @@ export type BaseComponents = {
   livekit: ILivekitComponent
   database: IPgComponent
   sceneAdminManager: ISceneAdminManager
+  sceneBanManager: ISceneBanManager
+  sceneBans: ISceneBansComponent
   sceneStreamAccessManager: ISceneStreamAccessManager
   cachedFetch: ICachedFetchComponent
   places: IPlacesComponent
@@ -136,6 +139,7 @@ export type AuthData = {
   parcel: string
   realm: RealmAuthMetadata
   realmName: string
+  isWorlds: boolean
 }
 
 export type SceneAdmin = {
@@ -204,4 +208,22 @@ export interface IPublisherComponent {
     successfulMessageIds: string[]
     failedEvents: any[]
   }>
+}
+
+export type SceneBan = {
+  id: string
+  place_id: string
+  banned_address: string
+  banned_by: string
+  banned_at: number
+}
+
+export interface AddSceneBanInput {
+  place_id: string
+  banned_address: string
+  banned_by: string
+}
+
+export interface ISceneBanManager {
+  addBan(input: AddSceneBanInput): Promise<void>
 }

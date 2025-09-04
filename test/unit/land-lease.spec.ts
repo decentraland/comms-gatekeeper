@@ -13,7 +13,7 @@ describe('when the land lease component is created', () => {
 
     mockLogs = {
       getLogger: jest.fn().mockReturnValue({
-        debug: jest.fn().mockImplementation((...args) => console.log('DEBUG:', ...args)),
+        debug: jest.fn(),
         info: jest.fn(),
         error: jest.fn()
       })
@@ -59,10 +59,7 @@ describe('when the land lease component is created', () => {
       })
 
       it('should return true', async () => {
-        const result = await landLease.hasLandLease(
-          '0x1234567890123456789012345678901234567890',
-          ['-73,50']
-        )
+        const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         expect(result).toBe(true)
       })
@@ -82,10 +79,7 @@ describe('when the land lease component is created', () => {
       })
 
       it('should return false', async () => {
-        const result = await landLease.hasLandLease(
-          '0x1234567890123456789012345678901234567890',
-          ['999,999']
-        )
+        const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['999,999'])
 
         expect(result).toBe(false)
       })
@@ -105,10 +99,7 @@ describe('when the land lease component is created', () => {
       })
 
       it('should return false', async () => {
-        const result = await landLease.hasLandLease(
-          '0x9999999999999999999999999999999999999999',
-          ['-73,50']
-        )
+        const result = await landLease.hasLandLease('0x9999999999999999999999999999999999999999', ['-73,50'])
 
         expect(result).toBe(false)
       })
@@ -128,10 +119,7 @@ describe('when the land lease component is created', () => {
       })
 
       it('should handle case-insensitive address matching', async () => {
-        const result = await landLease.hasLandLease(
-          '0X1234567890123456789012345678901234567890',
-          ['-73,50']
-        )
+        const result = await landLease.hasLandLease('0X1234567890123456789012345678901234567890', ['-73,50'])
 
         expect(result).toBe(true)
       })
@@ -148,10 +136,7 @@ describe('when the land lease component is created', () => {
       })
 
       it('should return false', async () => {
-        const result = await landLease.hasLandLease(
-          '0x1234567890123456789012345678901234567890',
-          ['-73,50']
-        )
+        const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         expect(result).toBe(false)
       })
@@ -172,10 +157,7 @@ describe('when the land lease component is created', () => {
       })
 
       it('should return false', async () => {
-        const result = await landLease.hasLandLease(
-          '0x1234567890123456789012345678901234567890',
-          ['-73,50']
-        )
+        const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         expect(result).toBe(false)
       })
@@ -198,16 +180,10 @@ describe('when the land lease component is created', () => {
 
       it('should not fetch again within TTL', async () => {
         // First call should fetch
-        await landLease.hasLandLease(
-          '0x1234567890123456789012345678901234567890',
-          ['-73,50']
-        )
+        await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         // Second call should use cache
-        await landLease.hasLandLease(
-          '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
-          ['-100,100']
-        )
+        await landLease.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
 
         expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
       })
@@ -234,19 +210,13 @@ describe('when the land lease component is created', () => {
 
       it('should fetch fresh data after TTL expires', async () => {
         // First call
-        await landLease.hasLandLease(
-          '0x1234567890123456789012345678901234567890',
-          ['-73,50']
-        )
+        await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         // Advance time past TTL (5 minutes)
         jest.advanceTimersByTime(5 * 60 * 1000 + 1000)
 
         // Second call should fetch again
-        await landLease.hasLandLease(
-          '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
-          ['-100,100']
-        )
+        await landLease.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
 
         expect(mockFetch.fetch).toHaveBeenCalledTimes(2)
       })
@@ -268,21 +238,15 @@ describe('when the land lease component is created', () => {
 
     it('should clear cache and fetch fresh data', async () => {
       // First call
-      await landLease.hasLandLease(
-        '0x1234567890123456789012345678901234567890',
-        ['-73,50']
-      )
+      await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
       // Refresh cache
       await landLease.refreshAuthorizations()
 
       // Second call should fetch again
-      await landLease.hasLandLease(
-        '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
-        ['-100,100']
-      )
+      await landLease.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
 
       expect(mockFetch.fetch).toHaveBeenCalledTimes(2)
     })
   })
-}) 
+})

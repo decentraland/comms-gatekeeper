@@ -22,15 +22,18 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     }
     sceneId: string
     parcel: string
+    isWorlds: boolean
   }
 
   let metadataLand: Metadata
   let metadataWorld: Metadata
   let mockIngress: IngressInfo
   let mockSceneStreamAccess: any
+
   beforeAll(async () => {
     cleanup = new TestCleanup(components.database)
   })
+
   beforeEach(async () => {
     mockIngress = {
       name: 'mock-ingress',
@@ -57,7 +60,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
         protocol: 'https'
       },
       sceneId: 'test-scene',
-      parcel: '10,20'
+      parcel: '10,20',
+      isWorlds: false
     }
 
     metadataWorld = {
@@ -68,7 +72,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
         protocol: 'https'
       },
       sceneId: 'test-scene',
-      parcel: '20,20'
+      parcel: '20,20',
+      isWorlds: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
@@ -357,6 +362,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     }
     parcel: string
     sceneId: string
+    isWorlds: boolean
   }
 
   let metadataLand: Metadata
@@ -386,7 +392,8 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
         protocol: 'https'
       },
       parcel: '10,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: false
     }
 
     metadataWorld = {
@@ -397,7 +404,8 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
         protocol: 'https'
       },
       parcel: '20,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)

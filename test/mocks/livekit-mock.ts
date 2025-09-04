@@ -11,6 +11,7 @@ export const createLivekitMockedComponent = (
     removeParticipant: jest.fn(),
     getWorldRoomName: jest.fn(),
     getSceneRoomName: jest.fn(),
+    getRoomName: jest.fn(),
     getRoom: jest.fn(),
     getRoomInfo: jest.fn(),
     getOrCreateIngress: jest.fn(),

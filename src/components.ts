@@ -12,6 +12,7 @@ import { AppComponents, GlobalContext } from './types'
 import { metricDeclarations } from './metrics'
 import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
+import { createSceneBanManagerComponent } from './adapters/scene-ban-manager'
 import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream-access-manager'
 import { createTracedFetchComponent } from './adapters/traced-fetch'
 import { createBlockListComponent } from './adapters/blocklist'
@@ -30,6 +31,7 @@ import { createNotificationsComponent } from './adapters/notifications'
 import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
+import { createSceneBansComponent } from './logic/scene-bans'
 import { createCronJobComponent } from './logic/cron-job'
 import { AnalyticsEventPayload } from './types/analytics'
 import { createLandLeaseComponent } from './adapters/land-lease'
@@ -82,6 +84,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   )
 
   const sceneAdminManager = await createSceneAdminManagerComponent({ database, logs })
+  const sceneBanManager = await createSceneBanManagerComponent({ database, logs })
   const social = await createSocialComponent({ config, logs, fetch: tracedFetch })
   const cachedFetch = await cachedFetchComponent({ fetch: tracedFetch, logs })
   const cachedFetchWithStale = await cachedFetchComponent(
@@ -145,6 +148,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     { startOnInit: isProduction, waitForCompletion: true }
   )
 
+  // Scene ban components
+  const sceneBans = createSceneBansComponent({ sceneBanManager, livekit, logs, sceneManager, places, analytics })
+
   return {
     analytics,
     blockList,
@@ -169,6 +175,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     voiceDB,
     voice,
     sceneAdminManager,
+    sceneBanManager,
+    sceneBans,
     sceneStreamAccessManager,
     placesChecker,
     streamingTTLChecker,

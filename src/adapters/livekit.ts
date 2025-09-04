@@ -12,7 +12,13 @@ import {
 } from 'livekit-server-sdk'
 import { AppComponents, Permissions } from '../types'
 import { LivekitIngressNotFoundError } from '../types/errors'
-import { ILivekitComponent, LivekitCredentials, LivekitSettings, ParticipantPermissions } from '../types/livekit.type'
+import {
+  GetRoomNameParams,
+  ILivekitComponent,
+  LivekitCredentials,
+  LivekitSettings,
+  ParticipantPermissions
+} from '../types/livekit.type'
 import { isErrorWithMessage } from '../logic/errors'
 
 export async function createLivekitComponent(
@@ -92,6 +98,19 @@ export async function createLivekitComponent(
 
   function getSceneRoomName(realmName: string, sceneId: string): string {
     return `${sceneRoomPrefix}${realmName}:${sceneId}`
+  }
+
+  function getRoomName(realmName: string, params: GetRoomNameParams): string {
+    const { isWorlds, sceneId } = params
+    if (isWorlds) {
+      return getWorldRoomName(realmName)
+    } else {
+      if (!sceneId) {
+        throw new Error('No sceneId provided for scene room')
+      }
+
+      return getSceneRoomName(realmName, sceneId)
+    }
   }
 
   async function muteParticipant(roomId: string, participantId: string): Promise<void> {
@@ -247,6 +266,7 @@ export async function createLivekitComponent(
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
+    getRoomName,
     muteParticipant,
     removeParticipant,
     getRoom,

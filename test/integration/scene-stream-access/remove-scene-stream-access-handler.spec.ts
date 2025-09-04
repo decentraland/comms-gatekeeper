@@ -20,6 +20,7 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
     }
     parcel: string
     sceneId: string
+    isWorlds: boolean
   }
 
   let metadataLand: Metadata
@@ -57,7 +58,8 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
         protocol: 'https'
       },
       parcel: '10,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: false
     }
 
     metadataWorld = {
@@ -68,7 +70,8 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
         protocol: 'https'
       },
       parcel: '20,20',
-      sceneId: 'test-scene'
+      sceneId: 'test-scene',
+      isWorlds: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
