@@ -23,6 +23,8 @@ describe('SceneBanComponent', () => {
   let analyticsMockedComponent: jest.Mocked<IAnalyticsComponent>
 
   let userScenePermissions: UserScenePermissions
+  let mockPlace: PlaceAttributes
+  let mockWorldPlace: PlaceAttributes
 
   beforeEach(async () => {
     livekitMockedComponent = createLivekitMockedComponent()
@@ -47,17 +49,15 @@ describe('SceneBanComponent', () => {
       hasExtendedPermissions: false,
       hasLandLease: false
     }
+
+    mockPlace = createMockedPlace()
+    mockWorldPlace = createMockedWorldPlace()
+
+    placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
+    placesMockedComponent.getPlaceByWorldName.mockResolvedValue(mockWorldPlace)
   })
 
   describe('when adding a scene ban', () => {
-    let mockPlace: PlaceAttributes
-    let mockWorldPlace: PlaceAttributes
-
-    beforeEach(async () => {
-      mockPlace = createMockedPlace()
-      placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
-    })
-
     describe('when adding a ban for a regular scene', () => {
       beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
@@ -118,9 +118,6 @@ describe('SceneBanComponent', () => {
         sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
         livekitMockedComponent.getRoomName.mockReturnValue('world-test-world.dcl.eth')
         livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
-
-        mockWorldPlace = createMockedWorldPlace()
-        placesMockedComponent.getPlaceByWorldName.mockResolvedValue(mockWorldPlace)
 
         await sceneBanComponent.addSceneBan(
           '0x1234567890123456789012345678901234567890',
@@ -299,6 +296,125 @@ describe('SceneBanComponent', () => {
             )
           ).rejects.toThrow('Cannot ban this address')
         })
+      })
+    })
+  })
+
+  describe('when removing a scene ban', () => {
+    describe('when removing a ban for a regular scene', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.removeBan.mockResolvedValue(undefined)
+
+        await sceneBanComponent.removeSceneBan(
+          '0x1234567890123456789012345678901234567890',
+          '0x0987654321098765432109876543210987654321',
+          {
+            sceneId: 'test-scene',
+            realmName: 'test-realm',
+            parcel: '-9,-9',
+            isWorlds: false
+          }
+        )
+      })
+
+      it('should remove the ban from the database', async () => {
+        expect(sceneBanManagerMockedComponent.removeBan).toHaveBeenCalledWith(
+          'test-place-id',
+          '0x1234567890123456789012345678901234567890'
+        )
+      })
+
+      it('should track the unban in analytics', async () => {
+        expect(analyticsMockedComponent.fireEvent).toHaveBeenCalledWith(AnalyticsEvent.SCENE_BAN_REMOVED, {
+          place_id: 'test-place-id',
+          banned_address: '0x1234567890123456789012345678901234567890',
+          unbanned_by: '0x0987654321098765432109876543210987654321',
+          unbanned_at: expect.any(Number),
+          scene_id: 'test-scene',
+          parcel: '-9,-9',
+          realm_name: 'test-realm'
+        })
+      })
+    })
+
+    describe('when removing a ban for a world', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.removeBan.mockResolvedValue(undefined)
+
+        await sceneBanComponent.removeSceneBan(
+          '0x1234567890123456789012345678901234567890',
+          '0x0987654321098765432109876543210987654321',
+          {
+            sceneId: undefined,
+            realmName: 'test-world.dcl.eth',
+            parcel: undefined,
+            isWorlds: true
+          }
+        )
+      })
+
+      it('should remove the ban from the database', async () => {
+        expect(sceneBanManagerMockedComponent.removeBan).toHaveBeenCalledWith(
+          'test-place-id',
+          '0x1234567890123456789012345678901234567890'
+        )
+      })
+
+      it('should track the unban in analytics', async () => {
+        expect(analyticsMockedComponent.fireEvent).toHaveBeenCalledWith(AnalyticsEvent.SCENE_BAN_REMOVED, {
+          place_id: 'test-place-id',
+          banned_address: '0x1234567890123456789012345678901234567890',
+          unbanned_by: '0x0987654321098765432109876543210987654321',
+          unbanned_at: expect.any(Number),
+          realm_name: 'test-world.dcl.eth',
+          scene_id: undefined,
+          parcel: undefined
+        })
+      })
+    })
+
+    describe('when removing the ban from the database fails', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.removeBan.mockRejectedValue(new Error('Database error'))
+      })
+
+      it('should propagate the error', async () => {
+        await expect(
+          sceneBanComponent.removeSceneBan(
+            '0x1234567890123456789012345678901234567890',
+            '0x0987654321098765432109876543210987654321',
+            {
+              sceneId: 'test-scene',
+              realmName: 'test-realm',
+              parcel: '-9,-9',
+              isWorlds: false
+            }
+          )
+        ).rejects.toThrow('Database error')
+      })
+    })
+
+    describe('when user lacks permission to unban', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(false)
+      })
+
+      it('should throw UnauthorizedError', async () => {
+        await expect(
+          sceneBanComponent.removeSceneBan(
+            '0x1234567890123456789012345678901234567890',
+            '0x0987654321098765432109876543210987654321',
+            {
+              sceneId: 'test-scene',
+              realmName: 'test-realm',
+              parcel: '-9,-9',
+              isWorlds: false
+            }
+          )
+        ).rejects.toThrow('You do not have permission to unban users from this place')
       })
     })
   })
