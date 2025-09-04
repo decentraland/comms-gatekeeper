@@ -9,18 +9,10 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
   const mockParcel = '10,20'
   const mockWorldRealm = 'test-world.eth'
 
-  type ValidateMetadata = {
-    identity: string
-    realm: {
-      serverName: string
-      hostname: string
-      protocol: string
-    }
-    sceneId?: string
-    parcel: string
-  }
+  // Use the actual return type from the validate function
+  type ValidateResult = Awaited<ReturnType<typeof handlersUtils.validate>>
 
-  let validateResult: ValidateMetadata
+  let validateResult: ValidateResult
 
   beforeEach(async () => {
     // Set up default validate result
@@ -32,7 +24,8 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
         protocol: 'https'
       },
       sceneId: mockSceneId,
-      parcel: mockParcel
+      parcel: mockParcel,
+      isWorlds: false
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
@@ -102,6 +95,8 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
   describe('when handling world realms', () => {
     beforeEach(() => {
       validateResult.realm.serverName = mockWorldRealm
+      validateResult.realm.hostname = 'worlds-content-server.decentraland.org'
+      validateResult.isWorlds = true
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
     })
 
