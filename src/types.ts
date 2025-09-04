@@ -215,10 +215,7 @@ export type SceneBan = {
   place_id: string
   banned_address: string
   banned_by: string
-  unbanned_by?: string
   banned_at: number
-  unbanned_at?: number
-  active: boolean
 }
 
 export interface AddSceneBanInput {

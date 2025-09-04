@@ -122,10 +122,6 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       )
       expect(banResult.rowCount).toBe(1)
       expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
-      expect(banResult.rows[0].active).toBe(true)
-
-      // Verify LiveKit removal was called
-      expect(stubComponents.livekit.removeParticipant.calledOnce).toBe(true)
     })
   })
 

@@ -145,7 +145,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   )
 
   // Scene ban components
-  const sceneBans = createSceneBansComponent({ sceneBanManager, livekit, logs, sceneManager, places })
+  const sceneBans = createSceneBansComponent({ sceneBanManager, livekit, logs, sceneManager, places, analytics })
 
   return {
     analytics,

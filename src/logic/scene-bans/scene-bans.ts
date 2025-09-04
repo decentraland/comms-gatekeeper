@@ -2,11 +2,12 @@ import { AppComponents } from '../../types'
 import { AddSceneBanParams, ISceneBansComponent } from './types'
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
+import { AnalyticsEvent } from '../../types/analytics'
 
 export function createSceneBansComponent(
-  components: Pick<AppComponents, 'sceneBanManager' | 'livekit' | 'logs' | 'sceneManager' | 'places'>
+  components: Pick<AppComponents, 'sceneBanManager' | 'livekit' | 'logs' | 'sceneManager' | 'places' | 'analytics'>
 ): ISceneBansComponent {
-  const { sceneBanManager, livekit, logs, sceneManager, places } = components
+  const { sceneBanManager, livekit, logs, sceneManager, places, analytics } = components
   const logger = logs.getLogger('scene-bans')
 
   /**
@@ -64,6 +65,16 @@ export function createSceneBansComponent(
     logger.info(
       `Successfully banned user ${bannedAddress} for place ${place.id} and removed participant from LiveKit room ${roomName}`
     )
+
+    analytics.fireEvent(AnalyticsEvent.SCENE_BAN_ADDED, {
+      place_id: place.id,
+      banned_address: bannedAddress.toLowerCase(),
+      banned_by: bannedBy.toLowerCase(),
+      banned_at: Date.now(),
+      scene_id: sceneId,
+      parcel: parcel,
+      realm_name: realmName
+    })
   }
 
   return {

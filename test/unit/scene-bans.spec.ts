@@ -9,6 +9,9 @@ import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createSceneBanManagerMockedComponent } from '../mocks/scene-ban-manager-mock'
 import { createMockedPlace, createMockedWorldPlace, createPlacesMockedComponent } from '../mocks/places-mock'
 import { createSceneManagerMockedComponent } from '../mocks/scene-manager-mock'
+import { IAnalyticsComponent } from '@dcl/analytics-component'
+import { createAnalyticsMockedComponent } from '../mocks/analytics-mocks'
+import { AnalyticsEvent } from '../../src/types/analytics'
 
 describe('SceneBanComponent', () => {
   let sceneBanComponent: ISceneBansComponent
@@ -17,6 +20,7 @@ describe('SceneBanComponent', () => {
   let sceneBanManagerMockedComponent: jest.Mocked<ISceneBanManager>
   let placesMockedComponent: jest.Mocked<IPlacesComponent>
   let logsMockedComponent: jest.Mocked<ILoggerComponent>
+  let analyticsMockedComponent: jest.Mocked<IAnalyticsComponent>
 
   let userScenePermissions: UserScenePermissions
 
@@ -26,13 +30,15 @@ describe('SceneBanComponent', () => {
     sceneManagerMockedComponent = createSceneManagerMockedComponent()
     placesMockedComponent = createPlacesMockedComponent()
     logsMockedComponent = createLoggerMockedComponent()
+    analyticsMockedComponent = createAnalyticsMockedComponent()
 
     sceneBanComponent = createSceneBansComponent({
       sceneBanManager: sceneBanManagerMockedComponent,
       livekit: livekitMockedComponent,
       sceneManager: sceneManagerMockedComponent,
       places: placesMockedComponent,
-      logs: logsMockedComponent
+      logs: logsMockedComponent,
+      analytics: analyticsMockedComponent
     })
 
     userScenePermissions = {
@@ -47,20 +53,18 @@ describe('SceneBanComponent', () => {
     let mockPlace: PlaceAttributes
     let mockWorldPlace: PlaceAttributes
 
+    beforeEach(async () => {
+      mockPlace = createMockedPlace()
+      placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
+    })
+
     describe('when adding a ban for a regular scene', () => {
-      beforeEach(() => {
+      beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
         sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
         livekitMockedComponent.getRoomName.mockReturnValue('scene-test-realm:test-scene')
         livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
-
-        mockPlace = createMockedPlace()
-        mockWorldPlace = createMockedWorldPlace()
-      })
-
-      it('should call sceneBanManager.addBan with correct parameters', async () => {
-        placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
 
         await sceneBanComponent.addSceneBan(
           '0x1234567890123456789012345678901234567890',
@@ -72,7 +76,9 @@ describe('SceneBanComponent', () => {
             isWorlds: false
           }
         )
+      })
 
+      it('should add the ban to the database', async () => {
         expect(sceneBanManagerMockedComponent.addBan).toHaveBeenCalledWith({
           place_id: 'test-place-id',
           banned_address: '0x1234567890123456789012345678901234567890',
@@ -80,57 +86,40 @@ describe('SceneBanComponent', () => {
         })
       })
 
-      it('should call livekit.getSceneRoomName with correct parameters', async () => {
-        placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
-
-        await sceneBanComponent.addSceneBan(
-          '0x1234567890123456789012345678901234567890',
-          '0x0987654321098765432109876543210987654321',
-          {
-            sceneId: 'test-scene',
-            realmName: 'test-realm',
-            parcel: '-9,-9',
-            isWorlds: false
-          }
-        )
-
+      it('should remove the participant from the livekit scene room', async () => {
         expect(livekitMockedComponent.getRoomName).toHaveBeenCalledWith('test-realm', {
           isWorlds: false,
           sceneId: 'test-scene'
         })
-      })
-
-      it('should call livekit.removeParticipant with correct parameters', async () => {
-        placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
-
-        await sceneBanComponent.addSceneBan(
-          '0x1234567890123456789012345678901234567890',
-          '0x0987654321098765432109876543210987654321',
-          {
-            sceneId: 'test-scene',
-            realmName: 'test-realm',
-            parcel: '-9,-9',
-            isWorlds: false
-          }
-        )
 
         expect(livekitMockedComponent.removeParticipant).toHaveBeenCalledWith(
           'scene-test-realm:test-scene',
           '0x1234567890123456789012345678901234567890'
         )
       })
+
+      it('should track the ban in analytics', async () => {
+        expect(analyticsMockedComponent.fireEvent).toHaveBeenCalledWith(AnalyticsEvent.SCENE_BAN_ADDED, {
+          place_id: 'test-place-id',
+          banned_address: '0x1234567890123456789012345678901234567890',
+          banned_by: '0x0987654321098765432109876543210987654321',
+          banned_at: expect.any(Number),
+          scene_id: 'test-scene',
+          parcel: '-9,-9',
+          realm_name: 'test-realm'
+        })
+      })
     })
 
     describe('when adding a ban for a world', () => {
-      beforeEach(() => {
+      beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
         sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
         livekitMockedComponent.getRoomName.mockReturnValue('world-test-world.dcl.eth')
         livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
-      })
 
-      it('should call livekit.getRoomName with correct parameters for world', async () => {
+        mockWorldPlace = createMockedWorldPlace()
         placesMockedComponent.getPlaceByWorldName.mockResolvedValue(mockWorldPlace)
 
         await sceneBanComponent.addSceneBan(
@@ -143,28 +132,27 @@ describe('SceneBanComponent', () => {
             isWorlds: true
           }
         )
+      })
 
+      it('should remove the participant from the livekit room', async () => {
         expect(livekitMockedComponent.getRoomName).toHaveBeenCalledWith('test-world.dcl.eth', { isWorlds: true })
-      })
-
-      it('should call livekit.removeParticipant with correct parameters', async () => {
-        placesMockedComponent.getPlaceByWorldName.mockResolvedValue(mockWorldPlace)
-
-        await sceneBanComponent.addSceneBan(
-          '0x1234567890123456789012345678901234567890',
-          '0x0987654321098765432109876543210987654321',
-          {
-            sceneId: undefined,
-            realmName: 'test-world.dcl.eth',
-            parcel: undefined,
-            isWorlds: true
-          }
-        )
 
         expect(livekitMockedComponent.removeParticipant).toHaveBeenCalledWith(
           'world-test-world.dcl.eth',
           '0x1234567890123456789012345678901234567890'
         )
+      })
+
+      it('should track the ban in analytics', async () => {
+        expect(analyticsMockedComponent.fireEvent).toHaveBeenCalledWith(AnalyticsEvent.SCENE_BAN_ADDED, {
+          place_id: 'test-place-id',
+          banned_address: '0x1234567890123456789012345678901234567890',
+          banned_by: '0x0987654321098765432109876543210987654321',
+          banned_at: expect.any(Number),
+          realm_name: 'test-world.dcl.eth',
+          scene_id: undefined,
+          parcel: undefined
+        })
       })
     })
 
@@ -172,7 +160,6 @@ describe('SceneBanComponent', () => {
       beforeEach(() => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
-        placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
         livekitMockedComponent.getRoomName.mockReturnValue('scene-test-realm:test-scene')
         livekitMockedComponent.removeParticipant.mockRejectedValue(new Error('LiveKit connection failed'))
       })
@@ -208,8 +195,6 @@ describe('SceneBanComponent', () => {
       })
 
       it('should propagate the error', async () => {
-        placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
-
         await expect(
           sceneBanComponent.addSceneBan(
             '0x1234567890123456789012345678901234567890',
@@ -231,8 +216,6 @@ describe('SceneBanComponent', () => {
       })
 
       it('should throw UnauthorizedError', async () => {
-        placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
-
         await expect(
           sceneBanComponent.addSceneBan(
             '0x1234567890123456789012345678901234567890',
@@ -257,8 +240,6 @@ describe('SceneBanComponent', () => {
         })
 
         it('should throw InvalidRequestError', async () => {
-          placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
-
           await expect(
             sceneBanComponent.addSceneBan(
               '0x1234567890123456789012345678901234567890',
@@ -282,8 +263,6 @@ describe('SceneBanComponent', () => {
         })
 
         it('should throw InvalidRequestError', async () => {
-          placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
-
           await expect(
             sceneBanComponent.addSceneBan(
               '0x1234567890123456789012345678901234567890',
@@ -307,8 +286,6 @@ describe('SceneBanComponent', () => {
         })
 
         it('should throw InvalidRequestError', async () => {
-          placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
-
           await expect(
             sceneBanComponent.addSceneBan(
               '0x1234567890123456789012345678901234567890',
