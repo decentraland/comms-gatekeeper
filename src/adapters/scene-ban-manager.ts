@@ -41,7 +41,26 @@ export async function createSceneBanManagerComponent({
     return
   }
 
+  async function removeBan(placeId: string, bannedAddress: string): Promise<void> {
+    const bannedAddressLowercase = bannedAddress.toLowerCase()
+
+    const result = await database.query<SceneBan>(
+      SQL`
+        DELETE FROM scene_bans 
+        WHERE place_id = ${placeId} 
+        AND banned_address = ${bannedAddressLowercase}
+        RETURNING *;
+      `
+    )
+
+    result.rowCount > 0
+      ? logger.info(`Ban removed (${bannedAddressLowercase}) for place ${placeId}`)
+      : logger.info(`No ban found (${bannedAddressLowercase}) for place ${placeId}`)
+    return
+  }
+
   return {
-    addBan
+    addBan,
+    removeBan
   }
 }

@@ -1,5 +1,5 @@
 import { AppComponents } from '../../types'
-import { AddSceneBanParams, ISceneBansComponent } from './types'
+import { AddSceneBanParams, RemoveSceneBanParams, ISceneBansComponent } from './types'
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
@@ -77,7 +77,57 @@ export function createSceneBansComponent(
     })
   }
 
+  /**
+   * Removes a ban for a user from a scene with permission validation.
+   * @param bannedAddress - The address of the user being unbanned.
+   * @param unbannedBy - The address of the user performing the unban.
+   * @param params - The parameters for the unban.
+   */
+  async function removeSceneBan(
+    bannedAddress: string,
+    unbannedBy: string,
+    params: RemoveSceneBanParams
+  ): Promise<void> {
+    const { sceneId, realmName, parcel, isWorlds } = params
+
+    logger.debug(`Unbanning user ${bannedAddress} by user ${unbannedBy}`, {
+      sceneId: sceneId || '',
+      realmName,
+      parcel: parcel || '',
+      isWorlds: String(isWorlds)
+    })
+
+    let place: PlaceAttributes
+
+    if (isWorlds) {
+      place = await places.getPlaceByWorldName(realmName)
+    } else {
+      place = await places.getPlaceByParcel(parcel)
+    }
+
+    // Check if the user performing the unban has permission
+    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, unbannedBy)
+    if (!isOwnerOrAdmin) {
+      throw new UnauthorizedError('You do not have permission to unban users from this place')
+    }
+
+    await sceneBanManager.removeBan(place.id, bannedAddress.toLowerCase())
+
+    logger.info(`Successfully unbanned user ${bannedAddress} for place ${place.id}`)
+
+    analytics.fireEvent(AnalyticsEvent.SCENE_BAN_REMOVED, {
+      place_id: place.id,
+      banned_address: bannedAddress.toLowerCase(),
+      unbanned_by: unbannedBy.toLowerCase(),
+      unbanned_at: Date.now(),
+      scene_id: sceneId,
+      parcel: parcel,
+      realm_name: realmName
+    })
+  }
+
   return {
-    addSceneBan
+    addSceneBan,
+    removeSceneBan
   }
 }

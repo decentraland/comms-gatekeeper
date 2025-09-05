@@ -3,7 +3,8 @@ export enum AnalyticsEvent {
   PARTICIPANT_LEFT_ROOM = 'PEER_LEFT_ROOM',
   EXPIRE_CALL = 'EXPIRE_CALL',
   END_CALL = 'END_CALL',
-  SCENE_BAN_ADDED = 'SCENE_BAN_ADDED'
+  SCENE_BAN_ADDED = 'SCENE_BAN_ADDED',
+  SCENE_BAN_REMOVED = 'SCENE_BAN_REMOVED'
 }
 
 export type AnalyticsEventPayload = {
@@ -28,6 +29,15 @@ export type AnalyticsEventPayload = {
     banned_address: string
     banned_by: string
     banned_at: number
+    scene_id?: string
+    parcel?: string
+    realm_name: string
+  }
+  [AnalyticsEvent.SCENE_BAN_REMOVED]: {
+    place_id: string
+    banned_address: string
+    unbanned_by: string
+    unbanned_at: number
     scene_id?: string
     parcel?: string
     realm_name: string

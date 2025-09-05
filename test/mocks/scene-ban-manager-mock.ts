@@ -5,6 +5,7 @@ export const createSceneBanManagerMockedComponent = (
 ): jest.Mocked<ISceneBanManager> => {
   return {
     addBan: jest.fn(),
+    removeBan: jest.fn(),
     ...overrides
   }
 }

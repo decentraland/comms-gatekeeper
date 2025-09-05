@@ -226,4 +226,5 @@ export interface AddSceneBanInput {
 
 export interface ISceneBanManager {
   addBan(input: AddSceneBanInput): Promise<void>
+  removeBan(placeId: string, bannedAddress: string): Promise<void>
 }
