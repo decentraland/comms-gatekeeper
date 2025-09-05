@@ -86,6 +86,7 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
 
     stubComponents.livekit.removeParticipant.resolves()
     stubComponents.livekit.getRoomName.returns('test-room-name')
+    stubComponents.livekit.updateRoomMetadata.resolves()
   })
 
   afterEach(async () => {
@@ -311,6 +312,40 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
         SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
       )
       expect(banResult.rowCount).toBe(1)
+    })
+  })
+
+  describe('when room metadata update fails', () => {
+    beforeEach(async () => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.livekit.updateRoomMetadata.rejects(new Error('Room metadata update failed'))
+    })
+
+    it('should still complete the ban operation successfully', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_address: admin.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(204)
+
+      // Verify ban was still added to database
+      const banResult = await components.database.query(
+        SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+      )
+      expect(banResult.rowCount).toBe(1)
+      expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
     })
   })
 

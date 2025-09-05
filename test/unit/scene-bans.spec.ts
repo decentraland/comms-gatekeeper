@@ -68,8 +68,12 @@ describe('SceneBanComponent', () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
         sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1234567890123456789012345678901234567890'
+        ])
         livekitMockedComponent.getRoomName.mockReturnValue('scene-test-realm:test-scene')
         livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
+        livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
 
         await sceneBanComponent.addSceneBan(
           '0x1234567890123456789012345678901234567890',
@@ -103,6 +107,12 @@ describe('SceneBanComponent', () => {
         )
       })
 
+      it('should update room metadata with banned addresses', async () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith('scene-test-realm:test-scene', {
+          bannedAddresses: ['0x1234567890123456789012345678901234567890']
+        })
+      })
+
       it('should track the ban in analytics', async () => {
         expect(analyticsMockedComponent.fireEvent).toHaveBeenCalledWith(AnalyticsEvent.SCENE_BAN_ADDED, {
           place_id: 'test-place-id',
@@ -121,8 +131,12 @@ describe('SceneBanComponent', () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
         sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1234567890123456789012345678901234567890'
+        ])
         livekitMockedComponent.getRoomName.mockReturnValue('world-test-world.dcl.eth')
         livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
+        livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
 
         await sceneBanComponent.addSceneBan(
           '0x1234567890123456789012345678901234567890',
@@ -143,6 +157,12 @@ describe('SceneBanComponent', () => {
           'world-test-world.dcl.eth',
           '0x1234567890123456789012345678901234567890'
         )
+      })
+
+      it('should update room metadata with banned addresses', async () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith('world-test-world.dcl.eth', {
+          bannedAddresses: ['0x1234567890123456789012345678901234567890']
+        })
       })
 
       it('should track the ban in analytics', async () => {
@@ -310,6 +330,9 @@ describe('SceneBanComponent', () => {
       beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneBanManagerMockedComponent.removeBan.mockResolvedValue(undefined)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+        livekitMockedComponent.getRoomName.mockReturnValue('scene-test-realm:test-scene')
+        livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
 
         await sceneBanComponent.removeSceneBan(
           '0x1234567890123456789012345678901234567890',
@@ -330,6 +353,12 @@ describe('SceneBanComponent', () => {
         )
       })
 
+      it('should update room metadata with updated banned addresses', async () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith('scene-test-realm:test-scene', {
+          bannedAddresses: []
+        })
+      })
+
       it('should track the unban in analytics', async () => {
         expect(analyticsMockedComponent.fireEvent).toHaveBeenCalledWith(AnalyticsEvent.SCENE_BAN_REMOVED, {
           place_id: 'test-place-id',
@@ -347,6 +376,9 @@ describe('SceneBanComponent', () => {
       beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneBanManagerMockedComponent.removeBan.mockResolvedValue(undefined)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+        livekitMockedComponent.getRoomName.mockReturnValue('world-test-world.dcl.eth')
+        livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
 
         await sceneBanComponent.removeSceneBan(
           '0x1234567890123456789012345678901234567890',
@@ -365,6 +397,12 @@ describe('SceneBanComponent', () => {
           'test-place-id',
           '0x1234567890123456789012345678901234567890'
         )
+      })
+
+      it('should update room metadata with updated banned addresses', async () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith('world-test-world.dcl.eth', {
+          bannedAddresses: []
+        })
       })
 
       it('should track the unban in analytics', async () => {
@@ -420,6 +458,45 @@ describe('SceneBanComponent', () => {
             }
           )
         ).rejects.toThrow('You do not have permission to unban users from this place')
+      })
+    })
+
+    describe('when room metadata update fails', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+        sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1234567890123456789012345678901234567890'
+        ])
+        livekitMockedComponent.getRoomName.mockReturnValue('scene-test-realm:test-scene')
+        livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
+        livekitMockedComponent.updateRoomMetadata.mockRejectedValue(new Error('Room metadata update failed'))
+      })
+
+      it('should still complete the ban operation successfully', async () => {
+        await expect(
+          sceneBanComponent.addSceneBan(
+            '0x1234567890123456789012345678901234567890',
+            '0x0987654321098765432109876543210987654321',
+            {
+              sceneId: 'test-scene',
+              realmName: 'test-realm',
+              parcel: '-9,-9',
+              isWorlds: false
+            }
+          )
+        ).resolves.not.toThrow()
+
+        expect(sceneBanManagerMockedComponent.addBan).toHaveBeenCalledWith({
+          place_id: 'test-place-id',
+          banned_address: '0x1234567890123456789012345678901234567890',
+          banned_by: '0x0987654321098765432109876543210987654321'
+        })
+        expect(livekitMockedComponent.removeParticipant).toHaveBeenCalledWith(
+          'scene-test-realm:test-scene',
+          '0x1234567890123456789012345678901234567890'
+        )
       })
     })
   })

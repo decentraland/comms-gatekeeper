@@ -8,6 +8,7 @@ let listRoomsSpy: jest.SpyInstance<Promise<Room[]>, [names?: string[]]>
 let createRoomSpy: jest.SpyInstance<Promise<Room>, [options: any]>
 let updateParticipantMetadataSpy: jest.SpyInstance
 let updateParticipantSpy: jest.SpyInstance
+let updateRoomMetadataSpy: jest.SpyInstance
 let listParticipantsSpy: jest.SpyInstance
 let accessTokenToJwtSpy: jest.SpyInstance
 let listIngressSpy: jest.SpyInstance
@@ -20,6 +21,7 @@ beforeEach(async () => {
   createRoomSpy = jest.spyOn(RoomServiceClient.prototype, 'createRoom')
   updateParticipantMetadataSpy = jest.spyOn(RoomServiceClient.prototype, 'updateParticipant')
   updateParticipantSpy = jest.spyOn(RoomServiceClient.prototype, 'updateParticipant')
+  updateRoomMetadataSpy = jest.spyOn(RoomServiceClient.prototype, 'updateRoomMetadata')
   listParticipantsSpy = jest.spyOn(RoomServiceClient.prototype, 'listParticipants')
   accessTokenToJwtSpy = jest.spyOn(AccessToken.prototype, 'toJwt').mockResolvedValue('mock-jwt-token')
   listIngressSpy = jest.spyOn(IngressClient.prototype, 'listIngress')
@@ -536,6 +538,144 @@ describe('when getting or creating ingress', () => {
         roomName: roomName,
         participantIdentity
       })
+    })
+  })
+})
+
+describe('when updating room metadata', () => {
+  const roomId = 'test-room'
+  const mockRoom = {
+    sid: 'room-sid',
+    name: roomId,
+    emptyTimeout: 0,
+    maxParticipants: 100,
+    creationTime: BigInt(Date.now()),
+    turnPassword: '',
+    enabledCodecs: [],
+    numParticipants: 2,
+    numPublishers: 1,
+    activeRecording: false,
+    metadata: JSON.stringify({
+      existingField: 'existingValue',
+      anotherField: 'anotherValue'
+    })
+  } as Room
+
+  beforeEach(() => {
+    updateRoomMetadataSpy.mockResolvedValue(undefined)
+  })
+
+  describe('when room has no existing metadata', () => {
+    beforeEach(() => {
+      const roomWithoutMetadata = { ...mockRoom, metadata: undefined } as Room
+      listRoomsSpy.mockResolvedValue([roomWithoutMetadata])
+    })
+
+    it('should update with only the new metadata', async () => {
+      const newMetadata = { bannedAddresses: ['0x123', '0x456'] }
+      await livekitComponent.updateRoomMetadata(roomId, newMetadata)
+
+      expect(listRoomsSpy).toHaveBeenCalledWith([roomId])
+      expect(updateRoomMetadataSpy).toHaveBeenCalledWith(roomId, JSON.stringify(newMetadata))
+    })
+  })
+
+  describe('when room has existing metadata', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([mockRoom])
+    })
+
+    it('should merge existing metadata with new metadata', async () => {
+      const newMetadata = { bannedAddresses: ['0x123', '0x456'] }
+      await livekitComponent.updateRoomMetadata(roomId, newMetadata)
+
+      const expectedMergedMetadata = {
+        existingField: 'existingValue',
+        anotherField: 'anotherValue',
+        bannedAddresses: ['0x123', '0x456']
+      }
+
+      expect(listRoomsSpy).toHaveBeenCalledWith([roomId])
+      expect(updateRoomMetadataSpy).toHaveBeenCalledWith(roomId, JSON.stringify(expectedMergedMetadata))
+    })
+
+    it('should override existing fields with new values', async () => {
+      const newMetadata = {
+        existingField: 'updatedValue', // Override existing field
+        bannedAddresses: ['0x123', '0x456'] // Add new field
+      }
+      await livekitComponent.updateRoomMetadata(roomId, newMetadata)
+
+      const expectedMergedMetadata = {
+        existingField: 'updatedValue', // Updated value
+        anotherField: 'anotherValue', // Preserved existing value
+        bannedAddresses: ['0x123', '0x456'] // New field
+      }
+
+      expect(updateRoomMetadataSpy).toHaveBeenCalledWith(roomId, JSON.stringify(expectedMergedMetadata))
+    })
+  })
+
+  describe('when room has invalid JSON metadata', () => {
+    beforeEach(() => {
+      const roomWithInvalidMetadata = { ...mockRoom, metadata: '{ invalid json' } as Room
+      listRoomsSpy.mockResolvedValue([roomWithInvalidMetadata])
+    })
+
+    it('should treat existing metadata as empty object and use only new metadata', async () => {
+      const newMetadata = { bannedAddresses: ['0x123', '0x456'] }
+      await livekitComponent.updateRoomMetadata(roomId, newMetadata)
+
+      expect(updateRoomMetadataSpy).toHaveBeenCalledWith(roomId, JSON.stringify(newMetadata))
+    })
+  })
+
+  describe('when room is not found', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([])
+    })
+
+    it('should update with only new metadata (no existing metadata to merge)', async () => {
+      const newMetadata = { bannedAddresses: ['0x123', '0x456'] }
+      await livekitComponent.updateRoomMetadata(roomId, newMetadata)
+
+      expect(listRoomsSpy).toHaveBeenCalledWith([roomId])
+      expect(updateRoomMetadataSpy).toHaveBeenCalledWith(roomId, JSON.stringify(newMetadata))
+    })
+  })
+
+  describe('when getting room info fails', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockRejectedValue(new Error('Failed to list rooms'))
+    })
+
+    it('should still try to update metadata (getRoomInfo catches errors internally)', async () => {
+      const newMetadata = { bannedAddresses: ['0x123', '0x456'] }
+
+      // getRoomInfo catches errors and returns null, so the update should still proceed
+      // with just the new metadata (no existing metadata to merge)
+      await livekitComponent.updateRoomMetadata(roomId, newMetadata)
+
+      expect(listRoomsSpy).toHaveBeenCalledWith([roomId])
+      expect(updateRoomMetadataSpy).toHaveBeenCalledWith(roomId, JSON.stringify(newMetadata))
+    })
+  })
+
+  describe('when updating room metadata fails', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([mockRoom])
+      updateRoomMetadataSpy.mockRejectedValue(new Error('Failed to update room metadata'))
+    })
+
+    it('should propagate the error', async () => {
+      const newMetadata = { bannedAddresses: ['0x123', '0x456'] }
+
+      await expect(livekitComponent.updateRoomMetadata(roomId, newMetadata)).rejects.toThrow(
+        'Failed to update room metadata'
+      )
+
+      expect(listRoomsSpy).toHaveBeenCalledWith([roomId])
+      expect(updateRoomMetadataSpy).toHaveBeenCalled()
     })
   })
 })

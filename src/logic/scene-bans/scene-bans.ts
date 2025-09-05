@@ -3,6 +3,7 @@ import { AddSceneBanParams, RemoveSceneBanParams, ListSceneBansParams, ISceneBan
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
+import { isErrorWithMessage } from '../../logic/errors'
 
 export function createSceneBansComponent(
   components: Pick<
@@ -12,6 +13,32 @@ export function createSceneBansComponent(
 ): ISceneBansComponent {
   const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names } = components
   const logger = logs.getLogger('scene-bans')
+
+  /**
+   * Updates the LiveKit room metadata with the current list of banned addresses for a scene.
+   * @param place - The place attributes for the scene.
+   * @param roomName - The room name.
+   */
+  async function updateRoomBans(place: PlaceAttributes, roomName: string): Promise<void> {
+    try {
+      // Get the current list of banned addresses for this place
+      const bannedAddresses = await sceneBanManager.listBannedAddresses(place.id)
+
+      // Update the room metadata with the banned addresses
+      await livekit.updateRoomMetadata(roomName, {
+        bannedAddresses: bannedAddresses
+      })
+
+      logger.debug(`Updated room metadata for ${roomName} with ${bannedAddresses.length} banned addresses`)
+    } catch (error) {
+      logger.warn(
+        `Failed to update room metadata for place ${place.id}: ${
+          isErrorWithMessage(error) ? error.message : 'Unknown error'
+        }`
+      )
+      // Don't throw the error to avoid breaking the main ban/unban operations
+    }
+  }
 
   /**
    * Adds a ban for a user from a scene with permission validation.
@@ -54,6 +81,7 @@ export function createSceneBansComponent(
     }
 
     const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
+
     await Promise.all([
       livekit.removeParticipant(roomName, bannedAddress.toLowerCase()).catch((err) => {
         logger.warn(`Error removing participant ${bannedAddress} from LiveKit room ${roomName}`, { err })
@@ -64,6 +92,8 @@ export function createSceneBansComponent(
         banned_by: bannedBy.toLowerCase()
       })
     ])
+
+    await updateRoomBans(place, roomName)
 
     logger.info(
       `Successfully banned user ${bannedAddress} for place ${place.id} and removed participant from LiveKit room ${roomName}`
@@ -115,6 +145,10 @@ export function createSceneBansComponent(
     }
 
     await sceneBanManager.removeBan(place.id, bannedAddress.toLowerCase())
+
+    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
+
+    await updateRoomBans(place, roomName)
 
     logger.info(`Successfully unbanned user ${bannedAddress} for place ${place.id}`)
 
