@@ -29,7 +29,6 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
   beforeEach(async () => {
     cleanup = new TestCleanup(components.database)
-    await cleanup.cleanup()
 
     mockedPlace = createMockedPlace()
     mockedWorldPlace = createMockedWorldPlace()
