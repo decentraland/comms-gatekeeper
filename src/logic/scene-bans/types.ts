@@ -44,4 +44,11 @@ export interface ISceneBansComponent {
    * @param params - The parameters for the list.
    */
   listSceneBans(requestedBy: string, params: ListSceneBansParams): Promise<SceneBan[]>
+
+  /**
+   * Lists only the banned addresses for a scene with permission validation.
+   * @param requestedBy - The address of the user requesting the list.
+   * @param params - The parameters for the list.
+   */
+  listSceneBannedAddresses(requestedBy: string, params: ListSceneBansParams): Promise<string[]>
 }

@@ -228,4 +228,5 @@ export interface ISceneBanManager {
   addBan(input: AddSceneBanInput): Promise<void>
   removeBan(placeId: string, bannedAddress: string): Promise<void>
   listBans(placeId: string): Promise<SceneBan[]>
+  listBannedAddresses(placeId: string): Promise<string[]>
 }

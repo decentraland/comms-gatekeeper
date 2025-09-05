@@ -162,9 +162,47 @@ export function createSceneBansComponent(
     return bans
   }
 
+  /**
+   * Lists only the banned addresses for a scene with permission validation.
+   * @param requestedBy - The address of the user requesting the list.
+   * @param params - The parameters for the list.
+   */
+  async function listSceneBannedAddresses(requestedBy: string, params: ListSceneBansParams): Promise<string[]> {
+    const { sceneId, realmName, parcel, isWorlds } = params
+
+    logger.debug(`Listing banned addresses for scene by user ${requestedBy}`, {
+      sceneId: sceneId || '',
+      realmName,
+      parcel: parcel || '',
+      isWorlds: String(isWorlds)
+    })
+
+    let place: PlaceAttributes
+
+    if (isWorlds) {
+      place = await places.getPlaceByWorldName(realmName)
+    } else {
+      place = await places.getPlaceByParcel(parcel)
+    }
+
+    // Check if the user requesting the list has permission
+    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, requestedBy)
+    if (!isOwnerOrAdmin) {
+      throw new UnauthorizedError('User does not have permission to list scene bans')
+    }
+
+    // Get the banned addresses directly from the database
+    const bannedAddresses = await sceneBanManager.listBannedAddresses(place.id)
+
+    logger.info(`Successfully listed ${bannedAddresses.length} banned addresses for place ${place.id}`)
+
+    return bannedAddresses
+  }
+
   return {
     addSceneBan,
     removeSceneBan,
-    listSceneBans
+    listSceneBans,
+    listSceneBannedAddresses
   }
 }

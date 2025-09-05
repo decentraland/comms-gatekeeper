@@ -8,7 +8,12 @@ import { statusHandler } from './handlers/status-handler'
 import { commsSceneHandler } from './handlers/comms-scene-handler'
 import { muteHandler } from './handlers/mute-handler'
 import { addSceneAdminHandler, removeSceneAdminHandler, listSceneAdminsHandler } from './handlers/scene-admin-handlers'
-import { addSceneBanHandler, removeSceneBanHandler, listSceneBansHandler } from './handlers/scene-ban-handlers'
+import {
+  addSceneBanHandler,
+  removeSceneBanHandler,
+  listSceneBansHandler,
+  listSceneBansAddressesHandler
+} from './handlers/scene-ban-handlers'
 import { addSceneStreamAccessHandler, listSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers'
 import { getPrivateMessagesTokenHandler } from './handlers/private-messages/get-token-handler'
 import { removeSceneStreamAccessHandler } from './handlers/scene-stream-access-handlers/remove-scene-stream-access-handler'
@@ -68,6 +73,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   // Scene ban routes
   router.get('/scene-bans', auth, listSceneBansHandler)
+  router.get('/scene-bans/addresses', auth, listSceneBansAddressesHandler)
   router.post('/scene-bans', auth, addSceneBanHandler)
   router.delete('/scene-bans', auth, removeSceneBanHandler)
 
