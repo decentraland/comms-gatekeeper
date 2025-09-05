@@ -59,8 +59,22 @@ export async function createSceneBanManagerComponent({
     return
   }
 
+  async function listBans(placeId: string): Promise<SceneBan[]> {
+    const result = await database.query<SceneBan>(
+      SQL`
+        SELECT * FROM scene_bans 
+        WHERE place_id = ${placeId}
+        ORDER BY banned_at DESC
+      `
+    )
+
+    logger.debug(`Retrieved ${result.rowCount} bans for place ${placeId}`)
+    return result.rows
+  }
+
   return {
     addBan,
-    removeBan
+    removeBan,
+    listBans
   }
 }

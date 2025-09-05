@@ -1,3 +1,5 @@
+import { SceneBan } from '../../types'
+
 export type AddSceneBanParams = {
   sceneId?: string
   realmName: string
@@ -6,6 +8,13 @@ export type AddSceneBanParams = {
 }
 
 export type RemoveSceneBanParams = {
+  sceneId?: string
+  realmName: string
+  parcel: string
+  isWorlds: boolean
+}
+
+export type ListSceneBansParams = {
   sceneId?: string
   realmName: string
   parcel: string
@@ -28,4 +37,11 @@ export interface ISceneBansComponent {
    * @param params - The parameters for the unban.
    */
   removeSceneBan(bannedAddress: string, unbannedBy: string, params: RemoveSceneBanParams): Promise<void>
+
+  /**
+   * Lists all bans for a scene with permission validation.
+   * @param requestedBy - The address of the user requesting the list.
+   * @param params - The parameters for the list.
+   */
+  listSceneBans(requestedBy: string, params: ListSceneBansParams): Promise<SceneBan[]>
 }

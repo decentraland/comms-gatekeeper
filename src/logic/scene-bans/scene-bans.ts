@@ -1,5 +1,5 @@
-import { AppComponents } from '../../types'
-import { AddSceneBanParams, RemoveSceneBanParams, ISceneBansComponent } from './types'
+import { AppComponents, SceneBan } from '../../types'
+import { AddSceneBanParams, RemoveSceneBanParams, ListSceneBansParams, ISceneBansComponent } from './types'
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
@@ -126,8 +126,45 @@ export function createSceneBansComponent(
     })
   }
 
+  /**
+   * Lists all bans for a scene with permission validation.
+   * @param requestedBy - The address of the user requesting the list.
+   * @param params - The parameters for the list.
+   */
+  async function listSceneBans(requestedBy: string, params: ListSceneBansParams): Promise<SceneBan[]> {
+    const { sceneId, realmName, parcel, isWorlds } = params
+
+    logger.debug(`Listing bans for scene by user ${requestedBy}`, {
+      sceneId: sceneId || '',
+      realmName,
+      parcel: parcel || '',
+      isWorlds: String(isWorlds)
+    })
+
+    let place: PlaceAttributes
+
+    if (isWorlds) {
+      place = await places.getPlaceByWorldName(realmName)
+    } else {
+      place = await places.getPlaceByParcel(parcel)
+    }
+
+    // Check if the user requesting the list has permission
+    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, requestedBy)
+    if (!isOwnerOrAdmin) {
+      throw new UnauthorizedError('You do not have permission to list bans for this place')
+    }
+
+    const bans = await sceneBanManager.listBans(place.id)
+
+    logger.info(`Successfully listed ${bans.length} bans for place ${place.id}`)
+
+    return bans
+  }
+
   return {
     addSceneBan,
-    removeSceneBan
+    removeSceneBan,
+    listSceneBans
   }
 }
