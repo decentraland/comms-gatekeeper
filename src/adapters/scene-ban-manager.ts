@@ -102,7 +102,6 @@ export async function createSceneBanManagerComponent({
           SELECT id FROM scene_bans
           WHERE place_id = ${placeId} 
           AND banned_address = ${addressLowercase}
-          LIMIT 1
         ) as is_banned
       `
     )

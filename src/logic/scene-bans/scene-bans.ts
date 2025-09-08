@@ -1,5 +1,11 @@
 import { AppComponents, SceneBanAddressWithName } from '../../types'
-import { AddSceneBanParams, RemoveSceneBanParams, ListSceneBansParams, ISceneBansComponent } from './types'
+import {
+  AddSceneBanParams,
+  RemoveSceneBanParams,
+  ListSceneBansParams,
+  ISceneBansComponent,
+  IsUserBannedParams
+} from './types'
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
@@ -211,7 +217,7 @@ export function createSceneBansComponent(
    * @param params - The parameters for the check.
    * @returns True if the user is banned, false otherwise.
    */
-  async function isUserBanned(address: string, params: AddSceneBanParams): Promise<boolean> {
+  async function isUserBanned(address: string, params: IsUserBannedParams): Promise<boolean> {
     const { sceneId, realmName, parcel, isWorld } = params
 
     logger.debug(`Checking if user ${address} is banned from scene`, {
