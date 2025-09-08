@@ -842,4 +842,346 @@ describe('SceneBanComponent', () => {
       })
     })
   })
+
+  describe('when listing scene bans', () => {
+    describe('when listing bans for a regular scene', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1111111111111111111111111111111111111111',
+          '0x2222222222222222222222222222222222222222'
+        ])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(2)
+        namesMockedComponent.getNamesFromAddresses.mockResolvedValue({
+          '0x1111111111111111111111111111111111111111': 'User One',
+          '0x2222222222222222222222222222222222222222': 'User Two'
+        })
+
+        await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
+          sceneId: 'test-scene',
+          realmName: 'test-realm',
+          parcel: '-9,-9',
+          isWorld: false,
+          page: 1,
+          limit: 20
+        })
+      })
+
+      it('should call the scene manager to check permissions', async () => {
+        expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
+          mockPlace,
+          '0x0987654321098765432109876543210987654321'
+        )
+      })
+
+      it('should call the scene ban manager to list bans with pagination', async () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+      })
+
+      it('should return the list of bans with total count', async () => {
+        const result = await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
+          sceneId: 'test-scene',
+          realmName: 'test-realm',
+          parcel: '-9,-9',
+          isWorld: false,
+          page: 1,
+          limit: 20
+        })
+
+        expect(result).toEqual({
+          bans: [
+            {
+              bannedAddress: '0x1111111111111111111111111111111111111111',
+              name: 'User One'
+            },
+            {
+              bannedAddress: '0x2222222222222222222222222222222222222222',
+              name: 'User Two'
+            }
+          ],
+          total: 2
+        })
+      })
+    })
+
+    describe('when listing bans for a world', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1111111111111111111111111111111111111111'
+        ])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(1)
+        namesMockedComponent.getNamesFromAddresses.mockResolvedValue({
+          '0x1111111111111111111111111111111111111111': 'User One'
+        })
+
+        await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
+          sceneId: undefined,
+          realmName: 'test-world.dcl.eth',
+          parcel: undefined,
+          isWorld: true,
+          page: 1,
+          limit: 20
+        })
+      })
+
+      it('should call the places component to get world place', async () => {
+        expect(placesMockedComponent.getPlaceByWorldName).toHaveBeenCalledWith('test-world.dcl.eth')
+      })
+
+      it('should call the scene ban manager to list bans with pagination', async () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+      })
+
+      it('should return the list of bans with total count', async () => {
+        const result = await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
+          sceneId: undefined,
+          realmName: 'test-world.dcl.eth',
+          parcel: undefined,
+          isWorld: true,
+          page: 1,
+          limit: 20
+        })
+
+        expect(result).toEqual({
+          bans: [
+            {
+              bannedAddress: '0x1111111111111111111111111111111111111111',
+              name: 'User One'
+            }
+          ],
+          total: 1
+        })
+      })
+    })
+
+    describe('when listing bans with no results', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(0)
+        namesMockedComponent.getNamesFromAddresses.mockResolvedValue({})
+
+        await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
+          sceneId: 'test-scene',
+          realmName: 'test-realm',
+          parcel: '-9,-9',
+          isWorld: false,
+          page: 1,
+          limit: 20
+        })
+      })
+
+      it('should return an empty result with total count', async () => {
+        const result = await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
+          sceneId: 'test-scene',
+          realmName: 'test-realm',
+          parcel: '-9,-9',
+          isWorld: false,
+          page: 1,
+          limit: 20
+        })
+
+        expect(result).toEqual({
+          bans: [],
+          total: 0
+        })
+      })
+    })
+
+    describe('when user lacks permission to list bans', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(false)
+      })
+
+      it('should throw UnauthorizedError', async () => {
+        await expect(
+          sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
+            sceneId: 'test-scene',
+            realmName: 'test-realm',
+            parcel: '-9,-9',
+            isWorld: false
+          })
+        ).rejects.toThrow('User does not have permission to list scene bans')
+      })
+    })
+
+    describe('when listing bans from the database fails', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockRejectedValue(new Error('Database error'))
+      })
+
+      it('should propagate the error', async () => {
+        await expect(
+          sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
+            sceneId: 'test-scene',
+            realmName: 'test-realm',
+            parcel: '-9,-9',
+            isWorld: false
+          })
+        ).rejects.toThrow('Database error')
+      })
+    })
+  })
+
+  describe('when listing scene banned addresses', () => {
+    describe('when listing banned addresses for a regular scene', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1111111111111111111111111111111111111111',
+          '0x2222222222222222222222222222222222222222'
+        ])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(2)
+
+        await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
+          sceneId: 'test-scene',
+          realmName: 'test-realm',
+          parcel: '-9,-9',
+          isWorld: false,
+          page: 1,
+          limit: 20
+        })
+      })
+
+      it('should call the scene manager to check permissions', async () => {
+        expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
+          mockPlace,
+          '0x0987654321098765432109876543210987654321'
+        )
+      })
+
+      it('should call the scene ban manager to list banned addresses with pagination', async () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+      })
+
+      it('should return the list of banned addresses with total count', async () => {
+        const result = await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
+          sceneId: 'test-scene',
+          realmName: 'test-realm',
+          parcel: '-9,-9',
+          isWorld: false,
+          page: 1,
+          limit: 20
+        })
+
+        expect(result).toEqual({
+          addresses: ['0x1111111111111111111111111111111111111111', '0x2222222222222222222222222222222222222222'],
+          total: 2
+        })
+      })
+    })
+
+    describe('when listing banned addresses for a world', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1111111111111111111111111111111111111111'
+        ])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(1)
+
+        await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
+          sceneId: undefined,
+          realmName: 'test-world.dcl.eth',
+          parcel: undefined,
+          isWorld: true,
+          page: 1,
+          limit: 20
+        })
+      })
+
+      it('should call the places component to get world place', async () => {
+        expect(placesMockedComponent.getPlaceByWorldName).toHaveBeenCalledWith('test-world.dcl.eth')
+      })
+
+      it('should call the scene ban manager to list banned addresses with pagination', async () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+      })
+
+      it('should return the list of banned addresses with total count', async () => {
+        const result = await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
+          sceneId: undefined,
+          realmName: 'test-world.dcl.eth',
+          parcel: undefined,
+          isWorld: true,
+          page: 1,
+          limit: 20
+        })
+
+        expect(result).toEqual({
+          addresses: ['0x1111111111111111111111111111111111111111'],
+          total: 1
+        })
+      })
+    })
+
+    describe('when listing banned addresses with no results', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(0)
+
+        await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
+          sceneId: 'test-scene',
+          realmName: 'test-realm',
+          parcel: '-9,-9',
+          isWorld: false,
+          page: 1,
+          limit: 20
+        })
+      })
+
+      it('should return an empty result with total count', async () => {
+        const result = await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
+          sceneId: 'test-scene',
+          realmName: 'test-realm',
+          parcel: '-9,-9',
+          isWorld: false,
+          page: 1,
+          limit: 20
+        })
+
+        expect(result).toEqual({
+          addresses: [],
+          total: 0
+        })
+      })
+    })
+
+    describe('when user lacks permission to list banned addresses', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(false)
+      })
+
+      it('should throw UnauthorizedError', async () => {
+        await expect(
+          sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
+            sceneId: 'test-scene',
+            realmName: 'test-realm',
+            parcel: '-9,-9',
+            isWorld: false
+          })
+        ).rejects.toThrow('User does not have permission to list scene bans')
+      })
+    })
+
+    describe('when listing banned addresses from the database fails', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockRejectedValue(new Error('Database error'))
+      })
+
+      it('should propagate the error', async () => {
+        await expect(
+          sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
+            sceneId: 'test-scene',
+            realmName: 'test-realm',
+            parcel: '-9,-9',
+            isWorld: false
+          })
+        ).rejects.toThrow('Database error')
+      })
+    })
+  })
 })
