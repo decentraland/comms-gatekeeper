@@ -483,7 +483,7 @@ describe('SceneBanComponent', () => {
               sceneId: 'test-scene',
               realmName: 'test-realm',
               parcel: '-9,-9',
-              isWorlds: false
+              isWorld: false
             }
           )
         ).resolves.not.toThrow()
