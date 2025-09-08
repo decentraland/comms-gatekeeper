@@ -1,13 +1,14 @@
 import { InvalidRequestError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
+import { IHttpServerComponent } from '@well-known-components/interfaces'
 
 export async function listSceneBansHandler(
   ctx: Pick<
     HandlerContextWithPath<'fetch' | 'sceneBans' | 'config', '/scene-bans'>,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
-) {
+): Promise<IHttpServerComponent.IResponse> {
   const {
     components: { sceneBans },
     verification
@@ -21,21 +22,22 @@ export async function listSceneBansHandler(
     sceneId,
     parcel,
     realm: { serverName: realmName },
-    isWorlds
+    isWorld: isWorld
   } = await validate(ctx)
   const authenticatedAddress = verification.auth
 
-  const bans = await sceneBans.listSceneBans(authenticatedAddress.toLowerCase(), {
+  const bannedAddressesWithNames = await sceneBans.listSceneBans(authenticatedAddress, {
     sceneId,
     parcel,
     realmName,
-    isWorlds
+    isWorld
   })
 
   return {
     status: 200,
     body: {
-      bans
+      data: bannedAddressesWithNames,
+      total: bannedAddressesWithNames.length
     }
   }
 }

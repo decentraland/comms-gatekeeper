@@ -12,6 +12,8 @@ import { createSceneManagerMockedComponent } from '../mocks/scene-manager-mock'
 import { IAnalyticsComponent } from '@dcl/analytics-component'
 import { createAnalyticsMockedComponent } from '../mocks/analytics-mocks'
 import { AnalyticsEvent } from '../../src/types/analytics'
+import { INamesComponent } from '../../src/types/names.type'
+import { createNamesMockedComponent } from '../mocks/names-mock'
 
 describe('SceneBanComponent', () => {
   let sceneBanComponent: ISceneBansComponent
@@ -21,6 +23,7 @@ describe('SceneBanComponent', () => {
   let placesMockedComponent: jest.Mocked<IPlacesComponent>
   let logsMockedComponent: jest.Mocked<ILoggerComponent>
   let analyticsMockedComponent: jest.Mocked<IAnalyticsComponent>
+  let namesMockedComponent: jest.Mocked<INamesComponent>
 
   let userScenePermissions: UserScenePermissions
   let mockPlace: PlaceAttributes
@@ -33,6 +36,7 @@ describe('SceneBanComponent', () => {
     placesMockedComponent = createPlacesMockedComponent()
     logsMockedComponent = createLoggerMockedComponent()
     analyticsMockedComponent = createAnalyticsMockedComponent()
+    namesMockedComponent = createNamesMockedComponent()
 
     sceneBanComponent = createSceneBansComponent({
       sceneBanManager: sceneBanManagerMockedComponent,
@@ -40,7 +44,8 @@ describe('SceneBanComponent', () => {
       sceneManager: sceneManagerMockedComponent,
       places: placesMockedComponent,
       logs: logsMockedComponent,
-      analytics: analyticsMockedComponent
+      analytics: analyticsMockedComponent,
+      names: namesMockedComponent
     })
 
     userScenePermissions = {
@@ -73,7 +78,7 @@ describe('SceneBanComponent', () => {
             sceneId: 'test-scene',
             realmName: 'test-realm',
             parcel: '-9,-9',
-            isWorlds: false
+            isWorld: false
           }
         )
       })
@@ -88,7 +93,7 @@ describe('SceneBanComponent', () => {
 
       it('should remove the participant from the livekit scene room', async () => {
         expect(livekitMockedComponent.getRoomName).toHaveBeenCalledWith('test-realm', {
-          isWorlds: false,
+          isWorld: false,
           sceneId: 'test-scene'
         })
 
@@ -126,13 +131,13 @@ describe('SceneBanComponent', () => {
             sceneId: undefined,
             realmName: 'test-world.dcl.eth',
             parcel: undefined,
-            isWorlds: true
+            isWorld: true
           }
         )
       })
 
       it('should remove the participant from the livekit room', async () => {
-        expect(livekitMockedComponent.getRoomName).toHaveBeenCalledWith('test-world.dcl.eth', { isWorlds: true })
+        expect(livekitMockedComponent.getRoomName).toHaveBeenCalledWith('test-world.dcl.eth', { isWorld: true })
 
         expect(livekitMockedComponent.removeParticipant).toHaveBeenCalledWith(
           'world-test-world.dcl.eth',
@@ -170,7 +175,7 @@ describe('SceneBanComponent', () => {
               sceneId: 'test-scene',
               realmName: 'test-realm',
               parcel: '-9,-9',
-              isWorlds: false
+              isWorld: false
             }
           )
         ).resolves.not.toThrow()
@@ -200,7 +205,7 @@ describe('SceneBanComponent', () => {
               sceneId: 'test-scene',
               realmName: 'test-realm',
               parcel: '-9,-9',
-              isWorlds: false
+              isWorld: false
             }
           )
         ).rejects.toThrow('Database error')
@@ -221,7 +226,7 @@ describe('SceneBanComponent', () => {
               sceneId: 'test-scene',
               realmName: 'test-realm',
               parcel: '-9,-9',
-              isWorlds: false
+              isWorld: false
             }
           )
         ).rejects.toThrow('You do not have permission to ban users from this place')
@@ -245,7 +250,7 @@ describe('SceneBanComponent', () => {
                 sceneId: 'test-scene',
                 realmName: 'test-realm',
                 parcel: '-9,-9',
-                isWorlds: false
+                isWorld: false
               }
             )
           ).rejects.toThrow('Cannot ban this address')
@@ -268,7 +273,7 @@ describe('SceneBanComponent', () => {
                 sceneId: 'test-scene',
                 realmName: 'test-realm',
                 parcel: '-9,-9',
-                isWorlds: false
+                isWorld: false
               }
             )
           ).rejects.toThrow('Cannot ban this address')
@@ -291,7 +296,7 @@ describe('SceneBanComponent', () => {
                 sceneId: 'test-scene',
                 realmName: 'test-realm',
                 parcel: '-9,-9',
-                isWorlds: false
+                isWorld: false
               }
             )
           ).rejects.toThrow('Cannot ban this address')
@@ -313,7 +318,7 @@ describe('SceneBanComponent', () => {
             sceneId: 'test-scene',
             realmName: 'test-realm',
             parcel: '-9,-9',
-            isWorlds: false
+            isWorld: false
           }
         )
       })
@@ -350,7 +355,7 @@ describe('SceneBanComponent', () => {
             sceneId: undefined,
             realmName: 'test-world.dcl.eth',
             parcel: undefined,
-            isWorlds: true
+            isWorld: true
           }
         )
       })
@@ -390,7 +395,7 @@ describe('SceneBanComponent', () => {
               sceneId: 'test-scene',
               realmName: 'test-realm',
               parcel: '-9,-9',
-              isWorlds: false
+              isWorld: false
             }
           )
         ).rejects.toThrow('Database error')
@@ -411,7 +416,7 @@ describe('SceneBanComponent', () => {
               sceneId: 'test-scene',
               realmName: 'test-realm',
               parcel: '-9,-9',
-              isWorlds: false
+              isWorld: false
             }
           )
         ).rejects.toThrow('You do not have permission to unban users from this place')
@@ -423,28 +428,20 @@ describe('SceneBanComponent', () => {
     describe('when listing bans for a regular scene', () => {
       beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
-        sceneBanManagerMockedComponent.listBans.mockResolvedValue([
-          {
-            id: 'ban-1',
-            place_id: 'test-place-id',
-            banned_address: '0x1111111111111111111111111111111111111111',
-            banned_by: '0x0987654321098765432109876543210987654321',
-            banned_at: 1234567890
-          },
-          {
-            id: 'ban-2',
-            place_id: 'test-place-id',
-            banned_address: '0x2222222222222222222222222222222222222222',
-            banned_by: '0x0987654321098765432109876543210987654321',
-            banned_at: 1234567891
-          }
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1111111111111111111111111111111111111111',
+          '0x2222222222222222222222222222222222222222'
         ])
+        namesMockedComponent.getNamesFromAddresses.mockResolvedValue({
+          '0x1111111111111111111111111111111111111111': 'User One',
+          '0x2222222222222222222222222222222222222222': 'User Two'
+        })
 
         await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorlds: false
+          isWorld: false
         })
       })
 
@@ -456,7 +453,7 @@ describe('SceneBanComponent', () => {
       })
 
       it('should call the scene ban manager to list bans', async () => {
-        expect(sceneBanManagerMockedComponent.listBans).toHaveBeenCalledWith('test-place-id')
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
       })
 
       it('should return the list of bans', async () => {
@@ -464,23 +461,17 @@ describe('SceneBanComponent', () => {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorlds: false
+          isWorld: false
         })
 
         expect(result).toEqual([
           {
-            id: 'ban-1',
-            place_id: 'test-place-id',
-            banned_address: '0x1111111111111111111111111111111111111111',
-            banned_by: '0x0987654321098765432109876543210987654321',
-            banned_at: 1234567890
+            bannedAddress: '0x1111111111111111111111111111111111111111',
+            name: 'User One'
           },
           {
-            id: 'ban-2',
-            place_id: 'test-place-id',
-            banned_address: '0x2222222222222222222222222222222222222222',
-            banned_by: '0x0987654321098765432109876543210987654321',
-            banned_at: 1234567891
+            bannedAddress: '0x2222222222222222222222222222222222222222',
+            name: 'User Two'
           }
         ])
       })
@@ -489,21 +480,18 @@ describe('SceneBanComponent', () => {
     describe('when listing bans for a world', () => {
       beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
-        sceneBanManagerMockedComponent.listBans.mockResolvedValue([
-          {
-            id: 'ban-1',
-            place_id: 'test-place-id',
-            banned_address: '0x1111111111111111111111111111111111111111',
-            banned_by: '0x0987654321098765432109876543210987654321',
-            banned_at: 1234567890
-          }
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1111111111111111111111111111111111111111'
         ])
+        namesMockedComponent.getNamesFromAddresses.mockResolvedValue({
+          '0x1111111111111111111111111111111111111111': 'User One'
+        })
 
         await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
           parcel: undefined,
-          isWorlds: true
+          isWorld: true
         })
       })
 
@@ -512,7 +500,7 @@ describe('SceneBanComponent', () => {
       })
 
       it('should call the scene ban manager to list bans', async () => {
-        expect(sceneBanManagerMockedComponent.listBans).toHaveBeenCalledWith('test-place-id')
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
       })
 
       it('should return the list of bans', async () => {
@@ -520,16 +508,13 @@ describe('SceneBanComponent', () => {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
           parcel: undefined,
-          isWorlds: true
+          isWorld: true
         })
 
         expect(result).toEqual([
           {
-            id: 'ban-1',
-            place_id: 'test-place-id',
-            banned_address: '0x1111111111111111111111111111111111111111',
-            banned_by: '0x0987654321098765432109876543210987654321',
-            banned_at: 1234567890
+            bannedAddress: '0x1111111111111111111111111111111111111111',
+            name: 'User One'
           }
         ])
       })
@@ -538,13 +523,14 @@ describe('SceneBanComponent', () => {
     describe('when listing bans with no results', () => {
       beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
-        sceneBanManagerMockedComponent.listBans.mockResolvedValue([])
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+        namesMockedComponent.getNamesFromAddresses.mockResolvedValue({})
 
         await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorlds: false
+          isWorld: false
         })
       })
 
@@ -553,7 +539,7 @@ describe('SceneBanComponent', () => {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorlds: false
+          isWorld: false
         })
 
         expect(result).toEqual([])
@@ -571,16 +557,16 @@ describe('SceneBanComponent', () => {
             sceneId: 'test-scene',
             realmName: 'test-realm',
             parcel: '-9,-9',
-            isWorlds: false
+            isWorld: false
           })
-        ).rejects.toThrow('You do not have permission to list bans for this place')
+        ).rejects.toThrow('User does not have permission to list scene bans')
       })
     })
 
     describe('when listing bans from the database fails', () => {
       beforeEach(() => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
-        sceneBanManagerMockedComponent.listBans.mockRejectedValue(new Error('Database error'))
+        sceneBanManagerMockedComponent.listBannedAddresses.mockRejectedValue(new Error('Database error'))
       })
 
       it('should propagate the error', async () => {
@@ -589,7 +575,7 @@ describe('SceneBanComponent', () => {
             sceneId: 'test-scene',
             realmName: 'test-realm',
             parcel: '-9,-9',
-            isWorlds: false
+            isWorld: false
           })
         ).rejects.toThrow('Database error')
       })
@@ -609,7 +595,7 @@ describe('SceneBanComponent', () => {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorlds: false
+          isWorld: false
         })
       })
 
@@ -629,7 +615,7 @@ describe('SceneBanComponent', () => {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorlds: false
+          isWorld: false
         })
 
         expect(result).toEqual([
@@ -650,7 +636,7 @@ describe('SceneBanComponent', () => {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
           parcel: undefined,
-          isWorlds: true
+          isWorld: true
         })
       })
 
@@ -667,7 +653,7 @@ describe('SceneBanComponent', () => {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
           parcel: undefined,
-          isWorlds: true
+          isWorld: true
         })
 
         expect(result).toEqual(['0x1111111111111111111111111111111111111111'])
@@ -683,7 +669,7 @@ describe('SceneBanComponent', () => {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorlds: false
+          isWorld: false
         })
       })
 
@@ -692,7 +678,7 @@ describe('SceneBanComponent', () => {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorlds: false
+          isWorld: false
         })
 
         expect(result).toEqual([])
@@ -710,7 +696,7 @@ describe('SceneBanComponent', () => {
             sceneId: 'test-scene',
             realmName: 'test-realm',
             parcel: '-9,-9',
-            isWorlds: false
+            isWorld: false
           })
         ).rejects.toThrow('User does not have permission to list scene bans')
       })
@@ -728,7 +714,7 @@ describe('SceneBanComponent', () => {
             sceneId: 'test-scene',
             realmName: 'test-realm',
             parcel: '-9,-9',
-            isWorlds: false
+            isWorld: false
           })
         ).rejects.toThrow('Database error')
       })

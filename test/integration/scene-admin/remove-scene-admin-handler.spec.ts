@@ -24,7 +24,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     }
     sceneId: string
     parcel: string
-    isWorlds: boolean
+    isWorld: boolean
   }
 
   let metadataLand: Metadata
@@ -75,7 +75,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       },
       sceneId: 'test-scene',
       parcel: '10,20',
-      isWorlds: false
+      isWorld: false
     }
 
     metadataWorld = {
@@ -87,7 +87,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       },
       sceneId: 'test-scene',
       parcel: '10,20',
-      isWorlds: true
+      isWorld: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)

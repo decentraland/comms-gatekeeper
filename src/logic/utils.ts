@@ -10,7 +10,7 @@ const METADATA_IMAGE_URL = 'https://assets-cdn.decentraland.org/streaming/stream
 
 export async function oldValidate<T extends string>(
   context: HandlerContextWithPath<'fetch' | 'config', T>
-): Promise<Omit<AuthData, 'realm' | 'isWorlds'>> {
+): Promise<Omit<AuthData, 'realm' | 'isWorld'>> {
   const { config, fetch } = context.components
   const baseUrl = (await config.getString('HTTP_BASE_URL')) || `${context.url.protocol}//${context.url.host}`
   const path = new URL(baseUrl + context.url.pathname)
@@ -69,7 +69,7 @@ export async function validate<T extends string>(
     sceneId,
     parcel,
     realm,
-    isWorlds: !!realm.hostname?.includes('worlds-content-server')
+    isWorld: !!realm.hostname?.includes('worlds-content-server')
   }
 }
 

@@ -39,11 +39,11 @@ export async function addSceneAdminHandler(
     parcel,
     realm: { serverName, hostname }
   } = await validate(ctx)
-  const isWorlds = !!hostname?.includes('worlds-content-server')
+  const isWorld = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
   let place: PlaceAttributes
 
-  if (isWorlds) {
+  if (isWorld) {
     place = await getPlaceByWorldName(serverName)
   } else {
     place = await getPlaceByParcel(parcel)

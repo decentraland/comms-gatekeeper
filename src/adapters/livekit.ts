@@ -101,8 +101,8 @@ export async function createLivekitComponent(
   }
 
   function getRoomName(realmName: string, params: GetRoomNameParams): string {
-    const { isWorlds, sceneId } = params
-    if (isWorlds) {
+    const { isWorld, sceneId } = params
+    if (isWorld) {
       return getWorldRoomName(realmName)
     } else {
       if (!sceneId) {

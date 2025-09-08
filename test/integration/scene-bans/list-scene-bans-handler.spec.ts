@@ -44,6 +44,13 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
       hasLandLease: false
     }
 
+    // Setup names mock
+    stubComponents.names.getNamesFromAddresses.resolves({
+      [admin.authChain[0].payload.toLowerCase()]: 'AdminUser#1234',
+      [nonOwner.authChain[0].payload.toLowerCase()]: 'NonOwnerUser#5678',
+      '0x1234567890123456789012345678901234567890': 'TestUser#9999'
+    })
+
     metadataLand = {
       identity: owner.authChain[0].payload,
       parcel: '-9,-9',
@@ -110,7 +117,8 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body.bans).toEqual([])
+      expect(body.data).toEqual([])
+      expect(body.total).toBe(0)
     })
 
     it('should successfully list bans for a land scene with existing bans', async () => {
@@ -148,9 +156,12 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body.bans).toHaveLength(2)
-      expect(body.bans[0].banned_address).toBe(nonOwner.authChain[0].payload.toLowerCase()) // Most recent first
-      expect(body.bans[1].banned_address).toBe(admin.authChain[0].payload.toLowerCase())
+      expect(body.data).toHaveLength(2)
+      expect(body.total).toBe(2)
+      expect(body.data[0].bannedAddress).toBe(nonOwner.authChain[0].payload.toLowerCase()) // Most recent first
+      expect(body.data[0].name).toBe('NonOwnerUser#5678')
+      expect(body.data[1].bannedAddress).toBe(admin.authChain[0].payload.toLowerCase())
+      expect(body.data[1].name).toBe('AdminUser#1234')
     })
   })
 
@@ -200,8 +211,10 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body.bans).toHaveLength(1)
-      expect(body.bans[0].banned_address).toBe(nonOwner.authChain[0].payload.toLowerCase())
+      expect(body.data).toHaveLength(1)
+      expect(body.total).toBe(1)
+      expect(body.data[0].bannedAddress).toBe(nonOwner.authChain[0].payload.toLowerCase())
+      expect(body.data[0].name).toBe('NonOwnerUser#5678')
     })
   })
 
@@ -236,8 +249,10 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body.bans).toHaveLength(1)
-      expect(body.bans[0].banned_address).toBe(admin.authChain[0].payload.toLowerCase())
+      expect(body.data).toHaveLength(1)
+      expect(body.total).toBe(1)
+      expect(body.data[0].bannedAddress).toBe(admin.authChain[0].payload.toLowerCase())
+      expect(body.data[0].name).toBe('AdminUser#1234')
     })
   })
 
@@ -343,12 +358,16 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body.bans).toHaveLength(3)
+      expect(body.data).toHaveLength(3)
+      expect(body.total).toBe(3)
 
       // Should be sorted by banned_at DESC (most recent first)
-      expect(body.bans[0].banned_address).toBe(nonOwner.authChain[0].payload.toLowerCase())
-      expect(body.bans[1].banned_address).toBe('0x1234567890123456789012345678901234567890')
-      expect(body.bans[2].banned_address).toBe(admin.authChain[0].payload.toLowerCase())
+      expect(body.data[0].bannedAddress).toBe(nonOwner.authChain[0].payload.toLowerCase())
+      expect(body.data[0].name).toBe('NonOwnerUser#5678')
+      expect(body.data[1].bannedAddress).toBe('0x1234567890123456789012345678901234567890')
+      expect(body.data[1].name).toBe('TestUser#9999')
+      expect(body.data[2].bannedAddress).toBe(admin.authChain[0].payload.toLowerCase())
+      expect(body.data[2].name).toBe('AdminUser#1234')
     })
   })
 })

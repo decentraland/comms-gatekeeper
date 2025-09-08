@@ -1,24 +1,24 @@
-import { SceneBan } from '../../types'
+import { SceneBanAddressWithName } from '../../types'
 
 export type AddSceneBanParams = {
   sceneId?: string
   realmName: string
   parcel: string
-  isWorlds: boolean
+  isWorld: boolean
 }
 
 export type RemoveSceneBanParams = {
   sceneId?: string
   realmName: string
   parcel: string
-  isWorlds: boolean
+  isWorld: boolean
 }
 
 export type ListSceneBansParams = {
   sceneId?: string
   realmName: string
   parcel: string
-  isWorlds: boolean
+  isWorld: boolean
 }
 
 export interface ISceneBansComponent {
@@ -43,7 +43,7 @@ export interface ISceneBansComponent {
    * @param requestedBy - The address of the user requesting the list.
    * @param params - The parameters for the list.
    */
-  listSceneBans(requestedBy: string, params: ListSceneBansParams): Promise<SceneBan[]>
+  listSceneBans(requestedBy: string, params: ListSceneBansParams): Promise<SceneBanAddressWithName[]>
 
   /**
    * Lists only the banned addresses for a scene with permission validation.

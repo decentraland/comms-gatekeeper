@@ -38,14 +38,14 @@ export async function removeSceneStreamAccessHandler(
     realm: { hostname, serverName },
     sceneId
   } = await validate(ctx)
-  const isWorlds = !!hostname?.includes('worlds-content-server')
+  const isWorld = !!hostname?.includes('worlds-content-server')
 
-  if (!isWorlds && !sceneId) {
+  if (!isWorld && !sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
   let place: PlaceAttributes
-  if (isWorlds) {
+  if (isWorld) {
     place = await getPlaceByWorldName(serverName)
   } else {
     place = await getPlaceByParcel(parcel)

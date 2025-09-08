@@ -22,7 +22,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       hostname: string
       protocol: string
     }
-    isWorlds: boolean
+    isWorld: boolean
   }
 
   let metadataLand: Metadata
@@ -88,7 +88,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       },
       sceneId: 'test-scene',
       parcel: '10,20',
-      isWorlds: false
+      isWorld: false
     }
 
     metadataWorld = {
@@ -100,7 +100,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       },
       sceneId: 'test-scene',
       parcel: '20,20',
-      isWorlds: true
+      isWorld: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
@@ -704,7 +704,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
           hostname: 'https://peer.decentraland.zone',
           protocol: 'v3'
         },
-        isWorlds: false
+        isWorld: false
       }
 
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLandLease)

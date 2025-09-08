@@ -22,7 +22,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     }
     sceneId: string
     parcel: string
-    isWorlds: boolean
+    isWorld: boolean
   }
 
   let metadataLand: Metadata
@@ -61,7 +61,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       },
       sceneId: 'test-scene',
       parcel: '10,20',
-      isWorlds: false
+      isWorld: false
     }
 
     metadataWorld = {
@@ -73,7 +73,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       },
       sceneId: 'test-scene',
       parcel: '20,20',
-      isWorlds: true
+      isWorld: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
@@ -362,7 +362,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     }
     parcel: string
     sceneId: string
-    isWorlds: boolean
+    isWorld: boolean
   }
 
   let metadataLand: Metadata
@@ -393,7 +393,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       },
       parcel: '10,20',
       sceneId: 'test-scene',
-      isWorlds: false
+      isWorld: false
     }
 
     metadataWorld = {
@@ -405,7 +405,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       },
       parcel: '20,20',
       sceneId: 'test-scene',
-      isWorlds: true
+      isWorld: true
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
