@@ -432,6 +432,7 @@ describe('SceneBanComponent', () => {
           '0x1111111111111111111111111111111111111111',
           '0x2222222222222222222222222222222222222222'
         ])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(2)
         namesMockedComponent.getNamesFromAddresses.mockResolvedValue({
           '0x1111111111111111111111111111111111111111': 'User One',
           '0x2222222222222222222222222222222222222222': 'User Two'
@@ -441,7 +442,9 @@ describe('SceneBanComponent', () => {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorld: false
+          isWorld: false,
+          page: 1,
+          limit: 20
         })
       })
 
@@ -452,28 +455,33 @@ describe('SceneBanComponent', () => {
         )
       })
 
-      it('should call the scene ban manager to list bans', async () => {
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
+      it('should call the scene ban manager to list bans with pagination', async () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
       })
 
-      it('should return the list of bans', async () => {
+      it('should return the list of bans with total count', async () => {
         const result = await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorld: false
+          isWorld: false,
+          page: 1,
+          limit: 20
         })
 
-        expect(result).toEqual([
-          {
-            bannedAddress: '0x1111111111111111111111111111111111111111',
-            name: 'User One'
-          },
-          {
-            bannedAddress: '0x2222222222222222222222222222222222222222',
-            name: 'User Two'
-          }
-        ])
+        expect(result).toEqual({
+          data: [
+            {
+              bannedAddress: '0x1111111111111111111111111111111111111111',
+              name: 'User One'
+            },
+            {
+              bannedAddress: '0x2222222222222222222222222222222222222222',
+              name: 'User Two'
+            }
+          ],
+          total: 2
+        })
       })
     })
 
@@ -483,6 +491,7 @@ describe('SceneBanComponent', () => {
         sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
           '0x1111111111111111111111111111111111111111'
         ])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(1)
         namesMockedComponent.getNamesFromAddresses.mockResolvedValue({
           '0x1111111111111111111111111111111111111111': 'User One'
         })
@@ -491,7 +500,9 @@ describe('SceneBanComponent', () => {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
           parcel: undefined,
-          isWorld: true
+          isWorld: true,
+          page: 1,
+          limit: 20
         })
       })
 
@@ -499,24 +510,29 @@ describe('SceneBanComponent', () => {
         expect(placesMockedComponent.getPlaceByWorldName).toHaveBeenCalledWith('test-world.dcl.eth')
       })
 
-      it('should call the scene ban manager to list bans', async () => {
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
+      it('should call the scene ban manager to list bans with pagination', async () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
       })
 
-      it('should return the list of bans', async () => {
+      it('should return the list of bans with total count', async () => {
         const result = await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
           parcel: undefined,
-          isWorld: true
+          isWorld: true,
+          page: 1,
+          limit: 20
         })
 
-        expect(result).toEqual([
-          {
-            bannedAddress: '0x1111111111111111111111111111111111111111',
-            name: 'User One'
-          }
-        ])
+        expect(result).toEqual({
+          data: [
+            {
+              bannedAddress: '0x1111111111111111111111111111111111111111',
+              name: 'User One'
+            }
+          ],
+          total: 1
+        })
       })
     })
 
@@ -524,25 +540,33 @@ describe('SceneBanComponent', () => {
       beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(0)
         namesMockedComponent.getNamesFromAddresses.mockResolvedValue({})
 
         await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorld: false
+          isWorld: false,
+          page: 1,
+          limit: 20
         })
       })
 
-      it('should return an empty array', async () => {
+      it('should return an empty result with total count', async () => {
         const result = await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorld: false
+          isWorld: false,
+          page: 1,
+          limit: 20
         })
 
-        expect(result).toEqual([])
+        expect(result).toEqual({
+          data: [],
+          total: 0
+        })
       })
     })
 
@@ -590,12 +614,15 @@ describe('SceneBanComponent', () => {
           '0x1111111111111111111111111111111111111111',
           '0x2222222222222222222222222222222222222222'
         ])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(2)
 
         await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorld: false
+          isWorld: false,
+          page: 1,
+          limit: 20
         })
       })
 
@@ -606,22 +633,24 @@ describe('SceneBanComponent', () => {
         )
       })
 
-      it('should call the scene ban manager to list banned addresses', async () => {
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
+      it('should call the scene ban manager to list banned addresses with pagination', async () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
       })
 
-      it('should return the list of banned addresses', async () => {
+      it('should return the list of banned addresses with total count', async () => {
         const result = await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorld: false
+          isWorld: false,
+          page: 1,
+          limit: 20
         })
 
-        expect(result).toEqual([
-          '0x1111111111111111111111111111111111111111',
-          '0x2222222222222222222222222222222222222222'
-        ])
+        expect(result).toEqual({
+          addresses: ['0x1111111111111111111111111111111111111111', '0x2222222222222222222222222222222222222222'],
+          total: 2
+        })
       })
     })
 
@@ -631,12 +660,15 @@ describe('SceneBanComponent', () => {
         sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
           '0x1111111111111111111111111111111111111111'
         ])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(1)
 
         await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
           parcel: undefined,
-          isWorld: true
+          isWorld: true,
+          page: 1,
+          limit: 20
         })
       })
 
@@ -644,19 +676,24 @@ describe('SceneBanComponent', () => {
         expect(placesMockedComponent.getPlaceByWorldName).toHaveBeenCalledWith('test-world.dcl.eth')
       })
 
-      it('should call the scene ban manager to list banned addresses', async () => {
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
+      it('should call the scene ban manager to list banned addresses with pagination', async () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
       })
 
-      it('should return the list of banned addresses', async () => {
+      it('should return the list of banned addresses with total count', async () => {
         const result = await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
           parcel: undefined,
-          isWorld: true
+          isWorld: true,
+          page: 1,
+          limit: 20
         })
 
-        expect(result).toEqual(['0x1111111111111111111111111111111111111111'])
+        expect(result).toEqual({
+          addresses: ['0x1111111111111111111111111111111111111111'],
+          total: 1
+        })
       })
     })
 
@@ -664,24 +701,32 @@ describe('SceneBanComponent', () => {
       beforeEach(async () => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
         sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+        sceneBanManagerMockedComponent.countBannedAddresses.mockResolvedValue(0)
 
         await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorld: false
+          isWorld: false,
+          page: 1,
+          limit: 20
         })
       })
 
-      it('should return an empty array', async () => {
+      it('should return an empty result with total count', async () => {
         const result = await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: 'test-scene',
           realmName: 'test-realm',
           parcel: '-9,-9',
-          isWorld: false
+          isWorld: false,
+          page: 1,
+          limit: 20
         })
 
-        expect(result).toEqual([])
+        expect(result).toEqual({
+          addresses: [],
+          total: 0
+        })
       })
     })
 

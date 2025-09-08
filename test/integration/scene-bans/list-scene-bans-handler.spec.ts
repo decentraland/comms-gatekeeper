@@ -107,7 +107,7 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       const response = await makeRequest(
         localFetch,
-        '/scene-bans',
+        '/scene-bans?limit=20',
         {
           method: 'GET',
           metadata: metadataLand
@@ -119,6 +119,9 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
       const body = await response.json()
       expect(body.data).toEqual([])
       expect(body.total).toBe(0)
+      expect(body.page).toBe(1)
+      expect(body.pages).toBe(0)
+      expect(body.limit).toBe(20)
     })
 
     it('should successfully list bans for a land scene with existing bans', async () => {
@@ -146,7 +149,7 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       const response = await makeRequest(
         localFetch,
-        '/scene-bans',
+        '/scene-bans?limit=20',
         {
           method: 'GET',
           metadata: metadataLand
@@ -158,6 +161,9 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
       const body = await response.json()
       expect(body.data).toHaveLength(2)
       expect(body.total).toBe(2)
+      expect(body.page).toBe(1)
+      expect(body.pages).toBe(1)
+      expect(body.limit).toBe(20)
       expect(body.data[0].bannedAddress).toBe(nonOwner.authChain[0].payload.toLowerCase()) // Most recent first
       expect(body.data[0].name).toBe('NonOwnerUser#5678')
       expect(body.data[1].bannedAddress).toBe(admin.authChain[0].payload.toLowerCase())
@@ -201,7 +207,7 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       const response = await makeRequest(
         localFetch,
-        '/scene-bans',
+        '/scene-bans?limit=20',
         {
           method: 'GET',
           metadata: metadataLand
@@ -213,6 +219,9 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
       const body = await response.json()
       expect(body.data).toHaveLength(1)
       expect(body.total).toBe(1)
+      expect(body.page).toBe(1)
+      expect(body.pages).toBe(1)
+      expect(body.limit).toBe(20)
       expect(body.data[0].bannedAddress).toBe(nonOwner.authChain[0].payload.toLowerCase())
       expect(body.data[0].name).toBe('NonOwnerUser#5678')
     })
@@ -239,7 +248,7 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       const response = await makeRequest(
         localFetch,
-        '/scene-bans',
+        '/scene-bans?limit=20',
         {
           method: 'GET',
           metadata: metadataWorld
@@ -251,6 +260,9 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
       const body = await response.json()
       expect(body.data).toHaveLength(1)
       expect(body.total).toBe(1)
+      expect(body.page).toBe(1)
+      expect(body.pages).toBe(1)
+      expect(body.limit).toBe(20)
       expect(body.data[0].bannedAddress).toBe(admin.authChain[0].payload.toLowerCase())
       expect(body.data[0].name).toBe('AdminUser#1234')
     })
@@ -348,7 +360,7 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
 
       const response = await makeRequest(
         localFetch,
-        '/scene-bans',
+        '/scene-bans?limit=20',
         {
           method: 'GET',
           metadata: metadataLand
@@ -360,6 +372,9 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
       const body = await response.json()
       expect(body.data).toHaveLength(3)
       expect(body.total).toBe(3)
+      expect(body.page).toBe(1)
+      expect(body.pages).toBe(1)
+      expect(body.limit).toBe(20)
 
       // Should be sorted by banned_at DESC (most recent first)
       expect(body.data[0].bannedAddress).toBe(nonOwner.authChain[0].payload.toLowerCase())

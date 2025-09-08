@@ -133,38 +133,48 @@ export function createSceneBansComponent(
    * Lists all bans for a scene with permission validation.
    * @param requestedBy - The address of the user requesting the list.
    * @param params - The parameters for the list.
-   * @returns The list of banned addresses with their names.
+   * @returns The list of banned addresses with their names and total count.
    * @throws UnauthorizedError if the user does not have permission to list scene bans.
    */
-  async function listSceneBans(requestedBy: string, params: ListSceneBansParams): Promise<SceneBanAddressWithName[]> {
-    const bannedAddresses = await listSceneBannedAddresses(requestedBy, params)
+  async function listSceneBans(
+    requestedBy: string,
+    params: ListSceneBansParams
+  ): Promise<{ data: SceneBanAddressWithName[]; total: number }> {
+    const { addresses, total } = await listSceneBannedAddresses(requestedBy, params)
 
-    const bannedNames = await names.getNamesFromAddresses(bannedAddresses)
+    const bannedNames = await names.getNamesFromAddresses(addresses)
 
     logger.info(`Successfully listed ${bannedNames.length} bans for place`)
 
-    return bannedAddresses.map((address) => ({
+    const data = addresses.map((address) => ({
       bannedAddress: address,
       name: bannedNames[address]
     }))
+
+    return { data, total }
   }
 
   /**
    * Lists only the banned addresses for a scene with permission validation.
    * @param requestedBy - The address of the user requesting the list.
    * @param params - The parameters for the list.
-   * @returns The list of banned addresses.
+   * @returns The list of banned addresses and total count.
    * @throws UnauthorizedError if the user does not have permission to list scene banned addresses.
    */
-  async function listSceneBannedAddresses(requestedBy: string, params: ListSceneBansParams): Promise<string[]> {
-    const { sceneId, realmName, parcel, isWorld } = params
+  async function listSceneBannedAddresses(
+    requestedBy: string,
+    params: ListSceneBansParams
+  ): Promise<{ addresses: string[]; total: number }> {
+    const { sceneId, realmName, parcel, isWorld, page, limit } = params
     const lowercasedRequestedBy = requestedBy.toLowerCase()
 
     logger.debug(`Listing banned addresses for scene by user ${lowercasedRequestedBy}`, {
       sceneId: sceneId || '',
       realmName,
       parcel: parcel || '',
-      isWorld: String(isWorld)
+      isWorld: String(isWorld),
+      page: page || 1,
+      limit: limit || 20
     })
 
     let place: PlaceAttributes
@@ -181,12 +191,18 @@ export function createSceneBansComponent(
       throw new UnauthorizedError('User does not have permission to list scene bans')
     }
 
-    // Get the banned addresses directly from the database
-    const bannedAddresses = await sceneBanManager.listBannedAddresses(place.id)
+    // Calculate offset for pagination
+    const offset = page && limit ? (page - 1) * limit : undefined
 
-    logger.info(`Successfully listed ${bannedAddresses.length} banned addresses for place ${place.id}`)
+    // Get both the addresses and total count
+    const [addresses, total] = await Promise.all([
+      sceneBanManager.listBannedAddresses(place.id, limit, offset),
+      sceneBanManager.countBannedAddresses(place.id)
+    ])
 
-    return bannedAddresses
+    logger.info(`Successfully listed ${addresses.length} banned addresses for place ${place.id} (total: ${total})`)
+
+    return { addresses, total }
   }
 
   return {

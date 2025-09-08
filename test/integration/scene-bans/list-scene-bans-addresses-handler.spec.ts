@@ -98,7 +98,7 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
       const response = await makeRequest(
         localFetch,
-        '/scene-bans/addresses',
+        '/scene-bans/addresses?limit=20',
         {
           method: 'GET',
           metadata: metadataLand
@@ -109,6 +109,10 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.data).toHaveLength(2)
+      expect(body.total).toBe(2)
+      expect(body.page).toBe(1)
+      expect(body.pages).toBe(1)
+      expect(body.limit).toBe(20)
       expect(body.data).toContain(admin.authChain[0].payload.toLowerCase())
       expect(body.data).toContain(nonOwner.authChain[0].payload.toLowerCase())
     })
@@ -118,7 +122,7 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
       const response = await makeRequest(
         localFetch,
-        '/scene-bans/addresses',
+        '/scene-bans/addresses?limit=20',
         {
           method: 'GET',
           metadata: metadataLand
@@ -129,6 +133,10 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.data).toEqual([])
+      expect(body.total).toBe(0)
+      expect(body.page).toBe(1)
+      expect(body.pages).toBe(0)
+      expect(body.limit).toBe(20)
     })
 
     it('should return addresses sorted by banned_at DESC (most recent first)', async () => {
@@ -148,7 +156,7 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
       const response = await makeRequest(
         localFetch,
-        '/scene-bans/addresses',
+        '/scene-bans/addresses?limit=20',
         {
           method: 'GET',
           metadata: metadataLand
@@ -159,6 +167,10 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.data).toHaveLength(3)
+      expect(body.total).toBe(3)
+      expect(body.page).toBe(1)
+      expect(body.pages).toBe(1)
+      expect(body.limit).toBe(20)
 
       // Should be sorted by banned_at DESC (most recent first)
       expect(body.data[0]).toBe(nonOwner.authChain[0].payload.toLowerCase())

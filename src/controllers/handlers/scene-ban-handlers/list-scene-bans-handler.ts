@@ -2,6 +2,7 @@ import { InvalidRequestError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { getPaginationParams } from '@dcl/platform-server-commons'
 
 export async function listSceneBansHandler(
   ctx: Pick<
@@ -11,7 +12,8 @@ export async function listSceneBansHandler(
 ): Promise<IHttpServerComponent.IResponse> {
   const {
     components: { sceneBans },
-    verification
+    verification,
+    url
   } = ctx
 
   if (!verification?.auth) {
@@ -26,18 +28,30 @@ export async function listSceneBansHandler(
   } = await validate(ctx)
   const authenticatedAddress = verification.auth
 
-  const bannedAddressesWithNames = await sceneBans.listSceneBans(authenticatedAddress, {
+  // Get pagination parameters from URL
+  const paginationParams = getPaginationParams(url.searchParams)
+  const page = Math.max(1, Math.floor(paginationParams.offset / paginationParams.limit) + 1)
+
+  // Get the data and total count from the scene bans component
+  const result = await sceneBans.listSceneBans(authenticatedAddress, {
     sceneId,
     parcel,
     realmName,
-    isWorld
+    isWorld,
+    page,
+    limit: paginationParams.limit
   })
+
+  const pages = Math.ceil(result.total / paginationParams.limit)
 
   return {
     status: 200,
     body: {
-      data: bannedAddressesWithNames,
-      total: bannedAddressesWithNames.length
+      data: result.data,
+      total: result.total,
+      page,
+      pages,
+      limit: paginationParams.limit
     }
   }
 }

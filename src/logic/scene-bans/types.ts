@@ -19,6 +19,8 @@ export type ListSceneBansParams = {
   realmName: string
   parcel: string
   isWorld: boolean
+  page?: number
+  limit?: number
 }
 
 export interface ISceneBansComponent {
@@ -43,12 +45,18 @@ export interface ISceneBansComponent {
    * @param requestedBy - The address of the user requesting the list.
    * @param params - The parameters for the list.
    */
-  listSceneBans(requestedBy: string, params: ListSceneBansParams): Promise<SceneBanAddressWithName[]>
+  listSceneBans(
+    requestedBy: string,
+    params: ListSceneBansParams
+  ): Promise<{ data: SceneBanAddressWithName[]; total: number }>
 
   /**
    * Lists only the banned addresses for a scene with permission validation.
    * @param requestedBy - The address of the user requesting the list.
    * @param params - The parameters for the list.
    */
-  listSceneBannedAddresses(requestedBy: string, params: ListSceneBansParams): Promise<string[]>
+  listSceneBannedAddresses(
+    requestedBy: string,
+    params: ListSceneBansParams
+  ): Promise<{ addresses: string[]; total: number }>
 }
