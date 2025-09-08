@@ -470,7 +470,7 @@ describe('SceneBanComponent', () => {
         })
 
         expect(result).toEqual({
-          data: [
+          bans: [
             {
               bannedAddress: '0x1111111111111111111111111111111111111111',
               name: 'User One'
@@ -525,7 +525,7 @@ describe('SceneBanComponent', () => {
         })
 
         expect(result).toEqual({
-          data: [
+          bans: [
             {
               bannedAddress: '0x1111111111111111111111111111111111111111',
               name: 'User One'
@@ -564,7 +564,7 @@ describe('SceneBanComponent', () => {
         })
 
         expect(result).toEqual({
-          data: [],
+          bans: [],
           total: 0
         })
       })

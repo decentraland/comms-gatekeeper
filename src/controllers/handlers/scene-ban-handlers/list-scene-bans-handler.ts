@@ -33,7 +33,7 @@ export async function listSceneBansHandler(
   const page = Math.max(1, Math.floor(paginationParams.offset / paginationParams.limit) + 1)
 
   // Get the data and total count from the scene bans component
-  const result = await sceneBans.listSceneBans(authenticatedAddress, {
+  const { bans, total } = await sceneBans.listSceneBans(authenticatedAddress, {
     sceneId,
     parcel,
     realmName,
@@ -42,13 +42,13 @@ export async function listSceneBansHandler(
     limit: paginationParams.limit
   })
 
-  const pages = Math.ceil(result.total / paginationParams.limit)
+  const pages = Math.ceil(total / paginationParams.limit)
 
   return {
     status: 200,
     body: {
-      data: result.data,
-      total: result.total,
+      results: bans,
+      total: total,
       page,
       pages,
       limit: paginationParams.limit

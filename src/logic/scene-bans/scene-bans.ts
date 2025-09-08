@@ -139,19 +139,19 @@ export function createSceneBansComponent(
   async function listSceneBans(
     requestedBy: string,
     params: ListSceneBansParams
-  ): Promise<{ data: SceneBanAddressWithName[]; total: number }> {
+  ): Promise<{ bans: SceneBanAddressWithName[]; total: number }> {
     const { addresses, total } = await listSceneBannedAddresses(requestedBy, params)
 
     const bannedNames = await names.getNamesFromAddresses(addresses)
 
     logger.info(`Successfully listed ${bannedNames.length} bans for place`)
 
-    const data = addresses.map((address) => ({
+    const bans = addresses.map((address) => ({
       bannedAddress: address,
       name: bannedNames[address]
     }))
 
-    return { data, total }
+    return { bans, total }
   }
 
   /**

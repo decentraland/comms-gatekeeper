@@ -108,13 +108,13 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body.data).toHaveLength(2)
+      expect(body.results).toHaveLength(2)
       expect(body.total).toBe(2)
       expect(body.page).toBe(1)
       expect(body.pages).toBe(1)
       expect(body.limit).toBe(20)
-      expect(body.data).toContain(admin.authChain[0].payload.toLowerCase())
-      expect(body.data).toContain(nonOwner.authChain[0].payload.toLowerCase())
+      expect(body.results).toContain(admin.authChain[0].payload.toLowerCase())
+      expect(body.results).toContain(nonOwner.authChain[0].payload.toLowerCase())
     })
 
     it('should return empty array when no bans exist', async () => {
@@ -132,7 +132,7 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body.data).toEqual([])
+      expect(body.results).toEqual([])
       expect(body.total).toBe(0)
       expect(body.page).toBe(1)
       expect(body.pages).toBe(0)
@@ -166,16 +166,16 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body.data).toHaveLength(3)
+      expect(body.results).toHaveLength(3)
       expect(body.total).toBe(3)
       expect(body.page).toBe(1)
       expect(body.pages).toBe(1)
       expect(body.limit).toBe(20)
 
       // Should be sorted by banned_at DESC (most recent first)
-      expect(body.data[0]).toBe(nonOwner.authChain[0].payload.toLowerCase())
-      expect(body.data[1]).toBe(admin.authChain[0].payload.toLowerCase())
-      expect(body.data[2]).toBe('0x1234567890123456789012345678901234567890')
+      expect(body.results[0]).toBe(nonOwner.authChain[0].payload.toLowerCase())
+      expect(body.results[1]).toBe(admin.authChain[0].payload.toLowerCase())
+      expect(body.results[2]).toBe('0x1234567890123456789012345678901234567890')
     })
   })
 
@@ -212,8 +212,8 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
       expect(response.status).toBe(200)
       const body = await response.json()
-      expect(body.data).toHaveLength(1)
-      expect(body.data[0]).toBe(admin.authChain[0].payload.toLowerCase())
+      expect(body.results).toHaveLength(1)
+      expect(body.results[0]).toBe(admin.authChain[0].payload.toLowerCase())
     })
   })
 
