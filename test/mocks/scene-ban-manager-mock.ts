@@ -8,6 +8,7 @@ export const createSceneBanManagerMockedComponent = (
     removeBan: jest.fn(),
     countBannedAddresses: jest.fn(),
     listBannedAddresses: jest.fn(),
+    isBanned: jest.fn(),
     ...overrides
   }
 }
