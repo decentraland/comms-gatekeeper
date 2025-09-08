@@ -39,7 +39,7 @@ export async function addSceneBanHandler(
     sceneId,
     parcel,
     realm: { serverName: realmName },
-    isWorlds
+    isWorld: isWorld
   } = await validate(ctx)
   const authenticatedAddress = verification.auth
 
@@ -47,7 +47,7 @@ export async function addSceneBanHandler(
     sceneId,
     parcel,
     realmName,
-    isWorlds
+    isWorld
   })
 
   return {

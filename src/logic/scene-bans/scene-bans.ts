@@ -1,13 +1,16 @@
-import { AppComponents } from '../../types'
-import { AddSceneBanParams, RemoveSceneBanParams, ISceneBansComponent } from './types'
+import { AppComponents, SceneBanAddressWithName } from '../../types'
+import { AddSceneBanParams, RemoveSceneBanParams, ListSceneBansParams, ISceneBansComponent } from './types'
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 
 export function createSceneBansComponent(
-  components: Pick<AppComponents, 'sceneBanManager' | 'livekit' | 'logs' | 'sceneManager' | 'places' | 'analytics'>
+  components: Pick<
+    AppComponents,
+    'sceneBanManager' | 'livekit' | 'logs' | 'sceneManager' | 'places' | 'analytics' | 'names'
+  >
 ): ISceneBansComponent {
-  const { sceneBanManager, livekit, logs, sceneManager, places, analytics } = components
+  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names } = components
   const logger = logs.getLogger('scene-bans')
 
   /**
@@ -17,18 +20,18 @@ export function createSceneBansComponent(
    * @param params - The parameters for the ban.
    */
   async function addSceneBan(bannedAddress: string, bannedBy: string, params: AddSceneBanParams): Promise<void> {
-    const { sceneId, realmName, parcel, isWorlds } = params
+    const { sceneId, realmName, parcel, isWorld } = params
 
     logger.debug(`Banning user ${bannedAddress} by user ${bannedBy}`, {
       sceneId: sceneId || '',
       realmName,
       parcel: parcel || '',
-      isWorlds: String(isWorlds)
+      isWorld: String(isWorld)
     })
 
     let place: PlaceAttributes
 
-    if (isWorlds) {
+    if (isWorld) {
       place = await places.getPlaceByWorldName(realmName)
     } else {
       place = await places.getPlaceByParcel(parcel)
@@ -50,7 +53,7 @@ export function createSceneBansComponent(
       throw new InvalidRequestError('Cannot ban this address')
     }
 
-    const roomName = livekit.getRoomName(realmName, { isWorlds, sceneId })
+    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
     await Promise.all([
       livekit.removeParticipant(roomName, bannedAddress.toLowerCase()).catch((err) => {
         logger.warn(`Error removing participant ${bannedAddress} from LiveKit room ${roomName}`, { err })
@@ -88,18 +91,18 @@ export function createSceneBansComponent(
     unbannedBy: string,
     params: RemoveSceneBanParams
   ): Promise<void> {
-    const { sceneId, realmName, parcel, isWorlds } = params
+    const { sceneId, realmName, parcel, isWorld } = params
 
     logger.debug(`Unbanning user ${bannedAddress} by user ${unbannedBy}`, {
       sceneId: sceneId || '',
       realmName,
       parcel: parcel || '',
-      isWorlds: String(isWorlds)
+      isWorld: String(isWorld)
     })
 
     let place: PlaceAttributes
 
-    if (isWorlds) {
+    if (isWorld) {
       place = await places.getPlaceByWorldName(realmName)
     } else {
       place = await places.getPlaceByParcel(parcel)
@@ -126,8 +129,86 @@ export function createSceneBansComponent(
     })
   }
 
+  /**
+   * Lists all bans for a scene with permission validation.
+   * @param requestedBy - The address of the user requesting the list.
+   * @param params - The parameters for the list.
+   * @returns The list of banned addresses with their names and total count.
+   * @throws UnauthorizedError if the user does not have permission to list scene bans.
+   */
+  async function listSceneBans(
+    requestedBy: string,
+    params: ListSceneBansParams
+  ): Promise<{ bans: SceneBanAddressWithName[]; total: number }> {
+    const { addresses, total } = await listSceneBannedAddresses(requestedBy, params)
+
+    const bannedNames = await names.getNamesFromAddresses(addresses)
+
+    logger.info(`Successfully listed ${bannedNames.length} bans for place`)
+
+    const bans = addresses.map((address) => ({
+      bannedAddress: address,
+      name: bannedNames[address]
+    }))
+
+    return { bans, total }
+  }
+
+  /**
+   * Lists only the banned addresses for a scene with permission validation.
+   * @param requestedBy - The address of the user requesting the list.
+   * @param params - The parameters for the list.
+   * @returns The list of banned addresses and total count.
+   * @throws UnauthorizedError if the user does not have permission to list scene banned addresses.
+   */
+  async function listSceneBannedAddresses(
+    requestedBy: string,
+    params: ListSceneBansParams
+  ): Promise<{ addresses: string[]; total: number }> {
+    const { sceneId, realmName, parcel, isWorld, page, limit } = params
+    const lowercasedRequestedBy = requestedBy.toLowerCase()
+
+    logger.debug(`Listing banned addresses for scene by user ${lowercasedRequestedBy}`, {
+      sceneId: sceneId || '',
+      realmName,
+      parcel: parcel || '',
+      isWorld: String(isWorld),
+      page: page || 1,
+      limit: limit || 20
+    })
+
+    let place: PlaceAttributes
+
+    if (isWorld) {
+      place = await places.getPlaceByWorldName(realmName)
+    } else {
+      place = await places.getPlaceByParcel(parcel)
+    }
+
+    // Check if the user requesting the list has permission
+    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, lowercasedRequestedBy)
+    if (!isOwnerOrAdmin) {
+      throw new UnauthorizedError('User does not have permission to list scene bans')
+    }
+
+    // Calculate offset for pagination
+    const offset = page && limit ? (page - 1) * limit : undefined
+
+    // Get both the addresses and total count
+    const [addresses, total] = await Promise.all([
+      sceneBanManager.listBannedAddresses(place.id, limit, offset),
+      sceneBanManager.countBannedAddresses(place.id)
+    ])
+
+    logger.info(`Successfully listed ${addresses.length} banned addresses for place ${place.id} (total: ${total})`)
+
+    return { addresses, total }
+  }
+
   return {
     addSceneBan,
-    removeSceneBan
+    removeSceneBan,
+    listSceneBans,
+    listSceneBannedAddresses
   }
 }

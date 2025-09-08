@@ -19,7 +19,7 @@ export type ParticipantPermissions = {
   canPublishData?: boolean
 }
 
-export type GetRoomNameParams = { isWorlds: boolean; sceneId?: string }
+export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
 
 export type ILivekitComponent = IBaseComponent & {
   deleteRoom: (roomName: string) => Promise<void>

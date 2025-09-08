@@ -34,10 +34,10 @@ export async function listSceneAdminsHandler(
     parcel,
     realm: { hostname, serverName }
   } = await validate(ctx)
-  const isWorlds = hostname.includes('worlds-content-server')
+  const isWorld = hostname.includes('worlds-content-server')
 
   let place: PlaceAttributes
-  if (isWorlds) {
+  if (isWorld) {
     place = await getPlaceByWorldName(serverName)
   } else {
     place = await getPlaceByParcel(parcel)
@@ -68,7 +68,7 @@ export async function listSceneAdminsHandler(
 
   // Get land lease owners
   const landLeaseOwners = new Set<string>()
-  if (!isWorlds) {
+  if (!isWorld) {
     const { authorizations } = await landLease.getAuthorizations()
     if (authorizations) {
       for (const auth of authorizations) {

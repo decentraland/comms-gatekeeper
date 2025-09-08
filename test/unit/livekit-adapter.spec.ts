@@ -203,26 +203,26 @@ describe('when getting a scene room name', () => {
 })
 
 describe('when getting a room name', () => {
-  describe('when isWorlds is true', () => {
+  describe('when isWorld is true', () => {
     it('should return world room name', () => {
       const realmName = 'test-realm'
-      const result = livekitComponent.getRoomName(realmName, { isWorlds: true })
+      const result = livekitComponent.getRoomName(realmName, { isWorld: true })
       expect(result).toBe('world-test-realm')
     })
   })
 
-  describe('when isWorlds is false', () => {
+  describe('when isWorld is false', () => {
     it('should return scene room name when sceneId is provided', () => {
       const realmName = 'test-realm'
       const sceneId = 'test-scene'
-      const result = livekitComponent.getRoomName(realmName, { isWorlds: false, sceneId })
+      const result = livekitComponent.getRoomName(realmName, { isWorld: false, sceneId })
       expect(result).toBe('scene-test-realm:test-scene')
     })
 
     it('should throw error when sceneId is not provided', () => {
       const realmName = 'test-realm'
       expect(() => {
-        livekitComponent.getRoomName(realmName, { isWorlds: false })
+        livekitComponent.getRoomName(realmName, { isWorld: false })
       }).toThrow('No sceneId provided for scene room')
     })
   })

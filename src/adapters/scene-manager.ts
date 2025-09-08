@@ -11,8 +11,8 @@ export async function createSceneManagerComponent(
   const { getLandPermissions } = lands
 
   async function isSceneOwner(place: PlaceAttributes, address: string): Promise<boolean> {
-    const isWorlds = place.world
-    if (isWorlds) {
+    const isWorld = place.world
+    if (isWorld) {
       return await hasWorldOwnerPermission(address, place.world_name!)
     }
     const landParcelPermission = await getLandPermissions(address, place.positions)

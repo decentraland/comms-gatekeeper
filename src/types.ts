@@ -139,7 +139,7 @@ export type AuthData = {
   parcel: string
   realm: RealmAuthMetadata
   realmName: string
-  isWorlds: boolean
+  isWorld: boolean
 }
 
 export type SceneAdmin = {
@@ -218,6 +218,15 @@ export type SceneBan = {
   banned_at: number
 }
 
+export type SceneBanAddressWithName = {
+  bannedAddress: string
+  name: string
+}
+
+export type SceneBannedAddresses = {
+  bannedAddresses: string[]
+}
+
 export interface AddSceneBanInput {
   place_id: string
   banned_address: string
@@ -227,4 +236,6 @@ export interface AddSceneBanInput {
 export interface ISceneBanManager {
   addBan(input: AddSceneBanInput): Promise<void>
   removeBan(placeId: string, bannedAddress: string): Promise<void>
+  countBannedAddresses(placeId: string): Promise<number>
+  listBannedAddresses(placeId: string, limit?: number, offset?: number): Promise<string[]>
 }
