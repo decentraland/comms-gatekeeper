@@ -238,4 +238,5 @@ export interface ISceneBanManager {
   removeBan(placeId: string, bannedAddress: string): Promise<void>
   countBannedAddresses(placeId: string): Promise<number>
   listBannedAddresses(placeId: string, limit?: number, offset?: number): Promise<string[]>
+  isBanned(placeId: string, address: string): Promise<boolean>
 }

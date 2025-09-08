@@ -19,6 +19,13 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export class ForbiddenError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
 export class ServiceUnavailableError extends Error {
   constructor(message: string) {
     super(message)

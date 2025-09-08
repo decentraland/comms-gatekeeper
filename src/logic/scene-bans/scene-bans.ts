@@ -205,10 +205,42 @@ export function createSceneBansComponent(
     return { addresses, total }
   }
 
+  /**
+   * Checks if a user is banned from a scene.
+   * @param address - The address of the user to check.
+   * @param params - The parameters for the check.
+   * @returns True if the user is banned, false otherwise.
+   */
+  async function isUserBanned(address: string, params: AddSceneBanParams): Promise<boolean> {
+    const { sceneId, realmName, parcel, isWorld } = params
+
+    logger.debug(`Checking if user ${address} is banned from scene`, {
+      sceneId: sceneId || '',
+      realmName,
+      parcel: parcel || '',
+      isWorld: String(isWorld)
+    })
+
+    let place: PlaceAttributes
+
+    if (isWorld) {
+      place = await places.getPlaceByWorldName(realmName)
+    } else {
+      place = await places.getPlaceByParcel(parcel)
+    }
+
+    const isBanned = await sceneBanManager.isBanned(place.id, address.toLowerCase())
+
+    logger.debug(`User ${address} is ${isBanned ? 'banned' : 'not banned'} from place ${place.id}`)
+
+    return isBanned
+  }
+
   return {
     addSceneBan,
     removeSceneBan,
     listSceneBans,
-    listSceneBannedAddresses
+    listSceneBannedAddresses,
+    isUserBanned
   }
 }

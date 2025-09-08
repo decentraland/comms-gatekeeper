@@ -59,4 +59,12 @@ export interface ISceneBansComponent {
     requestedBy: string,
     params: ListSceneBansParams
   ): Promise<{ addresses: string[]; total: number }>
+
+  /**
+   * Checks if a user is banned from a scene.
+   * @param address - The address of the user to check.
+   * @param params - The parameters for the check.
+   * @returns True if the user is banned, false otherwise.
+   */
+  isUserBanned(address: string, params: AddSceneBanParams): Promise<boolean>
 }
