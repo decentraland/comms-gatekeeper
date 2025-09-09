@@ -4,7 +4,8 @@ export enum WebhookEventName {
   INGRESS_STARTED = 'ingress_started',
   INGRESS_ENDED = 'ingress_ended',
   PARTICIPANT_JOINED = 'participant_joined',
-  PARTICIPANT_LEFT = 'participant_left'
+  PARTICIPANT_LEFT = 'participant_left',
+  ROOM_STARTED = 'room_started'
 }
 
 export interface ILivekitWebhookEventHandler {
