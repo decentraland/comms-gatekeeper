@@ -15,11 +15,11 @@ export function createSceneBansComponent(
   const logger = logs.getLogger('scene-bans')
 
   /**
-   * Updates the LiveKit room metadata with the current list of banned addresses for a scene.
+   * Refresh LiveKit room metadata with the current list of banned addresses for a scene.
    * @param place - The place attributes for the scene.
    * @param roomName - The room name.
    */
-  async function updateRoomBans(place: PlaceAttributes, roomName: string): Promise<void> {
+  async function refreshRoomBans(place: PlaceAttributes, roomName: string): Promise<void> {
     try {
       // Get the current list of banned addresses for this place
       const bannedAddresses = await sceneBanManager.listBannedAddresses(place.id)
@@ -93,7 +93,7 @@ export function createSceneBansComponent(
       })
     ])
 
-    await updateRoomBans(place, roomName)
+    await refreshRoomBans(place, roomName)
 
     logger.info(
       `Successfully banned user ${bannedAddress} for place ${place.id} and removed participant from LiveKit room ${roomName}`
@@ -148,7 +148,7 @@ export function createSceneBansComponent(
 
     const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
 
-    await updateRoomBans(place, roomName)
+    await refreshRoomBans(place, roomName)
 
     logger.info(`Successfully unbanned user ${bannedAddress} for place ${place.id}`)
 
