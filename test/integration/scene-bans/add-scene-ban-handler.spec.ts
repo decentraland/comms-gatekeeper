@@ -322,7 +322,7 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       stubComponents.livekit.updateRoomMetadata.rejects(new Error('Room metadata update failed'))
     })
 
-    it('should still complete the ban operation successfully', async () => {
+    it('should still save the ban in the database', async () => {
       const { localFetch } = components
 
       const response = await makeRequest(
