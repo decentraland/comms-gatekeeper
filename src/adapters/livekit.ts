@@ -249,6 +249,39 @@ export async function createLivekitComponent(
     await roomClient.updateParticipant(roomId, participantId, undefined, permissions)
   }
 
+  async function updateRoomMetadata(roomId: string, metadata: Record<string, unknown>): Promise<void> {
+    try {
+      // Get existing room metadata
+      const room = await getRoomInfo(roomId)
+      let existingMetadata: Record<string, unknown> = {}
+
+      if (room?.metadata) {
+        try {
+          existingMetadata = JSON.parse(room.metadata)
+        } catch (error) {
+          logger.warn(
+            `Error parsing existing room metadata for room ${roomId}: ${
+              isErrorWithMessage(error) ? error.message : 'Unknown error'
+            }`
+          )
+          existingMetadata = {}
+        }
+      }
+
+      // Merge existing metadata with new metadata
+      const mergedMetadata = { ...existingMetadata, ...metadata }
+
+      await roomClient.updateRoomMetadata(roomId, JSON.stringify(mergedMetadata))
+    } catch (error) {
+      logger.error(
+        `Error updating room metadata for room ${roomId}: ${
+          isErrorWithMessage(error) ? error.message : 'Unknown error'
+        }`
+      )
+      throw error
+    }
+  }
+
   async function getWebhookEvent(body: string, authorization: string) {
     return receiver.receive(body, authorization)
   }
@@ -262,6 +295,7 @@ export async function createLivekitComponent(
     deleteRoom,
     updateParticipantMetadata,
     updateParticipantPermissions,
+    updateRoomMetadata,
     getParticipantInfo,
     generateCredentials,
     getWorldRoomName,

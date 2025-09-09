@@ -76,6 +76,9 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
     stubComponents.places.getPlaceByWorldName.resolves(mockedWorldPlace)
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.sceneBanManager.removeBan.resolves()
+    stubComponents.livekit.getRoomName.returns('test-room-name')
+    stubComponents.livekit.updateRoomMetadata.resolves()
+    stubComponents.sceneBanManager.listBannedAddresses.resolves([])
   })
 
   afterEach(async () => {
@@ -137,6 +140,31 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
               banned_address: nonOwner.authChain[0].payload
             }),
             metadata: metadataWorld
+          },
+          owner
+        )
+
+        expect(response.status).toBe(204)
+      })
+    })
+
+    describe('when room metadata update fails', () => {
+      beforeEach(async () => {
+        stubComponents.livekit.updateRoomMetadata.rejects(new Error('Room metadata update failed'))
+      })
+
+      it('should not return error to avoid breaking the client flow', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'DELETE',
+            body: JSON.stringify({
+              banned_address: nonOwner.authChain[0].payload
+            }),
+            metadata: metadataLand
           },
           owner
         )
