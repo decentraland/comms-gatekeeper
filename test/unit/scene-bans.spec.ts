@@ -474,7 +474,7 @@ describe('SceneBanComponent', () => {
         livekitMockedComponent.updateRoomMetadata.mockRejectedValue(new Error('Room metadata update failed'))
       })
 
-      it('should still complete the ban operation successfully', async () => {
+      it('should not throw to avoid breaking flow', async () => {
         await expect(
           sceneBanComponent.addSceneBan(
             '0x1234567890123456789012345678901234567890',
