@@ -8,7 +8,8 @@ import {
   StreamingAccessNotFoundError,
   UnauthorizedError,
   LandPermissionsNotFoundError,
-  LivekitIngressNotFoundError
+  LivekitIngressNotFoundError,
+  ForbiddenError
 } from '../../types/errors'
 
 export async function errorHandler(
@@ -54,6 +55,15 @@ export async function errorHandler(
     if (error instanceof UnauthorizedError || error instanceof NotAuthorizedError) {
       return {
         status: 401,
+        body: {
+          error: error.message
+        }
+      }
+    }
+
+    if (error instanceof ForbiddenError) {
+      return {
+        status: 403,
         body: {
           error: error.message
         }

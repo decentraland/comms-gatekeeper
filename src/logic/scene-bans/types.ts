@@ -1,27 +1,22 @@
 import { SceneBanAddressWithName } from '../../types'
 
-export type AddSceneBanParams = {
+type BaseParams = {
   sceneId?: string
   realmName: string
   parcel: string
   isWorld: boolean
 }
 
-export type RemoveSceneBanParams = {
-  sceneId?: string
-  realmName: string
-  parcel: string
-  isWorld: boolean
-}
+export type AddSceneBanParams = BaseParams
 
-export type ListSceneBansParams = {
-  sceneId?: string
-  realmName: string
-  parcel: string
-  isWorld: boolean
+export type RemoveSceneBanParams = BaseParams
+
+export type ListSceneBansParams = BaseParams & {
   page?: number
   limit?: number
 }
+
+export type IsUserBannedParams = BaseParams
 
 export interface ISceneBansComponent {
   /**
@@ -59,4 +54,12 @@ export interface ISceneBansComponent {
     requestedBy: string,
     params: ListSceneBansParams
   ): Promise<{ addresses: string[]; total: number }>
+
+  /**
+   * Checks if a user is banned from a scene.
+   * @param address - The address of the user to check.
+   * @param params - The parameters for the check.
+   * @returns True if the user is banned, false otherwise.
+   */
+  isUserBanned(address: string, params: IsUserBannedParams): Promise<boolean>
 }

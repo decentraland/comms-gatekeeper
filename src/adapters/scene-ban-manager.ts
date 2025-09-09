@@ -93,10 +93,29 @@ export async function createSceneBanManagerComponent({
     return result.rows.map((row) => row.bannedAddress)
   }
 
+  async function isBanned(placeId: string, address: string): Promise<boolean> {
+    const addressLowercase = address.toLowerCase()
+
+    const result = await database.query<{ is_banned: boolean }>(
+      SQL`
+        SELECT EXISTS (
+          SELECT id FROM scene_bans
+          WHERE place_id = ${placeId} 
+          AND banned_address = ${addressLowercase}
+        ) as is_banned
+      `
+    )
+
+    const isBanned = result.rows[0].is_banned
+    logger.debug(`User ${addressLowercase} is ${isBanned ? 'banned' : 'not banned'} from place ${placeId}`)
+    return isBanned
+  }
+
   return {
     addBan,
     removeBan,
     countBannedAddresses,
-    listBannedAddresses
+    listBannedAddresses,
+    isBanned
   }
 }

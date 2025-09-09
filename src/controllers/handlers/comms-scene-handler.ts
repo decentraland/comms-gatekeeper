@@ -1,17 +1,17 @@
 import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, Permissions } from '../../types'
-import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
+import { ForbiddenError, InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
 import { oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'config' | 'livekit' | 'logs' | 'blockList' | 'publisher',
+    'fetch' | 'config' | 'livekit' | 'logs' | 'blockList' | 'publisher' | 'sceneBans' | 'places',
     '/get-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, blockList, publisher }
+    components: { livekit, logs, blockList, publisher, sceneBans }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -31,6 +31,40 @@ export async function commsSceneHandler(
   }
 
   const isWorld = realmName.endsWith('.eth')
+
+  // Check if user is banned from the scene
+  if (realmName !== 'preview') {
+    try {
+      const isBanned = await sceneBans.isUserBanned(identity, {
+        sceneId,
+        realmName,
+        parcel,
+        isWorld
+      })
+
+      if (isBanned) {
+        logger.warn(`Rejected connection from banned user: ${identity}`, {
+          sceneId: sceneId || '',
+          realmName,
+          parcel,
+          isWorld: String(isWorld)
+        })
+        throw new ForbiddenError('User is banned from this scene')
+      }
+    } catch (error) {
+      if (error instanceof ForbiddenError) {
+        throw error
+      }
+
+      // Ignore other errors
+      logger.warn(`Error checking if user ${identity} is banned from scene: ${error}`, {
+        sceneId: sceneId || '',
+        realmName,
+        parcel,
+        isWorld: String(isWorld)
+      })
+    }
+  }
 
   if (realmName === 'preview') {
     room = `preview-${identity}`
@@ -78,6 +112,8 @@ export async function commsSceneHandler(
       })
     }
   })
+
+  console.log('adapter', livekit.buildConnectionUrl(credentials.url, credentials.token))
 
   return {
     status: 200,
