@@ -27,6 +27,7 @@ import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
 import { ISceneBansComponent } from './logic/scene-bans/types'
 import { ICronJobComponent } from './logic/cron-job/types'
+import { ILivekitWebhookComponent } from './logic/livekit-webhook'
 import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
 
@@ -65,6 +66,7 @@ export type BaseComponents = {
   landLease: ILandLeaseComponent
   analytics: IAnalyticsComponent<AnalyticsEventPayload>
   publisher: IPublisherComponent
+  livekitWebhook: ILivekitWebhookComponent
   voiceChatExpirationJob?: ICronJobComponent
   communityVoiceChatExpirationJob?: ICronJobComponent
 }
