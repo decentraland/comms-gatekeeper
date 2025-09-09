@@ -153,7 +153,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
         stubComponents.livekit.updateRoomMetadata.rejects(new Error('Room metadata update failed'))
       })
 
-      it('should still complete the unban operation successfully', async () => {
+      it('should not return error to avoid breaking the client flow', async () => {
         const { localFetch } = components
 
         const response = await makeRequest(
