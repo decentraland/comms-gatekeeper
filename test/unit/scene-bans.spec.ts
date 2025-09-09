@@ -543,7 +543,10 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', {
+          limit: 20,
+          offset: 0
+        })
       })
 
       it('should return the list of bans with total count', async () => {
@@ -607,7 +610,10 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', {
+          limit: 20,
+          offset: 0
+        })
       })
 
       it('should return the list of bans with total count', async () => {
@@ -730,7 +736,10 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', {
+          limit: 20,
+          offset: 0
+        })
       })
 
       it('should return the list of banned addresses with total count', async () => {
@@ -782,7 +791,10 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', {
+          limit: 20,
+          offset: 0
+        })
       })
 
       it('should return the list of banned addresses with total count', async () => {
@@ -903,7 +915,10 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', {
+          limit: 20,
+          offset: 0
+        })
       })
 
       it('should return the list of bans with total count', async () => {
@@ -967,7 +982,10 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', {
+          limit: 20,
+          offset: 0
+        })
       })
 
       it('should return the list of bans with total count', async () => {
@@ -1090,7 +1108,10 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', {
+          limit: 20,
+          offset: 0
+        })
       })
 
       it('should return the list of banned addresses with total count', async () => {
@@ -1142,7 +1163,10 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', 20, 0)
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id', {
+          limit: 20,
+          offset: 0
+        })
       })
 
       it('should return the list of banned addresses with total count', async () => {

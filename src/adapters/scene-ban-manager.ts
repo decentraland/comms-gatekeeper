@@ -1,4 +1,4 @@
-import { AppComponents, SceneBan, AddSceneBanInput, ISceneBanManager } from '../types'
+import { AppComponents, SceneBan, AddSceneBanInput, ISceneBanManager, ListBannedAddressesOptions } from '../types'
 import SQL from 'sql-template-strings'
 
 export async function createSceneBanManagerComponent({
@@ -72,12 +72,14 @@ export async function createSceneBanManagerComponent({
     return total
   }
 
-  async function listBannedAddresses(placeId: string, limit?: number, offset?: number): Promise<string[]> {
+  async function listBannedAddresses(placeId: string, options?: ListBannedAddressesOptions): Promise<string[]> {
     const query = SQL`
       SELECT banned_address as "bannedAddress" FROM scene_bans
       WHERE place_id = ${placeId} 
       ORDER BY banned_at DESC
     `
+
+    const { limit, offset } = options || {}
 
     if (limit) {
       query.append(SQL` LIMIT ${limit}`)

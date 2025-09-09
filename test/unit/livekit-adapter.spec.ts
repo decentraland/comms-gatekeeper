@@ -680,6 +680,47 @@ describe('when updating room metadata', () => {
   })
 })
 
+describe('when getting scene room metadata from room name', () => {
+  describe('when room name is a scene room', () => {
+    it('should extract realm name and scene ID from scene room name and return undefined for world name', () => {
+      const roomName = 'scene-realm1:scene-id-123'
+      const result = livekitComponent.getSceneRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        realmName: 'realm1',
+        sceneId: 'scene-id-123',
+        worldName: undefined
+      })
+    })
+  })
+
+  describe('when room name is a world room', () => {
+    it('should extract world name and return undefined for scene id and realm name', () => {
+      const roomName = 'world-world-name-123'
+      const result = livekitComponent.getSceneRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        realmName: undefined,
+        sceneId: undefined,
+        worldName: 'world-name-123'
+      })
+    })
+  })
+
+  describe('when room name is neither scene nor world room', () => {
+    it('should return undefined values', () => {
+      const roomName = 'unknown-room-name'
+      const result = livekitComponent.getSceneRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        realmName: undefined,
+        sceneId: undefined,
+        worldName: undefined
+      })
+    })
+  })
+})
+
 describe('when getting webhook event', () => {
   const body = '{"event": "room_finished"}'
   const authorization = 'Bearer token123'
