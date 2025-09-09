@@ -5,11 +5,13 @@ import { ISceneBanManager } from '../../../src/types'
 import { IPlacesComponent } from '../../../src/types/places.type'
 import { IFetchComponent } from '@well-known-components/interfaces'
 import { IConfigComponent } from '@well-known-components/interfaces'
+import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
 import { createFetchMockedComponent } from '../../mocks/fetch-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
+import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 
 // Mock dcl-catalyst-client
 jest.mock('dcl-catalyst-client', () => ({
@@ -25,6 +27,7 @@ describe('Room Started Handler', () => {
   let places: jest.Mocked<IPlacesComponent>
   let fetch: jest.Mocked<IFetchComponent>
   let config: jest.Mocked<IConfigComponent>
+  let logs: jest.Mocked<ILoggerComponent>
   let getSceneRoomMetadataFromRoomNameMock: jest.MockedFunction<ILivekitComponent['getSceneRoomMetadataFromRoomName']>
   let getPlaceByWorldNameMock: jest.MockedFunction<IPlacesComponent['getPlaceByWorldName']>
   let getPlaceByParcelMock: jest.MockedFunction<IPlacesComponent['getPlaceByParcel']>
@@ -60,6 +63,8 @@ describe('Room Started Handler', () => {
       requireString: jest.fn().mockResolvedValue('https://catalyst.example.com')
     })
 
+    logs = createLoggerMockedComponent()
+
     // Mock the catalyst client
     const { createContentClient } = require('dcl-catalyst-client')
     const mockCatalyst = {
@@ -72,7 +77,8 @@ describe('Room Started Handler', () => {
       sceneBanManager,
       places,
       fetch,
-      config
+      config,
+      logs
     })
   })
 
@@ -157,39 +163,12 @@ describe('Room Started Handler', () => {
             getPlaceByWorldNameMock.mockRejectedValue(new Error('World not found'))
           })
 
-          it('should propagate the error', async () => {
-            await expect(handler.handle(webhookEvent)).rejects.toThrow('World not found')
+          it('should ignore the error and not throw', async () => {
+            await handler.handle(webhookEvent)
 
             expect(getPlaceByWorldNameMock).toHaveBeenCalledWith('test-world')
             expect(listBannedAddressesMock).not.toHaveBeenCalled()
             expect(updateRoomMetadataMock).not.toHaveBeenCalled()
-          })
-        })
-
-        describe('and getting banned addresses fails', () => {
-          beforeEach(() => {
-            listBannedAddressesMock.mockRejectedValue(new Error('Database error'))
-          })
-
-          it('should propagate the error', async () => {
-            await expect(handler.handle(webhookEvent)).rejects.toThrow('Database error')
-
-            expect(listBannedAddressesMock).toHaveBeenCalledWith('world-place-id')
-            expect(updateRoomMetadataMock).not.toHaveBeenCalled()
-          })
-        })
-
-        describe('and updating room metadata fails', () => {
-          beforeEach(() => {
-            updateRoomMetadataMock.mockRejectedValue(new Error('LiveKit error'))
-          })
-
-          it('should propagate the error', async () => {
-            await expect(handler.handle(webhookEvent)).rejects.toThrow('LiveKit error')
-
-            expect(updateRoomMetadataMock).toHaveBeenCalledWith(webhookEvent.room!.name, {
-              bannedAddresses: ['0x123', '0x456']
-            })
           })
         })
       })
@@ -235,8 +214,8 @@ describe('Room Started Handler', () => {
             fetchEntityByIdMock.mockRejectedValue(new Error('Catalyst error'))
           })
 
-          it('should propagate the error', async () => {
-            await expect(handler.handle(webhookEvent)).rejects.toThrow('Catalyst error')
+          it('should ignore the error and not throw', async () => {
+            await handler.handle(webhookEvent)
 
             expect(fetchEntityByIdMock).toHaveBeenCalledWith('scene-id-123')
             expect(getPlaceByParcelMock).not.toHaveBeenCalled()
@@ -250,39 +229,12 @@ describe('Room Started Handler', () => {
             getPlaceByParcelMock.mockRejectedValue(new Error('Place not found'))
           })
 
-          it('should propagate the error', async () => {
-            await expect(handler.handle(webhookEvent)).rejects.toThrow('Place not found')
+          it('should ignore the error and not throw', async () => {
+            await handler.handle(webhookEvent)
 
             expect(getPlaceByParcelMock).toHaveBeenCalledWith('-10,-10')
             expect(listBannedAddressesMock).not.toHaveBeenCalled()
             expect(updateRoomMetadataMock).not.toHaveBeenCalled()
-          })
-        })
-
-        describe('and getting banned addresses fails', () => {
-          beforeEach(() => {
-            listBannedAddressesMock.mockRejectedValue(new Error('Database error'))
-          })
-
-          it('should propagate the error', async () => {
-            await expect(handler.handle(webhookEvent)).rejects.toThrow('Database error')
-
-            expect(listBannedAddressesMock).toHaveBeenCalledWith('scene-place-id')
-            expect(updateRoomMetadataMock).not.toHaveBeenCalled()
-          })
-        })
-
-        describe('and updating room metadata fails', () => {
-          beforeEach(() => {
-            updateRoomMetadataMock.mockRejectedValue(new Error('LiveKit error'))
-          })
-
-          it('should propagate the error', async () => {
-            await expect(handler.handle(webhookEvent)).rejects.toThrow('LiveKit error')
-
-            expect(updateRoomMetadataMock).toHaveBeenCalledWith(webhookEvent.room!.name, {
-              bannedAddresses: ['0x789', '0xabc']
-            })
           })
         })
       })
@@ -303,6 +255,46 @@ describe('Room Started Handler', () => {
 
           expect(updateRoomMetadataMock).toHaveBeenCalledWith(webhookEvent.room!.name, {
             bannedAddresses: []
+          })
+        })
+      })
+
+      describe('and getting banned addresses fails', () => {
+        beforeEach(() => {
+          getSceneRoomMetadataFromRoomNameMock.mockReturnValue({
+            realmName: undefined,
+            sceneId: undefined,
+            worldName: 'test-world'
+          })
+          getPlaceByWorldNameMock.mockResolvedValue(createMockedWorldPlace({ id: 'world-place-id' }))
+          listBannedAddressesMock.mockRejectedValue(new Error('Database error'))
+        })
+
+        it('should ignore the error and not throw', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(listBannedAddressesMock).toHaveBeenCalledWith('world-place-id')
+          expect(updateRoomMetadataMock).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and updating room metadata fails', () => {
+        beforeEach(() => {
+          getSceneRoomMetadataFromRoomNameMock.mockReturnValue({
+            realmName: undefined,
+            sceneId: undefined,
+            worldName: 'test-world'
+          })
+          getPlaceByWorldNameMock.mockResolvedValue(createMockedWorldPlace({ id: 'world-place-id' }))
+          listBannedAddressesMock.mockResolvedValue(['0x123', '0x456'])
+          updateRoomMetadataMock.mockRejectedValue(new Error('LiveKit error'))
+        })
+
+        it('should ignore the error and not throw', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(updateRoomMetadataMock).toHaveBeenCalledWith(webhookEvent.room!.name, {
+            bannedAddresses: ['0x123', '0x456']
           })
         })
       })

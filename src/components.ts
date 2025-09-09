@@ -42,6 +42,7 @@ import {
 } from './logic/livekit-webhook'
 import { AnalyticsEventPayload } from './types/analytics'
 import { createLandLeaseComponent } from './adapters/land-lease'
+import { createRoomStartedHandler } from './logic/livekit-webhook/event-handlers/room-started-handler'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -175,6 +176,14 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     analytics,
     logs
   })
+  const roomStartedHandler = await createRoomStartedHandler({
+    livekit,
+    sceneBanManager,
+    places,
+    fetch: tracedFetch,
+    config,
+    logs
+  })
 
   const livekitWebhook = createLivekitWebhookComponent()
 
@@ -182,6 +191,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   livekitWebhook.registerEventHandler(ingressEndedHandler)
   livekitWebhook.registerEventHandler(participantJoinedHandler)
   livekitWebhook.registerEventHandler(participantLeftHandler)
+  livekitWebhook.registerEventHandler(roomStartedHandler)
 
   return {
     analytics,
