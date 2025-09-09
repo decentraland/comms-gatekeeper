@@ -116,8 +116,6 @@ export async function commsSceneHandler(
     }
   })
 
-  console.log('adapter', livekit.buildConnectionUrl(credentials.url, credentials.token))
-
   return {
     status: 200,
     body: {
