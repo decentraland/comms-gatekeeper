@@ -20,6 +20,7 @@ export const createLivekitMockedComponent = (
     getParticipantInfo: jest.fn(),
     updateParticipantMetadata: jest.fn(),
     updateParticipantPermissions: jest.fn(),
+    updateRoomMetadata: jest.fn(),
     start: jest.fn(),
     stop: jest.fn(),
     ...overrides
