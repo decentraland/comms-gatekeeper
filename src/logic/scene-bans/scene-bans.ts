@@ -93,9 +93,9 @@ export function createSceneBansComponent(
         logger.warn(`Error removing participant ${bannedAddress} from LiveKit room ${roomName}`, { err })
       }),
       sceneBanManager.addBan({
-        place_id: place.id,
-        banned_address: bannedAddress.toLowerCase(),
-        banned_by: bannedBy.toLowerCase()
+        placeId: place.id,
+        bannedAddress: bannedAddress.toLowerCase(),
+        bannedBy: bannedBy.toLowerCase()
       })
     ])
 

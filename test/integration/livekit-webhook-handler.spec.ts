@@ -377,9 +377,9 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         // Create actual banned addresses in the database
         for (const address of bannedAddresses) {
           await components.sceneBanManager.addBan({
-            place_id: placeId,
-            banned_address: address,
-            banned_by: 'test-admin'
+            placeId,
+            bannedAddress: address,
+            bannedBy: 'test-admin'
           })
         }
 
@@ -433,9 +433,9 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         // Create actual banned addresses in the database
         for (const address of bannedAddresses) {
           await components.sceneBanManager.addBan({
-            place_id: placeId,
-            banned_address: address,
-            banned_by: 'test-admin'
+            placeId,
+            bannedAddress: address,
+            bannedBy: 'test-admin'
           })
         }
       })
