@@ -72,7 +72,7 @@ describe('Participant Left Handler', () => {
       })
 
       describe('and room is a voice chat room', () => {
-        it('should call voice.handleParticipantLeft and log debug message', async () => {
+        it('should call the participant left handler and log the debug message', async () => {
           await handler.handle(webhookEvent)
 
           expect(handleParticipantLeftMock).toHaveBeenCalledWith(userAddress, roomName, disconnectReason)
@@ -84,7 +84,7 @@ describe('Participant Left Handler', () => {
           webhookEvent.room!.name = 'not-a-voice-chat-room'
         })
 
-        it('should not call voice.handleParticipantLeft', async () => {
+        it('should not call the participant left handler', async () => {
           await handler.handle(webhookEvent)
 
           expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_LEFT_ROOM, {
@@ -165,7 +165,7 @@ describe('Participant Left Handler', () => {
       })
     })
 
-    describe('and voice.handleParticipantLeft fails', () => {
+    describe('and the participant left handler fails', () => {
       let error: Error
 
       beforeEach(() => {
@@ -185,7 +185,7 @@ describe('Participant Left Handler', () => {
       })
     })
 
-    describe('and analytics.fireEvent fails', () => {
+    describe('and firing the analytics event fails', () => {
       let error: Error
 
       beforeEach(() => {
