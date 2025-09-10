@@ -67,7 +67,7 @@ describe('Participant Joined Handler', () => {
       })
 
       describe('and room is a voice chat room', () => {
-        it('should call voice.handleParticipantJoined and log debug message', async () => {
+        it('should not call the participant joined handler and log the debug message', async () => {
           await handler.handle(webhookEvent)
 
           expect(handleParticipantJoinedMock).toHaveBeenCalledWith(userAddress, roomName)
