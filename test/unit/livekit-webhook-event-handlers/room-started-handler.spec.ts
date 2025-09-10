@@ -2,38 +2,28 @@ import { WebhookEvent } from 'livekit-server-sdk'
 import { createRoomStartedHandler } from '../../../src/logic/livekit-webhook/event-handlers/room-started-handler'
 import { ILivekitComponent } from '../../../src/types/livekit.type'
 import { ISceneBanManager } from '../../../src/types'
-import { IPlacesComponent } from '../../../src/types/places.type'
-import { IFetchComponent } from '@well-known-components/interfaces'
-import { IConfigComponent } from '@well-known-components/interfaces'
+import { IPlacesComponent, PlaceAttributes } from '../../../src/types/places.type'
 import { ILoggerComponent } from '@well-known-components/interfaces'
+import { IContentClientComponent } from '../../../src/types/content-client.type'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
-import { createFetchMockedComponent } from '../../mocks/fetch-mock'
-import { createConfigMockedComponent } from '../../mocks/config-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
-
-// Mock dcl-catalyst-client
-jest.mock('dcl-catalyst-client', () => ({
-  createContentClient: jest.fn(() => ({
-    fetchEntityById: jest.fn()
-  }))
-}))
+import { createContentClientMockedComponent } from '../../mocks/content-client-mock'
+import { Entity, EntityType } from '@dcl/schemas'
 
 describe('Room Started Handler', () => {
-  let handler: Awaited<ReturnType<typeof createRoomStartedHandler>>
+  let handler: ReturnType<typeof createRoomStartedHandler>
   let livekit: jest.Mocked<ILivekitComponent>
   let sceneBanManager: jest.Mocked<ISceneBanManager>
   let places: jest.Mocked<IPlacesComponent>
-  let fetch: jest.Mocked<IFetchComponent>
-  let config: jest.Mocked<IConfigComponent>
+  let contentClient: jest.Mocked<IContentClientComponent>
   let logs: jest.Mocked<ILoggerComponent>
   let getSceneRoomMetadataFromRoomNameMock: jest.MockedFunction<ILivekitComponent['getSceneRoomMetadataFromRoomName']>
   let getPlaceByWorldNameMock: jest.MockedFunction<IPlacesComponent['getPlaceByWorldName']>
   let getPlaceByParcelMock: jest.MockedFunction<IPlacesComponent['getPlaceByParcel']>
   let listBannedAddressesMock: jest.MockedFunction<ISceneBanManager['listBannedAddresses']>
   let updateRoomMetadataMock: jest.MockedFunction<ILivekitComponent['updateRoomMetadata']>
-  let fetchEntityByIdMock: jest.MockedFunction<any>
 
   beforeEach(async () => {
     getSceneRoomMetadataFromRoomNameMock = jest.fn()
@@ -41,7 +31,6 @@ describe('Room Started Handler', () => {
     getPlaceByParcelMock = jest.fn()
     listBannedAddressesMock = jest.fn()
     updateRoomMetadataMock = jest.fn()
-    fetchEntityByIdMock = jest.fn()
 
     livekit = createLivekitMockedComponent({
       getSceneRoomMetadataFromRoomName: getSceneRoomMetadataFromRoomNameMock,
@@ -57,27 +46,15 @@ describe('Room Started Handler', () => {
       getPlaceByParcel: getPlaceByParcelMock
     })
 
-    fetch = createFetchMockedComponent()
-
-    config = createConfigMockedComponent({
-      requireString: jest.fn().mockResolvedValue('https://catalyst.example.com')
-    })
+    contentClient = createContentClientMockedComponent()
 
     logs = createLoggerMockedComponent()
 
-    // Mock the catalyst client
-    const { createContentClient } = require('dcl-catalyst-client')
-    const mockCatalyst = {
-      fetchEntityById: fetchEntityByIdMock
-    }
-    createContentClient.mockReturnValue(mockCatalyst)
-
-    handler = await createRoomStartedHandler({
+    handler = createRoomStartedHandler({
       livekit,
       sceneBanManager,
       places,
-      fetch,
-      config,
+      contentClient,
       logs
     })
   })
@@ -151,7 +128,7 @@ describe('Room Started Handler', () => {
           expect(getSceneRoomMetadataFromRoomNameMock).toHaveBeenCalledWith(webhookEvent.room!.name)
           expect(getPlaceByWorldNameMock).toHaveBeenCalledWith('test-world')
           expect(getPlaceByParcelMock).not.toHaveBeenCalled()
-          expect(fetchEntityByIdMock).not.toHaveBeenCalled()
+          expect(contentClient.fetchEntityById).not.toHaveBeenCalled()
           expect(listBannedAddressesMock).toHaveBeenCalledWith('world-place-id')
           expect(updateRoomMetadataMock).toHaveBeenCalledWith(webhookEvent.room!.name, {
             bannedAddresses: ['0x123', '0x456']
@@ -174,12 +151,18 @@ describe('Room Started Handler', () => {
       })
 
       describe('and room is a scene room', () => {
-        let scenePlace: any
-        let mockEntity: any
+        let scenePlace: PlaceAttributes
+        let mockEntity: Entity
 
         beforeEach(() => {
           scenePlace = createMockedPlace({ id: 'scene-place-id' })
           mockEntity = {
+            version: '1',
+            id: 'scene-id-123',
+            type: EntityType.SCENE,
+            pointers: [],
+            timestamp: Date.now(),
+            content: [],
             metadata: {
               scene: {
                 base: '-10,-10'
@@ -191,7 +174,7 @@ describe('Room Started Handler', () => {
             sceneId: 'scene-id-123',
             worldName: undefined
           })
-          fetchEntityByIdMock.mockResolvedValue(mockEntity)
+          contentClient.fetchEntityById.mockResolvedValue(mockEntity)
           getPlaceByParcelMock.mockResolvedValue(scenePlace)
           listBannedAddressesMock.mockResolvedValue(['0x789', '0xabc'])
         })
@@ -200,7 +183,7 @@ describe('Room Started Handler', () => {
           await handler.handle(webhookEvent)
 
           expect(getSceneRoomMetadataFromRoomNameMock).toHaveBeenCalledWith(webhookEvent.room!.name)
-          expect(fetchEntityByIdMock).toHaveBeenCalledWith('scene-id-123')
+          expect(contentClient.fetchEntityById).toHaveBeenCalledWith('scene-id-123')
           expect(getPlaceByParcelMock).toHaveBeenCalledWith('-10,-10')
           expect(getPlaceByWorldNameMock).not.toHaveBeenCalled()
           expect(listBannedAddressesMock).toHaveBeenCalledWith('scene-place-id')
@@ -211,13 +194,13 @@ describe('Room Started Handler', () => {
 
         describe('and fetching entity fails', () => {
           beforeEach(() => {
-            fetchEntityByIdMock.mockRejectedValue(new Error('Catalyst error'))
+            contentClient.fetchEntityById.mockRejectedValue(new Error('Catalyst error'))
           })
 
           it('should ignore the error and not throw', async () => {
             await handler.handle(webhookEvent)
 
-            expect(fetchEntityByIdMock).toHaveBeenCalledWith('scene-id-123')
+            expect(contentClient.fetchEntityById).toHaveBeenCalledWith('scene-id-123')
             expect(getPlaceByParcelMock).not.toHaveBeenCalled()
             expect(listBannedAddressesMock).not.toHaveBeenCalled()
             expect(updateRoomMetadataMock).not.toHaveBeenCalled()

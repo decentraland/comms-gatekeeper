@@ -3,6 +3,7 @@ import { WebhookEvent } from 'livekit-server-sdk'
 import { test } from '../components'
 import { makeRequest } from '../utils'
 import { VoiceChatUserStatus } from '../../src/adapters/db/types'
+import { EntityType } from '@dcl/schemas'
 import { createMockedPlace, createMockedWorldPlace } from '../mocks/places-mock'
 
 test('POST /livekit-webhook', ({ components, spyComponents }) => {
@@ -352,6 +353,12 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
         const mockedPlace = createMockedPlace({ id: placeId })
         const mockedEntity = {
+          version: '1',
+          id: 'scene-id-123',
+          type: EntityType.SCENE,
+          pointers: [],
+          timestamp: Date.now(),
+          content: [],
           metadata: {
             scene: {
               base: '-9,-9'
@@ -376,16 +383,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           })
         }
 
-        // Mock the catalyst fetch for entity data
-        spyComponents.fetch.fetch.mockImplementation((url: string) => {
-          if (url.includes('entities/active')) {
-            return Promise.resolve({
-              ok: true,
-              json: () => Promise.resolve([mockedEntity])
-            } as any)
-          }
-          return Promise.reject(new Error(`Unexpected fetch URL: ${url}`))
-        })
+        spyComponents.contentClient.fetchEntityById.mockResolvedValue(mockedEntity)
       })
 
       afterEach(async () => {

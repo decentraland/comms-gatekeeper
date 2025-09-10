@@ -30,6 +30,7 @@ import { ICronJobComponent } from './logic/cron-job/types'
 import { ILivekitWebhookComponent } from './logic/livekit-webhook'
 import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
+import { IContentClientComponent } from './types/content-client.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -69,6 +70,7 @@ export type BaseComponents = {
   livekitWebhook: ILivekitWebhookComponent
   voiceChatExpirationJob?: ICronJobComponent
   communityVoiceChatExpirationJob?: ICronJobComponent
+  contentClient: IContentClientComponent
 }
 
 export type AppComponents = BaseComponents & {

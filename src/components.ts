@@ -43,6 +43,7 @@ import {
 import { AnalyticsEventPayload } from './types/analytics'
 import { createLandLeaseComponent } from './adapters/land-lease'
 import { createRoomStartedHandler } from './logic/livekit-webhook/event-handlers/room-started-handler'
+import { createContentClientComponent } from './adapters/content-client'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -159,6 +160,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   // Scene ban components
   const sceneBans = createSceneBansComponent({ sceneBanManager, livekit, logs, sceneManager, places, analytics, names })
 
+  const contentClient = await createContentClientComponent({ config, fetch: tracedFetch })
+
   // LiveKit webhook event handlers
   const ingressStartedHandler = createIngressStartedHandler({
     sceneStreamAccessManager
@@ -176,12 +179,11 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     analytics,
     logs
   })
-  const roomStartedHandler = await createRoomStartedHandler({
+  const roomStartedHandler = createRoomStartedHandler({
     livekit,
     sceneBanManager,
     places,
-    fetch: tracedFetch,
-    config,
+    contentClient,
     logs
   })
 
@@ -227,6 +229,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneAdmins,
     notifications,
     landLease,
-    livekitWebhook
+    livekitWebhook,
+    contentClient
   }
 }

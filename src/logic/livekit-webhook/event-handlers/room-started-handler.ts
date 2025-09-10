@@ -2,17 +2,14 @@ import { WebhookEvent } from 'livekit-server-sdk'
 import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { PlaceAttributes } from '../../../types/places.type'
-import { ContentClient, createContentClient } from 'dcl-catalyst-client'
 import { isErrorWithMessage } from '../../../logic/errors'
 
-export async function createRoomStartedHandler(
-  components: Pick<AppComponents, 'livekit' | 'sceneBanManager' | 'places' | 'fetch' | 'config' | 'logs'>
-): Promise<ILivekitWebhookEventHandler> {
-  const { livekit, sceneBanManager, places, fetch, config, logs } = components
+export function createRoomStartedHandler(
+  components: Pick<AppComponents, 'livekit' | 'sceneBanManager' | 'places' | 'contentClient' | 'logs'>
+): ILivekitWebhookEventHandler {
+  const { livekit, sceneBanManager, places, contentClient, logs } = components
 
   const logger = logs.getLogger('room-started-handler')
-  const catalystContentUrl = await config.requireString('CATALYST_CONTENT_URL')
-  const catalyst: ContentClient = createContentClient({ url: catalystContentUrl, fetcher: fetch })
 
   return {
     eventName: WebhookEventName.ROOM_STARTED,
@@ -34,7 +31,7 @@ export async function createRoomStartedHandler(
           place = await places.getPlaceByWorldName(worldName)
         } else {
           // TODO: we could retry if fails
-          const entity = await catalyst.fetchEntityById(sceneId!)
+          const entity = await contentClient.fetchEntityById(sceneId!)
           place = await places.getPlaceByParcel(entity.metadata.scene.base)
         }
 
