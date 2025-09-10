@@ -79,7 +79,7 @@ describe('Participant Joined Handler', () => {
           webhookEvent.room!.name = 'not-a-voice-chat-room'
         })
 
-        it('should not call voice.handleParticipantJoined', async () => {
+        it('should not call the participant joined handler', async () => {
           await handler.handle(webhookEvent)
 
           expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_JOINED_ROOM, {
