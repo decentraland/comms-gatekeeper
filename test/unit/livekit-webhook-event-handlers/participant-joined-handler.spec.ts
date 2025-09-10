@@ -159,7 +159,7 @@ describe('Participant Joined Handler', () => {
       })
     })
 
-    describe('and analytics.fireEvent fails', () => {
+    describe('and firing the analytics event fails', () => {
       let error: Error
 
       beforeEach(() => {
