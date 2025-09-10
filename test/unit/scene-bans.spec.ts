@@ -1392,7 +1392,7 @@ describe('SceneBanComponent', () => {
     describe('and there are places with bans but none are disabled', () => {
       beforeEach(() => {
         sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1', 'place2'])
-        placesMockedComponent.getPlaceStatusById.mockResolvedValue([
+        placesMockedComponent.getPlaceStatusByIds.mockResolvedValue([
           { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
           { id: 'place2', disabled: false, world: false, world_name: '', base_position: '0,0' }
         ])
@@ -1402,7 +1402,7 @@ describe('SceneBanComponent', () => {
         await sceneBanComponent.removeBansFromDisabledPlaces()
 
         expect(sceneBanManagerMockedComponent.getPlacesIdWithBans).toHaveBeenCalled()
-        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenCalledWith(['place1', 'place2'])
+        expect(placesMockedComponent.getPlaceStatusByIds).toHaveBeenCalledWith(['place1', 'place2'])
         expect(sceneBanManagerMockedComponent.removeBansByPlaceIds).not.toHaveBeenCalled()
       })
     })
@@ -1410,7 +1410,7 @@ describe('SceneBanComponent', () => {
     describe('and there are disabled places with bans', () => {
       beforeEach(() => {
         sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1', 'place2', 'place3'])
-        placesMockedComponent.getPlaceStatusById.mockResolvedValue([
+        placesMockedComponent.getPlaceStatusByIds.mockResolvedValue([
           { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
           { id: 'place2', disabled: true, world: false, world_name: '', base_position: '0,0' },
           { id: 'place3', disabled: true, world: false, world_name: '', base_position: '0,0' }
@@ -1422,7 +1422,7 @@ describe('SceneBanComponent', () => {
         await sceneBanComponent.removeBansFromDisabledPlaces()
 
         expect(sceneBanManagerMockedComponent.getPlacesIdWithBans).toHaveBeenCalled()
-        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenCalledWith(['place1', 'place2', 'place3'])
+        expect(placesMockedComponent.getPlaceStatusByIds).toHaveBeenCalledWith(['place1', 'place2', 'place3'])
         expect(sceneBanManagerMockedComponent.removeBansByPlaceIds).toHaveBeenCalledWith(['place2', 'place3'])
       })
     })
@@ -1441,7 +1441,7 @@ describe('SceneBanComponent', () => {
           base_position: '0,0'
         }))
 
-        placesMockedComponent.getPlaceStatusById
+        placesMockedComponent.getPlaceStatusByIds
           .mockResolvedValueOnce(placeStatuses.slice(0, 100))
           .mockResolvedValueOnce(placeStatuses.slice(100, 200))
           .mockResolvedValueOnce(placeStatuses.slice(200, 250))
@@ -1453,10 +1453,10 @@ describe('SceneBanComponent', () => {
         await sceneBanComponent.removeBansFromDisabledPlaces()
 
         expect(sceneBanManagerMockedComponent.getPlacesIdWithBans).toHaveBeenCalled()
-        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenCalledTimes(3)
-        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenNthCalledWith(1, expect.any(Array))
-        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenNthCalledWith(2, expect.any(Array))
-        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenNthCalledWith(3, expect.any(Array))
+        expect(placesMockedComponent.getPlaceStatusByIds).toHaveBeenCalledTimes(3)
+        expect(placesMockedComponent.getPlaceStatusByIds).toHaveBeenNthCalledWith(1, expect.any(Array))
+        expect(placesMockedComponent.getPlaceStatusByIds).toHaveBeenNthCalledWith(2, expect.any(Array))
+        expect(placesMockedComponent.getPlaceStatusByIds).toHaveBeenNthCalledWith(3, expect.any(Array))
 
         // Should have called removeBansByPlaceIds with the disabled places
         expect(sceneBanManagerMockedComponent.removeBansByPlaceIds).toHaveBeenCalled()

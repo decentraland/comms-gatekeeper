@@ -298,7 +298,7 @@ export function createSceneBansComponent(
 
       for (let i = 0; i < placesIdWithBans.length; i += batchSize) {
         const batch = placesIdWithBans.slice(i, i + batchSize)
-        const batchResult = await places.getPlaceStatusById(batch)
+        const batchResult = await places.getPlaceStatusByIds(batch)
         placesFromIds = placesFromIds.concat(batchResult)
       }
 

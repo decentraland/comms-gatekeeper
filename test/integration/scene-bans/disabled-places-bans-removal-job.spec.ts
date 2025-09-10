@@ -18,7 +18,7 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
     bannedAddresses = generateRandomWalletAddresses(6)
 
     // Mock only the places component to simulate disabled places
-    spyComponents.places.getPlaceStatusById.mockResolvedValue([
+    spyComponents.places.getPlaceStatusByIds.mockResolvedValue([
       { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
       { id: 'place2', disabled: true, world: false, world_name: '', base_position: '0,0' },
       { id: 'place3', disabled: true, world: false, world_name: '', base_position: '0,0' },
@@ -60,13 +60,13 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
     it('should not remove any bans', async () => {
       await components.sceneBans.removeBansFromDisabledPlaces()
 
-      expect(spyComponents.places.getPlaceStatusById).not.toHaveBeenCalled()
+      expect(spyComponents.places.getPlaceStatusByIds).not.toHaveBeenCalled()
     })
   })
 
   describe('when there are places with bans but none are disabled', () => {
     beforeEach(() => {
-      spyComponents.places.getPlaceStatusById.mockResolvedValue([
+      spyComponents.places.getPlaceStatusByIds.mockResolvedValue([
         { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
         { id: 'place2', disabled: false, world: false, world_name: '', base_position: '0,0' },
         { id: 'place3', disabled: false, world: false, world_name: '', base_position: '0,0' },
@@ -88,7 +88,7 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
 
       await components.sceneBans.removeBansFromDisabledPlaces()
 
-      expect(spyComponents.places.getPlaceStatusById).toHaveBeenCalledWith(expect.arrayContaining(placeIds))
+      expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenCalledWith(expect.arrayContaining(placeIds))
 
       // Verify no bans were removed
       const place1BansAfter = await components.sceneBanManager.listBannedAddresses('place1')
@@ -120,7 +120,7 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
       await components.sceneBans.removeBansFromDisabledPlaces()
 
       // Verify the places component was called correctly
-      expect(spyComponents.places.getPlaceStatusById).toHaveBeenCalledWith(expect.arrayContaining(placeIds))
+      expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenCalledWith(expect.arrayContaining(placeIds))
 
       // Verify the actual database state after the operation
       const place1BansAfter = await components.sceneBanManager.listBannedAddresses('place1')
@@ -166,7 +166,7 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
         base_position: '0,0'
       }))
 
-      spyComponents.places.getPlaceStatusById
+      spyComponents.places.getPlaceStatusByIds
         .mockResolvedValueOnce(placeStatuses.slice(0, 100))
         .mockResolvedValueOnce(placeStatuses.slice(100, 200))
         .mockResolvedValueOnce(placeStatuses.slice(200, 250))
@@ -179,7 +179,7 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
 
       await components.sceneBans.removeBansFromDisabledPlaces()
 
-      expect(spyComponents.places.getPlaceStatusById).toHaveBeenCalledTimes(3)
+      expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenCalledTimes(3)
 
       // Verify that bans were actually removed from the database
       const finalBansCount = await components.database.query('SELECT COUNT(*) FROM scene_bans')
@@ -193,16 +193,16 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
       expect(removedCount).toBeGreaterThan(0)
 
       // Verify that the places component was called with the correct batches
-      expect(spyComponents.places.getPlaceStatusById).toHaveBeenNthCalledWith(1, expect.any(Array))
-      expect(spyComponents.places.getPlaceStatusById).toHaveBeenNthCalledWith(2, expect.any(Array))
-      expect(spyComponents.places.getPlaceStatusById).toHaveBeenNthCalledWith(3, expect.any(Array))
+      expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenNthCalledWith(1, expect.any(Array))
+      expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenNthCalledWith(2, expect.any(Array))
+      expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenNthCalledWith(3, expect.any(Array))
     })
   })
 
   describe('when an error occurs during processing', () => {
     it('should propagate the error', async () => {
       // Mock the places component to throw an error
-      spyComponents.places.getPlaceStatusById.mockRejectedValue(new Error('Places service error'))
+      spyComponents.places.getPlaceStatusByIds.mockRejectedValue(new Error('Places service error'))
 
       await expect(components.sceneBans.removeBansFromDisabledPlaces()).rejects.toThrow('Places service error')
     })
