@@ -793,10 +793,20 @@
     ajv-keywords "^5.1.0"
     mitt "^3.0.1"
 
-"@dcl/schemas@^16.8.0", "@dcl/schemas@^16.9.0":
+"@dcl/schemas@^16.9.0":
   version "16.9.0"
   resolved "https://registry.npmjs.org/@dcl/schemas/-/schemas-16.9.0.tgz"
   integrity sha512-YmYb2QvdOr5AdCzRsmlv3iT2KGnJ9jRqMVF7aMSgqOBcqCXuNsXZ28dQh3wnsNkmTR+xom4YIMJbkQTkKeoSXA==
+  dependencies:
+    ajv "^8.11.0"
+    ajv-errors "^3.0.0"
+    ajv-keywords "^5.1.0"
+    mitt "^3.0.1"
+
+"@dcl/schemas@^18.5.0":
+  version "18.5.0"
+  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-18.5.0.tgz#5a589386baf49cdad82b3f8ec5c73d70d41eb6ee"
+  integrity sha512-30qu8YL2PIKrdoJt03EKWZxhwSIa7rbID1cyoD43gX4aBPy3v1T1ZqVk6ctIHmvtsA6VW/oYtc7n41HVixtY6A==
   dependencies:
     ajv "^8.11.0"
     ajv-errors "^3.0.0"
