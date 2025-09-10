@@ -19,6 +19,12 @@ export type ParticipantPermissions = {
   canPublishData?: boolean
 }
 
+export type SceneRoomMetadata = {
+  realmName?: string
+  sceneId?: string
+  worldName?: string
+}
+
 export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
 
 export type ILivekitComponent = IBaseComponent & {
@@ -35,6 +41,7 @@ export type ILivekitComponent = IBaseComponent & {
   removeParticipant: (roomId: string, participantId: string) => Promise<void>
   getWorldRoomName: (worldName: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
+  getSceneRoomMetadataFromRoomName: (roomName: string) => SceneRoomMetadata
   getRoomName: (realmName: string, params: GetRoomNameParams) => string
   getRoom: (roomName: string) => Promise<Room>
   getRoomInfo: (roomName: string) => Promise<Room | null>

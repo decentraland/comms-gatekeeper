@@ -12,6 +12,7 @@ export const createLivekitMockedComponent = (
     getWorldRoomName: jest.fn(),
     getSceneRoomName: jest.fn(),
     getRoomName: jest.fn(),
+    getSceneRoomMetadataFromRoomName: jest.fn(),
     getRoom: jest.fn(),
     getRoomInfo: jest.fn(),
     getOrCreateIngress: jest.fn(),

@@ -33,8 +33,17 @@ import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
 import { createSceneBansComponent } from './logic/scene-bans'
 import { createCronJobComponent } from './logic/cron-job'
+import {
+  createIngressEndedHandler,
+  createIngressStartedHandler,
+  createParticipantJoinedHandler,
+  createParticipantLeftHandler,
+  createLivekitWebhookComponent
+} from './logic/livekit-webhook'
 import { AnalyticsEventPayload } from './types/analytics'
 import { createLandLeaseComponent } from './adapters/land-lease'
+import { createRoomStartedHandler } from './logic/livekit-webhook/event-handlers/room-started-handler'
+import { createContentClientComponent } from './adapters/content-client'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -151,6 +160,41 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   // Scene ban components
   const sceneBans = createSceneBansComponent({ sceneBanManager, livekit, logs, sceneManager, places, analytics, names })
 
+  const contentClient = await createContentClientComponent({ config, fetch: tracedFetch })
+
+  // LiveKit webhook event handlers
+  const ingressStartedHandler = createIngressStartedHandler({
+    sceneStreamAccessManager
+  })
+  const ingressEndedHandler = createIngressEndedHandler({
+    sceneStreamAccessManager
+  })
+  const participantJoinedHandler = createParticipantJoinedHandler({
+    voice,
+    analytics,
+    logs
+  })
+  const participantLeftHandler = createParticipantLeftHandler({
+    voice,
+    analytics,
+    logs
+  })
+  const roomStartedHandler = createRoomStartedHandler({
+    livekit,
+    sceneBanManager,
+    places,
+    contentClient,
+    logs
+  })
+
+  const livekitWebhook = createLivekitWebhookComponent()
+
+  livekitWebhook.registerEventHandler(ingressStartedHandler)
+  livekitWebhook.registerEventHandler(ingressEndedHandler)
+  livekitWebhook.registerEventHandler(participantJoinedHandler)
+  livekitWebhook.registerEventHandler(participantLeftHandler)
+  livekitWebhook.registerEventHandler(roomStartedHandler)
+
   return {
     analytics,
     blockList,
@@ -184,6 +228,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     publisher,
     sceneAdmins,
     notifications,
-    landLease
+    landLease,
+    livekitWebhook,
+    contentClient
   }
 }

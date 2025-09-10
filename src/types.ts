@@ -27,8 +27,10 @@ import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
 import { ISceneBansComponent } from './logic/scene-bans/types'
 import { ICronJobComponent } from './logic/cron-job/types'
+import { ILivekitWebhookComponent } from './logic/livekit-webhook'
 import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
+import { IContentClientComponent } from './types/content-client.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -65,8 +67,10 @@ export type BaseComponents = {
   landLease: ILandLeaseComponent
   analytics: IAnalyticsComponent<AnalyticsEventPayload>
   publisher: IPublisherComponent
+  livekitWebhook: ILivekitWebhookComponent
   voiceChatExpirationJob?: ICronJobComponent
   communityVoiceChatExpirationJob?: ICronJobComponent
+  contentClient: IContentClientComponent
 }
 
 export type AppComponents = BaseComponents & {
@@ -233,10 +237,15 @@ export interface AddSceneBanInput {
   banned_by: string
 }
 
+export type ListBannedAddressesOptions = {
+  limit?: number
+  offset?: number
+}
+
 export interface ISceneBanManager {
   addBan(input: AddSceneBanInput): Promise<void>
   removeBan(placeId: string, bannedAddress: string): Promise<void>
   countBannedAddresses(placeId: string): Promise<number>
-  listBannedAddresses(placeId: string, limit?: number, offset?: number): Promise<string[]>
+  listBannedAddresses(placeId: string, options?: ListBannedAddressesOptions): Promise<string[]>
   isBanned(placeId: string, address: string): Promise<boolean>
 }

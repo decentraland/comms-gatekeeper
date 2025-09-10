@@ -3,6 +3,8 @@ import { WebhookEvent } from 'livekit-server-sdk'
 import { test } from '../components'
 import { makeRequest } from '../utils'
 import { VoiceChatUserStatus } from '../../src/adapters/db/types'
+import { EntityType } from '@dcl/schemas'
+import { createMockedPlace, createMockedWorldPlace } from '../mocks/places-mock'
 
 test('POST /livekit-webhook', ({ components, spyComponents }) => {
   const callerAddress = '0x1234567890123456789012345678901234567890'
@@ -24,7 +26,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     spyComponents.livekit.getWebhookEvent.mockResolvedValue(webhookEvent)
     spyComponents.analytics.fireEvent.mockReturnValue(undefined)
-    
+
     // Set up spies for voice component methods but preserve original implementation
     handleParticipantJoinedSpy = jest.spyOn(components.voice, 'handleParticipantJoined')
     handleParticipantLeftSpy = jest.spyOn(components.voice, 'handleParticipantLeft')
@@ -42,7 +44,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     describe('and the room is a voice chat room', () => {
       beforeEach(async () => {
-        webhookEvent.room.name = 'voice-chat-private-123'  // Use correct private voice chat format
+        webhookEvent.room.name = 'voice-chat-private-123' // Use correct private voice chat format
         await components.voiceDB.createVoiceChatRoom(webhookEvent.room.name, [callerAddress, calleeAddress])
         // Join the users to the room so they exist when we process the webhook
         await components.voiceDB.joinUserToRoom(callerAddress, webhookEvent.room.name)
@@ -126,7 +128,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
             webhookEvent.room.name,
             DisconnectReason.DUPLICATE_IDENTITY
           )
-          
+
           // Verify that the user's status wasn't changed in the database (no side effects)
           await expect(components.voiceDB.getUsersInRoom(webhookEvent.room.name)).resolves.toContainEqual({
             address: callerAddress,
@@ -184,7 +186,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
     describe('and the room is a voice chat room', () => {
       beforeEach(async () => {
-        webhookEvent.room.name = 'voice-chat-private-123'  // Use correct private voice chat format
+        webhookEvent.room.name = 'voice-chat-private-123' // Use correct private voice chat format
         await components.voiceDB.createVoiceChatRoom(webhookEvent.room.name, [callerAddress, calleeAddress])
       })
 
@@ -203,7 +205,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
 
           beforeEach(async () => {
             oldRoomName = webhookEvent.room.name
-            webhookEvent.room.name = 'voice-chat-private-456'  // Use correct private voice chat format
+            webhookEvent.room.name = 'voice-chat-private-456' // Use correct private voice chat format
             await components.voiceDB.createVoiceChatRoom(webhookEvent.room.name, [callerAddress, calleeAddress])
             spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
           })
@@ -335,6 +337,181 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
     })
   })
 
+  describe('when the event is a room started event', () => {
+    beforeEach(() => {
+      webhookEvent.event = 'room_started'
+    })
+
+    describe('and the room is a scene room', () => {
+      let placeId: string
+      let bannedAddresses: string[]
+
+      beforeEach(async () => {
+        webhookEvent.room.name = 'scene-realm1:scene-id-123'
+        placeId = 'test-place-id'
+        bannedAddresses = ['0x123', '0x456']
+
+        const mockedPlace = createMockedPlace({ id: placeId })
+        const mockedEntity = {
+          version: '1',
+          id: 'scene-id-123',
+          type: EntityType.SCENE,
+          pointers: [],
+          timestamp: Date.now(),
+          content: [],
+          metadata: {
+            scene: {
+              base: '-9,-9'
+            }
+          }
+        }
+
+        spyComponents.livekit.getSceneRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: 'scene-id-123',
+          worldName: undefined
+        })
+        spyComponents.config.requireString.mockResolvedValue('http://localhost:9000')
+        spyComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
+        spyComponents.livekit.updateRoomMetadata.mockResolvedValue(undefined)
+
+        // Create actual banned addresses in the database
+        for (const address of bannedAddresses) {
+          await components.sceneBanManager.addBan({
+            place_id: placeId,
+            banned_address: address,
+            banned_by: 'test-admin'
+          })
+        }
+
+        spyComponents.contentClient.fetchEntityById.mockResolvedValue(mockedEntity)
+      })
+
+      afterEach(async () => {
+        // Clean up banned addresses
+        for (const address of bannedAddresses) {
+          await components.sceneBanManager.removeBan(placeId, address)
+        }
+      })
+
+      it('should respond with a 200 and update room metadata with banned addresses', async () => {
+        const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer aToken',
+            'Content-Type': 'application/json'
+          },
+          body: 'aBody'
+        })
+
+        expect(response.status).toBe(200)
+        expect(spyComponents.livekit.updateRoomMetadata).toHaveBeenCalledWith(
+          webhookEvent.room.name,
+          expect.objectContaining({
+            bannedAddresses: expect.arrayContaining(bannedAddresses)
+          })
+        )
+      })
+    })
+
+    describe('and the room is a world room', () => {
+      let placeId: string
+      let bannedAddresses: string[]
+
+      beforeEach(async () => {
+        webhookEvent.room.name = 'world-world-name-123'
+        placeId = 'test-world-place-id'
+        bannedAddresses = ['0x789', '0xabc']
+
+        spyComponents.livekit.getSceneRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: undefined,
+          worldName: 'world-name-123'
+        })
+        const mockedWorldPlace = createMockedWorldPlace({ id: placeId })
+        spyComponents.places.getPlaceByWorldName.mockResolvedValue(mockedWorldPlace)
+        spyComponents.livekit.updateRoomMetadata.mockResolvedValue(undefined)
+
+        // Create actual banned addresses in the database
+        for (const address of bannedAddresses) {
+          await components.sceneBanManager.addBan({
+            place_id: placeId,
+            banned_address: address,
+            banned_by: 'test-admin'
+          })
+        }
+      })
+
+      afterEach(async () => {
+        // Clean up banned addresses
+        for (const address of bannedAddresses) {
+          await components.sceneBanManager.removeBan(placeId, address)
+        }
+      })
+
+      it('should respond with a 200 and update room metadata with banned addresses', async () => {
+        const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer aToken',
+            'Content-Type': 'application/json'
+          },
+          body: 'aBody'
+        })
+
+        expect(response.status).toBe(200)
+        expect(spyComponents.livekit.updateRoomMetadata).toHaveBeenCalledWith(
+          webhookEvent.room.name,
+          expect.objectContaining({
+            bannedAddresses: expect.arrayContaining(bannedAddresses)
+          })
+        )
+      })
+    })
+
+    describe('and the room is neither scene nor world room', () => {
+      beforeEach(() => {
+        webhookEvent.room.name = 'unknown-room-format'
+        spyComponents.livekit.getSceneRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: undefined,
+          worldName: undefined
+        })
+      })
+
+      it('should respond with a 200 and do nothing', async () => {
+        const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer aToken',
+            'Content-Type': 'application/json'
+          },
+          body: 'aBody'
+        })
+
+        expect(response.status).toBe(200)
+        expect(spyComponents.livekit.updateRoomMetadata).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the room is missing', () => {
+      beforeEach(() => {
+        webhookEvent.room = undefined
+      })
+
+      it('should respond with a 200 and do nothing', async () => {
+        const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer aToken',
+            'Content-Type': 'application/json'
+          },
+          body: 'aBody'
+        })
+
+        expect(response.status).toBe(200)
+        expect(spyComponents.livekit.updateRoomMetadata).not.toHaveBeenCalled()
+      })
+    })
+  })
+
   describe('when the room is a community voice chat room', () => {
     const communityId = 'test-community-123'
     const moderatorAddress = '0x1234567890123456789012345678901234567890'
@@ -407,7 +584,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           // Verify the room was destroyed in the database since no other moderators
           const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
           expect(usersInRoom).toHaveLength(0)
-          
+
           // Verify LiveKit room was deleted
           expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(webhookEvent.room.name)
         })
@@ -416,7 +593,11 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           // Add another moderator to the room
           const anotherModeratorAddress = '0x1234567890123456789012345678901234567892'
           await components.voiceDB.joinUserToCommunityRoom(anotherModeratorAddress, webhookEvent.room.name, true)
-          await components.voiceDB.updateCommunityUserStatus(anotherModeratorAddress, webhookEvent.room.name, VoiceChatUserStatus.Connected)
+          await components.voiceDB.updateCommunityUserStatus(
+            anotherModeratorAddress,
+            webhookEvent.room.name,
+            VoiceChatUserStatus.Connected
+          )
 
           const response = await makeRequest(components.localFetch, '/livekit-webhook', {
             method: 'POST',
@@ -437,52 +618,52 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           // Verify the room was NOT destroyed since there's another active moderator
           const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
           expect(usersInRoom.length).toBeGreaterThan(0)
-          
+
           // The leaving moderator should be marked as disconnected
           const leavingModerator = usersInRoom.find((user) => user.address === moderatorAddress)
           expect(leavingModerator!.status).toBe(VoiceChatUserStatus.Disconnected)
-          
+
           // The other moderator should still be connected
           const remainingModerator = usersInRoom.find((user) => user.address === anotherModeratorAddress)
           expect(remainingModerator!.status).toBe(VoiceChatUserStatus.Connected)
           expect(remainingModerator!.isModerator).toBe(true)
-          
-                     // Verify LiveKit room was NOT deleted
-           expect(spyComponents.livekit.deleteRoom).not.toHaveBeenCalledWith(webhookEvent.room.name)
-         })
-       })
 
-       describe('when a participant leaves due to connection interruption', () => {
-         beforeEach(() => {
-           webhookEvent.participant.identity = memberAddress
-           webhookEvent.participant.disconnectReason = DisconnectReason.MIGRATION
-         })
+          // Verify LiveKit room was NOT deleted
+          expect(spyComponents.livekit.deleteRoom).not.toHaveBeenCalledWith(webhookEvent.room.name)
+        })
+      })
 
-         it('should mark user as connection interrupted in database', async () => {
-           const response = await makeRequest(components.localFetch, '/livekit-webhook', {
-             method: 'POST',
-             headers: {
-               Authorization: 'Bearer aToken',
-               'Content-Type': 'application/json'
-             },
-             body: 'aBody'
-           })
+      describe('when a participant leaves due to connection interruption', () => {
+        beforeEach(() => {
+          webhookEvent.participant.identity = memberAddress
+          webhookEvent.participant.disconnectReason = DisconnectReason.MIGRATION
+        })
 
-           expect(response.status).toBe(200)
-           expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
-             memberAddress,
-             webhookEvent.room.name,
-             DisconnectReason.MIGRATION
-           )
+        it('should mark user as connection interrupted in database', async () => {
+          const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer aToken',
+              'Content-Type': 'application/json'
+            },
+            body: 'aBody'
+          })
 
-           // Verify the database was updated correctly
-           const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
-           const memberUser = usersInRoom.find((user) => user.address === memberAddress)
-           expect(memberUser).toBeDefined()
-           expect(memberUser!.status).toBe(VoiceChatUserStatus.ConnectionInterrupted)
-         })
-       })
-     })
+          expect(response.status).toBe(200)
+          expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
+            memberAddress,
+            webhookEvent.room.name,
+            DisconnectReason.MIGRATION
+          )
+
+          // Verify the database was updated correctly
+          const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
+          const memberUser = usersInRoom.find((user) => user.address === memberAddress)
+          expect(memberUser).toBeDefined()
+          expect(memberUser!.status).toBe(VoiceChatUserStatus.ConnectionInterrupted)
+        })
+      })
+    })
 
     describe('when a participant joins', () => {
       beforeEach(() => {
@@ -502,10 +683,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(
-          memberAddress,
-          webhookEvent.room.name
-        )
+        expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(memberAddress, webhookEvent.room.name)
 
         // Verify the database was updated correctly
         const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
@@ -530,10 +708,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           })
 
           expect(response.status).toBe(200)
-          expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(
-            moderatorAddress,
-            webhookEvent.room.name
-          )
+          expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(moderatorAddress, webhookEvent.room.name)
 
           // Verify the database was updated correctly
           const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)

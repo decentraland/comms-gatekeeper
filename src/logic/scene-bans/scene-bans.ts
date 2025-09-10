@@ -236,7 +236,7 @@ export function createSceneBansComponent(
 
     // Get both the addresses and total count
     const [addresses, total] = await Promise.all([
-      sceneBanManager.listBannedAddresses(place.id, limit, offset),
+      sceneBanManager.listBannedAddresses(place.id, { limit, offset }),
       sceneBanManager.countBannedAddresses(place.id)
     ])
 

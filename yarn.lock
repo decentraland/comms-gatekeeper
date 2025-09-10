@@ -723,12 +723,17 @@
   dependencies:
     "@dcl/core-commons" "0.2.2"
 
+"@dcl/catalyst-contracts@^4.4.0":
+  version "4.4.2"
+  resolved "https://registry.yarnpkg.com/@dcl/catalyst-contracts/-/catalyst-contracts-4.4.2.tgz#e7a329d7aee25c90d7ee07dbe82200a048f17ff9"
+  integrity sha512-gJZo3IB8U+jhBJWR0DgoLS+zaUDIb/u79e7Rp+MEM78uH3bvC19S3Dd8lxWEbPXNKlCB0saUptfK/Buw0c1y2Q==
+
 "@dcl/core-commons@0.2.2":
   version "0.2.2"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.2.2.tgz#61fb5af3f246a1adac2944afd8c305647476cce4"
   integrity sha512-P98N1DQHs8fXdM3bP2oHoegHXTpe3YO2/Tlhni2eJC78k/NEx75/wV2PFOFz0D+QJ2Q/J5c/oL03kAVFs5zDKQ==
 
-"@dcl/crypto@^3.4.3", "@dcl/crypto@^3.4.5":
+"@dcl/crypto@^3.4.0", "@dcl/crypto@^3.4.3", "@dcl/crypto@^3.4.5":
   version "3.4.5"
   resolved "https://registry.npmjs.org/@dcl/crypto/-/crypto-3.4.5.tgz"
   integrity sha512-uneyjOAOx7pi5kabZsLmPm9kSLkCk4Cok8FUsvT+6k8RquqkjKqocvkGVOMaoWsfU6S3mkLOyaeqEKmOy4ErxA==
@@ -754,6 +759,11 @@
     eslint-plugin-prettier "^5.1.3"
     prettier "^3.3.2"
 
+"@dcl/hashing@^3.0.0":
+  version "3.0.4"
+  resolved "https://registry.yarnpkg.com/@dcl/hashing/-/hashing-3.0.4.tgz#4df2a4cb3a8114765aed34cb57b91c93bf33bfb3"
+  integrity sha512-Cg+MoIOn+BYmQV2q8zSFnNYY+GldlnUazwBnfgrq3i66ZxOaZ65h01btd8OUtSAlfWG4VTNIOHDjtKqmuwJNBg==
+
 "@dcl/platform-crypto-middleware@^1.1.0":
   version "1.1.0"
   resolved "https://registry.npmjs.org/@dcl/platform-crypto-middleware/-/platform-crypto-middleware-1.1.0.tgz"
@@ -772,6 +782,16 @@
     "@well-known-components/http-server" "^2.1.0"
     "@well-known-components/interfaces" "^1.4.3"
     node-fetch "^2.7.0"
+
+"@dcl/schemas@^11.5.0":
+  version "11.12.0"
+  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-11.12.0.tgz#f52493b615ebdea8e02819bc2ed4a456239f3747"
+  integrity sha512-L04KTucvxSnrHDAl3/rnkzhjfZ785dSSPeKarBVfzyuw41uyQ0Mh4HVFWjX9hC+f/nMpM5Adg5udlT5efmepcA==
+  dependencies:
+    ajv "^8.11.0"
+    ajv-errors "^3.0.0"
+    ajv-keywords "^5.1.0"
+    mitt "^3.0.1"
 
 "@dcl/schemas@^16.8.0", "@dcl/schemas@^16.9.0":
   version "16.9.0"
@@ -1874,7 +1894,7 @@
   dependencies:
     dotenv "^16.0.1"
 
-"@well-known-components/fetch-component@^2.0.2":
+"@well-known-components/fetch-component@^2.0.0", "@well-known-components/fetch-component@^2.0.2":
   version "2.0.2"
   resolved "https://registry.npmjs.org/@well-known-components/fetch-component/-/fetch-component-2.0.2.tgz"
   integrity sha512-LdY+6n9kuyACg3fcU4qMrNhLZuG7eqPxLSqzDgQyoHKeNjlzggoUqTVJKtIyi6vjPs8pSQ/Fx1xdLuBhOKCgww==
@@ -2356,6 +2376,11 @@ convert-source-map@^2.0.0:
   resolved "https://registry.npmjs.org/convert-source-map/-/convert-source-map-2.0.0.tgz"
   integrity sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==
 
+cookie@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/cookie/-/cookie-0.5.0.tgz#d1f5d71adec6558c58f389987c366aa47e994f8b"
+  integrity sha512-YZ3GUyn/o8gfKJlnlX7g7xq4gyO6OSuhGPKaaGssGB2qgDUS0gPgtTvoyZLTt9Ab6dC4hfc9dV5arkvc/OCmrw==
+
 create-jest@^29.7.0:
   version "29.7.0"
   resolved "https://registry.npmjs.org/create-jest/-/create-jest-29.7.0.tgz"
@@ -2397,6 +2422,20 @@ cross-spawn@^7.0.2, cross-spawn@^7.0.3:
     path-key "^3.1.0"
     shebang-command "^2.0.0"
     which "^2.0.1"
+
+dcl-catalyst-client@^21.8.1:
+  version "21.8.1"
+  resolved "https://registry.yarnpkg.com/dcl-catalyst-client/-/dcl-catalyst-client-21.8.1.tgz#e70f2221c9e7045e338c8eff7bca631fe96d58e5"
+  integrity sha512-VtYSBDmiHOFdAl3qzi2CtEUJ8VlJqQ6uTZXYTZ6pCgT/lQnxYkdB0VCVfSfqNo9OD+S7dYeayQ2n+Uap32K0AA==
+  dependencies:
+    "@dcl/catalyst-contracts" "^4.4.0"
+    "@dcl/crypto" "^3.4.0"
+    "@dcl/hashing" "^3.0.0"
+    "@dcl/schemas" "^11.5.0"
+    "@well-known-components/fetch-component" "^2.0.0"
+    cookie "^0.5.0"
+    cross-fetch "^3.1.5"
+    form-data "^4.0.0"
 
 debug@^3.2.7:
   version "3.2.7"

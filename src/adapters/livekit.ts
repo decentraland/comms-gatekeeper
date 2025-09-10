@@ -17,7 +17,8 @@ import {
   ILivekitComponent,
   LivekitCredentials,
   LivekitSettings,
-  ParticipantPermissions
+  ParticipantPermissions,
+  SceneRoomMetadata
 } from '../types/livekit.type'
 import { isErrorWithMessage } from '../logic/errors'
 
@@ -98,6 +99,14 @@ export async function createLivekitComponent(
 
   function getSceneRoomName(realmName: string, sceneId: string): string {
     return `${sceneRoomPrefix}${realmName}:${sceneId}`
+  }
+
+  function getSceneRoomMetadataFromRoomName(roomName: string): SceneRoomMetadata {
+    const [realmName, sceneId] = roomName.includes(sceneRoomPrefix)
+      ? roomName.replace(`${sceneRoomPrefix}`, '').split(':')
+      : []
+    const worldName = roomName.includes(worldRoomPrefix) ? roomName.replace(`${worldRoomPrefix}`, '') : undefined
+    return { realmName, sceneId, worldName }
   }
 
   function getRoomName(realmName: string, params: GetRoomNameParams): string {
@@ -300,6 +309,7 @@ export async function createLivekitComponent(
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
+    getSceneRoomMetadataFromRoomName,
     getRoomName,
     muteParticipant,
     removeParticipant,
