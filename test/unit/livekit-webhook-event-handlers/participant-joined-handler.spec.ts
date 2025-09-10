@@ -140,7 +140,7 @@ describe('Participant Joined Handler', () => {
       })
     })
 
-    describe('and voice.handleParticipantJoined fails', () => {
+    describe('and handling that a participant joined fails', () => {
       let error: Error
 
       beforeEach(() => {
