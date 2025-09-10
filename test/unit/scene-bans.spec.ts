@@ -1374,4 +1374,106 @@ describe('SceneBanComponent', () => {
       })
     })
   })
+
+  describe('when removing bans from disabled places', () => {
+    describe('and there are no places with bans', () => {
+      beforeEach(() => {
+        sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue([])
+      })
+
+      it('should not remove any bans when no places with bans exist', async () => {
+        await sceneBanComponent.removeBansFromDisabledPlaces()
+
+        expect(sceneBanManagerMockedComponent.getPlacesIdWithBans).toHaveBeenCalled()
+        expect(sceneBanManagerMockedComponent.removeBansByPlaceIds).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and there are places with bans but none are disabled', () => {
+      beforeEach(() => {
+        sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1', 'place2'])
+        placesMockedComponent.getPlaceStatusById.mockResolvedValue([
+          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
+          { id: 'place2', disabled: false, world: false, world_name: '', base_position: '0,0' }
+        ])
+      })
+
+      it('should not remove any bans when no disabled places exist', async () => {
+        await sceneBanComponent.removeBansFromDisabledPlaces()
+
+        expect(sceneBanManagerMockedComponent.getPlacesIdWithBans).toHaveBeenCalled()
+        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenCalledWith(['place1', 'place2'])
+        expect(sceneBanManagerMockedComponent.removeBansByPlaceIds).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and there are disabled places with bans', () => {
+      beforeEach(() => {
+        sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1', 'place2', 'place3'])
+        placesMockedComponent.getPlaceStatusById.mockResolvedValue([
+          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
+          { id: 'place2', disabled: true, world: false, world_name: '', base_position: '0,0' },
+          { id: 'place3', disabled: true, world: false, world_name: '', base_position: '0,0' }
+        ])
+        sceneBanManagerMockedComponent.removeBansByPlaceIds.mockResolvedValue(undefined)
+      })
+
+      it('should remove bans for disabled places', async () => {
+        await sceneBanComponent.removeBansFromDisabledPlaces()
+
+        expect(sceneBanManagerMockedComponent.getPlacesIdWithBans).toHaveBeenCalled()
+        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenCalledWith(['place1', 'place2', 'place3'])
+        expect(sceneBanManagerMockedComponent.removeBansByPlaceIds).toHaveBeenCalledWith(['place2', 'place3'])
+      })
+    })
+
+    describe('and there are many places requiring batching', () => {
+      beforeEach(() => {
+        const placeIds = Array.from({ length: 250 }, (_, i) => `place${i + 1}`)
+        sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(placeIds)
+
+        // Mock places with some disabled
+        const placeStatuses = placeIds.map((placeId, index) => ({
+          id: placeId,
+          disabled: index % 3 === 0, // Every third place is disabled
+          world: false,
+          world_name: '',
+          base_position: '0,0'
+        }))
+
+        placesMockedComponent.getPlaceStatusById
+          .mockResolvedValueOnce(placeStatuses.slice(0, 100))
+          .mockResolvedValueOnce(placeStatuses.slice(100, 200))
+          .mockResolvedValueOnce(placeStatuses.slice(200, 250))
+
+        sceneBanManagerMockedComponent.removeBansByPlaceIds.mockResolvedValue(undefined)
+      })
+
+      it('should process places in batches and remove bans for disabled places', async () => {
+        await sceneBanComponent.removeBansFromDisabledPlaces()
+
+        expect(sceneBanManagerMockedComponent.getPlacesIdWithBans).toHaveBeenCalled()
+        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenCalledTimes(3)
+        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenNthCalledWith(1, expect.any(Array))
+        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenNthCalledWith(2, expect.any(Array))
+        expect(placesMockedComponent.getPlaceStatusById).toHaveBeenNthCalledWith(3, expect.any(Array))
+
+        // Should have called removeBansByPlaceIds with the disabled places
+        expect(sceneBanManagerMockedComponent.removeBansByPlaceIds).toHaveBeenCalled()
+        const calledWith = sceneBanManagerMockedComponent.removeBansByPlaceIds.mock.calls[0][0]
+        expect(calledWith).toHaveLength(84) // Approximately 1/3 of 250 places
+        expect(calledWith.every((placeId) => placeId.startsWith('place'))).toBe(true)
+      })
+    })
+
+    describe('and an error occurs during processing', () => {
+      beforeEach(() => {
+        sceneBanManagerMockedComponent.getPlacesIdWithBans.mockRejectedValue(new Error('Database error'))
+      })
+
+      it('should propagate the error', async () => {
+        await expect(sceneBanComponent.removeBansFromDisabledPlaces()).rejects.toThrow('Database error')
+      })
+    })
+  })
 })

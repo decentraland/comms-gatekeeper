@@ -44,4 +44,32 @@ describe('SceneBanManager', () => {
       })
     })
   })
+
+  describe('when removing bans by place IDs', () => {
+    describe('and place IDs array is empty', () => {
+      it('should skip removal when no place IDs provided', async () => {
+        await sceneBanManager.removeBansByPlaceIds([])
+
+        expect(mockedDatabase.query).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and place IDs array has values', () => {
+      describe('and database operation fails', () => {
+        let placeIds: string[]
+        let dbError: Error
+
+        beforeEach(() => {
+          placeIds = ['place1', 'place2', 'place3']
+          dbError = new Error('Database connection failed')
+
+          mockedDatabase.query.mockRejectedValue(dbError)
+        })
+
+        it('should handle database errors', async () => {
+          await expect(sceneBanManager.removeBansByPlaceIds(placeIds)).rejects.toThrow('Database connection failed')
+        })
+      })
+    })
+  })
 })

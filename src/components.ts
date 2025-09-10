@@ -50,6 +50,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
   const metrics = await createMetricsComponent(metricDeclarations, { config })
   const everyMinuteExpression = '* * * * *'
+  const everyMondayAt0000Expression = '0 0 0 * * 1'
   const tracer = createTracerComponent()
   const logs = await createLogComponent({ metrics, tracer })
   const server = await createServerComponent<GlobalContext>(
@@ -159,6 +160,12 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   // Scene ban components
   const sceneBans = createSceneBansComponent({ sceneBanManager, livekit, logs, sceneManager, places, analytics, names })
+  const disabledPlacesBansRemovalJob = await createCronJobComponent(
+    { logs },
+    sceneBans.removeBansFromDisabledPlaces,
+    everyMondayAt0000Expression,
+    { startOnInit: isProduction, waitForCompletion: true }
+  )
 
   const contentClient = await createContentClientComponent({ config, fetch: tracedFetch })
 
@@ -206,6 +213,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     fetch: tracedFetch,
     voiceChatExpirationJob,
     communityVoiceChatExpirationJob,
+    disabledPlacesBansRemovalJob,
     metrics,
     cachedFetch,
     worlds,
