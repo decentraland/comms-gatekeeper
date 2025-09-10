@@ -27,9 +27,9 @@ describe('SceneBanManager', () => {
 
     beforeEach(() => {
       sceneBan = {
-        place_id: 'test-place-id',
-        banned_address: '0x1234567890123456789012345678901234567890',
-        banned_by: '0x0987654321098765432109876543210987654321'
+        placeId: 'test-place-id',
+        bannedAddress: '0x1234567890123456789012345678901234567890',
+        bannedBy: '0x0987654321098765432109876543210987654321'
       }
     })
 

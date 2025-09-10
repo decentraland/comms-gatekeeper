@@ -232,9 +232,9 @@ export type SceneBannedAddresses = {
 }
 
 export interface AddSceneBanInput {
-  place_id: string
-  banned_address: string
-  banned_by: string
+  placeId: string
+  bannedAddress: string
+  bannedBy: string
 }
 
 export type ListBannedAddressesOptions = {

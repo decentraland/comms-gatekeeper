@@ -8,10 +8,10 @@ export async function createSceneBanManagerComponent({
   const logger = logs.getLogger('scene-ban-manager')
 
   async function addBan(input: AddSceneBanInput): Promise<void> {
-    const { place_id, banned_address, banned_by } = input
+    const { placeId, bannedAddress, bannedBy } = input
 
-    const bannedAddressLowercase = banned_address.toLowerCase()
-    const bannedByLowercase = banned_by.toLowerCase()
+    const bannedAddressLowercase = bannedAddress.toLowerCase()
+    const bannedByLowercase = bannedBy.toLowerCase()
 
     const result = await database.query<SceneBan>(
       SQL`
@@ -24,7 +24,7 @@ export async function createSceneBanManagerComponent({
         )
         VALUES (
           gen_random_uuid(),
-          ${place_id},
+          ${placeId},
           ${bannedAddressLowercase},
           ${bannedByLowercase},
           ${Date.now()}
@@ -36,8 +36,8 @@ export async function createSceneBanManagerComponent({
     )
 
     result.rowCount > 0
-      ? logger.info(`New ban created (${bannedAddressLowercase}) for place ${place_id}`)
-      : logger.info(`Ban already exists (${bannedAddressLowercase}) for place ${place_id}`)
+      ? logger.info(`New ban created (${bannedAddressLowercase}) for place ${placeId}`)
+      : logger.info(`Ban already exists (${bannedAddressLowercase}) for place ${placeId}`)
     return
   }
 
