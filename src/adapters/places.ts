@@ -34,7 +34,7 @@ export async function createPlacesComponent(
     return response.data[0]
   }
 
-  async function getPlaceStatusById(
+  async function getPlaceStatusByIds(
     ids: string[]
   ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>[]> {
     const response = await fetch.fetch(`${placesApiUrl}/places/status`, {
@@ -55,6 +55,6 @@ export async function createPlacesComponent(
   return {
     getPlaceByParcel,
     getPlaceByWorldName,
-    getPlaceStatusById
+    getPlaceStatusByIds
   }
 }

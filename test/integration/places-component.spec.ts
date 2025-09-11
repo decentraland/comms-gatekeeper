@@ -110,7 +110,7 @@ describe('PlacesComponent', () => {
     })
   })
 
-  describe('getPlaceStatusById', () => {
+  describe('getPlaceStatusByIds', () => {
     it('should return place statuses for given ids', async () => {
       const mockResponse = {
         data: [
@@ -123,7 +123,7 @@ describe('PlacesComponent', () => {
         json: () => Promise.resolve(mockResponse)
       })
 
-      const result = await placesComponent.getPlaceStatusById(['1', '2'])
+      const result = await placesComponent.getPlaceStatusByIds(['1', '2'])
 
       expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places/status', {
         method: 'POST',
@@ -145,7 +145,7 @@ describe('PlacesComponent', () => {
         json: () => Promise.resolve(mockResponse)
       })
 
-      await expect(placesComponent.getPlaceStatusById(['1', '2'])).rejects.toThrow(PlaceNotFoundError)
+      await expect(placesComponent.getPlaceStatusByIds(['1', '2'])).rejects.toThrow(PlaceNotFoundError)
 
       expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places/status', {
         method: 'POST',

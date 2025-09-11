@@ -95,12 +95,16 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
         const { localFetch } = components
 
         // First, add a ban to remove
-        await components.database.query(
+        const banResult = await components.database.query(
           SQL`
             INSERT INTO scene_bans (id, place_id, banned_address, banned_by, banned_at)
             VALUES (gen_random_uuid(), ${testPlaceId}, ${nonOwner.authChain[0].payload.toLowerCase()}, ${owner.authChain[0].payload.toLowerCase()}, ${Date.now()})
+            RETURNING *
           `
         )
+
+        // Track the ban for cleanup
+        cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
 
         const response = await makeRequest(
           localFetch,
@@ -124,12 +128,16 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
         const { localFetch } = components
 
         // First, add a ban to remove
-        await components.database.query(
+        const banResult = await components.database.query(
           SQL`
           INSERT INTO scene_bans (id, place_id, banned_address, banned_by, banned_at)
           VALUES (gen_random_uuid(), ${worldPlaceId}, ${nonOwner.authChain[0].payload.toLowerCase()}, ${owner.authChain[0].payload.toLowerCase()}, ${Date.now()})
+          RETURNING *
         `
         )
+
+        // Track the ban for cleanup
+        cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
 
         const response = await makeRequest(
           localFetch,

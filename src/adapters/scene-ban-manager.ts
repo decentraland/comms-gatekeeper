@@ -113,11 +113,39 @@ export async function createSceneBanManagerComponent({
     return isBanned
   }
 
+  async function removeBansByPlaceIds(placeIds: string[]): Promise<void> {
+    if (placeIds.length === 0) {
+      logger.debug('No place IDs provided, skipping ban removal')
+      return
+    }
+
+    const result = await database.query<SceneBan>(
+      SQL`
+        DELETE FROM scene_bans 
+        WHERE place_id = ANY(${placeIds})
+        RETURNING *;
+      `
+    )
+
+    logger.info(`Removed ${result.rowCount} bans for places: ${placeIds.join(', ')}`)
+    return
+  }
+
+  async function getPlacesIdWithBans(): Promise<string[]> {
+    const result = await database.query<{ place_id: string }>(SQL`SELECT DISTINCT place_id FROM scene_bans`)
+
+    const placeIds = result.rows.map((row) => row.place_id)
+    logger.debug(`Found ${placeIds.length} places with bans`)
+    return placeIds
+  }
+
   return {
     addBan,
     removeBan,
     countBannedAddresses,
     listBannedAddresses,
-    isBanned
+    isBanned,
+    removeBansByPlaceIds,
+    getPlacesIdWithBans
   }
 }

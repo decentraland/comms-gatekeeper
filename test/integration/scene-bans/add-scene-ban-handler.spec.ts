@@ -123,6 +123,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       )
       expect(banResult.rowCount).toBe(1)
       expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
+
+      // Track the ban for cleanup
+      cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
     })
   })
 
@@ -171,6 +174,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       )
       expect(banResult.rowCount).toBe(1)
       expect(banResult.rows[0].banned_by).toBe(admin.authChain[0].payload.toLowerCase())
+
+      // Track the ban for cleanup
+      cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
     })
   })
 
@@ -204,6 +210,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       )
       expect(banResult.rowCount).toBe(1)
       expect(banResult.rows[0].banned_by).toBe(nonOwner.authChain[0].payload.toLowerCase())
+
+      // Track the ban for cleanup
+      cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
     })
   })
 
@@ -237,6 +246,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       )
       expect(banResult.rowCount).toBe(1)
       expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
+
+      // Track the ban for cleanup
+      cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
     })
   })
 
@@ -275,7 +287,7 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
       stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
 
-      await makeRequest(
+      const response = await makeRequest(
         components.localFetch,
         '/scene-bans',
         {
@@ -287,6 +299,14 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
         },
         owner
       )
+
+      // Track the ban for cleanup
+      const banResult = await components.database.query(
+        SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+      )
+      if (banResult.rows.length > 0) {
+        cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
+      }
     })
 
     it('should return a 204 without adding a new row to the database', async () => {
@@ -346,6 +366,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       )
       expect(banResult.rowCount).toBe(1)
       expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
+
+      // Track the ban for cleanup
+      cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
     })
   })
 

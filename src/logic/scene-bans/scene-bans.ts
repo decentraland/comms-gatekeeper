@@ -276,11 +276,65 @@ export function createSceneBansComponent(
     return isBanned
   }
 
+  /**
+   * Removes all bans for disabled places.
+   * This function is designed to be called by a cron job to clean up bans for places that have been disabled.
+   */
+  async function removeBansFromDisabledPlaces(): Promise<void> {
+    logger.info('Starting removal of bans from disabled places')
+
+    try {
+      // Get all places with bans
+      const placesIdWithBans = await sceneBanManager.getPlacesIdWithBans()
+
+      if (placesIdWithBans.length === 0) {
+        logger.info('No places with bans found')
+        return
+      }
+
+      // Get place status for all places with bans
+      let placesFromIds: Array<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>> = []
+      const batchSize = 100
+
+      for (let i = 0; i < placesIdWithBans.length; i += batchSize) {
+        const batch = placesIdWithBans.slice(i, i + batchSize)
+        const batchResult = await places.getPlaceStatusByIds(batch)
+        placesFromIds = placesFromIds.concat(batchResult)
+      }
+
+      // Filter disabled places
+      const placesDisabled = placesFromIds.filter((place) => place.disabled)
+
+      if (placesDisabled.length === 0) {
+        logger.info('No disabled places with bans found')
+        return
+      }
+
+      logger.info(
+        `Found ${placesDisabled.length} disabled places with bans: ${placesDisabled.map((place) => place.id).join(', ')}`
+      )
+
+      // Remove bans for all disabled places
+      const disabledPlaceIds = placesDisabled.map((place) => place.id)
+      await sceneBanManager.removeBansByPlaceIds(disabledPlaceIds)
+
+      logger.info(
+        `Successfully removed bans for ${disabledPlaceIds.length} disabled places: ${disabledPlaceIds.join(', ')}`
+      )
+    } catch (error) {
+      logger.error(
+        `Error while removing bans from disabled places: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
+      )
+      throw error
+    }
+  }
+
   return {
     addSceneBan,
     removeSceneBan,
     listSceneBans,
     listSceneBannedAddresses,
-    isUserBanned
+    isUserBanned,
+    removeBansFromDisabledPlaces
   }
 }
