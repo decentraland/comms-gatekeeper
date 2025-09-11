@@ -30,11 +30,13 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
     // Set up spies for voice component methods but preserve original implementation
     handleParticipantJoinedSpy = jest.spyOn(components.voice, 'handleParticipantJoined')
     handleParticipantLeftSpy = jest.spyOn(components.voice, 'handleParticipantLeft')
+    spyComponents.publisher.publishMessages.mockReturnValue(undefined)
   })
 
   afterEach(() => {
     handleParticipantJoinedSpy?.mockRestore()
     handleParticipantLeftSpy?.mockRestore()
+    spyComponents.publisher.publishMessages.mockRestore()
   })
 
   describe('when the event is a participant left event', () => {

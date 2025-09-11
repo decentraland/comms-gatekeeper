@@ -8,21 +8,39 @@ import { createAnalyticsMockedComponent } from '../../mocks/analytics-mocks'
 import { createVoiceMockedComponent } from '../../mocks/voice-mock'
 import { AnalyticsEvent } from '../../../src/types/analytics'
 import { DisconnectReason } from '@livekit/protocol'
+import { IPublisherComponent } from '../../../src/types'
+import { ILivekitComponent, SceneRoomMetadata } from '../../../src/types/livekit.type'
+import { createPublisherMockedComponent } from '../../mocks/publisher-mock'
+import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
+import { Events } from '@dcl/schemas'
 
 describe('Participant Left Handler', () => {
   let handler: ReturnType<typeof createParticipantLeftHandler>
+  let publishMessagesMock: jest.MockedFunction<IPublisherComponent['publishMessages']>
+  let getSceneRoomMetadataFromRoomNameMock: jest.MockedFunction<ILivekitComponent['getSceneRoomMetadataFromRoomName']>
   let voice: jest.Mocked<IVoiceComponent>
   let analytics: jest.Mocked<IAnalyticsComponent>
   let logs: jest.Mocked<ILoggerComponent>
   let handleParticipantLeftMock: jest.MockedFunction<IVoiceComponent['handleParticipantLeft']>
   let fireEventMock: jest.MockedFunction<IAnalyticsComponent['fireEvent']>
+  let livekit: jest.Mocked<ILivekitComponent>
+  let publisher: jest.Mocked<IPublisherComponent>
 
   beforeEach(() => {
     handleParticipantLeftMock = jest.fn()
     fireEventMock = jest.fn()
+    getSceneRoomMetadataFromRoomNameMock = jest.fn()
+    publishMessagesMock = jest.fn()
 
     voice = createVoiceMockedComponent({
       handleParticipantLeft: handleParticipantLeftMock
+    })
+
+    livekit = createLivekitMockedComponent({
+      getSceneRoomMetadataFromRoomName: getSceneRoomMetadataFromRoomNameMock
+    })
+    publisher = createPublisherMockedComponent({
+      publishMessages: publishMessagesMock
     })
 
     analytics = createAnalyticsMockedComponent({
@@ -34,7 +52,9 @@ describe('Participant Left Handler', () => {
     handler = createParticipantLeftHandler({
       voice,
       analytics,
-      logs
+      logs,
+      livekit,
+      publisher
     })
   })
 
@@ -43,11 +63,17 @@ describe('Participant Left Handler', () => {
     let roomName: string
     let disconnectReason: DisconnectReason
     let webhookEvent: WebhookEvent
+    let roomMetadata: SceneRoomMetadata
 
     beforeEach(() => {
       userAddress = '0x1234567890123456789012345678901234567890'
       roomName = 'voice-chat-private-123'
       disconnectReason = DisconnectReason.CLIENT_INITIATED
+      roomMetadata = {
+        sceneId: undefined,
+        worldName: undefined,
+        realmName: undefined
+      }
       webhookEvent = {
         event: 'participant_left',
         room: {
@@ -57,10 +83,16 @@ describe('Participant Left Handler', () => {
           identity: userAddress,
           disconnectReason
         }
-      } as unknown as WebhookEvent
+      } as WebhookEvent
+      getSceneRoomMetadataFromRoomNameMock.mockReturnValueOnce(roomMetadata)
     })
 
     describe('and room and participant data are valid', () => {
+      beforeEach(() => {
+        roomMetadata.realmName = 'a-realm-name'
+        roomMetadata.sceneId = 'a-scene-id'
+      })
+
       it('should fire analytics event with correct parameters', async () => {
         await handler.handle(webhookEvent)
 
@@ -95,6 +127,68 @@ describe('Participant Left Handler', () => {
           expect(handleParticipantLeftMock).not.toHaveBeenCalled()
         })
       })
+
+      describe('and room is a genesis city scene room', () => {
+        beforeEach(() => {
+          webhookEvent.room!.name = 'genesis-city-prd-scene-room-a-realm-name:scene-id-123'
+
+          roomMetadata.realmName = 'a-realm-name'
+          roomMetadata.sceneId = 'scene-id-123'
+        })
+
+        it('should publish the user left room event', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(publishMessagesMock).toHaveBeenCalledWith([
+            {
+              type: Events.Type.COMMS,
+              subType: Events.SubType.Comms.USER_LEFT_ROOM,
+              key: `user-left-room-${webhookEvent.room!.name}`,
+              timestamp: expect.any(Number),
+              metadata: {
+                sceneId: 'scene-id-123',
+                userAddress: userAddress,
+                isWorld: false,
+                realmName: 'a-realm-name'
+              }
+            }
+          ])
+        })
+      })
+
+      describe('and room is a world room', () => {
+        beforeEach(() => {
+          webhookEvent.room!.name = 'world-world-name-123'
+          getSceneRoomMetadataFromRoomNameMock.mockReturnValueOnce({
+            sceneId: undefined,
+            worldName: 'world-world-name-123',
+            realmName: undefined
+          })
+        })
+
+        it('should publish the user left room event', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(publishMessagesMock).toHaveBeenCalledWith([
+            expect.objectContaining({
+              type: Events.Type.COMMS,
+              subType: Events.SubType.Comms.USER_LEFT_ROOM
+            })
+          ])
+        })
+      })
+
+      describe('and publishing the user left room event fails', () => {
+        beforeEach(() => {
+          publishMessagesMock.mockRejectedValue(new Error('Failed to publish user left room event'))
+        })
+
+        it('should not reject with the error and continue', async () => {
+          await handler.handle(webhookEvent)
+          expect(analytics.fireEvent).toHaveBeenCalled()
+          expect(handleParticipantLeftMock).toHaveBeenCalled()
+        })
+      })
     })
 
     describe('and room data is missing', () => {
@@ -102,15 +196,12 @@ describe('Participant Left Handler', () => {
         webhookEvent.room = undefined
       })
 
-      it('should fire analytics event with unknown values and not call voice methods', async () => {
+      it('should early return and not call any other method', async () => {
         await handler.handle(webhookEvent)
 
-        expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_LEFT_ROOM, {
-          room: 'Unknown',
-          address: userAddress,
-          reason: disconnectReason.toString()
-        })
+        expect(fireEventMock).not.toHaveBeenCalled()
         expect(handleParticipantLeftMock).not.toHaveBeenCalled()
+        expect(publishMessagesMock).not.toHaveBeenCalled()
       })
     })
 
@@ -119,15 +210,12 @@ describe('Participant Left Handler', () => {
         webhookEvent.participant = undefined
       })
 
-      it('should fire analytics event with unknown values and not call voice methods', async () => {
+      it('should early return and not call any other method', async () => {
         await handler.handle(webhookEvent)
 
-        expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_LEFT_ROOM, {
-          room: roomName,
-          address: 'Unknown',
-          reason: 'Unknown'
-        })
+        expect(fireEventMock).not.toHaveBeenCalled()
         expect(handleParticipantLeftMock).not.toHaveBeenCalled()
+        expect(publishMessagesMock).not.toHaveBeenCalled()
       })
     })
 
@@ -137,31 +225,12 @@ describe('Participant Left Handler', () => {
         webhookEvent.participant = undefined
       })
 
-      it('should fire analytics event with unknown values and not call voice methods', async () => {
+      it('should early return and not call any other method', async () => {
         await handler.handle(webhookEvent)
 
-        expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_LEFT_ROOM, {
-          room: 'Unknown',
-          address: 'Unknown',
-          reason: 'Unknown'
-        })
+        expect(fireEventMock).not.toHaveBeenCalled()
         expect(handleParticipantLeftMock).not.toHaveBeenCalled()
-      })
-    })
-
-    describe('and disconnect reason is missing', () => {
-      beforeEach(() => {
-        webhookEvent.participant!.disconnectReason = undefined
-      })
-
-      it('should fire analytics event with unknown reason', async () => {
-        await handler.handle(webhookEvent)
-
-        expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_LEFT_ROOM, {
-          room: roomName,
-          address: userAddress,
-          reason: 'Unknown'
-        })
+        expect(publishMessagesMock).not.toHaveBeenCalled()
       })
     })
 
@@ -171,6 +240,11 @@ describe('Participant Left Handler', () => {
       beforeEach(() => {
         error = new Error('Voice handler failed')
         handleParticipantLeftMock.mockRejectedValue(error)
+        getSceneRoomMetadataFromRoomNameMock.mockReturnValueOnce({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: undefined
+        })
       })
 
       it('should reject with the error', async () => {
@@ -192,6 +266,11 @@ describe('Participant Left Handler', () => {
         error = new Error('Analytics failed')
         fireEventMock.mockImplementation(() => {
           throw error
+        })
+        getSceneRoomMetadataFromRoomNameMock.mockReturnValueOnce({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: undefined
         })
       })
 
