@@ -18,7 +18,16 @@ export function createRoomStartedHandler(
         return
       }
 
+      logger.info('Room started handler', {
+        room: webhookEvent.room.name
+      })
+
       const { sceneId, worldName } = livekit.getSceneRoomMetadataFromRoomName(webhookEvent.room.name)
+
+      logger.debug('Scene room metadata from room name', {
+        sceneId: sceneId ?? 'undefined',
+        worldName: worldName ?? 'undefined'
+      })
 
       if (!sceneId && !worldName) {
         return
@@ -35,7 +44,13 @@ export function createRoomStartedHandler(
           place = await places.getPlaceByParcel(entity.metadata.scene.base)
         }
 
+        logger.debug(`Retrieving banned addresses for place ${place.id}`)
+
         const bannedAddresses = await sceneBanManager.listBannedAddresses(place.id)
+
+        logger.debug(
+          `Updating room metadata for room ${webhookEvent.room.name} with  ${bannedAddresses.length} banned addresses`
+        )
 
         await livekit.updateRoomMetadata(webhookEvent.room.name, {
           bannedAddresses
