@@ -1381,7 +1381,7 @@ describe('SceneBanComponent', () => {
         sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue([])
       })
 
-      it('should not remove any bans when no places with bans exist', async () => {
+      it('should not remove any bans', async () => {
         await sceneBanComponent.removeBansFromDisabledPlaces()
 
         expect(sceneBanManagerMockedComponent.getPlacesIdWithBans).toHaveBeenCalled()
@@ -1398,7 +1398,7 @@ describe('SceneBanComponent', () => {
         ])
       })
 
-      it('should not remove any bans when no disabled places exist', async () => {
+      it('should not remove any bans', async () => {
         await sceneBanComponent.removeBansFromDisabledPlaces()
 
         expect(sceneBanManagerMockedComponent.getPlacesIdWithBans).toHaveBeenCalled()

@@ -47,7 +47,7 @@ describe('SceneBanManager', () => {
 
   describe('when removing bans by place IDs', () => {
     describe('and place IDs array is empty', () => {
-      it('should skip removal when no place IDs provided', async () => {
+      it('should skip removal', async () => {
         await sceneBanManager.removeBansByPlaceIds([])
 
         expect(mockedDatabase.query).not.toHaveBeenCalled()
@@ -66,7 +66,7 @@ describe('SceneBanManager', () => {
           mockedDatabase.query.mockRejectedValue(dbError)
         })
 
-        it('should handle database errors', async () => {
+        it('should reject with the propagated error', async () => {
           await expect(sceneBanManager.removeBansByPlaceIds(placeIds)).rejects.toThrow('Database connection failed')
         })
       })
