@@ -62,4 +62,10 @@ export interface ISceneBansComponent {
    * @returns True if the user is banned, false otherwise.
    */
   isUserBanned(address: string, params: IsUserBannedParams): Promise<boolean>
+
+  /**
+   * Removes all bans for disabled places.
+   * This function is designed to be called by a cron job to clean up bans for places that have been disabled.
+   */
+  removeBansFromDisabledPlaces(): Promise<void>
 }

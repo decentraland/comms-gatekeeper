@@ -52,7 +52,7 @@ describe('StreamingKeyTTLChecker', () => {
         removeIngress: jest.fn()
       },
       places: {
-        getPlaceStatusById: jest.fn().mockResolvedValue([{ id: 'test-place' }])
+        getPlaceStatusByIds: jest.fn().mockResolvedValue([{ id: 'test-place' }])
       },
       notifications: {
         sendNotificationType: jest.fn()

@@ -28,11 +28,11 @@ export async function createStreamingKeyTTLChecker(
           const placesIdsWithExpiredKeys = expiredStreamingKeys.map((streaming) => streaming.place_id)
 
           const BATCH_SIZE = 100
-          let placesWithExpiredKeys: Awaited<ReturnType<typeof places.getPlaceStatusById>> = []
+          let placesWithExpiredKeys: Awaited<ReturnType<typeof places.getPlaceStatusByIds>> = []
 
           for (let i = 0; i < placesIdsWithExpiredKeys.length; i += BATCH_SIZE) {
             const batch = placesIdsWithExpiredKeys.slice(i, i + BATCH_SIZE)
-            const batchResults = await places.getPlaceStatusById(batch)
+            const batchResults = await places.getPlaceStatusByIds(batch)
             placesWithExpiredKeys = [...placesWithExpiredKeys, ...batchResults]
           }
 

@@ -52,7 +52,7 @@ describe('StreamingTTLChecker', () => {
         removeIngress: jest.fn()
       },
       places: {
-        getPlaceStatusById: jest.fn().mockResolvedValue([{ id: 'place1' }, { id: 'place2' }])
+        getPlaceStatusByIds: jest.fn().mockResolvedValue([{ id: 'place1' }, { id: 'place2' }])
       },
       notifications: {
         sendNotificationType: jest.fn()

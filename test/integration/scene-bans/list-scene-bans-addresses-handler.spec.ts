@@ -77,24 +77,40 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
     beforeEach(async () => {
       stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
       stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
-
-      // Clean up any existing bans before each test
-      await components.database.query(SQL`DELETE FROM scene_bans WHERE place_id = ${testPlaceId}`)
     })
 
     it('should successfully list banned addresses for a scene', async () => {
       const { localFetch } = components
 
-      // Add some test bans
+      // Add some test bans and track them for cleanup
+      const ban1 = {
+        id: '550e8400-e29b-41d4-a716-446655440001',
+        place_id: testPlaceId,
+        banned_address: '0x1111111111111111111111111111111111111111',
+        banned_by: owner.authChain[0].payload.toLowerCase(),
+        banned_at: Date.now() - 1000
+      }
+      const ban2 = {
+        id: '550e8400-e29b-41d4-a716-446655440002',
+        place_id: testPlaceId,
+        banned_address: '0x2222222222222222222222222222222222222222',
+        banned_by: owner.authChain[0].payload.toLowerCase(),
+        banned_at: Date.now()
+      }
+
       await components.database.query(
         SQL`
           INSERT INTO scene_bans (id, place_id, banned_address, banned_by, banned_at)
           VALUES 
-            (gen_random_uuid(), ${testPlaceId}, ${admin.authChain[0].payload.toLowerCase()}, ${owner.authChain[0].payload.toLowerCase()}, ${Date.now() - 1000}),
-            (gen_random_uuid(), ${testPlaceId}, ${nonOwner.authChain[0].payload.toLowerCase()}, ${owner.authChain[0].payload.toLowerCase()}, ${Date.now()})
+            (${ban1.id}, ${ban1.place_id}, ${ban1.banned_address}, ${ban1.banned_by}, ${ban1.banned_at}),
+            (${ban2.id}, ${ban2.place_id}, ${ban2.banned_address}, ${ban2.banned_by}, ${ban2.banned_at})
           RETURNING *
         `
       )
+
+      // Track the bans for cleanup
+      cleanup.trackInsert('scene_bans', ban1)
+      cleanup.trackInsert('scene_bans', ban2)
 
       const response = await makeRequest(
         localFetch,
@@ -113,12 +129,15 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
       expect(body.page).toBe(1)
       expect(body.pages).toBe(1)
       expect(body.limit).toBe(20)
-      expect(body.results).toContain(admin.authChain[0].payload.toLowerCase())
-      expect(body.results).toContain(nonOwner.authChain[0].payload.toLowerCase())
+      expect(body.results).toContain('0x1111111111111111111111111111111111111111')
+      expect(body.results).toContain('0x2222222222222222222222222222222222222222')
     })
 
     it('should return empty array when no bans exist', async () => {
       const { localFetch } = components
+
+      // Clean up any existing bans for this place to ensure empty state
+      await components.database.query(SQL`DELETE FROM scene_bans WHERE place_id = ${testPlaceId}`)
 
       const response = await makeRequest(
         localFetch,
@@ -142,17 +161,44 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
     it('should return addresses sorted by banned_at DESC (most recent first)', async () => {
       const { localFetch } = components
 
-      // Add bans with different timestamps
+      // Add bans with different timestamps and track them for cleanup
+      const ban1 = {
+        id: '550e8400-e29b-41d4-a716-446655440003',
+        place_id: testPlaceId,
+        banned_address: '0x1234567890123456789012345678901234567890',
+        banned_by: owner.authChain[0].payload.toLowerCase(),
+        banned_at: 1234567890
+      }
+      const ban2 = {
+        id: '550e8400-e29b-41d4-a716-446655440004',
+        place_id: testPlaceId,
+        banned_address: admin.authChain[0].payload.toLowerCase(),
+        banned_by: owner.authChain[0].payload.toLowerCase(),
+        banned_at: 1234567891
+      }
+      const ban3 = {
+        id: '550e8400-e29b-41d4-a716-446655440005',
+        place_id: testPlaceId,
+        banned_address: nonOwner.authChain[0].payload.toLowerCase(),
+        banned_by: owner.authChain[0].payload.toLowerCase(),
+        banned_at: 1234567892
+      }
+
       await components.database.query(
         SQL`
           INSERT INTO scene_bans (id, place_id, banned_address, banned_by, banned_at)
           VALUES 
-            (gen_random_uuid(), ${testPlaceId}, '0x1234567890123456789012345678901234567890', ${owner.authChain[0].payload.toLowerCase()}, 1234567890),
-            (gen_random_uuid(), ${testPlaceId}, ${admin.authChain[0].payload.toLowerCase()}, ${owner.authChain[0].payload.toLowerCase()}, 1234567891),
-            (gen_random_uuid(), ${testPlaceId}, ${nonOwner.authChain[0].payload.toLowerCase()}, ${owner.authChain[0].payload.toLowerCase()}, 1234567892)
+            (${ban1.id}, ${ban1.place_id}, ${ban1.banned_address}, ${ban1.banned_by}, ${ban1.banned_at}),
+            (${ban2.id}, ${ban2.place_id}, ${ban2.banned_address}, ${ban2.banned_by}, ${ban2.banned_at}),
+            (${ban3.id}, ${ban3.place_id}, ${ban3.banned_address}, ${ban3.banned_by}, ${ban3.banned_at})
           RETURNING *
         `
       )
+
+      // Track the bans for cleanup
+      cleanup.trackInsert('scene_bans', ban1)
+      cleanup.trackInsert('scene_bans', ban2)
+      cleanup.trackInsert('scene_bans', ban3)
 
       const response = await makeRequest(
         localFetch,
@@ -183,22 +229,30 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
     beforeEach(async () => {
       stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
       stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
-
-      // Clean up any existing bans before each test
-      await components.database.query(SQL`DELETE FROM scene_bans WHERE place_id = ${worldPlaceId}`)
     })
 
     it('should successfully list banned addresses for a world', async () => {
       const { localFetch } = components
 
-      // Add a test ban
+      // Add a test ban and track it for cleanup
+      const ban = {
+        id: '550e8400-e29b-41d4-a716-446655440006',
+        place_id: worldPlaceId,
+        banned_address: admin.authChain[0].payload.toLowerCase(),
+        banned_by: owner.authChain[0].payload.toLowerCase(),
+        banned_at: Date.now()
+      }
+
       await components.database.query(
         SQL`
           INSERT INTO scene_bans (id, place_id, banned_address, banned_by, banned_at)
-          VALUES (gen_random_uuid(), ${worldPlaceId}, ${admin.authChain[0].payload.toLowerCase()}, ${owner.authChain[0].payload.toLowerCase()}, ${Date.now()})
+          VALUES (${ban.id}, ${ban.place_id}, ${ban.banned_address}, ${ban.banned_by}, ${ban.banned_at})
           RETURNING *
         `
       )
+
+      // Track the ban for cleanup
+      cleanup.trackInsert('scene_bans', ban)
 
       const response = await makeRequest(
         localFetch,

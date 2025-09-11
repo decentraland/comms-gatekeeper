@@ -6,7 +6,7 @@ export const createPlacesMockedComponent = (
   return {
     getPlaceByParcel: jest.fn(),
     getPlaceByWorldName: jest.fn(),
-    getPlaceStatusById: jest.fn(),
+    getPlaceStatusByIds: jest.fn(),
     ...overrides
   }
 }

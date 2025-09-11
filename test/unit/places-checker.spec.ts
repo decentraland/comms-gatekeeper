@@ -52,7 +52,7 @@ describe('PlaceChecker', () => {
         removeAccessByPlaceIds: jest.fn()
       },
       places: {
-        getPlaceStatusById: jest.fn()
+        getPlaceStatusByIds: jest.fn()
       },
       notifications: {
         sendNotificationType: jest.fn()
@@ -90,7 +90,7 @@ describe('PlaceChecker', () => {
       ]
 
       mockedComponents.sceneAdminManager.getPlacesIdWithActiveAdmins.mockResolvedValue(mockPlaces)
-      mockedComponents.places.getPlaceStatusById.mockResolvedValue(mockPlaceStatus)
+      mockedComponents.places.getPlaceStatusByIds.mockResolvedValue(mockPlaceStatus)
       mockedComponents.sceneAdminManager.removeAllAdminsByPlaceIds.mockResolvedValue(undefined)
       mockedComponents.sceneStreamAccessManager.removeAccessByPlaceIds.mockResolvedValue(undefined)
       mockedComponents.notifications.sendNotificationType.mockResolvedValue(undefined)
@@ -118,7 +118,7 @@ describe('PlaceChecker', () => {
       ]
 
       mockedComponents.sceneAdminManager.getPlacesIdWithActiveAdmins.mockResolvedValue(mockPlaces)
-      mockedComponents.places.getPlaceStatusById.mockResolvedValue(mockPlaceStatus)
+      mockedComponents.places.getPlaceStatusByIds.mockResolvedValue(mockPlaceStatus)
 
       await executeOnTick(placeChecker, startOptions)
 

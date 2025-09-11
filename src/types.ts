@@ -70,6 +70,7 @@ export type BaseComponents = {
   livekitWebhook: ILivekitWebhookComponent
   voiceChatExpirationJob?: ICronJobComponent
   communityVoiceChatExpirationJob?: ICronJobComponent
+  disabledPlacesBansRemovalJob?: ICronJobComponent
   contentClient: IContentClientComponent
 }
 
@@ -248,4 +249,6 @@ export interface ISceneBanManager {
   countBannedAddresses(placeId: string): Promise<number>
   listBannedAddresses(placeId: string, options?: ListBannedAddressesOptions): Promise<string[]>
   isBanned(placeId: string, address: string): Promise<boolean>
+  removeBansByPlaceIds(placeIds: string[]): Promise<void>
+  getPlacesIdWithBans(): Promise<string[]>
 }
