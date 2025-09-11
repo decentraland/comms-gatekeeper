@@ -28,20 +28,24 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
     // Create some test bans in the database and track them for cleanup
     const banData = [
       // Place 1 (enabled) - should not be affected
-      { place_id: 'place1', banned_address: bannedAddresses[0], banned_by: adminAddresses[0] },
+      { placeId: 'place1', bannedAddress: bannedAddresses[0], bannedBy: adminAddresses[0] },
       // Place 2 (disabled) - should be removed
-      { place_id: 'place2', banned_address: bannedAddresses[1], banned_by: adminAddresses[1] },
-      { place_id: 'place2', banned_address: bannedAddresses[2], banned_by: adminAddresses[1] },
+      { placeId: 'place2', bannedAddress: bannedAddresses[1], bannedBy: adminAddresses[1] },
+      { placeId: 'place2', bannedAddress: bannedAddresses[2], bannedBy: adminAddresses[1] },
       // Place 3 (disabled) - should be removed
-      { place_id: 'place3', banned_address: bannedAddresses[3], banned_by: adminAddresses[2] },
+      { placeId: 'place3', bannedAddress: bannedAddresses[3], bannedBy: adminAddresses[2] },
       // Place 4 (enabled) - should not be affected
-      { place_id: 'place4', banned_address: bannedAddresses[4], banned_by: adminAddresses[3] }
+      { placeId: 'place4', bannedAddress: bannedAddresses[4], bannedBy: adminAddresses[3] }
     ]
 
     await Promise.all(
       banData.map(async (ban) => {
         await components.sceneBanManager.addBan(ban)
-        cleanup.trackInsert('scene_bans', ban)
+        cleanup.trackInsert('scene_bans', {
+          place_id: ban.placeId,
+          banned_address: ban.bannedAddress,
+          banned_by: ban.bannedBy
+        })
       })
     )
   })
@@ -145,15 +149,19 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
 
       // Create bans for all places
       const banData = manyPlaceIds.map((placeId, index) => ({
-        place_id: placeId,
-        banned_address: generateRandomWalletAddresses(1)[0],
-        banned_by: generateRandomWalletAddresses(1)[0]
+        placeId: placeId,
+        bannedAddress: generateRandomWalletAddresses(1)[0],
+        bannedBy: generateRandomWalletAddresses(1)[0]
       }))
 
       await Promise.all(
         banData.map(async (ban) => {
           await components.sceneBanManager.addBan(ban)
-          cleanup.trackInsert('scene_bans', ban)
+          cleanup.trackInsert('scene_bans', {
+            place_id: ban.placeId,
+            banned_address: ban.bannedAddress,
+            banned_by: ban.bannedBy
+          })
         })
       )
 
