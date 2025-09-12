@@ -1,7 +1,7 @@
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
 import { CommunityVoiceChatAction } from '../../../types/community-voice'
-import { CommunityVoiceChatUserProfileMetadata } from '../../../types/social.type'
+import { CommunityVoiceChatUserProfile } from '../../../types/social.type'
 import { CommunityRole } from '../../../types/social.type'
 
 export async function communityVoiceChatHandler(
@@ -17,7 +17,7 @@ export async function communityVoiceChatHandler(
     user_address: string
     action: CommunityVoiceChatAction
     user_role?: string
-    profile_data?: CommunityVoiceChatUserProfileMetadata
+    profile_data?: CommunityVoiceChatUserProfile
   }
 
   try {
