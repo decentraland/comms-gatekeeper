@@ -42,6 +42,7 @@ export function createVoiceComponent(
 
     // If the user was in another room, destroy the old room.
     if (oldRoom !== roomName) {
+      logger.debug(`User ${userAddress} was in another room ${oldRoom} when trying to join ${roomName}, destroying it`)
       await livekit.deleteRoom(oldRoom)
     }
   }
@@ -66,6 +67,7 @@ export function createVoiceComponent(
     if (disconnectReason === DisconnectReason.CLIENT_INITIATED) {
       // As room only has two users up to know (private voice chats), if a user leaves a room willingly,
       // we need to destroy the room to disconnect all users.
+      logger.debug(`User ${userAddress} left a private room ${roomName} willingly, destroying it`)
       await livekit.deleteRoom(roomName)
 
       analytics.fireEvent(AnalyticsEvent.END_CALL, {
@@ -81,6 +83,9 @@ export function createVoiceComponent(
         room: getCallIdFromRoomName(roomName),
         address: userAddress
       })
+      logger.debug(
+        `User ${userAddress} left a private room ${roomName} because the room was deleted, deleting private voice chat`
+      )
       await voiceDB.deletePrivateVoiceChat(roomName)
       return
     }
@@ -253,6 +258,7 @@ export function createVoiceComponent(
     const roomName = getPrivateVoiceChatRoomName(roomId)
     const usersInRoom = await voiceDB.deletePrivateVoiceChatUserIsOrWasIn(roomName, address)
     await livekit.deleteRoom(roomName)
+    logger.debug(`Deleted private voice chat room ${roomName} for user ${address}`)
     return usersInRoom
   }
 
