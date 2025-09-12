@@ -118,8 +118,8 @@ describe('CommunityVoiceLogic', () => {
           CommunityRole.Moderator,
           {
             name: 'TestModerator',
-            hasClaimedName: true,
-            profilePictureUrl: 'https://example.com/avatar.png'
+            has_claimed_name: true,
+            profile_picture_url: 'https://example.com/avatar.png'
           },
           CommunityVoiceChatAction.CREATE
         )
@@ -375,8 +375,8 @@ describe('CommunityVoiceLogic', () => {
           CommunityRole.Member,
           {
             name: 'TestMember',
-            hasClaimedName: false,
-            profilePictureUrl: 'https://example.com/member-avatar.png'
+            has_claimed_name: false,
+            profile_picture_url: 'https://example.com/member-avatar.png'
           }
         )
 
