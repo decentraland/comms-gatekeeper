@@ -9,11 +9,7 @@ import {
 } from './utils'
 import { AnalyticsEvent } from '../../types/analytics'
 import { VoiceChatUserStatus } from '../../adapters/db/types'
-import {
-  CommunityRole,
-  CommunityVoiceChatUserMetadata,
-  CommunityVoiceChatUserProfileMetadata
-} from '../../types/social.type'
+import { CommunityRole, CommunityVoiceChatUserMetadata, CommunityVoiceChatUserProfile } from '../../types/social.type'
 import { CommunityVoiceChatAction } from '../../types/community-voice'
 import { isErrorWithMessage } from '../errors'
 
@@ -294,7 +290,7 @@ export function createVoiceComponent(
     communityId: string,
     userAddress: string,
     userRole: CommunityRole,
-    profileData?: CommunityVoiceChatUserProfileMetadata,
+    profileData?: CommunityVoiceChatUserProfile,
     action: CommunityVoiceChatAction = CommunityVoiceChatAction.JOIN
   ): Promise<{ connectionUrl: string }> {
     const roomName = getCommunityVoiceChatRoomName(communityId)
@@ -313,8 +309,8 @@ export function createVoiceComponent(
     // Add profile data if provided
     if (profileData) {
       metadata.name = profileData.name
-      metadata.hasClaimedName = profileData.hasClaimedName
-      metadata.profilePictureUrl = profileData.profilePictureUrl
+      metadata.hasClaimedName = profileData.has_claimed_name
+      metadata.profilePictureUrl = profileData.profile_picture_url
     }
 
     const roomKey = await livekit.generateCredentials(
