@@ -27,7 +27,7 @@ export async function cachedFetchComponent(
           const response = await fetch.fetch(url)
 
           if (!response.ok) {
-            throw new Error(`Error getting ${url}`)
+            throw new Error(`Error getting ${url}, status: ${response.status}`)
           }
 
           return response.json()
