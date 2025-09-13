@@ -14,10 +14,10 @@ import { isErrorWithMessage } from '../../logic/errors'
 export function createSceneBansComponent(
   components: Pick<
     AppComponents,
-    'sceneBanManager' | 'livekit' | 'logs' | 'sceneManager' | 'places' | 'analytics' | 'names'
+    'sceneBanManager' | 'livekit' | 'logs' | 'sceneManager' | 'places' | 'analytics' | 'names' | 'contentClient'
   >
 ): ISceneBansComponent {
-  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names } = components
+  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, contentClient } = components
   const logger = logs.getLogger('scene-bans')
 
   /**
@@ -265,8 +265,13 @@ export function createSceneBansComponent(
 
     if (isWorld) {
       place = await places.getPlaceByWorldName(realmName)
-    } else {
+    } else if (parcel) {
       place = await places.getPlaceByParcel(parcel)
+    } else if (sceneId) {
+      const entity = await contentClient.fetchEntityById(sceneId)
+      place = await places.getPlaceByParcel(entity.metadata.scene.base)
+    } else {
+      throw new InvalidRequestError('No scene ID, world name or parcel provided')
     }
 
     const isBanned = await sceneBanManager.isBanned(place.id, address.toLowerCase())
