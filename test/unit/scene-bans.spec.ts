@@ -14,7 +14,10 @@ import { createAnalyticsMockedComponent } from '../mocks/analytics-mocks'
 import { AnalyticsEvent } from '../../src/types/analytics'
 import { INamesComponent } from '../../src/types/names.type'
 import { createNamesMockedComponent } from '../mocks/names-mock'
+import { createContentClientMockedComponent } from '../mocks/content-client-mock'
 import { IsUserBannedParams } from '../../src/logic/scene-bans/types'
+import { IContentClientComponent } from '../../src/types/content-client.type'
+import { EntityType } from '@dcl/schemas'
 
 describe('SceneBanComponent', () => {
   let sceneBanComponent: ISceneBansComponent
@@ -25,6 +28,7 @@ describe('SceneBanComponent', () => {
   let logsMockedComponent: jest.Mocked<ILoggerComponent>
   let analyticsMockedComponent: jest.Mocked<IAnalyticsComponent>
   let namesMockedComponent: jest.Mocked<INamesComponent>
+  let contentClientMockedComponent: jest.Mocked<IContentClientComponent>
 
   let userScenePermissions: UserScenePermissions
   let mockPlace: PlaceAttributes
@@ -38,6 +42,7 @@ describe('SceneBanComponent', () => {
     logsMockedComponent = createLoggerMockedComponent()
     analyticsMockedComponent = createAnalyticsMockedComponent()
     namesMockedComponent = createNamesMockedComponent()
+    contentClientMockedComponent = createContentClientMockedComponent()
 
     sceneBanComponent = createSceneBansComponent({
       sceneBanManager: sceneBanManagerMockedComponent,
@@ -46,7 +51,8 @@ describe('SceneBanComponent', () => {
       places: placesMockedComponent,
       logs: logsMockedComponent,
       analytics: analyticsMockedComponent,
-      names: namesMockedComponent
+      names: namesMockedComponent,
+      contentClient: contentClientMockedComponent
     })
 
     userScenePermissions = {
@@ -1371,6 +1377,159 @@ describe('SceneBanComponent', () => {
 
       it('should propagate the error', async () => {
         await expect(sceneBanComponent.isUserBanned(testAddress, params)).rejects.toThrow('Database error')
+      })
+    })
+
+    describe('for a scene with parcel only (no isWorld flag)', () => {
+      beforeEach(() => {
+        params = {
+          sceneId: undefined,
+          realmName: 'test-realm',
+          parcel: '-10,-10',
+          isWorld: undefined
+        }
+        sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
+      })
+
+      describe('and the place lookup fails', () => {
+        beforeEach(() => {
+          placesMockedComponent.getPlaceByParcel.mockRejectedValue(new Error('Place not found'))
+        })
+
+        it('should propagate the error', async () => {
+          await expect(sceneBanComponent.isUserBanned(testAddress, params)).rejects.toThrow('Place not found')
+        })
+      })
+
+      describe('and the place lookup succeeds', () => {
+        beforeEach(() => {
+          placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
+        })
+
+        describe('and the user is banned', () => {
+          beforeEach(() => {
+            sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
+          })
+
+          it('should get place by parcel, check ban status, and return true', async () => {
+            const result = await sceneBanComponent.isUserBanned(testAddress, params)
+
+            expect(placesMockedComponent.getPlaceByParcel).toHaveBeenCalledWith('-10,-10')
+            expect(sceneBanManagerMockedComponent.isBanned).toHaveBeenCalledWith('test-place-id', testAddress)
+            expect(result).toBe(true)
+          })
+        })
+
+        describe('and the user is not banned', () => {
+          beforeEach(() => {
+            sceneBanManagerMockedComponent.isBanned.mockResolvedValue(false)
+          })
+
+          it('should return false', async () => {
+            const result = await sceneBanComponent.isUserBanned(testAddress, params)
+            expect(result).toBe(false)
+          })
+        })
+      })
+    })
+
+    describe('for a scene with sceneId only', () => {
+      beforeEach(() => {
+        params = {
+          sceneId: 'test-scene-id',
+          realmName: 'test-realm',
+          parcel: undefined,
+          isWorld: undefined
+        }
+        sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
+      })
+
+      describe('and the content client fetch fails', () => {
+        beforeEach(() => {
+          contentClientMockedComponent.fetchEntityById.mockRejectedValue(new Error('Entity not found'))
+        })
+
+        it('should propagate the error', async () => {
+          await expect(sceneBanComponent.isUserBanned(testAddress, params)).rejects.toThrow('Entity not found')
+        })
+      })
+
+      describe('and the content client fetch succeeds', () => {
+        beforeEach(() => {
+          contentClientMockedComponent.fetchEntityById.mockResolvedValue({
+            id: 'test-scene-id',
+            type: 'scene' as any,
+            timestamp: 1234567890,
+            version: 'v3',
+            pointers: ['-10,-10'],
+            content: [],
+            metadata: {
+              scene: {
+                base: '-10,-10',
+                parcels: ['-10,-10']
+              }
+            }
+          })
+        })
+
+        describe('and the place lookup fails', () => {
+          beforeEach(() => {
+            placesMockedComponent.getPlaceByParcel.mockRejectedValue(new Error('Place not found'))
+          })
+
+          it('should propagate the error', async () => {
+            await expect(sceneBanComponent.isUserBanned(testAddress, params)).rejects.toThrow('Place not found')
+          })
+        })
+
+        describe('and the place lookup succeeds', () => {
+          beforeEach(() => {
+            placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
+          })
+
+          describe('and the user is banned', () => {
+            beforeEach(() => {
+              sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
+            })
+
+            it('should fetch entity, get place by parcel, check ban status, and return true', async () => {
+              const result = await sceneBanComponent.isUserBanned(testAddress, params)
+
+              expect(contentClientMockedComponent.fetchEntityById).toHaveBeenCalledWith('test-scene-id')
+              expect(placesMockedComponent.getPlaceByParcel).toHaveBeenCalledWith('-10,-10')
+              expect(sceneBanManagerMockedComponent.isBanned).toHaveBeenCalledWith('test-place-id', testAddress)
+              expect(result).toBe(true)
+            })
+          })
+
+          describe('and the user is not banned', () => {
+            beforeEach(() => {
+              sceneBanManagerMockedComponent.isBanned.mockResolvedValue(false)
+            })
+
+            it('should return false', async () => {
+              const result = await sceneBanComponent.isUserBanned(testAddress, params)
+              expect(result).toBe(false)
+            })
+          })
+        })
+      })
+    })
+
+    describe('for invalid request (no sceneId, worldName or parcel)', () => {
+      beforeEach(() => {
+        params = {
+          sceneId: undefined,
+          realmName: 'test-realm',
+          parcel: undefined,
+          isWorld: undefined
+        }
+      })
+
+      it('should throw InvalidRequestError', async () => {
+        await expect(sceneBanComponent.isUserBanned(testAddress, params)).rejects.toThrow(
+          'No scene ID, world name or parcel provided'
+        )
       })
     })
   })
