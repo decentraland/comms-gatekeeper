@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-sns": "^3.787.0",
-    "@dcl/analytics-component": "^0.2.2",
+    "@dcl/analytics-component": "^0.2.4",
     "@dcl/crypto": "^3.4.5",
     "@dcl/platform-crypto-middleware": "^1.1.0",
     "@dcl/platform-server-commons": "^0.2.0",
