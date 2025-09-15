@@ -25,7 +25,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
       },
       sceneId: mockSceneId,
       parcel: mockParcel,
-      isWorlds: false
+      isWorld: false
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
@@ -96,7 +96,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
     beforeEach(() => {
       validateResult.realm.serverName = mockWorldRealm
       validateResult.realm.hostname = 'worlds-content-server.decentraland.org'
-      validateResult.isWorlds = true
+      validateResult.isWorld = true
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
     })
 
