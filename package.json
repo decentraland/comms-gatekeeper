@@ -6,6 +6,7 @@
     "start": "node --trace-warnings --abort-on-uncaught-exception --unhandled-rejections=strict dist/index.js",
     "start:dev": "yarn build && yarn start",
     "start:dev:clean": "yarn migrate down 10 && yarn migrate up && yarn build && yarn start",
+    "dev": "nodemon",
     "test": "jest --forceExit --detectOpenHandles --coverage --verbose --passWithNoTests",
     "lint:check": "eslint '**/*.{js,ts}'",
     "lint:fix": "eslint '**/*.{js,ts}' --fix",
@@ -15,8 +16,16 @@
     "@dcl/eslint-config": "^2.2.1",
     "@types/node": "^20.7.1",
     "@well-known-components/test-helpers": "^1.5.8",
+    "nodemon": "^3.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.2.2"
+  },
+  "nodemonConfig": {
+    "watch": [
+      "src"
+    ],
+    "ext": "ts",
+    "exec": "DEV=true ts-node ./src/index.ts"
   },
   "prettier": {
     "printWidth": 120,
