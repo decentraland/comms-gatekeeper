@@ -21,6 +21,7 @@ export enum CommunityRole {
 export type CommunityVoiceChatUserMetadata = {
   role: CommunityRole
   isSpeaker?: boolean
+  muted?: boolean
 } & CommunityVoiceChatUserProfileMetadata
 
 export type CommunityVoiceChatUserProfile = {

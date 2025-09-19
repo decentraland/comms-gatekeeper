@@ -118,6 +118,14 @@ export interface IVoiceComponent {
   kickPlayerFromCommunity(communityId: string, userAddress: string): Promise<void>
 
   /**
+   * Mutes or unmutes a speaker in a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user to mute/unmute.
+   * @param muted - True to mute, false to unmute.
+   */
+  muteSpeakerInCommunityVoiceChat(communityId: string, userAddress: string, muted: boolean): Promise<void>
+
+  /**
    * Ends a community voice chat (force end regardless of participants).
    * @param communityId - The ID of the community.
    * @param userAddress - The address of the user ending the chat.
