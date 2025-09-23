@@ -10,14 +10,24 @@ import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
+import { EthAddress, Events, UserBannedFromSceneEvent, UserUnbannedFromSceneEvent } from '@dcl/schemas'
 
 export function createSceneBansComponent(
   components: Pick<
     AppComponents,
-    'sceneBanManager' | 'livekit' | 'logs' | 'sceneManager' | 'places' | 'analytics' | 'names' | 'contentClient'
+    | 'sceneBanManager'
+    | 'livekit'
+    | 'logs'
+    | 'sceneManager'
+    | 'places'
+    | 'analytics'
+    | 'names'
+    | 'contentClient'
+    | 'publisher'
   >
 ): ISceneBansComponent {
-  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, contentClient } = components
+  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, contentClient, publisher } =
+    components
   const logger = logs.getLogger('scene-bans')
 
   /**
@@ -44,6 +54,45 @@ export function createSceneBansComponent(
       )
       // Don't throw the error to avoid breaking the main ban/unban operations
     }
+  }
+
+  /**
+   * Publishes a scene ban event without waiting for it to be published.
+   * @param affectedUserAddress - The address of the user being banned.
+   * @param place - The place attributes.
+   * @param isBanned - Whether the user is banned.
+   */
+  async function publishSceneBanEvent(
+    affectedUserAddress: EthAddress,
+    place: PlaceAttributes,
+    isBanned: boolean
+  ): Promise<void> {
+    const subType = isBanned
+      ? Events.SubType.Comms.USER_BANNED_FROM_SCENE
+      : Events.SubType.Comms.USER_UNBANNED_FROM_SCENE
+
+    const event: UserBannedFromSceneEvent | UserUnbannedFromSceneEvent = {
+      type: Events.Type.COMMS,
+      subType,
+      key: `${place.id}-${affectedUserAddress}`,
+      timestamp: Date.now(),
+      metadata: {
+        userAddress: affectedUserAddress,
+        placeTitle: place.title || `Place at ${place.base_position}`
+      }
+    }
+
+    setImmediate(async () => {
+      const action = isBanned ? 'ban' : 'unban'
+
+      try {
+        await publisher.publishMessages([event])
+        logger.debug(`Published scene ${action} event for ${affectedUserAddress}`)
+      } catch (error) {
+        const errorMessage = isErrorWithMessage(error) ? error.message : 'Unknown error'
+        logger.warn(`Failed to publish scene ${action} event: ${errorMessage}`)
+      }
+    })
   }
 
   /**
@@ -99,6 +148,8 @@ export function createSceneBansComponent(
       })
     ])
 
+    void publishSceneBanEvent(bannedAddress, place, true)
+
     await refreshRoomBans(place, roomName)
 
     logger.info(
@@ -152,8 +203,9 @@ export function createSceneBansComponent(
 
     await sceneBanManager.removeBan(place.id, bannedAddress.toLowerCase())
 
-    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
+    void publishSceneBanEvent(bannedAddress, place, false)
 
+    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
     await refreshRoomBans(place, roomName)
 
     logger.info(`Successfully unbanned user ${bannedAddress} for place ${place.id}`)

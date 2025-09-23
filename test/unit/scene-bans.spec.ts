@@ -1,6 +1,6 @@
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createSceneBansComponent, ISceneBansComponent } from '../../src/logic/scene-bans'
-import { ISceneBanManager } from '../../src/types'
+import { IPublisherComponent, ISceneBanManager } from '../../src/types'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 import { IPlacesComponent, PlaceAttributes } from '../../src/types/places.type'
 import { ISceneManager, UserScenePermissions } from '../../src/types/scene-manager.type'
@@ -17,7 +17,8 @@ import { createNamesMockedComponent } from '../mocks/names-mock'
 import { createContentClientMockedComponent } from '../mocks/content-client-mock'
 import { IsUserBannedParams } from '../../src/logic/scene-bans/types'
 import { IContentClientComponent } from '../../src/types/content-client.type'
-import { EntityType } from '@dcl/schemas'
+import { createPublisherMockedComponent } from '../mocks/publisher-mock'
+import { Events } from '@dcl/schemas'
 
 describe('SceneBanComponent', () => {
   let sceneBanComponent: ISceneBansComponent
@@ -29,6 +30,7 @@ describe('SceneBanComponent', () => {
   let analyticsMockedComponent: jest.Mocked<IAnalyticsComponent>
   let namesMockedComponent: jest.Mocked<INamesComponent>
   let contentClientMockedComponent: jest.Mocked<IContentClientComponent>
+  let publisherMockedComponent: jest.Mocked<IPublisherComponent>
 
   let userScenePermissions: UserScenePermissions
   let mockPlace: PlaceAttributes
@@ -43,6 +45,7 @@ describe('SceneBanComponent', () => {
     analyticsMockedComponent = createAnalyticsMockedComponent()
     namesMockedComponent = createNamesMockedComponent()
     contentClientMockedComponent = createContentClientMockedComponent()
+    publisherMockedComponent = createPublisherMockedComponent()
 
     sceneBanComponent = createSceneBansComponent({
       sceneBanManager: sceneBanManagerMockedComponent,
@@ -52,7 +55,8 @@ describe('SceneBanComponent', () => {
       logs: logsMockedComponent,
       analytics: analyticsMockedComponent,
       names: namesMockedComponent,
-      contentClient: contentClientMockedComponent
+      contentClient: contentClientMockedComponent,
+      publisher: publisherMockedComponent
     })
 
     userScenePermissions = {
@@ -67,6 +71,12 @@ describe('SceneBanComponent', () => {
 
     placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
     placesMockedComponent.getPlaceByWorldName.mockResolvedValue(mockWorldPlace)
+
+    jest.useFakeTimers()
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
   })
 
   describe('when adding a scene ban', () => {
@@ -131,6 +141,23 @@ describe('SceneBanComponent', () => {
           realm_name: 'test-realm'
         })
       })
+
+      it('should publish an event notifying the user has been banned from the scene', async () => {
+        jest.runAllTimers()
+
+        expect(publisherMockedComponent.publishMessages).toHaveBeenCalledWith([
+          {
+            type: Events.Type.COMMS,
+            subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
+            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            timestamp: expect.any(Number),
+            metadata: {
+              userAddress: '0x1234567890123456789012345678901234567890',
+              placeTitle: mockPlace.title
+            }
+          }
+        ])
+      })
     })
 
     describe('when adding a ban for a world', () => {
@@ -182,6 +209,23 @@ describe('SceneBanComponent', () => {
           scene_id: undefined,
           parcel: undefined
         })
+      })
+
+      it('should publish an event notifying the user has been banned from the world', async () => {
+        jest.runAllTimers()
+
+        expect(publisherMockedComponent.publishMessages).toHaveBeenCalledWith([
+          {
+            type: Events.Type.COMMS,
+            subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
+            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            timestamp: expect.any(Number),
+            metadata: {
+              userAddress: '0x1234567890123456789012345678901234567890',
+              placeTitle: mockWorldPlace.title
+            }
+          }
+        ])
       })
     })
 
@@ -330,6 +374,51 @@ describe('SceneBanComponent', () => {
         })
       })
     })
+
+    describe('when publishing the scene ban event fails', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+        sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1234567890123456789012345678901234567890'
+        ])
+        livekitMockedComponent.getRoomName.mockReturnValue('scene-test-realm:test-scene')
+        livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
+        livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
+        publisherMockedComponent.publishMessages.mockRejectedValue(new Error('Failed to publish scene ban event'))
+      })
+
+      it('should not throw when publisher fails and should attempt to publish the event', async () => {
+        await expect(
+          sceneBanComponent.addSceneBan(
+            '0x1234567890123456789012345678901234567890',
+            '0x0987654321098765432109876543210987654321',
+            {
+              sceneId: 'test-scene',
+              realmName: 'test-realm',
+              parcel: '-9,-9',
+              isWorld: false
+            }
+          )
+        ).resolves.not.toThrow()
+
+        jest.runAllTimers()
+
+        expect(publisherMockedComponent.publishMessages).toHaveBeenCalledWith([
+          expect.objectContaining({
+            type: Events.Type.COMMS,
+            subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
+            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            timestamp: expect.any(Number),
+            metadata: {
+              userAddress: '0x1234567890123456789012345678901234567890',
+              placeTitle: mockPlace.title
+            }
+          })
+        ])
+      })
+    })
   })
 
   describe('when removing a scene ban', () => {
@@ -377,6 +466,23 @@ describe('SceneBanComponent', () => {
           realm_name: 'test-realm'
         })
       })
+
+      it('should publish an event notifying the user has been unbanned from the scene', async () => {
+        jest.runAllTimers()
+
+        expect(publisherMockedComponent.publishMessages).toHaveBeenCalledWith([
+          {
+            type: Events.Type.COMMS,
+            subType: Events.SubType.Comms.USER_UNBANNED_FROM_SCENE,
+            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            timestamp: expect.any(Number),
+            metadata: {
+              userAddress: '0x1234567890123456789012345678901234567890',
+              placeTitle: mockPlace.title
+            }
+          }
+        ])
+      })
     })
 
     describe('when removing a ban for a world', () => {
@@ -422,6 +528,23 @@ describe('SceneBanComponent', () => {
           scene_id: undefined,
           parcel: undefined
         })
+      })
+
+      it('should publish an event notifying the user has been unbanned from the world', async () => {
+        jest.runAllTimers()
+
+        expect(publisherMockedComponent.publishMessages).toHaveBeenCalledWith([
+          {
+            type: Events.Type.COMMS,
+            subType: Events.SubType.Comms.USER_UNBANNED_FROM_SCENE,
+            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            timestamp: expect.any(Number),
+            metadata: {
+              userAddress: '0x1234567890123456789012345678901234567890',
+              placeTitle: mockWorldPlace.title
+            }
+          }
+        ])
       })
     })
 
@@ -504,6 +627,50 @@ describe('SceneBanComponent', () => {
           'scene-test-realm:test-scene',
           '0x1234567890123456789012345678901234567890'
         )
+      })
+    })
+
+    describe('when publishing the scene ban event fails', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+        sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1234567890123456789012345678901234567890'
+        ])
+        livekitMockedComponent.getRoomName.mockReturnValue('scene-test-realm:test-scene')
+        livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
+        publisherMockedComponent.publishMessages.mockRejectedValue(new Error('Failed to publish scene ban event'))
+      })
+
+      it('should not throw to avoid breaking flow', async () => {
+        await expect(
+          sceneBanComponent.addSceneBan(
+            '0x1234567890123456789012345678901234567890',
+            '0x0987654321098765432109876543210987654321',
+            {
+              sceneId: 'test-scene',
+              realmName: 'test-realm',
+              parcel: '-9,-9',
+              isWorld: false
+            }
+          )
+        ).resolves.not.toThrow()
+
+        jest.runAllTimers()
+
+        expect(publisherMockedComponent.publishMessages).toHaveBeenCalledWith([
+          expect.objectContaining({
+            type: Events.Type.COMMS,
+            subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
+            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            timestamp: expect.any(Number),
+            metadata: {
+              userAddress: '0x1234567890123456789012345678901234567890',
+              placeTitle: mockPlace.title
+            }
+          })
+        ])
       })
     })
   })
