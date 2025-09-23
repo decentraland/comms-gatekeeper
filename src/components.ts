@@ -169,7 +169,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     places,
     analytics,
     names,
-    contentClient
+    contentClient,
+    publisher
   })
   const disabledPlacesBansRemovalJob = await createCronJobComponent(
     { logs },
