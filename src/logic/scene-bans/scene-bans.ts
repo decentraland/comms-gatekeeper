@@ -65,7 +65,7 @@ export function createSceneBansComponent(
   async function publishSceneBanEvent(
     affectedUserAddress: EthAddress,
     place: PlaceAttributes,
-    isBanned: boolean
+    isBanned: boolean = true
   ): Promise<void> {
     const subType = isBanned
       ? Events.SubType.Comms.USER_BANNED_FROM_SCENE
@@ -148,7 +148,7 @@ export function createSceneBansComponent(
       })
     ])
 
-    void publishSceneBanEvent(bannedAddress, place, true)
+    void publishSceneBanEvent(bannedAddress, place)
 
     await refreshRoomBans(place, roomName)
 
