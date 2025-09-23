@@ -158,7 +158,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     { startOnInit: isProduction, waitForCompletion: true }
   )
 
-  const contentClient = await createContentClientComponent({ config, fetch: tracedFetch })
+  const contentClient = await createContentClientComponent({ config, fetch: tracedFetch, logs })
 
   // Scene ban components
   const sceneBans = createSceneBansComponent({
