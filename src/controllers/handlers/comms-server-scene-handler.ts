@@ -6,12 +6,12 @@ import { validate } from '../../logic/utils'
 
 export async function commsServerSceneHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'config' | 'livekit' | 'logs' | 'blockList' | 'publisher',
+    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'publisher',
     '/get-server-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, blockList, publisher, config }
+    components: { livekit, logs, denyList, publisher, config }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -22,8 +22,8 @@ export async function commsServerSceneHandler(
     mute: []
   }
 
-  const isBlacklisted = await blockList.isBlacklisted(identity)
-  if (isBlacklisted) {
+  const isDenylisted = await denyList.isDenylisted(identity)
+  if (isDenylisted) {
     logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }

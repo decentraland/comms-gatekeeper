@@ -4,12 +4,12 @@ import { PrivateMessagesPrivacy } from '../../../types/social.type'
 
 export async function getPrivateMessagesTokenHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'livekit' | 'logs' | 'blockList' | 'social' | 'config',
+    'fetch' | 'livekit' | 'logs' | 'denyList' | 'social' | 'config',
     '/private-messages/token'
   >
 ) {
   const {
-    components: { livekit, logs, blockList, config, social }
+    components: { livekit, logs, denyList, config, social }
   } = context
 
   const identity: string | undefined = context.verification?.auth.toLowerCase()
@@ -20,8 +20,8 @@ export async function getPrivateMessagesTokenHandler(
   const logger = logs.getLogger('get-private-messages-token-handler')
   const PRIVATE_MESSAGES_ROOM_ID = await config.requireString('PRIVATE_MESSAGES_ROOM_ID')
 
-  const isBlacklisted = await blockList.isBlacklisted(identity)
-  if (isBlacklisted) {
+  const isDenylisted = await denyList.isDenylisted(identity)
+  if (isDenylisted) {
     logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }

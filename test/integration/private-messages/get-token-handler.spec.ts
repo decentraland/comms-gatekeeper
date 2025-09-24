@@ -3,9 +3,9 @@ import { test } from '../../components'
 import { makeRequest } from '../../utils'
 
 test('GET /private-messages/token', ({ components, spyComponents }) => {
-  describe('when the user is in the blocklist', () => {
+  describe('when the user is in the denyList', () => {
     beforeEach(() => {
-      spyComponents.blockList.isBlacklisted.mockResolvedValueOnce(true)
+      spyComponents.denyList.isDenylisted.mockResolvedValueOnce(true)
     })
 
     it('should respond with a 401', async () => {
@@ -18,9 +18,9 @@ test('GET /private-messages/token', ({ components, spyComponents }) => {
     })
   })
 
-  describe('when the user is not in the blocklist', () => {
+  describe('when the user is not in the denyList', () => {
     beforeEach(() => {
-      spyComponents.blockList.isBlacklisted.mockResolvedValueOnce(false)
+      spyComponents.denyList.isDenylisted.mockResolvedValueOnce(false)
     })
 
     describe('and requesting the user privacy settings fails but the retrieval of the token succeeds', () => {
