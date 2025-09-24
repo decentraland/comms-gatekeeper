@@ -93,7 +93,7 @@ describe('SceneBanComponent', () => {
         livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
 
         await sceneBanComponent.addSceneBan(
-          '0x1234567890123456789012345678901234567890',
+          { bannedAddress: '0x1234567890123456789012345678901234567890' },
           '0x0987654321098765432109876543210987654321',
           {
             sceneId: 'test-scene',
@@ -173,7 +173,7 @@ describe('SceneBanComponent', () => {
         livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
 
         await sceneBanComponent.addSceneBan(
-          '0x1234567890123456789012345678901234567890',
+          { bannedAddress: '0x1234567890123456789012345678901234567890' },
           '0x0987654321098765432109876543210987654321',
           {
             sceneId: undefined,
@@ -229,6 +229,125 @@ describe('SceneBanComponent', () => {
       })
     })
 
+    describe('when adding a ban by name', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+        sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([
+          '0x1234567890123456789012345678901234567890'
+        ])
+        livekitMockedComponent.getRoomName.mockReturnValue('scene-test-realm:test-scene')
+        livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
+        livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
+        namesMockedComponent.getNameOwner.mockResolvedValue('0x1234567890123456789012345678901234567890')
+
+        await sceneBanComponent.addSceneBan({ bannedName: 'testuser' }, '0x0987654321098765432109876543210987654321', {
+          sceneId: 'test-scene',
+          realmName: 'test-realm',
+          parcel: '-9,-9',
+          isWorld: false
+        })
+      })
+
+      it('should resolve the name to address and add the ban to the database', async () => {
+        expect(namesMockedComponent.getNameOwner).toHaveBeenCalledWith('testuser')
+        expect(sceneBanManagerMockedComponent.addBan).toHaveBeenCalledWith({
+          placeId: 'test-place-id',
+          bannedAddress: '0x1234567890123456789012345678901234567890',
+          bannedBy: '0x0987654321098765432109876543210987654321'
+        })
+      })
+
+      it('should remove the participant from the livekit scene room', async () => {
+        expect(livekitMockedComponent.getRoomName).toHaveBeenCalledWith('test-realm', {
+          isWorld: false,
+          sceneId: 'test-scene'
+        })
+
+        expect(livekitMockedComponent.removeParticipant).toHaveBeenCalledWith(
+          'scene-test-realm:test-scene',
+          '0x1234567890123456789012345678901234567890'
+        )
+      })
+
+      it('should update room metadata with banned addresses', async () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith('scene-test-realm:test-scene', {
+          bannedAddresses: ['0x1234567890123456789012345678901234567890']
+        })
+      })
+
+      it('should track the ban in analytics', async () => {
+        expect(analyticsMockedComponent.fireEvent).toHaveBeenCalledWith(AnalyticsEvent.SCENE_BAN_ADDED, {
+          place_id: 'test-place-id',
+          banned_address: '0x1234567890123456789012345678901234567890',
+          banned_by: '0x0987654321098765432109876543210987654321',
+          banned_at: expect.any(Number),
+          scene_id: 'test-scene',
+          parcel: '-9,-9',
+          realm_name: 'test-realm'
+        })
+      })
+
+      it('should publish an event notifying the user has been banned from the scene', async () => {
+        jest.runAllTimers()
+
+        expect(publisherMockedComponent.publishMessages).toHaveBeenCalledWith([
+          {
+            type: Events.Type.COMMS,
+            subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
+            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            timestamp: expect.any(Number),
+            metadata: {
+              userAddress: '0x1234567890123456789012345678901234567890',
+              placeTitle: mockPlace.title
+            }
+          }
+        ])
+      })
+    })
+
+    describe('when name lookup fails', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+        namesMockedComponent.getNameOwner.mockResolvedValue(null)
+      })
+
+      it('should throw NotFoundError when name owner cannot be found', async () => {
+        await expect(
+          sceneBanComponent.addSceneBan(
+            { bannedName: 'nonexistentuser' },
+            '0x0987654321098765432109876543210987654321',
+            {
+              sceneId: 'test-scene',
+              realmName: 'test-realm',
+              parcel: '-9,-9',
+              isWorld: false
+            }
+          )
+        ).rejects.toThrow('Could not find the owner of the name nonexistentuser')
+      })
+    })
+
+    describe('when neither banned_address nor banned_name is provided', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+      })
+
+      it('should throw InvalidRequestError', async () => {
+        await expect(
+          sceneBanComponent.addSceneBan({}, '0x0987654321098765432109876543210987654321', {
+            sceneId: 'test-scene',
+            realmName: 'test-realm',
+            parcel: '-9,-9',
+            isWorld: false
+          })
+        ).rejects.toThrow('Invalid request body, missing banned_address or banned_name')
+      })
+    })
+
     describe('when LiveKit removal fails', () => {
       beforeEach(() => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
@@ -240,7 +359,7 @@ describe('SceneBanComponent', () => {
       it('should ignore the LiveKit error and ban the user in the database', async () => {
         await expect(
           sceneBanComponent.addSceneBan(
-            '0x1234567890123456789012345678901234567890',
+            { bannedAddress: '0x1234567890123456789012345678901234567890' },
             '0x0987654321098765432109876543210987654321',
             {
               sceneId: 'test-scene',
@@ -270,7 +389,7 @@ describe('SceneBanComponent', () => {
       it('should propagate the error', async () => {
         await expect(
           sceneBanComponent.addSceneBan(
-            '0x1234567890123456789012345678901234567890',
+            { bannedAddress: '0x1234567890123456789012345678901234567890' },
             '0x0987654321098765432109876543210987654321',
             {
               sceneId: 'test-scene',
@@ -291,7 +410,7 @@ describe('SceneBanComponent', () => {
       it('should throw UnauthorizedError', async () => {
         await expect(
           sceneBanComponent.addSceneBan(
-            '0x1234567890123456789012345678901234567890',
+            { bannedAddress: '0x1234567890123456789012345678901234567890' },
             '0x0987654321098765432109876543210987654321',
             {
               sceneId: 'test-scene',
@@ -315,7 +434,7 @@ describe('SceneBanComponent', () => {
         it('should throw InvalidRequestError', async () => {
           await expect(
             sceneBanComponent.addSceneBan(
-              '0x1234567890123456789012345678901234567890',
+              { bannedAddress: '0x1234567890123456789012345678901234567890' },
               '0x0987654321098765432109876543210987654321',
               {
                 sceneId: 'test-scene',
@@ -338,7 +457,7 @@ describe('SceneBanComponent', () => {
         it('should throw InvalidRequestError', async () => {
           await expect(
             sceneBanComponent.addSceneBan(
-              '0x1234567890123456789012345678901234567890',
+              { bannedAddress: '0x1234567890123456789012345678901234567890' },
               '0x0987654321098765432109876543210987654321',
               {
                 sceneId: 'test-scene',
@@ -361,7 +480,7 @@ describe('SceneBanComponent', () => {
         it('should throw InvalidRequestError', async () => {
           await expect(
             sceneBanComponent.addSceneBan(
-              '0x1234567890123456789012345678901234567890',
+              { bannedAddress: '0x1234567890123456789012345678901234567890' },
               '0x0987654321098765432109876543210987654321',
               {
                 sceneId: 'test-scene',
@@ -392,7 +511,7 @@ describe('SceneBanComponent', () => {
       it('should not throw when publisher fails and should attempt to publish the event', async () => {
         await expect(
           sceneBanComponent.addSceneBan(
-            '0x1234567890123456789012345678901234567890',
+            { bannedAddress: '0x1234567890123456789012345678901234567890' },
             '0x0987654321098765432109876543210987654321',
             {
               sceneId: 'test-scene',
@@ -431,7 +550,7 @@ describe('SceneBanComponent', () => {
         livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
 
         await sceneBanComponent.removeSceneBan(
-          '0x1234567890123456789012345678901234567890',
+          { bannedAddress: '0x1234567890123456789012345678901234567890' },
           '0x0987654321098765432109876543210987654321',
           {
             sceneId: 'test-scene',
@@ -494,7 +613,7 @@ describe('SceneBanComponent', () => {
         livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
 
         await sceneBanComponent.removeSceneBan(
-          '0x1234567890123456789012345678901234567890',
+          { bannedAddress: '0x1234567890123456789012345678901234567890' },
           '0x0987654321098765432109876543210987654321',
           {
             sceneId: undefined,
@@ -548,6 +667,110 @@ describe('SceneBanComponent', () => {
       })
     })
 
+    describe('when removing a ban by name', () => {
+      beforeEach(async () => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        sceneBanManagerMockedComponent.removeBan.mockResolvedValue(undefined)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+        livekitMockedComponent.getRoomName.mockReturnValue('scene-test-realm:test-scene')
+        livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
+        namesMockedComponent.getNameOwner.mockResolvedValue('0x1234567890123456789012345678901234567890')
+
+        await sceneBanComponent.removeSceneBan(
+          { bannedName: 'testuser' },
+          '0x0987654321098765432109876543210987654321',
+          {
+            sceneId: 'test-scene',
+            realmName: 'test-realm',
+            parcel: '-9,-9',
+            isWorld: false
+          }
+        )
+      })
+
+      it('should resolve the name to address and remove the ban from the database', async () => {
+        expect(namesMockedComponent.getNameOwner).toHaveBeenCalledWith('testuser')
+        expect(sceneBanManagerMockedComponent.removeBan).toHaveBeenCalledWith(
+          'test-place-id',
+          '0x1234567890123456789012345678901234567890'
+        )
+      })
+
+      it('should update room metadata with updated banned addresses', async () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith('scene-test-realm:test-scene', {
+          bannedAddresses: []
+        })
+      })
+
+      it('should track the unban in analytics', async () => {
+        expect(analyticsMockedComponent.fireEvent).toHaveBeenCalledWith(AnalyticsEvent.SCENE_BAN_REMOVED, {
+          place_id: 'test-place-id',
+          banned_address: '0x1234567890123456789012345678901234567890',
+          unbanned_by: '0x0987654321098765432109876543210987654321',
+          unbanned_at: expect.any(Number),
+          scene_id: 'test-scene',
+          parcel: '-9,-9',
+          realm_name: 'test-realm'
+        })
+      })
+
+      it('should publish an event notifying the user has been unbanned from the scene', async () => {
+        jest.runAllTimers()
+
+        expect(publisherMockedComponent.publishMessages).toHaveBeenCalledWith([
+          {
+            type: Events.Type.COMMS,
+            subType: Events.SubType.Comms.USER_UNBANNED_FROM_SCENE,
+            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            timestamp: expect.any(Number),
+            metadata: {
+              userAddress: '0x1234567890123456789012345678901234567890',
+              placeTitle: mockPlace.title
+            }
+          }
+        ])
+      })
+    })
+
+    describe('when name lookup fails during unban', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        namesMockedComponent.getNameOwner.mockResolvedValue(null)
+      })
+
+      it('should throw NotFoundError when name owner cannot be found', async () => {
+        await expect(
+          sceneBanComponent.removeSceneBan(
+            { bannedName: 'nonexistentuser' },
+            '0x0987654321098765432109876543210987654321',
+            {
+              sceneId: 'test-scene',
+              realmName: 'test-realm',
+              parcel: '-9,-9',
+              isWorld: false
+            }
+          )
+        ).rejects.toThrow('Could not find the owner of the name nonexistentuser')
+      })
+    })
+
+    describe('when neither banned_address nor banned_name is provided for unban', () => {
+      beforeEach(() => {
+        sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      })
+
+      it('should throw InvalidRequestError', async () => {
+        await expect(
+          sceneBanComponent.removeSceneBan({}, '0x0987654321098765432109876543210987654321', {
+            sceneId: 'test-scene',
+            realmName: 'test-realm',
+            parcel: '-9,-9',
+            isWorld: false
+          })
+        ).rejects.toThrow('Invalid request body, missing banned_address or banned_name')
+      })
+    })
+
     describe('when removing the ban from the database fails', () => {
       beforeEach(() => {
         sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
@@ -557,7 +780,7 @@ describe('SceneBanComponent', () => {
       it('should propagate the error', async () => {
         await expect(
           sceneBanComponent.removeSceneBan(
-            '0x1234567890123456789012345678901234567890',
+            { bannedAddress: '0x1234567890123456789012345678901234567890' },
             '0x0987654321098765432109876543210987654321',
             {
               sceneId: 'test-scene',
@@ -578,7 +801,7 @@ describe('SceneBanComponent', () => {
       it('should throw UnauthorizedError', async () => {
         await expect(
           sceneBanComponent.removeSceneBan(
-            '0x1234567890123456789012345678901234567890',
+            { bannedAddress: '0x1234567890123456789012345678901234567890' },
             '0x0987654321098765432109876543210987654321',
             {
               sceneId: 'test-scene',
@@ -607,7 +830,7 @@ describe('SceneBanComponent', () => {
       it('should not throw to avoid breaking flow', async () => {
         await expect(
           sceneBanComponent.addSceneBan(
-            '0x1234567890123456789012345678901234567890',
+            { bannedAddress: '0x1234567890123456789012345678901234567890' },
             '0x0987654321098765432109876543210987654321',
             {
               sceneId: 'test-scene',
@@ -646,7 +869,7 @@ describe('SceneBanComponent', () => {
       it('should not throw to avoid breaking flow', async () => {
         await expect(
           sceneBanComponent.addSceneBan(
-            '0x1234567890123456789012345678901234567890',
+            { bannedAddress: '0x1234567890123456789012345678901234567890' },
             '0x0987654321098765432109876543210987654321',
             {
               sceneId: 'test-scene',
