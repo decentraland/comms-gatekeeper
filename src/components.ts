@@ -44,7 +44,6 @@ import { AnalyticsEventPayload } from './types/analytics'
 import { createLandLeaseComponent } from './adapters/land-lease'
 import { createRoomStartedHandler } from './logic/livekit-webhook/event-handlers/room-started-handler'
 import { createContentClientComponent } from './adapters/content-client'
-import { createLambdasClientComponent } from './adapters/lambdas-client'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -160,7 +159,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   )
 
   const contentClient = await createContentClientComponent({ config, fetch: tracedFetch, logs })
-  const lambdasClient = await createLambdasClientComponent({ config, fetch: tracedFetch, logs })
 
   // Scene ban components
   const sceneBans = createSceneBansComponent({
@@ -172,7 +170,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     analytics,
     names,
     contentClient,
-    lambdasClient,
     publisher
   })
   const disabledPlacesBansRemovalJob = await createCronJobComponent(
@@ -253,7 +250,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     notifications,
     landLease,
     livekitWebhook,
-    contentClient,
-    lambdasClient
+    contentClient
   }
 }

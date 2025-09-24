@@ -8,7 +8,7 @@ import {
   AddSceneBanPayload,
   RemoveSceneBanPayload
 } from './types'
-import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
+import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
@@ -25,22 +25,11 @@ export function createSceneBansComponent(
     | 'analytics'
     | 'names'
     | 'contentClient'
-    | 'lambdasClient'
     | 'publisher'
   >
 ): ISceneBansComponent {
-  const {
-    sceneBanManager,
-    livekit,
-    logs,
-    sceneManager,
-    places,
-    analytics,
-    names,
-    contentClient,
-    lambdasClient,
-    publisher
-  } = components
+  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, contentClient, publisher } =
+    components
   const logger = logs.getLogger('scene-bans')
 
   /**
@@ -109,35 +98,6 @@ export function createSceneBansComponent(
   }
 
   /**
-   * Gets the user address using a name.
-   * @param name - The name of the user.
-   * @returns The user address.
-   */
-
-  async function getUserAddressUsingName(name: string): Promise<EthAddress> {
-    try {
-      const nameOwner = await names.getNameOwner(name)
-      const avatarDetails = await lambdasClient.getAvatarDetails(nameOwner)
-      const avatar = avatarDetails.avatars?.[0]
-
-      if (!avatar || !avatar.hasClaimedName || avatar.name !== name) {
-        throw new NotFoundError(`Name ${name} is not claimed by its owner`)
-      }
-
-      return nameOwner.toLowerCase()
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        throw error
-      }
-
-      logger.warn(
-        `Error getting user address using name ${name}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
-      )
-      throw error
-    }
-  }
-
-  /**
    * Adds a ban for a user from a scene with permission validation.
    * @param payload - The payload containing the address or name of the user being banned.
    * @param bannedBy - The address of the user performing the ban.
@@ -173,7 +133,8 @@ export function createSceneBansComponent(
     if (bannedAddress) {
       userAddressToBan = bannedAddress.toLowerCase()
     } else if (bannedName) {
-      userAddressToBan = await getUserAddressUsingName(bannedName)
+      const nameOwner = await names.getNameOwner(bannedName)
+      userAddressToBan = nameOwner.toLowerCase()
     } else {
       throw new InvalidRequestError('Invalid request body, missing banned_address or banned_name')
     }
@@ -260,7 +221,8 @@ export function createSceneBansComponent(
     if (bannedAddress) {
       userAddressToUnban = bannedAddress.toLowerCase()
     } else if (bannedName) {
-      userAddressToUnban = await getUserAddressUsingName(bannedName)
+      const nameOwner = await names.getNameOwner(bannedName)
+      userAddressToUnban = nameOwner.toLowerCase()
     } else {
       throw new InvalidRequestError('Invalid request body, missing banned_address or banned_name')
     }
