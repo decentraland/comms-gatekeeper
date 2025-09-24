@@ -1,4 +1,4 @@
-import { Profile } from '@dcl/schemas'
+import { EthAddress, Profile } from '@dcl/schemas'
 import { ensureSlashAtTheEnd } from '../logic/utils'
 import { AppComponents } from '../types'
 import { INamesComponent } from '../types/names.type'
@@ -36,7 +36,7 @@ export async function createNamesComponent(
     }, {})
   }
 
-  async function getNameOwner(name: string): Promise<string> {
+  async function getNameOwner(name: string): Promise<EthAddress | null> {
     const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
     if (!baseUrl) {
       logger.error('Lambdas URL is not set')
@@ -44,8 +44,8 @@ export async function createNamesComponent(
     }
 
     const nameOwnerResponse = await fetch.fetch(`${baseUrl}names/${name}/owner`)
-    const nameOwner = (await nameOwnerResponse.json()) as string
-    return nameOwner
+    const nameOwner = (await nameOwnerResponse.json()) as { owner: string }
+    return nameOwner.owner
   }
 
   return {

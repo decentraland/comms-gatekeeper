@@ -8,7 +8,7 @@ import {
   AddSceneBanPayload,
   RemoveSceneBanPayload
 } from './types'
-import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
+import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
@@ -98,6 +98,19 @@ export function createSceneBansComponent(
   }
 
   /**
+   * Gets the owner address from a name.
+   * @param name - The name of the user.
+   * @returns The owner address.
+   */
+  async function getOwnerAddressFromName(name: string): Promise<EthAddress> {
+    const nameOwner = await names.getNameOwner(name)
+    if (!nameOwner) {
+      throw new NotFoundError(`Could not find the owner of the name ${name}`)
+    }
+    return nameOwner.toLowerCase()
+  }
+
+  /**
    * Adds a ban for a user from a scene with permission validation.
    * @param payload - The payload containing the address or name of the user being banned.
    * @param bannedBy - The address of the user performing the ban.
@@ -133,7 +146,7 @@ export function createSceneBansComponent(
     if (bannedAddress) {
       userAddressToBan = bannedAddress.toLowerCase()
     } else if (bannedName) {
-      const nameOwner = await names.getNameOwner(bannedName)
+      const nameOwner = await getOwnerAddressFromName(bannedName)
       userAddressToBan = nameOwner.toLowerCase()
     } else {
       throw new InvalidRequestError('Invalid request body, missing banned_address or banned_name')
@@ -221,7 +234,7 @@ export function createSceneBansComponent(
     if (bannedAddress) {
       userAddressToUnban = bannedAddress.toLowerCase()
     } else if (bannedName) {
-      const nameOwner = await names.getNameOwner(bannedName)
+      const nameOwner = await getOwnerAddressFromName(bannedName)
       userAddressToUnban = nameOwner.toLowerCase()
     } else {
       throw new InvalidRequestError('Invalid request body, missing banned_address or banned_name')
