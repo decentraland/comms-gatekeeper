@@ -36,7 +36,20 @@ export async function createNamesComponent(
     }, {})
   }
 
+  async function getNameOwner(name: string): Promise<string> {
+    const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
+    if (!baseUrl) {
+      logger.error('Lambdas URL is not set')
+      throw new Error('Lambdas URL is not set')
+    }
+
+    const nameOwnerResponse = await fetch.fetch(`${baseUrl}names/${name}/owner`)
+    const nameOwner = (await nameOwnerResponse.json()) as string
+    return nameOwner
+  }
+
   return {
-    getNamesFromAddresses
+    getNamesFromAddresses,
+    getNameOwner
   }
 }

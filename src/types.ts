@@ -31,6 +31,7 @@ import { ILivekitWebhookComponent } from './logic/livekit-webhook'
 import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
 import { IContentClientComponent } from './types/content-client.type'
+import { ILambdasClientComponent } from './types/lambdas-client.type'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -72,6 +73,7 @@ export type BaseComponents = {
   communityVoiceChatExpirationJob?: ICronJobComponent
   disabledPlacesBansRemovalJob?: ICronJobComponent
   contentClient: IContentClientComponent
+  lambdasClient: ILambdasClientComponent
 }
 
 export type AppComponents = BaseComponents & {

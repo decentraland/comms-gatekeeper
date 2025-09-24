@@ -1,5 +1,14 @@
 import { SceneBanAddressWithName } from '../../types'
 
+type BasePayload = {
+  bannedAddress?: string
+  bannedName?: string
+}
+
+export type AddSceneBanPayload = BasePayload
+
+export type RemoveSceneBanPayload = BasePayload
+
 type BaseParams = {
   sceneId?: string
   realmName: string
@@ -21,19 +30,19 @@ export type IsUserBannedParams = BaseParams
 export interface ISceneBansComponent {
   /**
    * Adds a ban for a user from a scene with permission validation.
-   * @param bannedAddress - The address of the user being banned.
+   * @param payload - The payload containing the address or name of the user being banned.
    * @param bannedBy - The address of the user performing the ban.
    * @param params - The parameters for the ban.
    */
-  addSceneBan(bannedAddress: string, bannedBy: string, params: AddSceneBanParams): Promise<void>
+  addSceneBan(payload: AddSceneBanPayload, bannedBy: string, params: AddSceneBanParams): Promise<void>
 
   /**
    * Removes a ban for a user from a scene with permission validation.
-   * @param bannedAddress - The address of the user being unbanned.
+   * @param payload - The payload containing the address or name of the user being unbanned.
    * @param unbannedBy - The address of the user performing the unban.
    * @param params - The parameters for the unban.
    */
-  removeSceneBan(bannedAddress: string, unbannedBy: string, params: RemoveSceneBanParams): Promise<void>
+  removeSceneBan(payload: RemoveSceneBanPayload, unbannedBy: string, params: RemoveSceneBanParams): Promise<void>
 
   /**
    * Lists all bans for a scene with permission validation.
