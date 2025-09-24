@@ -1,21 +1,17 @@
-import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
 import { validate } from '../../logic/utils'
 
 export async function commsServerSceneHandler(
-  context: HandlerContextWithPath<
-    'fetch' | 'config' | 'livekit' | 'logs' | 'blockList' | 'publisher',
-    '/get-server-scene-adapter'
-  >
+  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'logs' | 'blockList', '/get-server-scene-adapter'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, blockList, publisher, config }
+    components: { livekit, logs, blockList, config }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
-  const { sceneId, identity, parcel, realm } = await validate(context)
+  const { sceneId, identity, realm } = await validate(context)
   let room: string
   const permissions: Permissions = {
     cast: [],
@@ -53,34 +49,6 @@ export async function commsServerSceneHandler(
   const AUTH_SERVER_IDENTITY = 'authoritative-server'
   const credentials = await livekit.generateCredentials(AUTH_SERVER_IDENTITY, room, permissions, false)
   logger.debug(`Token generated for ${identity} as ${AUTH_SERVER_IDENTITY} to join room ${room}`)
-
-  setImmediate(async () => {
-    const event: UserJoinedRoomEvent = {
-      type: Events.Type.COMMS,
-      subType: Events.SubType.Comms.USER_JOINED_ROOM,
-      key: `user-joined-room-${room}`,
-      timestamp: Date.now(),
-      metadata: {
-        sceneId: sceneId || '',
-        userAddress: identity.toLowerCase(),
-        parcel,
-        realmName,
-        isWorld
-      }
-    }
-
-    // TODO: do we need this for the authoritative-server peer ?
-    try {
-      await publisher.publishMessages([event])
-      logger.debug(`Published UserJoinedRoomEvent for ${identity} in room ${room}`)
-    } catch (error: any) {
-      logger.error(`Failed to publish UserJoinedRoomEvent: ${error}`, {
-        error,
-        event: JSON.stringify(event),
-        room
-      })
-    }
-  })
 
   return {
     status: 200,
