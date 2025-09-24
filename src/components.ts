@@ -189,7 +189,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const participantJoinedHandler = createParticipantJoinedHandler({
     voice,
     analytics,
-    logs
+    logs,
+    livekit,
+    publisher
   })
   const participantLeftHandler = createParticipantLeftHandler({
     voice,
