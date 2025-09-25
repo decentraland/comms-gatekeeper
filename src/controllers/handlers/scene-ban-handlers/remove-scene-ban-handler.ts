@@ -19,7 +19,7 @@ export async function removeSceneBanHandler(
     throw new InvalidRequestError('Authentication required')
   }
 
-  let body: { banned_address: string }
+  let body: { banned_address?: string; banned_name?: string }
 
   try {
     body = await request.json()
@@ -27,11 +27,11 @@ export async function removeSceneBanHandler(
     throw new InvalidRequestError(`Invalid request body`)
   }
 
-  const bannedAddress = body.banned_address
+  const { banned_address: bannedAddress, banned_name: bannedName } = body
 
-  if (!bannedAddress) {
-    throw new InvalidRequestError(`Invalid request body, missing banned_address`)
-  } else if (!EthAddress.validate(bannedAddress)) {
+  if (!bannedAddress && !bannedName) {
+    throw new InvalidRequestError(`Invalid request body, missing banned_address or banned_name`)
+  } else if (bannedAddress && !EthAddress.validate(bannedAddress)) {
     throw new InvalidRequestError(`Invalid request body, invalid banned_address`)
   }
 
@@ -43,12 +43,21 @@ export async function removeSceneBanHandler(
   } = await validate(ctx)
   const authenticatedAddress = verification.auth
 
-  await sceneBans.removeSceneBan(bannedAddress.toLowerCase(), authenticatedAddress.toLowerCase(), {
-    sceneId,
-    parcel,
-    realmName,
-    isWorld
-  })
+  if (bannedAddress) {
+    await sceneBans.removeSceneBan(bannedAddress, authenticatedAddress.toLowerCase(), {
+      sceneId,
+      parcel,
+      realmName,
+      isWorld
+    })
+  } else if (bannedName) {
+    await sceneBans.removeSceneBanByName(bannedName, authenticatedAddress.toLowerCase(), {
+      sceneId,
+      parcel,
+      realmName,
+      isWorld
+    })
+  }
 
   return {
     status: 204

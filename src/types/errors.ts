@@ -67,3 +67,10 @@ export class LivekitIngressNotFoundError extends Error {
     Error.captureStackTrace(this, this.constructor)
   }
 }
+
+export class NameOwnerNotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}

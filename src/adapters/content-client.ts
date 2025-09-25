@@ -13,7 +13,7 @@ export async function createContentClientComponent(
   const logger = logs.getLogger('cached-content-client-component')
 
   const catalystContentUrl = await config.requireString('CATALYST_CONTENT_URL')
-  const catalyst: ContentClient = createContentClient({ url: catalystContentUrl, fetcher: fetch })
+  const client: ContentClient = createContentClient({ url: catalystContentUrl, fetcher: fetch })
 
   const entityCache = new LRUCache<string, any>({
     max,
@@ -21,7 +21,7 @@ export async function createContentClientComponent(
     fetchMethod: async function (sceneId: string): Promise<any> {
       try {
         logger.debug(`Fetching entity for sceneId: ${sceneId}`)
-        const entity = await catalyst.fetchEntityById(sceneId)
+        const entity = await client.fetchEntityById(sceneId)
         logger.debug(`Successfully fetched entity for sceneId: ${sceneId}`)
         return entity
       } catch (err: any) {

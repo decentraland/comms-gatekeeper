@@ -420,6 +420,142 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
     })
   })
 
+  describe('when banning by name', () => {
+    beforeEach(() => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.names.getNameOwner.resolves(admin.authChain[0].payload)
+    })
+
+    describe('from a land scene', () => {
+      it('should successfully ban a user by name', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_name: 'testuser'
+            }),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(204)
+
+        // Verify ban was added to database
+        const banResult = await components.database.query(
+          SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+        )
+        expect(banResult.rowCount).toBe(1)
+        expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
+
+        // Track the ban for cleanup
+        cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
+      })
+    })
+
+    describe('from a world scene', () => {
+      it('should successfully ban a user by name', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_name: 'testuser'
+            }),
+            metadata: metadataWorld
+          },
+          owner
+        )
+
+        expect(response.status).toBe(204)
+
+        // Verify ban was added to database
+        const banResult = await components.database.query(
+          SQL`SELECT * FROM scene_bans WHERE place_id = ${worldPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+        )
+        expect(banResult.rowCount).toBe(1)
+        expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
+
+        // Track the ban for cleanup
+        cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
+      })
+    })
+
+    describe('and the user address is also provided', () => {
+      it('should prioritize banned_address', async () => {
+        const { localFetch } = components
+
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+        stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              banned_address: admin.authChain[0].payload,
+              banned_name: 'testuser'
+            }),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(204)
+
+        // Verify ban was added to database using the address, not the name
+        const banResult = await components.database.query(
+          SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId} AND banned_address = ${admin.authChain[0].payload.toLowerCase()}`
+        )
+        expect(banResult.rowCount).toBe(1)
+        expect(banResult.rows[0].banned_by).toBe(owner.authChain[0].payload.toLowerCase())
+
+        // Track the ban for cleanup
+        cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
+      })
+    })
+  })
+
+  describe('when name lookup fails', () => {
+    beforeEach(() => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.names.getNameOwner.resolves(null)
+    })
+
+    it('should return 404 when trying to ban a non-existent name', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            banned_name: 'nonexistentuser'
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(404)
+
+      // Verify no ban was added to database
+      const banResult = await components.database.query(SQL`SELECT * FROM scene_bans WHERE place_id = ${testPlaceId}`)
+      expect(banResult.rowCount).toBe(0)
+    })
+  })
+
   describe('when authentication is invalid', () => {
     it('should return 401 for invalid auth chain', async () => {
       const { localFetch } = components
@@ -469,7 +605,7 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       expect(response.status).toBe(400)
     })
 
-    it('should return 400 for missing banned_address', async () => {
+    it('should return 400 for missing banned_address and banned_name', async () => {
       const { localFetch } = components
 
       const response = await makeRequest(
