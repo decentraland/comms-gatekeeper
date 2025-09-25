@@ -137,6 +137,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           user_addresses: [validAddress1, validAddress2, '0x123d35Cc6635C0532925a3b8D6Ac6C2b6000b8B0']
         }
       })
+
       it('should respond with a 400 when user_addresses has three addresses', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
