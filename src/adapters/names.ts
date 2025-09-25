@@ -2,7 +2,7 @@ import { EthAddress, Profile } from '@dcl/schemas'
 import { ensureSlashAtTheEnd } from '../logic/utils'
 import { AppComponents } from '../types'
 import { INamesComponent } from '../types/names.type'
-import { ProfilesNotFoundError } from '../types/errors'
+import { NameOwnerNotFoundError, ProfilesNotFoundError } from '../types/errors'
 
 export async function createNamesComponent(
   components: Pick<AppComponents, 'config' | 'fetch' | 'logs'>
@@ -38,6 +38,16 @@ export async function createNamesComponent(
 
   async function getNameOwner(name: string): Promise<EthAddress | null> {
     const nameOwnerResponse = await fetch.fetch(`${lambdasBaseUrl}names/${name}/owner`)
+
+    if (nameOwnerResponse.status === 404) {
+      logger.info(`Name owner not found for ${name}`)
+      throw new NameOwnerNotFoundError(`Name owner not found for ${name}`)
+    }
+
+    if (!nameOwnerResponse.ok) {
+      throw new Error(`Failed to fetch name owner for ${name}`)
+    }
+
     const nameOwner = (await nameOwnerResponse.json()) as { owner: string }
     return nameOwner.owner
   }
