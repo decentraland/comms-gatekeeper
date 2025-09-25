@@ -12,14 +12,14 @@ export async function createNamesComponent(
 
   const lambdasUrl = await config.requireString('LAMBDAS_URL')
 
-  async function getNamesFromAddresses(addresses: string[]): Promise<Record<string, string>> {
-    const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
-    if (!baseUrl) {
-      logger.error('Lambdas URL is not set')
-      throw new Error('Lambdas URL is not set')
-    }
+  const lambdasBaseUrl = ensureSlashAtTheEnd(lambdasUrl)
+  if (!lambdasBaseUrl) {
+    logger.error('Lambdas URL is not set')
+    throw new Error('Lambdas URL is not set')
+  }
 
-    const profilesResponse = await fetch.fetch(`${baseUrl}profiles`, {
+  async function getNamesFromAddresses(addresses: string[]): Promise<Record<string, string>> {
+    const profilesResponse = await fetch.fetch(`${lambdasBaseUrl}profiles`, {
       method: 'POST',
       body: JSON.stringify({ ids: addresses })
     })
@@ -37,13 +37,7 @@ export async function createNamesComponent(
   }
 
   async function getNameOwner(name: string): Promise<EthAddress | null> {
-    const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
-    if (!baseUrl) {
-      logger.error('Lambdas URL is not set')
-      throw new Error('Lambdas URL is not set')
-    }
-
-    const nameOwnerResponse = await fetch.fetch(`${baseUrl}names/${name}/owner`)
+    const nameOwnerResponse = await fetch.fetch(`${lambdasBaseUrl}names/${name}/owner`)
     const nameOwner = (await nameOwnerResponse.json()) as { owner: string }
     return nameOwner.owner
   }
