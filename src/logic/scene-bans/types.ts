@@ -1,13 +1,5 @@
+import { EthAddress } from '@dcl/schemas'
 import { SceneBanAddressWithName } from '../../types'
-
-type BasePayload = {
-  bannedAddress?: string
-  bannedName?: string
-}
-
-export type AddSceneBanPayload = BasePayload
-
-export type RemoveSceneBanPayload = BasePayload
 
 type BaseParams = {
   sceneId?: string
@@ -30,19 +22,35 @@ export type IsUserBannedParams = BaseParams
 export interface ISceneBansComponent {
   /**
    * Adds a ban for a user from a scene with permission validation.
-   * @param payload - The payload containing the address or name of the user being banned.
+   * @param bannedAddress - The address of the user being banned.
    * @param bannedBy - The address of the user performing the ban.
    * @param params - The parameters for the ban.
    */
-  addSceneBan(payload: AddSceneBanPayload, bannedBy: string, params: AddSceneBanParams): Promise<void>
+  addSceneBan(bannedAddress: EthAddress, bannedBy: string, params: AddSceneBanParams): Promise<void>
+
+  /**
+   * Adds a ban for a user from a scene with permission validation.
+   * @param bannedName - The name of the user being banned.
+   * @param bannedBy - The address of the user performing the ban.
+   * @param params - The parameters for the ban.
+   */
+  addSceneBanByName(bannedName: string, bannedBy: string, params: AddSceneBanParams): Promise<void>
 
   /**
    * Removes a ban for a user from a scene with permission validation.
-   * @param payload - The payload containing the address or name of the user being unbanned.
+   * @param bannedAddress - The address of the user being unbanned.
    * @param unbannedBy - The address of the user performing the unban.
    * @param params - The parameters for the unban.
    */
-  removeSceneBan(payload: RemoveSceneBanPayload, unbannedBy: string, params: RemoveSceneBanParams): Promise<void>
+  removeSceneBan(bannedAddress: EthAddress, unbannedBy: string, params: RemoveSceneBanParams): Promise<void>
+
+  /**
+   * Removes a ban for a user from a scene with permission validation.
+   * @param bannedName - The name of the user being unbanned.
+   * @param unbannedBy - The address of the user performing the unban.
+   * @param params - The parameters for the unban.
+   */
+  removeSceneBanByName(bannedName: string, unbannedBy: string, params: RemoveSceneBanParams): Promise<void>
 
   /**
    * Lists all bans for a scene with permission validation.

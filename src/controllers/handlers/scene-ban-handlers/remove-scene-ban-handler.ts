@@ -27,8 +27,7 @@ export async function removeSceneBanHandler(
     throw new InvalidRequestError(`Invalid request body`)
   }
 
-  const bannedAddress = body.banned_address
-  const bannedName = body.banned_name
+  const { banned_address: bannedAddress, banned_name: bannedName } = body
 
   if (!bannedAddress && !bannedName) {
     throw new InvalidRequestError(`Invalid request body, missing banned_address or banned_name`)
@@ -44,12 +43,21 @@ export async function removeSceneBanHandler(
   } = await validate(ctx)
   const authenticatedAddress = verification.auth
 
-  await sceneBans.removeSceneBan({ bannedAddress, bannedName }, authenticatedAddress.toLowerCase(), {
-    sceneId,
-    parcel,
-    realmName,
-    isWorld
-  })
+  if (bannedAddress) {
+    await sceneBans.removeSceneBan(bannedAddress, authenticatedAddress.toLowerCase(), {
+      sceneId,
+      parcel,
+      realmName,
+      isWorld
+    })
+  } else if (bannedName) {
+    await sceneBans.removeSceneBanByName(bannedName, authenticatedAddress.toLowerCase(), {
+      sceneId,
+      parcel,
+      realmName,
+      isWorld
+    })
+  }
 
   return {
     status: 204
