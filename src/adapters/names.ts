@@ -19,10 +19,15 @@ export async function createNamesComponent(
   }
 
   async function getNamesFromAddresses(addresses: string[]): Promise<Record<string, string>> {
+    if (addresses.length === 0) {
+      return {}
+    }
+
     const profilesResponse = await fetch.fetch(`${lambdasBaseUrl}profiles`, {
       method: 'POST',
       body: JSON.stringify({ ids: addresses })
     })
+
     const profiles = (await profilesResponse.json()) as Profile[]
     if (!profiles || profiles.length === 0) {
       logger.info(`Profiles not found for ${addresses}`)
