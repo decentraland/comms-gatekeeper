@@ -71,11 +71,13 @@ export function createSceneBansComponent(
       ? Events.SubType.Comms.USER_BANNED_FROM_SCENE
       : Events.SubType.Comms.USER_UNBANNED_FROM_SCENE
 
+    const timestamp = Date.now()
+
     const event: UserBannedFromSceneEvent | UserUnbannedFromSceneEvent = {
       type: Events.Type.COMMS,
       subType,
-      key: `${place.id}-${affectedUserAddress}`,
-      timestamp: Date.now(),
+      key: `${place.id}-${affectedUserAddress}-${timestamp}`,
+      timestamp,
       metadata: {
         userAddress: affectedUserAddress,
         placeTitle: place.title || `Place at ${place.base_position}`
