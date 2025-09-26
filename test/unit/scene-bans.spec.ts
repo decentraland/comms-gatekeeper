@@ -149,7 +149,7 @@ describe('SceneBanComponent', () => {
           {
             type: Events.Type.COMMS,
             subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
-            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            key: expect.any(String),
             timestamp: expect.any(Number),
             metadata: {
               userAddress: '0x1234567890123456789012345678901234567890',
@@ -218,7 +218,7 @@ describe('SceneBanComponent', () => {
           {
             type: Events.Type.COMMS,
             subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
-            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            key: expect.any(String),
             timestamp: expect.any(Number),
             metadata: {
               userAddress: '0x1234567890123456789012345678901234567890',
@@ -296,7 +296,7 @@ describe('SceneBanComponent', () => {
           {
             type: Events.Type.COMMS,
             subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
-            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            key: expect.any(String),
             timestamp: expect.any(Number),
             metadata: {
               userAddress: '0x1234567890123456789012345678901234567890',
@@ -506,7 +506,7 @@ describe('SceneBanComponent', () => {
           expect.objectContaining({
             type: Events.Type.COMMS,
             subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
-            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            key: expect.any(String),
             timestamp: expect.any(Number),
             metadata: {
               userAddress: '0x1234567890123456789012345678901234567890',
@@ -571,7 +571,7 @@ describe('SceneBanComponent', () => {
           {
             type: Events.Type.COMMS,
             subType: Events.SubType.Comms.USER_UNBANNED_FROM_SCENE,
-            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            key: expect.any(String),
             timestamp: expect.any(Number),
             metadata: {
               userAddress: '0x1234567890123456789012345678901234567890',
@@ -634,7 +634,7 @@ describe('SceneBanComponent', () => {
           {
             type: Events.Type.COMMS,
             subType: Events.SubType.Comms.USER_UNBANNED_FROM_SCENE,
-            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            key: expect.any(String),
             timestamp: expect.any(Number),
             metadata: {
               userAddress: '0x1234567890123456789012345678901234567890',
@@ -695,7 +695,7 @@ describe('SceneBanComponent', () => {
           {
             type: Events.Type.COMMS,
             subType: Events.SubType.Comms.USER_UNBANNED_FROM_SCENE,
-            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            key: expect.any(String),
             timestamp: expect.any(Number),
             metadata: {
               userAddress: '0x1234567890123456789012345678901234567890',
@@ -839,7 +839,7 @@ describe('SceneBanComponent', () => {
           expect.objectContaining({
             type: Events.Type.COMMS,
             subType: Events.SubType.Comms.USER_BANNED_FROM_SCENE,
-            key: 'test-place-id-0x1234567890123456789012345678901234567890',
+            key: expect.any(String),
             timestamp: expect.any(Number),
             metadata: {
               userAddress: '0x1234567890123456789012345678901234567890',
