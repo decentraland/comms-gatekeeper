@@ -303,7 +303,8 @@ export function createVoiceComponent(
 
     const metadata: CommunityVoiceChatUserMetadata = {
       role: userRole,
-      isSpeaker
+      isSpeaker,
+      muted: false
     }
 
     // Add profile data if provided
@@ -513,6 +514,27 @@ export function createVoiceComponent(
   }
 
   /**
+   * Mutes or unmutes a speaker in a community voice chat.
+   * @param communityId - The ID of the community.
+   * @param userAddress - The address of the user to mute/unmute.
+   * @param muted - True to mute, false to unmute.
+   */
+  async function muteSpeakerInCommunityVoiceChat(
+    communityId: string,
+    userAddress: string,
+    muted: boolean
+  ): Promise<void> {
+    const roomName = getCommunityVoiceChatRoomName(communityId)
+
+    await livekit.updateParticipantMetadata(roomName, userAddress, {
+      muted
+    })
+
+    const action = muted ? 'muted' : 'unmuted'
+    logger.info(`Successfully ${action} user ${userAddress} in community ${communityId}`)
+  }
+
+  /**
    * Ends a community voice chat (force end regardless of participants).
    * @param communityId - The ID of the community.
    * @param userAddress - The address of the user ending the chat.
@@ -596,6 +618,7 @@ export function createVoiceComponent(
     promoteSpeakerInCommunity,
     demoteSpeakerInCommunity,
     kickPlayerFromCommunity,
+    muteSpeakerInCommunityVoiceChat,
     endCommunityVoiceChat,
     getAllActiveCommunityVoiceChats,
     isUserInCommunityVoiceChat

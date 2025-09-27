@@ -565,7 +565,8 @@ describe('Voice Logic Component', () => {
           false,
           {
             role: CommunityRole.Moderator,
-            isSpeaker: true
+            isSpeaker: true,
+            muted: false
           }
         )
         expect(joinUserToCommunityRoomMock).toHaveBeenCalledWith(userAddress, expectedRoomName, true)
@@ -634,7 +635,8 @@ describe('Voice Logic Component', () => {
           false,
           {
             role: CommunityRole.Member,
-            isSpeaker: false
+            isSpeaker: false,
+            muted: false
           }
         )
         expect(joinUserToCommunityRoomMock).toHaveBeenCalledWith(userAddress, expectedRoomName, false)

@@ -141,6 +141,7 @@ describe('CommunityVoiceLogic', () => {
           {
             role: CommunityRole.Moderator,
             isSpeaker: true,
+            muted: false,
             name: 'TestModerator',
             hasClaimedName: true,
             profilePictureUrl: 'https://example.com/avatar.png'
@@ -188,7 +189,8 @@ describe('CommunityVoiceLogic', () => {
           false,
           {
             role: CommunityRole.Moderator,
-            isSpeaker: true
+            isSpeaker: true,
+            muted: false
           }
         )
 
@@ -230,7 +232,8 @@ describe('CommunityVoiceLogic', () => {
           false,
           {
             role: CommunityRole.Moderator,
-            isSpeaker: true
+            isSpeaker: true,
+            muted: false
           }
         )
       })
@@ -397,6 +400,7 @@ describe('CommunityVoiceLogic', () => {
           {
             role: CommunityRole.Member,
             isSpeaker: false,
+            muted: false,
             name: 'TestMember',
             hasClaimedName: false,
             profilePictureUrl: 'https://example.com/member-avatar.png'
@@ -443,7 +447,8 @@ describe('CommunityVoiceLogic', () => {
           false,
           {
             role: CommunityRole.Member,
-            isSpeaker: false
+            isSpeaker: false,
+            muted: false
           }
         )
 
@@ -483,7 +488,8 @@ describe('CommunityVoiceLogic', () => {
           false,
           {
             role: CommunityRole.Member,
-            isSpeaker: false
+            isSpeaker: false,
+            muted: false
           }
         )
       })
