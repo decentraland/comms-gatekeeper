@@ -27,7 +27,7 @@ components:
         currentTime:
           type: integer
           format: int64
-          description: 'Current timestamp in milliseconds'
+          description: 'Current timestamp in ms'
         commitHash:
           type: string
           description: 'Git commit hash of the current deployment'
