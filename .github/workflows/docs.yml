@@ -12,7 +12,7 @@ on:
 
 jobs:
   build-and-deploy:
-    uses: decentraland/platform-actions/.github/workflows/apps-docs.yml@feat/add-apps-docs-workflow
+    uses: decentraland/platform-actions/.github/workflows/apps-docs.yml@main
     with:
       path-to-docs: 'docs/comms-gatekeeper-openapi.yaml'
       path-to-output: 'docs/index.html'
