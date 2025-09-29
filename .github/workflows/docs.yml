@@ -3,17 +3,17 @@ name: API Documentation Validation and Deployment
 on:
   pull_request:
     paths:
-      - "docs/**"
+      - 'docs/**'
   push:
     branches:
       - main
     paths:
-      - "docs/**"
+      - 'docs/**'
 
 jobs:
   build-and-deploy:
     uses: decentraland/platform-actions/.github/workflows/apps-docs.yml@feat/add-apps-docs-workflow
     with:
-      path-to-docs: "docs/comms-gatekeeper-openapi.yaml"
-      path-to-output: "docs/index.html"
-      node-version: "20"
+      path-to-docs: 'docs/comms-gatekeeper-openapi.yaml'
+      path-to-output: 'docs/index.html'
+      node-version: '20'
