@@ -803,10 +803,10 @@
     ajv-keywords "^5.1.0"
     mitt "^3.0.1"
 
-"@dcl/schemas@^18.8.0":
-  version "18.8.0"
-  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-18.8.0.tgz#fe8e3fb47d01b848481f54887008118aafee0f51"
-  integrity sha512-1HxbL0azB7N+kMwYyU4/Uqltc+7F8Lv8UcS3dxDNVTPn71gldIDImj58OM9Y3gIyQG5Tauacrlk5cDkXhjMkOA==
+"@dcl/schemas@^19.0.0":
+  version "19.0.0"
+  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-19.0.0.tgz#791d6af050664eba03321c522bc4d4babb7bfac8"
+  integrity sha512-v5uDNp0ghVg57bLNmJZpJJBp8nMIRyCWF/t7LU7EL1jCd6frMp3+3gshBAgaeqpV3Kpe3xKcs8Q7tSCLrJQBhw==
   dependencies:
     ajv "^8.11.0"
     ajv-errors "^3.0.0"
