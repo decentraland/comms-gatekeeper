@@ -12,8 +12,8 @@ on:
 
 jobs:
   build-and-deploy:
-    uses: decentraland/platform-actions/.github/workflows/apps-docs.yml@main
+    uses: decentraland/platform-actions/.github/workflows/apps-docs.yml@refactor/rename-docs-workflow-inputs
     with:
-      path-to-docs: 'docs/comms-gatekeeper-openapi.yaml'
-      path-to-output: 'docs/index.html'
+      path-to-api-spec: 'docs/comms-gatekeeper-openapi.yaml'
+      path-to-docs: './docs'
       node-version: '20'
