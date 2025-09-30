@@ -12,7 +12,7 @@ on:
 
 jobs:
   build-and-deploy:
-    uses: decentraland/platform-actions/.github/workflows/apps-docs.yml@refactor/rename-docs-workflow-inputs
+    uses: decentraland/platform-actions/.github/workflows/apps-docs.yml@main
     with:
       api-spec-file: 'docs/comms-gatekeeper-openapi.yaml'
       output-file: 'docs/index.html'
