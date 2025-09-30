@@ -21,7 +21,12 @@ export async function muteSpeakerHandler(
     throw new InvalidRequestError('The parameter userAddress is required')
   }
 
-  const body = await request.json()
+  let body: { muted?: boolean }
+  try {
+    body = await request.json()
+  } catch (error) {
+    throw new InvalidRequestError('Wrongly formatted JSON body')
+  }
 
   if (typeof body.muted !== 'boolean') {
     throw new InvalidRequestError('The field muted is required and must be a boolean')

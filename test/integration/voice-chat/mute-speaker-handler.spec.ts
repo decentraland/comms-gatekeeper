@@ -2,11 +2,15 @@ import { test } from '../../components'
 import { makeRequest } from '../../utils'
 
 test('Mute Speaker Handler', ({ components, spyComponents }) => {
-  const communityId = 'test-community'
-  const userAddress = '0x1234567890123456789012345678901234567890'
-  const token = 'aToken'
+  let communityId: string
+  let userAddress: string
+  let token: string
 
   beforeEach(() => {
+    communityId = 'test-community'
+    userAddress = '0x1234567890123456789012345678901234567890'
+    token = 'aToken'
+
     // Mock successful voice component methods
     spyComponents.voice.muteSpeakerInCommunityVoiceChat.mockResolvedValue(undefined)
   })
@@ -40,7 +44,9 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
         true
       )
     })
+  })
 
+  describe('when unmuting a speaker', () => {
     it('should unmute speaker successfully', async () => {
       const response = await makeRequest(
         components.localFetch,
@@ -69,7 +75,9 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
         false
       )
     })
+  })
 
+  describe('when handling invalid requests', () => {
     it('should return 400 when communityId is missing', async () => {
       const response = await makeRequest(components.localFetch, `/community-voice-chat//users/${userAddress}/mute`, {
         method: 'PATCH',
@@ -164,6 +172,28 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
       expect(spyComponents.voice.muteSpeakerInCommunityVoiceChat).not.toHaveBeenCalled()
     })
 
+    it('should return 400 when JSON body is malformed', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        `/community-voice-chat/${communityId}/users/${userAddress}/mute`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: 'invalid json'
+        }
+      )
+
+      expect(response.status).toBe(400)
+      const body = await response.json()
+      expect(body.error).toBeDefined()
+      expect(spyComponents.voice.muteSpeakerInCommunityVoiceChat).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when handling error scenarios', () => {
     it('should return 500 when voice component throws error', async () => {
       spyComponents.voice.muteSpeakerInCommunityVoiceChat.mockRejectedValue(new Error('Database error'))
 
@@ -185,7 +215,9 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
       expect(response.status).toBe(500)
       expect(await response.json()).toEqual({ error: 'Internal Server Error' })
     })
+  })
 
+  describe('when handling authentication scenarios', () => {
     it('should return 401 when authorization header is missing', async () => {
       const response = await makeRequest(
         components.localFetch,
@@ -224,10 +256,18 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
       expect(response.status).toBe(401)
       expect(spyComponents.voice.muteSpeakerInCommunityVoiceChat).not.toHaveBeenCalled()
     })
+  })
+
+  describe('when handling edge cases', () => {
+    let addressWithWhitespace: string
+    let uppercaseAddress: string
+
+    beforeEach(() => {
+      addressWithWhitespace = ' 0x1234567890123456789012345678901234567890 '
+      uppercaseAddress = '0X1234567890123456789012345678901234567890'
+    })
 
     it('should handle edge case with extra whitespace in addresses', async () => {
-      const addressWithWhitespace = ' 0x1234567890123456789012345678901234567890 '
-
       const response = await makeRequest(
         components.localFetch,
         `/community-voice-chat/${communityId}/users/${addressWithWhitespace}/mute`,
@@ -253,8 +293,6 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
     })
 
     it('should handle uppercase user addresses by converting to lowercase', async () => {
-      const uppercaseAddress = '0X1234567890123456789012345678901234567890'
-
       const response = await makeRequest(
         components.localFetch,
         `/community-voice-chat/${communityId}/users/${uppercaseAddress}/mute`,
