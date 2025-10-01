@@ -158,16 +158,26 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     { startOnInit: isProduction, waitForCompletion: true }
   )
 
+  const contentClient = await createContentClientComponent({ config, fetch: tracedFetch, logs })
+
   // Scene ban components
-  const sceneBans = createSceneBansComponent({ sceneBanManager, livekit, logs, sceneManager, places, analytics, names })
+  const sceneBans = createSceneBansComponent({
+    sceneBanManager,
+    livekit,
+    logs,
+    sceneManager,
+    places,
+    analytics,
+    names,
+    contentClient,
+    publisher
+  })
   const disabledPlacesBansRemovalJob = await createCronJobComponent(
     { logs },
     sceneBans.removeBansFromDisabledPlaces,
     everyMondayAt0000Expression,
     { startOnInit: isProduction, waitForCompletion: true }
   )
-
-  const contentClient = await createContentClientComponent({ config, fetch: tracedFetch })
 
   // LiveKit webhook event handlers
   const ingressStartedHandler = createIngressStartedHandler({
@@ -179,7 +189,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const participantJoinedHandler = createParticipantJoinedHandler({
     voice,
     analytics,
-    logs
+    logs,
+    livekit,
+    publisher
   })
   const participantLeftHandler = createParticipantLeftHandler({
     voice,

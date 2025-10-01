@@ -31,16 +31,16 @@ export function createParticipantLeftHandler(
           metadata: {
             sceneId: sceneId,
             userAddress: participant.identity.toLowerCase(),
-            isWorld: worldName ? true : false,
+            isWorld: !!worldName,
             realmName: worldName || realmName || ''
           }
         }
 
         try {
           await components.publisher.publishMessages([event])
-          logger.debug(`Published UserJoinedRoomEvent for ${participant.identity} in room ${room}`)
+          logger.debug(`Published UserLeftRoomEvent for ${participant.identity} in room ${room}`)
         } catch (error: any) {
-          logger.error(`Failed to publish UserJoinedRoomEvent: ${error}`, {
+          logger.error(`Failed to publish UserLeftRoomEvent: ${error}`, {
             error,
             event: JSON.stringify(event),
             room: room.name

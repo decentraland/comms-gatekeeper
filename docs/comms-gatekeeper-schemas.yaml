@@ -1,0 +1,428 @@
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: 'Error message describing what went wrong'
+
+    # Basic response schemas
+    PingResponse:
+      type: string
+      description: 'The pathname that was pinged'
+
+    StatusResponse:
+      type: object
+      required:
+        - version
+        - currentTime
+        - commitHash
+      properties:
+        version:
+          type: string
+          description: 'Current version of the service'
+        currentTime:
+          type: integer
+          format: int64
+          description: 'Current timestamp in milliseconds'
+        commitHash:
+          type: string
+          description: 'Git commit hash of the current deployment'
+
+    # Scene adapter response
+    SceneAdapterResponse:
+      type: object
+      required:
+        - adapter
+      properties:
+        adapter:
+          type: string
+          description: 'LiveKit connection URL for the scene'
+
+    # Scene admin schemas
+    SceneAdmin:
+      type: object
+      required:
+        - admin
+        - name
+        - canBeRemoved
+      properties:
+        admin:
+          type: string
+          description: 'ETH address of the admin'
+        name:
+          type: string
+          description: 'Display name of the admin'
+        canBeRemoved:
+          type: boolean
+          description: 'Whether this admin can be removed (false for land lease owners)'
+
+    AddSceneAdminRequest:
+      type: object
+      required:
+        - admin
+      properties:
+        admin:
+          type: string
+          description: 'ETH address of the admin to add'
+
+    # Scene ban schemas
+    SceneBan:
+      type: object
+      required:
+        - id
+        - place_id
+        - banned_address
+        - banned_by
+        - banned_at
+      properties:
+        id:
+          type: string
+          description: 'Unique identifier of the ban'
+        place_id:
+          type: string
+          description: 'ID of the place where the ban applies'
+        banned_address:
+          type: string
+          description: 'ETH address of the banned user'
+        banned_by:
+          type: string
+          description: 'ETH address of the user who created the ban'
+        banned_at:
+          type: integer
+          format: int64
+          description: 'Timestamp when the ban was created'
+
+    AddSceneBanRequest:
+      type: object
+      required:
+        - banned_address
+      properties:
+        banned_address:
+          type: string
+          description: 'ETH address of the user to ban'
+
+    ListSceneBansResponse:
+      type: object
+      required:
+        - results
+        - total
+        - page
+        - pages
+        - limit
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SceneBan'
+        total:
+          type: integer
+          description: 'Total number of bans'
+        page:
+          type: integer
+          description: 'Current page number'
+        pages:
+          type: integer
+          description: 'Total number of pages'
+        limit:
+          type: integer
+          description: 'Number of items per page'
+
+    SceneBannedAddressesResponse:
+      type: object
+      required:
+        - bannedAddresses
+      properties:
+        bannedAddresses:
+          type: array
+          items:
+            type: string
+          description: 'Array of banned ETH addresses'
+
+    # Scene stream access schemas
+    SceneStreamAccess:
+      type: object
+      required:
+        - id
+        - place_id
+        - streaming_key
+        - streaming_url
+        - ingress_id
+        - created_at
+        - active
+        - streaming
+        - streaming_start_time
+      properties:
+        id:
+          type: string
+          description: 'Unique identifier of the stream access'
+        place_id:
+          type: string
+          description: 'ID of the place'
+        streaming_key:
+          type: string
+          description: 'Streaming key for the stream'
+        streaming_url:
+          type: string
+          description: 'URL for the stream'
+        ingress_id:
+          type: string
+          description: 'LiveKit ingress ID'
+        created_at:
+          type: integer
+          format: int64
+          description: 'Timestamp when the access was created'
+        active:
+          type: boolean
+          description: 'Whether the stream access is active'
+        streaming:
+          type: boolean
+          description: 'Whether the stream is currently active'
+        streaming_start_time:
+          type: integer
+          format: int64
+          description: 'Timestamp when streaming started'
+
+    AddSceneStreamAccessRequest:
+      type: object
+      required:
+        - streaming_url
+        - streaming_key
+        - ingress_id
+      properties:
+        streaming_url:
+          type: string
+          description: 'URL for the stream'
+        streaming_key:
+          type: string
+          description: 'Streaming key for the stream'
+        ingress_id:
+          type: string
+          description: 'LiveKit ingress ID'
+
+    # Private messages schemas
+    PrivateMessagesTokenResponse:
+      type: object
+      required:
+        - adapter
+      properties:
+        adapter:
+          type: string
+          description: 'LiveKit connection URL for private messages'
+
+    UpdatePrivateMessagesPrivacyRequest:
+      type: object
+      required:
+        - private_messages_privacy
+      properties:
+        private_messages_privacy:
+          type: string
+          enum: [all, only_friends]
+          description: 'Privacy setting for private messages'
+
+    # Voice chat schemas
+    VoiceChatStatusResponse:
+      type: object
+      required:
+        - is_user_in_voice_chat
+      properties:
+        is_user_in_voice_chat:
+          type: boolean
+          description: 'Whether the user is currently in a voice chat'
+
+    CreatePrivateVoiceChatRequest:
+      type: object
+      required:
+        - user_addresses
+        - room_id
+      properties:
+        user_addresses:
+          type: array
+          items:
+            type: string
+          minItems: 2
+          maxItems: 2
+          description: 'Array of exactly 2 ETH addresses for the private voice chat'
+        room_id:
+          type: string
+          description: 'Unique identifier for the voice chat room'
+
+    CreatePrivateVoiceChatResponse:
+      type: object
+      additionalProperties:
+        type: object
+        required:
+          - connection_url
+        properties:
+          connection_url:
+            type: string
+            description: 'LiveKit connection URL for the user'
+      description: 'Object with user addresses as keys and connection URLs as values'
+
+    # Community voice chat schemas
+    CommunityVoiceChatAction:
+      type: string
+      enum: [create, join, request-to-speak, promote-speaker, demote-speaker, kick-player]
+      description: 'Action to perform in community voice chat'
+
+    CommunityRole:
+      type: string
+      enum: [owner, moderator, member, none]
+      description: 'Role of the user in the community'
+
+    CommunityVoiceChatUserProfileMetadata:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 'Display name of the user'
+        hasClaimedName:
+          type: boolean
+          description: 'Whether the user has claimed their name'
+        profilePictureUrl:
+          type: string
+          description: 'URL of the user profile picture'
+
+    CommunityVoiceChatRequest:
+      type: object
+      required:
+        - community_id
+        - user_address
+        - action
+      properties:
+        community_id:
+          type: string
+          description: 'ID of the community'
+        user_address:
+          type: string
+          description: 'ETH address of the user'
+        action:
+          $ref: '#/components/schemas/CommunityVoiceChatAction'
+        user_role:
+          $ref: '#/components/schemas/CommunityRole'
+          description: 'Role of the user in the community (defaults to none)'
+        profile_data:
+          $ref: '#/components/schemas/CommunityVoiceChatUserProfileMetadata'
+          description: 'Optional profile data for the user'
+
+    CommunityVoiceChatResponse:
+      type: object
+      required:
+        - connection_url
+      properties:
+        connection_url:
+          type: string
+          description: 'LiveKit connection URL for the community voice chat'
+
+    CommunityVoiceChatStatusResponse:
+      type: object
+      required:
+        - active
+        - participantCount
+        - moderatorCount
+      properties:
+        active:
+          type: boolean
+          description: 'Whether the community voice chat is active'
+        participantCount:
+          type: integer
+          description: 'Number of participants in the voice chat'
+        moderatorCount:
+          type: integer
+          description: 'Number of moderators in the voice chat'
+
+    ActiveCommunityVoiceChat:
+      type: object
+      required:
+        - communityId
+        - participantCount
+        - moderatorCount
+      properties:
+        communityId:
+          type: string
+          description: 'ID of the community'
+        participantCount:
+          type: integer
+          description: 'Number of participants in the voice chat'
+        moderatorCount:
+          type: integer
+          description: 'Number of moderators in the voice chat'
+
+    GetAllActiveCommunityVoiceChatsResponse:
+      type: object
+      required:
+        - activeChats
+        - total
+      properties:
+        activeChats:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActiveCommunityVoiceChat'
+        total:
+          type: integer
+          description: 'Total number of active community voice chats'
+
+    # LiveKit webhook schemas
+    LivekitWebhookRequest:
+      type: object
+      description: 'LiveKit webhook payload (structure depends on webhook type)'
+      additionalProperties: true
+
+    # Pagination schemas
+    PaginationParams:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: 'Number of items per page'
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+          description: 'Number of items to skip'
+
+    # Authentication schemas
+    SignedFetchHeaders:
+      type: object
+      description: 'Signed Fetch authentication headers'
+      required:
+        - x-identity-auth-chain-0
+        - x-identity-auth-chain-1
+        - x-identity-auth-chain-2
+        - x-identity-timestamp
+        - x-identity-metadata
+      properties:
+        x-identity-auth-chain-0:
+          type: string
+          description: 'Signer information JSON string'
+          example: '{"type":"SIGNER","payload":"0xsigneraddress","signature":""}'
+        x-identity-auth-chain-1:
+          type: string
+          description: 'Ephemeral key information JSON string'
+          example: '{"type":"ECDSA_EPHEMERAL","payload":"Decentraland Login\nEphemeral address: 0xephemeraladdress\nExpiration: 2025-09-14T09:16:57.465Z","signature":"signature"}'
+        x-identity-auth-chain-2:
+          type: string
+          description: 'Signed entity information JSON string'
+          example: '{"type":"ECDSA_SIGNED_ENTITY","payload":"get:/path/to/resource:1757507662494:{}","signature":"signature"}'
+        x-identity-timestamp:
+          type: string
+          description: 'Request timestamp'
+          example: '1757507662494'
+        x-identity-metadata:
+          type: string
+          description: 'Request metadata JSON string'
+          example: '{}'
+
+    BearerTokenAuth:
+      type: object
+      description: 'Bearer token authentication'
+      properties:
+        token:
+          type: string
+          description: 'Bearer token for authentication'

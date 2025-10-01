@@ -4,6 +4,7 @@ import { TestCleanup } from '../../db-cleanup'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import SQL from 'sql-template-strings'
 import { createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
+import { AddSceneBanInput } from '../../../src/types'
 
 test('DELETE /scene-bans', ({ components, stubComponents }) => {
   let testPlaceId: string
@@ -91,20 +92,24 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
     })
 
     describe('and is trying to unban a user from a land scene', () => {
+      let newBan: AddSceneBanInput
+
+      beforeEach(async () => {
+        newBan = {
+          placeId: testPlaceId,
+          bannedAddress: nonOwner.authChain[0].payload.toLowerCase(),
+          bannedBy: owner.authChain[0].payload.toLowerCase()
+        }
+      })
+
       it('should successfully unban the user', async () => {
         const { localFetch } = components
 
         // First, add a ban to remove
-        const banResult = await components.database.query(
-          SQL`
-            INSERT INTO scene_bans (id, place_id, banned_address, banned_by, banned_at)
-            VALUES (gen_random_uuid(), ${testPlaceId}, ${nonOwner.authChain[0].payload.toLowerCase()}, ${owner.authChain[0].payload.toLowerCase()}, ${Date.now()})
-            RETURNING *
-          `
-        )
+        await components.sceneBanManager.addBan(newBan)
 
         // Track the ban for cleanup
-        cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
+        cleanup.trackInsert('scene_bans', { place_id: newBan.placeId, banned_address: newBan.bannedAddress })
 
         const response = await makeRequest(
           localFetch,
@@ -112,7 +117,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
           {
             method: 'DELETE',
             body: JSON.stringify({
-              banned_address: nonOwner.authChain[0].payload
+              banned_address: newBan.bannedAddress
             }),
             metadata: metadataLand
           },
@@ -124,20 +129,24 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
     })
 
     describe('and is trying to unban a user from a world scene', () => {
+      let newBan: AddSceneBanInput
+
+      beforeEach(async () => {
+        newBan = {
+          placeId: worldPlaceId,
+          bannedAddress: nonOwner.authChain[0].payload.toLowerCase(),
+          bannedBy: owner.authChain[0].payload.toLowerCase()
+        }
+      })
+
       it('should successfully unban the user', async () => {
         const { localFetch } = components
 
         // First, add a ban to remove
-        const banResult = await components.database.query(
-          SQL`
-          INSERT INTO scene_bans (id, place_id, banned_address, banned_by, banned_at)
-          VALUES (gen_random_uuid(), ${worldPlaceId}, ${nonOwner.authChain[0].payload.toLowerCase()}, ${owner.authChain[0].payload.toLowerCase()}, ${Date.now()})
-          RETURNING *
-        `
-        )
+        await components.sceneBanManager.addBan(newBan)
 
         // Track the ban for cleanup
-        cleanup.trackInsert('scene_bans', { id: banResult.rows[0].id })
+        cleanup.trackInsert('scene_bans', { place_id: newBan.placeId, banned_address: newBan.bannedAddress })
 
         const response = await makeRequest(
           localFetch,
@@ -145,7 +154,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
           {
             method: 'DELETE',
             body: JSON.stringify({
-              banned_address: nonOwner.authChain[0].payload
+              banned_address: newBan.bannedAddress
             }),
             metadata: metadataWorld
           },
@@ -231,7 +240,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
       expect(response.status).toBe(400)
     })
 
-    it('should return 400 for missing banned_address', async () => {
+    it('should return 400 for missing banned_address and banned_name', async () => {
       const { localFetch } = components
 
       const response = await makeRequest(
@@ -302,6 +311,153 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
       )
 
       expect(response.status).toBe(204)
+    })
+  })
+
+  describe('when unbanning by name', () => {
+    beforeEach(async () => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.names.getNameOwner.resolves(nonOwner.authChain[0].payload)
+    })
+
+    describe('from a land scene', () => {
+      let newBan: AddSceneBanInput
+
+      beforeEach(async () => {
+        newBan = {
+          placeId: testPlaceId,
+          bannedAddress: nonOwner.authChain[0].payload.toLowerCase(),
+          bannedBy: owner.authChain[0].payload.toLowerCase()
+        }
+      })
+
+      it('should successfully unban a user by name from a land scene', async () => {
+        const { localFetch } = components
+
+        // First, add a ban to remove
+        await components.sceneBanManager.addBan(newBan)
+
+        // Track the ban for cleanup
+        cleanup.trackInsert('scene_bans', { place_id: newBan.placeId, banned_address: newBan.bannedAddress })
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'DELETE',
+            body: JSON.stringify({
+              banned_name: 'testuser'
+            }),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(204)
+      })
+    })
+
+    describe('from a world scene', () => {
+      let newBan: AddSceneBanInput
+
+      beforeEach(async () => {
+        newBan = {
+          placeId: worldPlaceId,
+          bannedAddress: nonOwner.authChain[0].payload.toLowerCase(),
+          bannedBy: owner.authChain[0].payload.toLowerCase()
+        }
+      })
+
+      it('should successfully unban a user by name', async () => {
+        const { localFetch } = components
+
+        // First, add a ban to remove
+        await components.sceneBanManager.addBan(newBan)
+
+        // Track the ban for cleanup
+        cleanup.trackInsert('scene_bans', { place_id: newBan.placeId, banned_address: newBan.bannedAddress })
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'DELETE',
+            body: JSON.stringify({
+              banned_name: 'testuser'
+            }),
+            metadata: metadataWorld
+          },
+          owner
+        )
+
+        expect(response.status).toBe(204)
+      })
+    })
+
+    describe('and the user address is also provided', () => {
+      let newBan: AddSceneBanInput
+
+      beforeEach(async () => {
+        newBan = {
+          placeId: testPlaceId,
+          bannedAddress: nonOwner.authChain[0].payload.toLowerCase(),
+          bannedBy: owner.authChain[0].payload.toLowerCase()
+        }
+      })
+
+      it('should prioritize banned_address when both are provided', async () => {
+        const { localFetch } = components
+
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+
+        // First, add a ban to remove
+        await components.sceneBanManager.addBan(newBan)
+
+        // Track the ban for cleanup
+        cleanup.trackInsert('scene_bans', { place_id: newBan.placeId, banned_address: newBan.bannedAddress })
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-bans',
+          {
+            method: 'DELETE',
+            body: JSON.stringify({
+              banned_address: newBan.bannedAddress,
+              banned_name: 'testuser'
+            }),
+            metadata: metadataLand
+          },
+          owner
+        )
+
+        expect(response.status).toBe(204)
+      })
+    })
+  })
+
+  describe('when name lookup fails during unban', () => {
+    beforeEach(async () => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.names.getNameOwner.resolves(null)
+    })
+
+    it('should return 404 when trying to unban a non-existent name', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-bans',
+        {
+          method: 'DELETE',
+          body: JSON.stringify({
+            banned_name: 'nonexistentuser'
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(404)
     })
   })
 })

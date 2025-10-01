@@ -1,4 +1,3 @@
-import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { ForbiddenError, InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
@@ -9,12 +8,12 @@ const PREVIEW = 'preview'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'publisher' | 'sceneBans' | 'places',
+    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'sceneBans' | 'places',
     '/get-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, denyList, publisher, sceneBans }
+    components: { livekit, logs, denyList, sceneBans }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -88,33 +87,6 @@ export async function commsSceneHandler(
 
   const credentials = await livekit.generateCredentials(identity, room, permissions, forPreview)
   logger.debug(`Token generated for ${identity} to join room ${room}`)
-
-  setImmediate(async () => {
-    const event: UserJoinedRoomEvent = {
-      type: Events.Type.COMMS,
-      subType: Events.SubType.Comms.USER_JOINED_ROOM,
-      key: `user-joined-room-${room}`,
-      timestamp: Date.now(),
-      metadata: {
-        sceneId: sceneId || '',
-        userAddress: identity.toLowerCase(),
-        parcel,
-        realmName,
-        isWorld
-      }
-    }
-
-    try {
-      await publisher.publishMessages([event])
-      logger.debug(`Published UserJoinedRoomEvent for ${identity} in room ${room}`)
-    } catch (error: any) {
-      logger.error(`Failed to publish UserJoinedRoomEvent: ${error}`, {
-        error,
-        event: JSON.stringify(event),
-        room
-      })
-    }
-  })
 
   return {
     status: 200,

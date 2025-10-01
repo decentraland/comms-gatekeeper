@@ -1,0 +1,1312 @@
+openapi: 3.0.0
+info:
+  title: Comms Gatekeeper API
+  version: 1.0.0
+  description: |
+    API documentation for the Comms Gatekeeper service.
+    This service manages communications, voice chats, scene administration, and streaming access for Decentraland.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://comms-gatekeeper.decentraland.org
+    description: Production server
+  - url: https://comms-gatekeeper.decentraland.zone
+    description: Development server
+
+components:
+  securitySchemes:
+    SignedFetch:
+      type: apiKey
+      in: header
+      name: x-identity
+      description: |
+        Signed Fetch authentication for scene-based requests.
+        Requires a chain of identity headers:
+        - x-identity-auth-chain-0: Signer information
+        - x-identity-auth-chain-1: Ephemeral key information  
+        - x-identity-auth-chain-2: Signed entity information
+        - x-identity-timestamp: Request timestamp
+        - x-identity-metadata: Request metadata
+        Used for authentication from decentraland-kernel-scene.
+    SignedFetchExplorer:
+      type: apiKey
+      in: header
+      name: x-identity
+      description: |
+        Signed Fetch authentication for Explorer-based requests.
+        Requires a chain of identity headers:
+        - x-identity-auth-chain-0: Signer information
+        - x-identity-auth-chain-1: Ephemeral key information  
+        - x-identity-auth-chain-2: Signed entity information
+        - x-identity-timestamp: Request timestamp
+        - x-identity-metadata: Request metadata
+        Used for authentication from dcl:explorer.
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Bearer token authentication for service-to-service communication.
+        Requires COMMS_GATEKEEPER_AUTH_TOKEN.
+
+# Global security - individual endpoints can override this
+
+paths:
+  /ping:
+    get:
+      operationId: ping
+      summary: Ping endpoint
+      description: |
+        Simple ping endpoint that returns the requested pathname.
+        Used for health checks and basic connectivity testing.
+        No authentication required.
+      security: []
+      responses:
+        '200':
+          description: Ping successful
+          content:
+            text/plain:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/PingResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Health
+
+  /status:
+    get:
+      operationId: getStatus
+      summary: Service status
+      description: |
+        Returns the current status of the service including version information,
+        current timestamp, and git commit hash.
+        No authentication required.
+      security: []
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/StatusResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Health
+
+  /get-scene-adapter:
+    post:
+      operationId: getSceneAdapter
+      summary: Get scene communication adapter
+      description: |
+        Generates LiveKit credentials for a user to join a scene's communication room.
+        This endpoint handles authentication, blacklist checking, scene ban verification,
+        and generates appropriate permissions for the user.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 'Signed fetch request with scene and user information'
+      responses:
+        '200':
+          description: Scene adapter generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneAdapterResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid authentication or blacklisted user
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - User is banned from this scene
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found - Realm or scene not found
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Communications
+
+  # Scene Admin endpoints
+  /scene-admin:
+    get:
+      operationId: listSceneAdmins
+      summary: List scene administrators
+      description: |
+        Lists all administrators for a specific scene or world.
+        Only scene owners or existing administrators can access this endpoint.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      parameters:
+        - name: admin
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 'Filter by specific admin address'
+      responses:
+        '200':
+          description: Scene administrators retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneAdmin'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required or insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Administration
+
+    post:
+      operationId: addSceneAdmin
+      summary: Add scene administrator
+      description: |
+        Adds a new administrator to a scene or world.
+        Only scene owners or existing administrators can add new administrators.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneAdminRequest'
+      responses:
+        '204':
+          description: Scene administrator added successfully
+        '400':
+          description: Invalid request - Invalid admin address or user already has permissions
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required or insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Administration
+
+    delete:
+      operationId: removeSceneAdmin
+      summary: Remove scene administrator
+      description: |
+        Removes an administrator from a scene or world.
+        Only scene owners or existing administrators can remove administrators.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneAdminRequest'
+      responses:
+        '204':
+          description: Scene administrator removed successfully
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required or insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Administration
+
+  # Scene Ban endpoints
+  /scene-bans:
+    get:
+      operationId: listSceneBans
+      summary: List scene bans
+      description: |
+        Lists all banned users for a specific scene or world.
+        Only scene owners or administrators can access this endpoint.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: 'Number of bans per page'
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: 'Number of bans to skip'
+      responses:
+        '200':
+          description: Scene bans retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ListSceneBansResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Bans
+
+    post:
+      operationId: addSceneBan
+      summary: Add scene ban
+      description: |
+        Bans a user from a specific scene or world.
+        Only scene owners or administrators can ban users.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneBanRequest'
+      responses:
+        '204':
+          description: User banned successfully
+        '400':
+          description: Invalid request - Invalid address or missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Bans
+
+    delete:
+      operationId: removeSceneBan
+      summary: Remove scene ban
+      description: |
+        Removes a ban from a user for a specific scene or world.
+        Only scene owners or administrators can remove bans.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneBanRequest'
+      responses:
+        '204':
+          description: Ban removed successfully
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Bans
+
+  /scene-bans/addresses:
+    get:
+      operationId: listSceneBannedAddresses
+      summary: List banned addresses
+      description: |
+        Lists all banned addresses for a specific scene or world.
+        Only scene owners or administrators can access this endpoint.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      responses:
+        '200':
+          description: Banned addresses retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneBannedAddressesResponse'
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Bans
+
+  # Scene Stream Access endpoints
+  /scene-stream-access:
+    get:
+      operationId: getSceneStreamAccess
+      summary: List scene stream access
+      description: |
+        Lists streaming access information for a specific scene or world.
+        Only scene owners or administrators can access this endpoint.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      responses:
+        '200':
+          description: Stream access information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneStreamAccess'
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Stream access not found
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Stream Access
+
+    post:
+      operationId: addSceneStreamAccess
+      summary: Add scene stream access
+      description: |
+        Adds streaming access for a specific scene or world.
+        Only scene owners or administrators can add stream access.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneStreamAccessRequest'
+      responses:
+        '201':
+          description: Stream access added successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneStreamAccess'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Stream Access
+
+    delete:
+      operationId: removeSceneStreamAccess
+      summary: Remove scene stream access
+      description: |
+        Removes streaming access for a specific scene or world.
+        Only scene owners or administrators can remove stream access.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      responses:
+        '204':
+          description: Stream access removed successfully
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Stream access not found
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Stream Access
+
+    put:
+      operationId: resetSceneStreamAccess
+      summary: Reset scene stream access
+      description: |
+        Resets streaming access for a specific scene or world.
+        This will stop any active streaming and reset the access configuration.
+        Only scene owners or administrators can reset stream access.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      responses:
+        '204':
+          description: Stream access reset successfully
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Stream access not found
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Scene Stream Access
+
+  # LiveKit webhook endpoint
+  /livekit-webhook:
+    post:
+      operationId: livekitWebhook
+      summary: LiveKit webhook
+      description: |
+        Webhook endpoint for LiveKit events.
+        This endpoint receives events from LiveKit when participants join/leave rooms,
+        streaming starts/stops, etc.
+        No authentication required - this is a webhook endpoint.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/LivekitWebhookRequest'
+      responses:
+        '200':
+          description: Webhook processed successfully
+        '400':
+          description: Invalid webhook payload
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Webhooks
+
+  # Private Messages endpoints
+  /private-messages/token:
+    get:
+      operationId: getPrivateMessagesToken
+      summary: Get private messages token
+      description: |
+        Generates a LiveKit token for accessing private messages.
+        This endpoint checks user privacy settings and generates appropriate credentials.
+        Requires Signed Fetch authentication from dcl:explorer.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetchExplorer: []
+      responses:
+        '200':
+          description: Private messages token generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/PrivateMessagesTokenResponse'
+        '401':
+          description: Unauthorized - Invalid authentication or blacklisted user
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Private Messages
+
+  /users/{address}/private-messages-privacy:
+    patch:
+      operationId: updatePrivateMessagesPrivacy
+      summary: Update user private messages privacy
+      description: |
+        Updates the privacy settings for a user's private messages.
+        This affects who can send private messages to the user.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ETH address of the user'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/UpdatePrivateMessagesPrivacyRequest'
+      responses:
+        '204':
+          description: Privacy settings updated successfully
+        '400':
+          description: Invalid request - Invalid address or privacy setting
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Private Messages
+
+  # Private Voice Chat endpoints
+  /users/{address}/voice-chat-status:
+    get:
+      operationId: getUserVoiceChatStatus
+      summary: Get user voice chat status
+      description: |
+        Checks if a user is currently in a voice chat.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ETH address of the user'
+      responses:
+        '200':
+          description: Voice chat status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/VoiceChatStatusResponse'
+        '400':
+          description: Invalid request - Invalid address
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Private Voice Chat
+
+  /private-voice-chat:
+    post:
+      operationId: createPrivateVoiceChat
+      summary: Create private voice chat
+      description: |
+        Creates a private voice chat room for two users.
+        Generates LiveKit credentials for both users to join the room.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CreatePrivateVoiceChatRequest'
+      responses:
+        '200':
+          description: Private voice chat created successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CreatePrivateVoiceChatResponse'
+        '400':
+          description: Invalid request - Invalid addresses or room ID
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Private Voice Chat
+
+  /private-voice-chat/{id}:
+    delete:
+      operationId: deletePrivateVoiceChat
+      summary: Delete private voice chat
+      description: |
+        Ends a private voice chat room.
+        This will disconnect all participants from the room.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'Room ID of the private voice chat'
+      responses:
+        '204':
+          description: Private voice chat ended successfully
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Private voice chat not found
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Private Voice Chat
+
+  # Community Voice Chat endpoints
+  /users/{userAddress}/community-voice-chat-status:
+    get:
+      operationId: checkUserCommunityVoiceChatStatus
+      summary: Check user community voice chat status
+      description: |
+        Checks if a user is currently in any community voice chat.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userAddress
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ETH address of the user'
+      responses:
+        '200':
+          description: Community voice chat status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/VoiceChatStatusResponse'
+        '400':
+          description: Invalid request - Invalid address
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
+  /community-voice-chat:
+    post:
+      operationId: createOrJoinCommunityVoiceChat
+      summary: Create or join community voice chat
+      description: |
+        Creates a new community voice chat or joins an existing one.
+        The user's role in the community determines their permissions in the voice chat.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CommunityVoiceChatRequest'
+      responses:
+        '200':
+          description: Community voice chat credentials generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CommunityVoiceChatResponse'
+        '400':
+          description: Invalid request - Invalid community ID, address, or action
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
+  /community-voice-chat/{communityId}/status:
+    get:
+      operationId: getCommunityVoiceChatStatus
+      summary: Get community voice chat status
+      description: |
+        Gets the current status of a community voice chat including participant counts.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: communityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ID of the community'
+      responses:
+        '200':
+          description: Community voice chat status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CommunityVoiceChatStatusResponse'
+        '400':
+          description: Invalid request - Invalid community ID
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
+  /community-voice-chat/active:
+    get:
+      operationId: getAllActiveCommunityVoiceChats
+      summary: Get all active community voice chats
+      description: |
+        Lists all currently active community voice chats.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Active community voice chats retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/GetAllActiveCommunityVoiceChatsResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
+  /community-voice-chat/{communityId}/users/{userAddress}/speak-request:
+    post:
+      operationId: requestToSpeak
+      summary: Request to speak
+      description: |
+        Requests permission to speak in a community voice chat.
+        Only listeners can request to speak.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: communityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ID of the community'
+        - name: userAddress
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ETH address of the user requesting to speak'
+      responses:
+        '204':
+          description: Speak request submitted successfully
+        '400':
+          description: Invalid request - Invalid community ID or address
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
+    delete:
+      operationId: rejectSpeakRequest
+      summary: Reject speak request
+      description: |
+        Rejects a user's request to speak in a community voice chat.
+        Only moderators can reject speak requests.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: communityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ID of the community'
+        - name: userAddress
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ETH address of the user whose speak request is being rejected'
+      responses:
+        '204':
+          description: Speak request rejected successfully
+        '400':
+          description: Invalid request - Invalid community ID or address
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
+  /community-voice-chat/{communityId}/users/{userAddress}/speaker:
+    post:
+      operationId: promoteSpeaker
+      summary: Promote to speaker
+      description: |
+        Promotes a user to speaker in a community voice chat.
+        Only moderators can promote users to speakers.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: communityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ID of the community'
+        - name: userAddress
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ETH address of the user to promote'
+      responses:
+        '204':
+          description: User promoted to speaker successfully
+        '400':
+          description: Invalid request - Invalid community ID or address
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
+    delete:
+      operationId: demoteSpeaker
+      summary: Demote from speaker
+      description: |
+        Demotes a speaker to listener in a community voice chat.
+        Only moderators can demote speakers.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: communityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ID of the community'
+        - name: userAddress
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ETH address of the user to demote'
+      responses:
+        '204':
+          description: User demoted from speaker successfully
+        '400':
+          description: Invalid request - Invalid community ID or address
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
+  /community-voice-chat/{communityId}/users/{userAddress}:
+    delete:
+      operationId: kickPlayer
+      summary: Kick player from community voice chat
+      description: |
+        Kicks a player from a community voice chat.
+        Only moderators can kick players.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: communityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ID of the community'
+        - name: userAddress
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ETH address of the user to kick'
+      responses:
+        '204':
+          description: Player kicked successfully
+        '400':
+          description: Invalid request - Invalid community ID or address
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
+  /community-voice-chat/{communityId}:
+    delete:
+      operationId: endCommunityVoiceChat
+      summary: End community voice chat
+      description: |
+        Ends a community voice chat, disconnecting all participants.
+        Only moderators can end community voice chats.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: communityId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'ID of the community'
+      responses:
+        '204':
+          description: Community voice chat ended successfully
+        '400':
+          description: Invalid request - Invalid community ID
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat

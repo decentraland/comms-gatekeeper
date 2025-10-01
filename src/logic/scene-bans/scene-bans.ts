@@ -6,18 +6,28 @@ import {
   ISceneBansComponent,
   IsUserBannedParams
 } from './types'
-import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
+import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
+import { EthAddress, Events, UserBannedFromSceneEvent, UserUnbannedFromSceneEvent } from '@dcl/schemas'
 
 export function createSceneBansComponent(
   components: Pick<
     AppComponents,
-    'sceneBanManager' | 'livekit' | 'logs' | 'sceneManager' | 'places' | 'analytics' | 'names'
+    | 'sceneBanManager'
+    | 'livekit'
+    | 'logs'
+    | 'sceneManager'
+    | 'places'
+    | 'analytics'
+    | 'names'
+    | 'contentClient'
+    | 'publisher'
   >
 ): ISceneBansComponent {
-  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names } = components
+  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, contentClient, publisher } =
+    components
   const logger = logs.getLogger('scene-bans')
 
   /**
@@ -47,15 +57,70 @@ export function createSceneBansComponent(
   }
 
   /**
+   * Publishes a scene ban event without waiting for it to be published.
+   * @param affectedUserAddress - The address of the user being banned.
+   * @param place - The place attributes.
+   * @param isBanned - Whether the user is banned.
+   */
+  async function publishSceneBanEvent(
+    affectedUserAddress: EthAddress,
+    place: PlaceAttributes,
+    isBanned: boolean = true
+  ): Promise<void> {
+    const subType = isBanned
+      ? Events.SubType.Comms.USER_BANNED_FROM_SCENE
+      : Events.SubType.Comms.USER_UNBANNED_FROM_SCENE
+
+    const timestamp = Date.now()
+
+    const event: UserBannedFromSceneEvent | UserUnbannedFromSceneEvent = {
+      type: Events.Type.COMMS,
+      subType,
+      key: `${place.id}-${affectedUserAddress}-${timestamp}`,
+      timestamp,
+      metadata: {
+        userAddress: affectedUserAddress,
+        placeTitle: place.title || `Place at ${place.base_position}`
+      }
+    }
+
+    setImmediate(async () => {
+      const action = isBanned ? 'ban' : 'unban'
+
+      try {
+        await publisher.publishMessages([event])
+        logger.debug(`Published scene ${action} event for ${affectedUserAddress}`)
+      } catch (error) {
+        const errorMessage = isErrorWithMessage(error) ? error.message : 'Unknown error'
+        logger.warn(`Failed to publish scene ${action} event: ${errorMessage}`)
+      }
+    })
+  }
+
+  /**
+   * Gets the owner address from a name.
+   * @param name - The name of the user.
+   * @returns The owner address.
+   */
+  async function getOwnerAddressFromName(name: string): Promise<EthAddress> {
+    const nameOwner = await names.getNameOwner(name)
+    if (!nameOwner) {
+      throw new NotFoundError(`Could not find the owner of the name ${name}`)
+    }
+    return nameOwner.toLowerCase()
+  }
+
+  /**
    * Adds a ban for a user from a scene with permission validation.
-   * @param bannedAddress - The address of the user being banned.
+   * @param payload - The payload containing the address or name of the user being banned.
    * @param bannedBy - The address of the user performing the ban.
    * @param params - The parameters for the ban.
    */
-  async function addSceneBan(bannedAddress: string, bannedBy: string, params: AddSceneBanParams): Promise<void> {
+  async function addSceneBan(bannedAddress: EthAddress, bannedBy: string, params: AddSceneBanParams): Promise<void> {
+    const userAddressToBan = bannedAddress.toLowerCase()
     const { sceneId, realmName, parcel, isWorld } = params
 
-    logger.debug(`Banning user ${bannedAddress} by user ${bannedBy}`, {
+    logger.debug(`Banning user ${userAddressToBan} by user ${bannedBy}`, {
       sceneId: sceneId || '',
       realmName,
       parcel: parcel || '',
@@ -77,7 +142,7 @@ export function createSceneBansComponent(
     }
 
     // Check if the user to be banned is a protected user
-    const userToBanScenePermissions = await sceneManager.getUserScenePermissions(place, bannedAddress.toLowerCase())
+    const userToBanScenePermissions = await sceneManager.getUserScenePermissions(place, userAddressToBan)
     if (
       userToBanScenePermissions.owner ||
       userToBanScenePermissions.admin ||
@@ -89,25 +154,27 @@ export function createSceneBansComponent(
     const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
 
     await Promise.all([
-      livekit.removeParticipant(roomName, bannedAddress.toLowerCase()).catch((err) => {
-        logger.warn(`Error removing participant ${bannedAddress} from LiveKit room ${roomName}`, { err })
+      livekit.removeParticipant(roomName, userAddressToBan).catch((err) => {
+        logger.warn(`Error removing participant ${userAddressToBan} from LiveKit room ${roomName}`, { err })
       }),
       sceneBanManager.addBan({
         placeId: place.id,
-        bannedAddress: bannedAddress.toLowerCase(),
+        bannedAddress: userAddressToBan,
         bannedBy: bannedBy.toLowerCase()
       })
     ])
 
+    void publishSceneBanEvent(userAddressToBan, place)
+
     await refreshRoomBans(place, roomName)
 
     logger.info(
-      `Successfully banned user ${bannedAddress} for place ${place.id} and removed participant from LiveKit room ${roomName}`
+      `Successfully banned user ${userAddressToBan} for place ${place.id} and removed participant from LiveKit room ${roomName}`
     )
 
     analytics.fireEvent(AnalyticsEvent.SCENE_BAN_ADDED, {
       place_id: place.id,
-      banned_address: bannedAddress.toLowerCase(),
+      banned_address: userAddressToBan,
       banned_by: bannedBy.toLowerCase(),
       banned_at: Date.now(),
       scene_id: sceneId,
@@ -117,19 +184,31 @@ export function createSceneBansComponent(
   }
 
   /**
+   * Adds a ban for a user from a scene with permission validation using one of the user's names.
+   * @param bannedName - The name of the user being banned.
+   * @param bannedBy - The address of the user performing the ban.
+   * @param params - The parameters for the ban.
+   */
+  async function addSceneBanByName(bannedName: string, bannedBy: string, params: AddSceneBanParams): Promise<void> {
+    const userAddressToBan = await getOwnerAddressFromName(bannedName)
+    await addSceneBan(userAddressToBan, bannedBy, params)
+  }
+
+  /**
    * Removes a ban for a user from a scene with permission validation.
    * @param bannedAddress - The address of the user being unbanned.
    * @param unbannedBy - The address of the user performing the unban.
    * @param params - The parameters for the unban.
    */
   async function removeSceneBan(
-    bannedAddress: string,
+    bannedAddress: EthAddress,
     unbannedBy: string,
     params: RemoveSceneBanParams
   ): Promise<void> {
+    const userAddressToUnban = bannedAddress.toLowerCase()
     const { sceneId, realmName, parcel, isWorld } = params
 
-    logger.debug(`Unbanning user ${bannedAddress} by user ${unbannedBy}`, {
+    logger.debug(`Unbanning user ${userAddressToUnban} by user ${unbannedBy}`, {
       sceneId: sceneId || '',
       realmName,
       parcel: parcel || '',
@@ -150,23 +229,39 @@ export function createSceneBansComponent(
       throw new UnauthorizedError('You do not have permission to unban users from this place')
     }
 
-    await sceneBanManager.removeBan(place.id, bannedAddress.toLowerCase())
+    await sceneBanManager.removeBan(place.id, userAddressToUnban)
+
+    void publishSceneBanEvent(userAddressToUnban, place, false)
 
     const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
-
     await refreshRoomBans(place, roomName)
 
-    logger.info(`Successfully unbanned user ${bannedAddress} for place ${place.id}`)
+    logger.info(`Successfully unbanned user ${userAddressToUnban} for place ${place.id}`)
 
     analytics.fireEvent(AnalyticsEvent.SCENE_BAN_REMOVED, {
       place_id: place.id,
-      banned_address: bannedAddress.toLowerCase(),
+      banned_address: userAddressToUnban,
       unbanned_by: unbannedBy.toLowerCase(),
       unbanned_at: Date.now(),
       scene_id: sceneId,
       parcel: parcel,
       realm_name: realmName
     })
+  }
+
+  /**
+   * Removes a ban for a user from a scene with permission validation using one of the user names.
+   * @param bannedName - The name of the user being unbanned.
+   * @param unbannedBy - The address of the user performing the unban.
+   * @param params - The parameters for the unban.
+   */
+  async function removeSceneBanByName(
+    bannedName: string,
+    unbannedBy: string,
+    params: RemoveSceneBanParams
+  ): Promise<void> {
+    const userAddressToBan = await getOwnerAddressFromName(bannedName)
+    await removeSceneBan(userAddressToBan, unbannedBy, params)
   }
 
   /**
@@ -265,8 +360,13 @@ export function createSceneBansComponent(
 
     if (isWorld) {
       place = await places.getPlaceByWorldName(realmName)
-    } else {
+    } else if (parcel) {
       place = await places.getPlaceByParcel(parcel)
+    } else if (sceneId) {
+      const entity = await contentClient.fetchEntityById(sceneId)
+      place = await places.getPlaceByParcel(entity.metadata.scene.base)
+    } else {
+      throw new InvalidRequestError('No scene ID, world name or parcel provided')
     }
 
     const isBanned = await sceneBanManager.isBanned(place.id, address.toLowerCase())
@@ -331,7 +431,9 @@ export function createSceneBansComponent(
 
   return {
     addSceneBan,
+    addSceneBanByName,
     removeSceneBan,
+    removeSceneBanByName,
     listSceneBans,
     listSceneBannedAddresses,
     isUserBanned,

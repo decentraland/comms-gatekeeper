@@ -40,10 +40,6 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
       token: 'mock-token'
     })
     stubComponents.livekit.buildConnectionUrl.returns('wss://livekit.example.com?token=mock-token')
-    stubComponents.publisher.publishMessages.resolves({
-      successfulMessageIds: ['msg-1'],
-      failedEvents: []
-    })
   })
 
   afterEach(() => {
