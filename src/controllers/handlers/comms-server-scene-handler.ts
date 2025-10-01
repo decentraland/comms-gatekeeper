@@ -4,10 +4,10 @@ import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../typ
 import { validate } from '../../logic/utils'
 
 export async function commsServerSceneHandler(
-  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'logs' | 'blockList', '/get-server-scene-adapter'>
+  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'logs' | 'denyList', '/get-server-scene-adapter'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, blockList, config }
+    components: { livekit, logs, denyList, config }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -18,8 +18,8 @@ export async function commsServerSceneHandler(
     mute: []
   }
 
-  const isBlacklisted = await blockList.isBlacklisted(identity)
-  if (isBlacklisted) {
+  const isDenylisted = await denyList.isDenylisted(identity)
+  if (isDenylisted) {
     logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }

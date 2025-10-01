@@ -15,7 +15,7 @@ import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager
 import { createSceneBanManagerComponent } from './adapters/scene-ban-manager'
 import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream-access-manager'
 import { createTracedFetchComponent } from './adapters/traced-fetch'
-import { createBlockListComponent } from './adapters/blocklist'
+import { createDenyListComponent } from './adapters/denylist'
 import { cachedFetchComponent } from './adapters/fetch'
 import { createWorldsComponent } from './adapters/worlds'
 import { createPlacesComponent } from './adapters/places'
@@ -108,7 +108,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const landLease = await createLandLeaseComponent({ fetch: tracedFetch, logs })
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager, landLease })
   const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
-  const blockList = await createBlockListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
+  const denyList = await createDenyListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
@@ -218,7 +218,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   return {
     analytics,
-    blockList,
+    denyList,
     config,
     logs,
     server,

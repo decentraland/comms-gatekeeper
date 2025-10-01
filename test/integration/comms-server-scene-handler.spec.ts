@@ -32,7 +32,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
 
     // Set up component mocks
     stubComponents.config.getString.withArgs('AUTHORATIVE_SERVER_PUBLIC_KEY').resolves(mockServerPublicKey)
-    stubComponents.blockList.isBlacklisted.resolves(false)
+    stubComponents.denyList.isDenylisted.resolves(false)
     stubComponents.livekit.getSceneRoomName.resolves('scene-room-name')
     stubComponents.livekit.getWorldRoomName.resolves('world-room-name')
     stubComponents.livekit.generateCredentials.resolves({
@@ -49,7 +49,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
 
   describe('when user is blacklisted', () => {
     beforeEach(() => {
-      stubComponents.blockList.isBlacklisted.resolves(true)
+      stubComponents.denyList.isDenylisted.resolves(true)
     })
 
     it('should respond with 401 unauthorized', async () => {
