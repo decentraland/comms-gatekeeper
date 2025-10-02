@@ -18,10 +18,10 @@ const STREAM_LINK_EXPIRATION_DAYS = 4
 export function createCastComponent(
   components: Pick<
     AppComponents,
-    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'blockList' | 'config'
+    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'denyList' | 'config'
   >
 ): ICastComponent {
-  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, blockList, config } = components
+  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, denyList, config } = components
   const logger = logs.getLogger('cast')
 
   /**
@@ -201,7 +201,7 @@ export function createCastComponent(
     }
 
     // Check if wallet is blacklisted
-    const isBlacklisted = await blockList.isBlacklisted(walletAddress)
+    const isBlacklisted = await denyList.isDenylisted(walletAddress)
     if (isBlacklisted) {
       logger.warn(`Blocked wallet attempted to upgrade permissions: ${walletAddress}`)
       throw new UnauthorizedError('Access denied, deny-listed wallet')
