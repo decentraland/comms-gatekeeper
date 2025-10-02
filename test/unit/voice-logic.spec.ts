@@ -31,6 +31,7 @@ describe('Voice Logic Component', () => {
   let deleteExpiredPrivateVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredPrivateVoiceChats']>
   let isCommunityRoomActiveMock: jest.MockedFunction<IVoiceDBComponent['isCommunityRoomActive']>
   let isActiveCommunityUserMock: jest.MockedFunction<IVoiceDBComponent['isActiveCommunityUser']>
+  let updateParticipantMetadataMock: jest.MockedFunction<ILivekitComponent['updateParticipantMetadata']>
   let logs: jest.Mocked<ILoggerComponent>
 
   beforeEach(() => {
@@ -49,10 +50,12 @@ describe('Voice Logic Component', () => {
     deleteExpiredPrivateVoiceChatsMock = jest.fn()
     isCommunityRoomActiveMock = jest.fn()
     isActiveCommunityUserMock = jest.fn()
+    updateParticipantMetadataMock = jest.fn()
 
     livekit = createLivekitMockedComponent({
       deleteRoom: deleteRoomMock,
       generateCredentials: generateCredentialsMock,
+      updateParticipantMetadata: updateParticipantMetadataMock,
       buildConnectionUrl: jest
         .fn()
         .mockImplementation((url: string, token: string) => `livekit:${url}?access_token=${token}`)
@@ -565,7 +568,8 @@ describe('Voice Logic Component', () => {
           false,
           {
             role: CommunityRole.Moderator,
-            isSpeaker: true
+            isSpeaker: true,
+            muted: false
           }
         )
         expect(joinUserToCommunityRoomMock).toHaveBeenCalledWith(userAddress, expectedRoomName, true)
@@ -634,7 +638,8 @@ describe('Voice Logic Component', () => {
           false,
           {
             role: CommunityRole.Member,
-            isSpeaker: false
+            isSpeaker: false,
+            muted: false
           }
         )
         expect(joinUserToCommunityRoomMock).toHaveBeenCalledWith(userAddress, expectedRoomName, false)
@@ -801,6 +806,58 @@ describe('Voice Logic Component', () => {
 
       expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
       expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
+    })
+  })
+
+  describe('when muting speaker in community voice chat', () => {
+    const communityId = 'test-community'
+    const userAddress = '0x1234567890123456789012345678901234567890'
+    const roomName = 'voice-chat-community-test-community'
+
+    describe('when muting a speaker', () => {
+      beforeEach(() => {
+        updateParticipantMetadataMock.mockResolvedValue(undefined)
+      })
+
+      it('should mute speaker successfully', async () => {
+        await voiceComponent.muteSpeakerInCommunityVoiceChat(communityId, userAddress, true)
+
+        expect(updateParticipantMetadataMock).toHaveBeenCalledWith(roomName, userAddress, {
+          muted: true
+        })
+      })
+    })
+
+    describe('when unmuting a speaker', () => {
+      beforeEach(() => {
+        updateParticipantMetadataMock.mockResolvedValue(undefined)
+      })
+
+      it('should unmute speaker successfully', async () => {
+        await voiceComponent.muteSpeakerInCommunityVoiceChat(communityId, userAddress, false)
+
+        expect(updateParticipantMetadataMock).toHaveBeenCalledWith(roomName, userAddress, {
+          muted: false
+        })
+      })
+    })
+
+    describe('when livekit update fails', () => {
+      const error = new Error('LiveKit update failed')
+
+      beforeEach(() => {
+        updateParticipantMetadataMock.mockRejectedValue(error)
+      })
+
+      it('should throw the error', async () => {
+        await expect(voiceComponent.muteSpeakerInCommunityVoiceChat(communityId, userAddress, true)).rejects.toThrow(
+          'LiveKit update failed'
+        )
+
+        expect(updateParticipantMetadataMock).toHaveBeenCalledWith(roomName, userAddress, {
+          muted: true
+        })
+      })
     })
   })
 })
