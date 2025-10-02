@@ -27,7 +27,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.blockList.isBlacklisted.resolves(false)
+    stubComponents.denyList.isDenylisted.resolves(false)
     stubComponents.livekit.getSceneRoomName.returns(`test-realm:test-scene`)
   })
 

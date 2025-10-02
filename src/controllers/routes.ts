@@ -34,6 +34,7 @@ import {
   promoteSpeakerHandler,
   demoteSpeakerHandler,
   kickPlayerHandler,
+  muteSpeakerHandler,
   endCommunityVoiceChatHandler
 } from './handlers/community-voice-chat'
 import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-active-community-voice-chats-handler'
@@ -131,6 +132,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     demoteSpeakerHandler
   )
   router.delete('/community-voice-chat/:communityId/users/:userAddress', tokenAuthMiddleware, kickPlayerHandler)
+  router.patch('/community-voice-chat/:communityId/users/:userAddress/mute', tokenAuthMiddleware, muteSpeakerHandler)
   router.delete('/community-voice-chat/:communityId', tokenAuthMiddleware, endCommunityVoiceChatHandler)
 
   // Cast 2.0 endpoints

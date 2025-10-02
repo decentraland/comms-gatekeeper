@@ -10,7 +10,7 @@ import type {
 import { IAnalyticsComponent } from '@dcl/analytics-component'
 import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { metricDeclarations } from './metrics'
-import { IBlockListComponent } from './adapters/blocklist'
+import { IDenyListComponent } from './adapters/denylist'
 import { IPgComponent } from '@well-known-components/pg-component'
 import { ICachedFetchComponent } from './types/fetch.type'
 import { IPlacesComponent } from './types/places.type'
@@ -41,7 +41,7 @@ export type BaseComponents = {
   social: ISocialComponent
   config: IConfigComponent
   tracer: ITracerComponent
-  blockList: IBlockListComponent
+  denyList: IDenyListComponent
   logs: ILoggerComponent
   server: IHttpServerComponent<GlobalContext>
   fetch: IFetchComponent
