@@ -28,6 +28,7 @@ import { IVoiceComponent } from './logic/voice/types'
 import { ISceneBansComponent } from './logic/scene-bans/types'
 import { ICronJobComponent } from './logic/cron-job/types'
 import { ILivekitWebhookComponent } from './logic/livekit-webhook'
+import { ICastComponent } from './logic/cast'
 import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
 import { IContentClientComponent } from './types/content-client.type'
@@ -72,6 +73,7 @@ export type BaseComponents = {
   communityVoiceChatExpirationJob?: ICronJobComponent
   disabledPlacesBansRemovalJob?: ICronJobComponent
   contentClient: IContentClientComponent
+  cast: ICastComponent
 }
 
 export type AppComponents = BaseComponents & {
@@ -80,6 +82,7 @@ export type AppComponents = BaseComponents & {
 
 export type TestComponents = BaseComponents & {
   localFetch: IFetchComponent
+  statusChecks: IBaseComponent
 }
 
 export type HandlerContextWithPath<
@@ -166,6 +169,7 @@ export type SceneStreamAccess = {
   active: boolean
   streaming: boolean
   streaming_start_time: number
+  expiration_time?: number
 }
 
 export interface AddSceneAdminInput {
@@ -179,6 +183,7 @@ export interface AddSceneStreamAccessInput {
   streaming_url: string
   streaming_key: string
   ingress_id: string
+  expiration_time?: number
 }
 
 export type ListSceneAdminFilters = {
@@ -200,6 +205,7 @@ export interface ISceneStreamAccessManager {
   removeAccess(placeId: string): Promise<void>
   removeAccessByPlaceIds(placeIds: string[]): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
+  getAccessByStreamingKey(streamingKey: string): Promise<SceneStreamAccess | null>
   getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]>
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>

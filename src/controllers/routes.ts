@@ -39,6 +39,13 @@ import {
 } from './handlers/community-voice-chat'
 import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-active-community-voice-chats-handler'
 import { commsServerSceneHandler } from './handlers/comms-server-scene-handler'
+import {
+  streamerTokenHandler,
+  watcherTokenHandler,
+  upgradePermissionsHandler,
+  roomInfoHandler,
+  generateStreamLinkHandler
+} from './handlers/cast'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -127,6 +134,13 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.delete('/community-voice-chat/:communityId/users/:userAddress', tokenAuthMiddleware, kickPlayerHandler)
   router.patch('/community-voice-chat/:communityId/users/:userAddress/mute', tokenAuthMiddleware, muteSpeakerHandler)
   router.delete('/community-voice-chat/:communityId', tokenAuthMiddleware, endCommunityVoiceChatHandler)
+
+  // Cast 2.0 endpoints
+  router.post('/cast/streamer-token', streamerTokenHandler)
+  router.post('/cast/watcher-token', watcherTokenHandler)
+  router.post('/cast/upgrade-permissions', upgradePermissionsHandler)
+  router.get('/cast/room-info/:roomId', roomInfoHandler)
+  router.post('/cast/generate-stream-link', auth, generateStreamLinkHandler)
 
   return router
 }

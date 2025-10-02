@@ -1,10 +1,12 @@
 module.exports = {
-  moduleFileExtensions: ["ts", "js"],
+  moduleFileExtensions: ['ts', 'js'],
   transform: {
-    "^.+\\.(ts|tsx)$": ["ts-jest", {tsconfig: "test/tsconfig.json"}]
+    '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: 'test/tsconfig.json' }]
   },
-  coverageDirectory: "coverage",
-  collectCoverageFrom: ["src/**/*.ts"],
-  testMatch: ["**/*.spec.(ts)"],
-  testEnvironment: "node",
+  coverageDirectory: 'coverage',
+  collectCoverageFrom: ['src/**/*.ts'],
+  testMatch: ['**/*.spec.(ts)'],
+  testEnvironment: 'node',
+  // Fix for ES modules like uuid
+  transformIgnorePatterns: ['node_modules/(?!(uuid|@livekit|nanoid)/)']
 }

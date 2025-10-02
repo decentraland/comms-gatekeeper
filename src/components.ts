@@ -33,6 +33,7 @@ import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
 import { createSceneBansComponent } from './logic/scene-bans'
 import { createCronJobComponent } from './logic/cron-job'
+import { createCastComponent } from './logic/cast'
 import {
   createIngressEndedHandler,
   createIngressStartedHandler,
@@ -179,6 +180,16 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     { startOnInit: isProduction, waitForCompletion: true }
   )
 
+  const cast = createCastComponent({
+    livekit,
+    logs,
+    sceneStreamAccessManager,
+    sceneManager,
+    places,
+    config,
+    denyList
+  })
+
   // LiveKit webhook event handlers
   const ingressStartedHandler = createIngressStartedHandler({
     sceneStreamAccessManager
@@ -252,6 +263,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     notifications,
     landLease,
     livekitWebhook,
-    contentClient
+    contentClient,
+    cast
   }
 }

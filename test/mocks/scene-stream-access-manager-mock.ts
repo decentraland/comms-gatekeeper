@@ -8,6 +8,7 @@ export const createSceneStreamAccessManagerMockedComponent = (
     removeAccess: jest.fn(),
     removeAccessByPlaceIds: jest.fn(),
     getAccess: jest.fn(),
+    getAccessByStreamingKey: jest.fn(), // Add missing method
     getExpiredStreamingKeys: jest.fn(),
     startStreaming: jest.fn(),
     stopStreaming: jest.fn(),
