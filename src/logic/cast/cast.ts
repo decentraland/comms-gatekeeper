@@ -103,6 +103,14 @@ export function createCastComponent(
       throw new UnauthorizedError('Invalid or expired streaming token')
     }
 
+    // Check if token has expired (for temporary stream links)
+    if (streamAccess.expiration_time && Date.now() > streamAccess.expiration_time) {
+      logger.warn(`Expired streaming token: ${streamingKey.substring(0, 8)}...`, {
+        expiredAt: new Date(streamAccess.expiration_time).toISOString()
+      })
+      throw new UnauthorizedError('Streaming token has expired')
+    }
+
     // Generate anonymous identity for this streaming session
     const streamerId = `stream:${streamAccess.place_id}:${Date.now()}`
     const roomId = `place:${streamAccess.place_id}`

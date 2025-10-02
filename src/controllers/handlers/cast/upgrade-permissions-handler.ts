@@ -1,16 +1,14 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
+import { InvalidRequestError } from '../../../types/errors'
 
 export async function upgradePermissionsHandler(
-  context: HandlerContextWithPath<'logs' | 'cast', '/cast/upgrade-permissions'>
+  context: HandlerContextWithPath<'cast', '/cast/upgrade-permissions'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, cast },
+    components: { cast },
     request
   } = context
-
-  const logger = logs.getLogger('upgrade-permissions-handler')
 
   let body: {
     roomId: string
@@ -31,30 +29,21 @@ export async function upgradePermissionsHandler(
     throw new InvalidRequestError('Missing required fields: roomId, participantId, walletAddress, signature')
   }
 
-  try {
-    // Call cast component to upgrade permissions
-    await cast.upgradeParticipantPermissions({
-      roomId,
-      participantId,
-      walletAddress,
-      signature
-    })
+  // Call cast component to upgrade permissions
+  await cast.upgradeParticipantPermissions({
+    roomId,
+    participantId,
+    walletAddress,
+    signature
+  })
 
-    return {
-      status: 200,
-      body: {
-        success: true,
-        permissions: {
-          canPublishData: true
-        }
+  return {
+    status: 200,
+    body: {
+      success: true,
+      permissions: {
+        canPublishData: true
       }
     }
-  } catch (error) {
-    if (error instanceof UnauthorizedError || error instanceof InvalidRequestError) {
-      throw error
-    }
-
-    logger.error(`Failed to upgrade permissions: ${(error as Error).message}`)
-    throw new InvalidRequestError('Failed to upgrade participant permissions')
   }
 }

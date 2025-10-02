@@ -1,5 +1,6 @@
 import { test } from '../../components'
 import { makeRequest, admin } from '../../utils'
+import { UnauthorizedError, InvalidRequestError } from '../../../src/types/errors'
 
 test('Cast: Generate Stream Link Handler', function ({ components, spyComponents }) {
   let worldName: string
@@ -92,7 +93,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
 
   it('should reject unauthorized users', async () => {
     spyComponents.cast.generateStreamLink.mockRejectedValue(
-      new Error('Only scene administrators can generate stream links')
+      new UnauthorizedError('Only scene administrators can generate stream links')
     )
 
     const response = await makeRequest(
@@ -106,7 +107,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       admin
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
   })
 
   it('should reject requests without authentication', async () => {
@@ -120,7 +121,9 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
   })
 
   it('should reject requests without worldName or parcel', async () => {
-    spyComponents.cast.generateStreamLink.mockRejectedValue(new Error('Either worldName or parcel must be provided'))
+    spyComponents.cast.generateStreamLink.mockRejectedValue(
+      new InvalidRequestError('Either worldName or parcel must be provided')
+    )
 
     const response = await makeRequest(
       components.localFetch,
@@ -151,8 +154,8 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
     expect(response.status).toBe(400)
   })
 
-  it('should handle errors gracefully', async () => {
-    spyComponents.cast.generateStreamLink.mockRejectedValue(new Error('Database error'))
+  it('should handle invalid request errors gracefully', async () => {
+    spyComponents.cast.generateStreamLink.mockRejectedValue(new InvalidRequestError('Database error'))
 
     const response = await makeRequest(
       components.localFetch,

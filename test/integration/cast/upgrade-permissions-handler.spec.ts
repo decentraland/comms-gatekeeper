@@ -1,5 +1,6 @@
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
+import { UnauthorizedError, InvalidRequestError } from '../../../src/types/errors'
 
 test('Cast: Upgrade Permissions Handler', function ({ components, spyComponents }) {
   let validRoomId: string
@@ -109,7 +110,9 @@ test('Cast: Upgrade Permissions Handler', function ({ components, spyComponents 
   })
 
   it('should reject blacklisted wallet', async () => {
-    spyComponents.cast.upgradeParticipantPermissions.mockRejectedValue(new Error('Access denied, deny-listed wallet'))
+    spyComponents.cast.upgradeParticipantPermissions.mockRejectedValue(
+      new UnauthorizedError('Access denied, deny-listed wallet')
+    )
 
     const requestBody = {
       roomId: validRoomId,
@@ -124,11 +127,11 @@ test('Cast: Upgrade Permissions Handler', function ({ components, spyComponents 
       body: JSON.stringify(requestBody)
     })
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
   })
 
-  it('should handle errors gracefully', async () => {
-    spyComponents.cast.upgradeParticipantPermissions.mockRejectedValue(new Error('Internal error'))
+  it('should handle invalid request errors gracefully', async () => {
+    spyComponents.cast.upgradeParticipantPermissions.mockRejectedValue(new InvalidRequestError('Internal error'))
 
     const requestBody = {
       roomId: validRoomId,

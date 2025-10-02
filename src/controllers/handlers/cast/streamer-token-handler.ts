@@ -1,6 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
+import { InvalidRequestError } from '../../../types/errors'
 
 export async function streamerTokenHandler(
   context: HandlerContextWithPath<'logs' | 'cast', '/cast/streamer-token'>
@@ -23,22 +23,13 @@ export async function streamerTokenHandler(
     throw new InvalidRequestError('Streaming token is required')
   }
 
-  try {
-    // Call cast component to validate and generate credentials
-    const credentials = await cast.validateStreamerToken(body.token)
+  // Call cast component to validate and generate credentials
+  const credentials = await cast.validateStreamerToken(body.token)
 
-    logger.info(`Streamer credentials generated for room ${credentials.roomId}`)
+  logger.info(`Streamer credentials generated for room ${credentials.roomId}`)
 
-    return {
-      status: 200,
-      body: credentials
-    }
-  } catch (error) {
-    if (error instanceof UnauthorizedError || error instanceof InvalidRequestError) {
-      throw error
-    }
-
-    logger.error(`Failed to generate streamer credentials: ${(error as Error).message}`)
-    throw new InvalidRequestError('Failed to generate streaming credentials')
+  return {
+    status: 200,
+    body: credentials
   }
 }

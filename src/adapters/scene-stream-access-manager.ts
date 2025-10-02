@@ -85,18 +85,7 @@ export async function createSceneStreamAccessManagerComponent({
       return null
     }
 
-    const streamAccess = result.rows[0]
-
-    // Check if token has expired (for temporary stream links)
-    if (streamAccess.expiration_time && Date.now() > streamAccess.expiration_time) {
-      logger.debug('Streaming access found but expired', {
-        streamingKey: streamingKey.substring(0, 8) + '...',
-        expiredAt: new Date(streamAccess.expiration_time).toISOString()
-      })
-      return null
-    }
-
-    return streamAccess
+    return result.rows[0]
   }
 
   async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]> {

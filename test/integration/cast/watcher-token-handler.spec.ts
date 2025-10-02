@@ -1,5 +1,6 @@
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
+import { InvalidRequestError } from '../../../src/types/errors'
 
 test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
   let validRoomId: string
@@ -64,8 +65,8 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
     expect(response.status).toBe(400)
   })
 
-  it('should handle errors gracefully', async () => {
-    spyComponents.cast.validateWatcherToken.mockRejectedValue(new Error('Internal error'))
+  it('should handle invalid request errors gracefully', async () => {
+    spyComponents.cast.validateWatcherToken.mockRejectedValue(new InvalidRequestError('Internal error'))
 
     const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
       method: 'POST',

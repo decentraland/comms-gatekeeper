@@ -1,5 +1,6 @@
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
+import { UnauthorizedError, InvalidRequestError } from '../../../src/types/errors'
 
 test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
   let validToken: string
@@ -37,7 +38,9 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
   })
 
   it('should reject invalid streaming token', async () => {
-    spyComponents.cast.validateStreamerToken.mockRejectedValue(new Error('Invalid or expired streaming token'))
+    spyComponents.cast.validateStreamerToken.mockRejectedValue(
+      new UnauthorizedError('Invalid or expired streaming token')
+    )
 
     const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
       method: 'POST',
@@ -45,7 +48,7 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
       body: JSON.stringify({ token: 'invalid-token' })
     })
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
   })
 
   it('should reject requests without token', async () => {
@@ -58,8 +61,8 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
     expect(response.status).toBe(400)
   })
 
-  it('should handle errors gracefully', async () => {
-    spyComponents.cast.validateStreamerToken.mockRejectedValue(new Error('Internal error'))
+  it('should handle invalid request errors gracefully', async () => {
+    spyComponents.cast.validateStreamerToken.mockRejectedValue(new InvalidRequestError('Internal error'))
 
     const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
       method: 'POST',
@@ -68,5 +71,18 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
     })
 
     expect(response.status).toBe(400)
+  })
+
+  it('should reject expired streaming token', async () => {
+    spyComponents.cast.validateStreamerToken.mockRejectedValue(new UnauthorizedError('Streaming token has expired'))
+
+    const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'expired-token' })
+    })
+
+    expect(response.status).toBe(401)
+    expect(spyComponents.cast.validateStreamerToken).toHaveBeenCalledWith('expired-token')
   })
 })

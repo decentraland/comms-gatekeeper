@@ -23,22 +23,13 @@ export async function watcherTokenHandler(
     throw new InvalidRequestError('Room ID is required')
   }
 
-  try {
-    // Call cast component to generate watcher credentials
-    const credentials = await cast.validateWatcherToken(body.roomId, body.identity || '')
+  // Call cast component to generate watcher credentials
+  const credentials = await cast.validateWatcherToken(body.roomId, body.identity || '')
 
-    logger.info(`Watcher credentials generated for room ${body.roomId}`)
+  logger.info(`Watcher credentials generated for room ${body.roomId}`)
 
-    return {
-      status: 200,
-      body: credentials
-    }
-  } catch (error) {
-    if (error instanceof InvalidRequestError) {
-      throw error
-    }
-
-    logger.error(`Failed to generate watcher credentials: ${(error as Error).message}`)
-    throw new InvalidRequestError('Failed to generate watcher credentials')
+  return {
+    status: 200,
+    body: credentials
   }
 }
