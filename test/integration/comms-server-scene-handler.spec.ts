@@ -31,7 +31,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
 
     // Set up component mocks
-    stubComponents.config.getString.withArgs('AUTHORATIVE_SERVER_PUBLIC_KEY').resolves(mockServerPublicKey)
+    stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(mockServerPublicKey)
     stubComponents.denyList.isDenylisted.resolves(false)
     stubComponents.livekit.getSceneRoomName.resolves('scene-room-name')
     stubComponents.livekit.getWorldRoomName.resolves('world-room-name')
