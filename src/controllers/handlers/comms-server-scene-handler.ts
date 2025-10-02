@@ -29,7 +29,7 @@ export async function commsServerSceneHandler(
   // TODO: when running preview how to handle this case ?
   // Should we have a list of valid public keys ?
   const serverPublicKey = await config.getString('AUTHORITATIVE_SERVER_ADDRESS')
-  if (realmName !== 'LocalPreview' && identity !== serverPublicKey) {
+  if (realmName !== 'LocalPreview' && identity.toLocaleLowerCase() !== serverPublicKey?.toLocaleLowerCase()) {
     throw new UnauthorizedError('Access denied, invalid server public key')
   }
 
