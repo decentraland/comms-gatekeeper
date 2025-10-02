@@ -70,6 +70,35 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]
   }
 
+  async function getAccessByStreamingKey(streamingKey: string): Promise<SceneStreamAccess | null> {
+    logger.debug('Getting stream access by streaming key', { streamingKey: streamingKey.substring(0, 8) + '...' })
+
+    const result = await database.query<SceneStreamAccess>(
+      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time
+        FROM scene_stream_access
+        WHERE streaming_key = ${streamingKey} AND active = true
+        LIMIT 1`
+    )
+
+    if (result.rowCount === 0) {
+      logger.debug('No active streaming access found for key')
+      return null
+    }
+
+    const streamAccess = result.rows[0]
+
+    // Check if token has expired (for temporary stream links)
+    if (streamAccess.expiration_time && Date.now() > streamAccess.expiration_time) {
+      logger.debug('Streaming access found but expired', {
+        streamingKey: streamingKey.substring(0, 8) + '...',
+        expiredAt: new Date(streamAccess.expiration_time).toISOString()
+      })
+      return null
+    }
+
+    return streamAccess
+  }
+
   async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]> {
     const result = await database.query<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>>(
       SQL`SELECT ingress_id, place_id 
@@ -137,6 +166,7 @@ export async function createSceneStreamAccessManagerComponent({
     removeAccess,
     removeAccessByPlaceIds,
     getAccess,
+    getAccessByStreamingKey,
     getExpiredStreamingKeys,
     startStreaming,
     stopStreaming,
