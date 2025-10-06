@@ -60,7 +60,7 @@ export function createRoomStartedHandler(
           webhookEvent.room
         )
       } catch (error) {
-        logger.error('Error in room-started handler:', {
+        logger.error(`Error updating room metadata for room ${webhookEvent.room.name}`, {
           error: isErrorWithMessage(error) ? error.message : 'Unknown error'
         })
       }
