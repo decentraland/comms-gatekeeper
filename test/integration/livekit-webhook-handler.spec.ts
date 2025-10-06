@@ -410,7 +410,8 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           webhookEvent.room.name,
           expect.objectContaining({
             bannedAddresses: expect.arrayContaining(bannedAddresses)
-          })
+          }),
+          webhookEvent.room
         )
       })
     })
@@ -464,7 +465,8 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           webhookEvent.room.name,
           expect.objectContaining({
             bannedAddresses: expect.arrayContaining(bannedAddresses)
-          })
+          }),
+          webhookEvent.room
         )
       })
     })

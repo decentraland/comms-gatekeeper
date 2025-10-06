@@ -130,9 +130,13 @@ describe('Room Started Handler', () => {
           expect(getPlaceByParcelMock).not.toHaveBeenCalled()
           expect(contentClient.fetchEntityById).not.toHaveBeenCalled()
           expect(listBannedAddressesMock).toHaveBeenCalledWith('world-place-id')
-          expect(updateRoomMetadataMock).toHaveBeenCalledWith(webhookEvent.room!.name, {
-            bannedAddresses: ['0x123', '0x456']
-          })
+          expect(updateRoomMetadataMock).toHaveBeenCalledWith(
+            webhookEvent.room!.name,
+            {
+              bannedAddresses: ['0x123', '0x456']
+            },
+            webhookEvent.room
+          )
         })
 
         describe('and getting place by world name fails', () => {
@@ -187,9 +191,13 @@ describe('Room Started Handler', () => {
           expect(getPlaceByParcelMock).toHaveBeenCalledWith('-10,-10')
           expect(getPlaceByWorldNameMock).not.toHaveBeenCalled()
           expect(listBannedAddressesMock).toHaveBeenCalledWith('scene-place-id')
-          expect(updateRoomMetadataMock).toHaveBeenCalledWith(webhookEvent.room!.name, {
-            bannedAddresses: ['0x789', '0xabc']
-          })
+          expect(updateRoomMetadataMock).toHaveBeenCalledWith(
+            webhookEvent.room!.name,
+            {
+              bannedAddresses: ['0x789', '0xabc']
+            },
+            webhookEvent.room
+          )
         })
 
         describe('and fetching entity fails', () => {
@@ -236,9 +244,13 @@ describe('Room Started Handler', () => {
         it('should update room metadata with empty banned addresses array', async () => {
           await handler.handle(webhookEvent)
 
-          expect(updateRoomMetadataMock).toHaveBeenCalledWith(webhookEvent.room!.name, {
-            bannedAddresses: []
-          })
+          expect(updateRoomMetadataMock).toHaveBeenCalledWith(
+            webhookEvent.room!.name,
+            {
+              bannedAddresses: []
+            },
+            webhookEvent.room
+          )
         })
       })
 
@@ -276,9 +288,13 @@ describe('Room Started Handler', () => {
         it('should ignore the error and not throw', async () => {
           await handler.handle(webhookEvent)
 
-          expect(updateRoomMetadataMock).toHaveBeenCalledWith(webhookEvent.room!.name, {
-            bannedAddresses: ['0x123', '0x456']
-          })
+          expect(updateRoomMetadataMock).toHaveBeenCalledWith(
+            webhookEvent.room!.name,
+            {
+              bannedAddresses: ['0x123', '0x456']
+            },
+            webhookEvent.room
+          )
         })
       })
     })

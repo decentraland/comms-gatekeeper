@@ -55,5 +55,5 @@ export type ILivekitComponent = IBaseComponent & {
     participantId: string,
     permissions: ParticipantPermissions
   ) => Promise<void>
-  updateRoomMetadata: (roomId: string, metadata: Record<string, unknown>) => Promise<void>
+  updateRoomMetadata: (roomId: string, metadata: Record<string, unknown>, room?: Room) => Promise<void>
 }

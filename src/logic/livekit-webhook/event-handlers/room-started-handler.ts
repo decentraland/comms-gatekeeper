@@ -52,9 +52,13 @@ export function createRoomStartedHandler(
           `Updating room metadata for room ${webhookEvent.room.name} with  ${bannedAddresses.length} banned addresses`
         )
 
-        await livekit.updateRoomMetadata(webhookEvent.room.name, {
-          bannedAddresses
-        })
+        await livekit.updateRoomMetadata(
+          webhookEvent.room.name,
+          {
+            bannedAddresses
+          },
+          webhookEvent.room
+        )
       } catch (error) {
         logger.error('Error in room-started handler:', {
           error: isErrorWithMessage(error) ? error.message : 'Unknown error'
