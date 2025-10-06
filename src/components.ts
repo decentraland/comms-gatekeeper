@@ -202,7 +202,10 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     analytics,
     logs,
     livekit,
-    publisher
+    publisher,
+    places,
+    contentClient,
+    sceneBanManager
   })
   const participantLeftHandler = createParticipantLeftHandler({
     voice,
