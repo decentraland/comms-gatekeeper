@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { AppComponents } from '../../types'
+import { AppComponents, SceneStreamAccess } from '../../types'
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { FOUR_DAYS } from '../time'
@@ -8,7 +8,7 @@ import {
   GenerateStreamLinkParams,
   GenerateStreamLinkResult,
   ValidateStreamerTokenResult,
-  ValidateWatcherTokenResult
+  GenerateWatcherCredentialsResult
 } from './types'
 
 // Constants
@@ -22,55 +22,6 @@ export function createCastComponent(
 ): ICastComponent {
   const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config } = components
   const logger = logs.getLogger('cast')
-
-  /**
-   * Generates scene room credentials for chat access (read-only).
-   * @param identity - The user identity (streamer or watcher)
-   * @param sceneId - The scene ID
-   * @param realmName - The realm name
-   * @param placeId - The place ID
-   * @param userType - The type of user (for logging)
-   * @returns Scene room credentials or undefined if scene info is not available
-   */
-  async function generateSceneRoomCredentials(
-    identity: string,
-    sceneId: string | undefined,
-    realmName: string | undefined,
-    placeId: string,
-    userType: 'streamer' | 'watcher'
-  ): Promise<{ url: string; token: string; roomId: string } | undefined> {
-    if (!sceneId || !realmName) {
-      return undefined
-    }
-
-    const sceneRoomId = livekit.getSceneRoomName(realmName, sceneId)
-    const sceneCredentials = await livekit.generateCredentials(
-      identity,
-      sceneRoomId,
-      {
-        canPublish: false, // Read-only for chat
-        canSubscribe: true,
-        cast: [] // No casting permissions for chat readers
-      },
-      false,
-      {
-        role: 'chat-reader',
-        placeId
-      }
-    )
-
-    logger.debug(`Scene room credentials generated for ${userType}`, {
-      sceneRoomId,
-      sceneId,
-      realmName
-    })
-
-    return {
-      url: sceneCredentials.url,
-      token: sceneCredentials.token,
-      roomId: sceneRoomId
-    }
-  }
 
   /**
    * Generates a unique stream link for a scene.
@@ -109,17 +60,19 @@ export function createCastComponent(
     const streamingKey = `cast2-link-${randomUUID()}`
     const expirationTime = Date.now() + FOUR_DAYS
 
+    // Generate the LiveKit room ID for the scene
+    const roomId = livekit.getSceneRoomName(realmName, sceneId)
+
     // Create stream access entry with expiration
     // Note: For Cast 2.0 with WebRTC, we don't use RTMP ingress
-    // Store scene_id and realm_name for chat room access
+    // Store room_id for efficient lookups by watchers
     await sceneStreamAccessManager.addAccess({
       place_id: place.id,
       streaming_url: '', // Not used for Cast 2.0 WebRTC
       streaming_key: streamingKey,
       ingress_id: '', // Not used for Cast 2.0 WebRTC
       expiration_time: expirationTime,
-      scene_id: sceneId,
-      realm_name: realmName,
+      room_id: roomId,
       generated_by: walletAddress
     })
 
@@ -150,6 +103,7 @@ export function createCastComponent(
 
   /**
    * Validates a streaming token and generates LiveKit credentials for a streamer.
+   * Streamers connect directly to the scene room where they can publish video/audio streams.
    * @param streamingKey - The streaming key to validate
    * @returns LiveKit credentials and room information
    */
@@ -172,16 +126,18 @@ export function createCastComponent(
 
     // Generate anonymous identity for this streaming session
     const streamerId = `stream:${streamAccess.place_id}:${Date.now()}`
-    const roomId = `place:${streamAccess.place_id}`
 
-    // Create LiveKit credentials with publish permissions
+    // Use the room_id from the stream access (scene room format)
+    const roomId = streamAccess.room_id!
+
+    // Create LiveKit credentials with publish permissions for the scene room
     const credentials = await livekit.generateCredentials(
       streamerId,
       roomId,
       {
-        canPublish: true,
-        canSubscribe: true,
-        cast: [streamerId] // Grant full casting permissions
+        canPublish: true, // Streamers can publish video/audio
+        canSubscribe: true, // Can see other streams
+        cast: [streamerId] // Grant casting permissions
       },
       false, // Use production LiveKit
       {
@@ -191,50 +147,43 @@ export function createCastComponent(
       }
     )
 
-    // Generate scene room credentials for chat if available
-    const sceneRoom = await generateSceneRoomCredentials(
-      streamerId,
-      streamAccess.scene_id,
-      streamAccess.realm_name,
-      streamAccess.place_id,
-      'streamer'
-    )
-
-    logger.info(`Streamer token generated for place ${streamAccess.place_id}`, {
+    logger.info(`Streamer token generated for scene room ${roomId}`, {
       streamerId,
       roomId,
       placeId: streamAccess.place_id,
-      livekitUrl: credentials.url,
-      hasSceneRoom: sceneRoom ? 'yes' : 'no'
+      livekitUrl: credentials.url
     })
 
     return {
       url: credentials.url,
       token: credentials.token,
       roomId,
-      identity: streamerId,
-      sceneRoom
+      identity: streamerId
     }
   }
 
   /**
    * Generates LiveKit credentials for a watcher (viewer).
-   * @param roomId - The room ID to join
+   * Watchers connect to the scene room with read-only permissions (can view streams but not publish).
+   * @param roomId - The scene room ID to join (format: scene:${realmName}:${sceneId})
    * @param identity - The identity for the watcher
    * @returns LiveKit credentials
    */
-  async function validateWatcherToken(roomId: string, identity: string): Promise<ValidateWatcherTokenResult> {
+  async function generateWatcherCredentials(
+    roomId: string,
+    identity: string
+  ): Promise<GenerateWatcherCredentialsResult> {
     // Generate anonymous identity if not provided
     const watcherId = identity || `watcher:${roomId}:${Date.now()}-${randomUUID().slice(0, 8)}`
 
-    // Create LiveKit credentials with limited permissions (subscribe only)
+    // Create LiveKit credentials with watch-only permissions for the scene room
     const credentials = await livekit.generateCredentials(
       watcherId,
       roomId,
       {
-        canPublish: false, // Watchers can't publish video/audio by default
-        canSubscribe: true, // Can watch streams
-        cast: [] // No casting permissions initially
+        canPublish: false, // Watchers cannot publish video/audio
+        canSubscribe: true, // Can watch streams and see chat
+        cast: [] // No casting permissions
       },
       false, // Use production LiveKit
       {
@@ -243,56 +192,23 @@ export function createCastComponent(
       }
     )
 
-    // Extract placeId from roomId (format: place:${placeId})
-    const placeId = roomId.replace('place:', '')
-
-    // Try to get scene room credentials if available
-    let sceneRoom
-    let roomName
-    try {
-      const streamAccess = await sceneStreamAccessManager.getAccess(placeId)
-
-      // Get room name from LiveKit (if room exists)
-      try {
-        const roomInfo = await livekit.getRoomInfo(roomId)
-        roomName = roomInfo?.name
-      } catch (error) {
-        logger.debug(`Could not get room info for ${roomId}`)
-      }
-
-      // Generate scene room credentials for chat if available
-      sceneRoom = await generateSceneRoomCredentials(
-        watcherId,
-        streamAccess.scene_id,
-        streamAccess.realm_name,
-        placeId,
-        'watcher'
-      )
-    } catch (error) {
-      // Scene room credentials are optional, continue without them
-      logger.debug(`No scene room credentials available for place ${placeId}`)
-    }
-
-    logger.info(`Watcher token generated for room ${roomId}`, {
+    logger.info(`Watcher credentials generated for scene room ${roomId}`, {
       watcherId,
       roomId,
-      livekitUrl: credentials.url,
-      hasSceneRoom: sceneRoom ? 'yes' : 'no'
+      livekitUrl: credentials.url
     })
 
     return {
       url: credentials.url,
       token: credentials.token,
       roomId,
-      identity: watcherId,
-      roomName,
-      sceneRoom
+      identity: watcherId
     }
   }
 
   return {
     generateStreamLink,
     validateStreamerToken,
-    validateWatcherToken
+    generateWatcherCredentials
   }
 }

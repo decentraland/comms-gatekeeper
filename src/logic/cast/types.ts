@@ -1,7 +1,7 @@
 export interface ICastComponent {
   generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult>
   validateStreamerToken(streamingKey: string): Promise<ValidateStreamerTokenResult>
-  validateWatcherToken(roomId: string, identity: string): Promise<ValidateWatcherTokenResult>
+  generateWatcherCredentials(roomId: string, identity: string): Promise<GenerateWatcherCredentialsResult>
 }
 
 export interface GenerateStreamLinkParams {
@@ -26,22 +26,11 @@ export interface ValidateStreamerTokenResult {
   token: string
   roomId: string
   identity: string
-  sceneRoom?: {
-    url: string
-    token: string
-    roomId: string
-  }
 }
 
-export interface ValidateWatcherTokenResult {
+export interface GenerateWatcherCredentialsResult {
   url: string
   token: string
   roomId: string
   identity: string
-  roomName?: string
-  sceneRoom?: {
-    url: string
-    token: string
-    roomId: string
-  }
 }

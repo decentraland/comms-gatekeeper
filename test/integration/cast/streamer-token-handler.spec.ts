@@ -9,10 +9,11 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
   beforeEach(() => {
     validToken = 'valid-stream-token-123'
 
+    // Streamers now connect directly to the scene room
     mockCredentials = {
       url: 'wss://livekit.example.com',
       token: 'mock-jwt-token',
-      roomId: 'place:test-place-456',
+      roomId: 'scene:fenrir:bafytest123', // Scene room format
       identity: 'stream:test-place-456:123456'
     }
 
@@ -104,23 +105,8 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
     })
   })
 
-  describe('when scene_id and realm_name are available', () => {
-    let mockCredentialsWithScene: any
-
-    beforeEach(() => {
-      mockCredentialsWithScene = {
-        ...mockCredentials,
-        sceneRoom: {
-          url: 'wss://livekit.example.com',
-          token: 'mock-scene-jwt-token',
-          roomId: 'scene:fenrir:bafytest123'
-        }
-      }
-
-      spyComponents.cast.validateStreamerToken.mockResolvedValue(mockCredentialsWithScene)
-    })
-
-    it('should return sceneRoom credentials', async () => {
+  describe('when token is valid with scene info', () => {
+    it('should return credentials for the scene room', async () => {
       const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,38 +120,8 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
       expect(body.token).toBeDefined()
       expect(body.roomId).toBeDefined()
       expect(body.identity).toBeDefined()
-      expect(body.sceneRoom).toBeDefined()
-      expect(body.sceneRoom.url).toBe('wss://livekit.example.com')
-      expect(body.sceneRoom.token).toBe('mock-scene-jwt-token')
-      expect(body.sceneRoom.roomId).toBe('scene:fenrir:bafytest123')
-    })
-  })
-
-  describe('when scene_id and realm_name are not available', () => {
-    let mockCredentialsWithoutScene: any
-
-    beforeEach(() => {
-      mockCredentialsWithoutScene = {
-        ...mockCredentials,
-        sceneRoom: undefined
-      }
-
-      spyComponents.cast.validateStreamerToken.mockResolvedValue(mockCredentialsWithoutScene)
-    })
-
-    it('should work without sceneRoom credentials', async () => {
-      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: validToken })
-      })
-
-      const body = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(body.url).toBeDefined()
-      expect(body.token).toBeDefined()
-      expect(body.sceneRoom).toBeUndefined()
+      // Verify the roomId is in scene format
+      expect(body.roomId).toMatch(/^scene:/)
     })
   })
 })
