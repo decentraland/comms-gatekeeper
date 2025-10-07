@@ -1,44 +1,37 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
+import { validate } from '../../../logic/utils'
 
 export async function generateStreamLinkHandler(
-  context: HandlerContextWithPath<'cast', '/cast/generate-stream-link'>
+  context: HandlerContextWithPath<'cast' | 'fetch' | 'config', '/cast/generate-stream-link'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { cast },
-    request,
-    verification
+    components: { cast }
   } = context
 
-  // Verify authentication (signed fetch)
-  if (!verification?.auth) {
-    throw new InvalidRequestError('Authentication required')
+  // Validate signed fetch and extract auth data
+  const { identity, sceneId, realm, parcel } = await validate(context)
+
+  const realmName = realm.serverName
+
+  // Validate required fields for Cast2 chat functionality
+  if (!sceneId) {
+    throw new InvalidRequestError('sceneId are required in authMetadata for Cast2 chat functionality')
   }
 
-  const walletAddress = verification.auth
-
-  let body: { worldName?: string; parcel?: string }
+  let body: { worldName?: string }
   try {
-    body = await request.json()
+    body = await context.request.json()
   } catch (error) {
     throw new InvalidRequestError('Invalid JSON body')
   }
 
-  // Extract scene_id and realm_name from authMetadata for chat room access
-  const sceneId = verification.authMetadata?.sceneId
-  const realmName = verification.authMetadata?.realm?.serverName
-
-  // Validate required fields for Cast2 chat functionality
-  if (!sceneId || !realmName) {
-    throw new InvalidRequestError('sceneId and realmName are required in authMetadata for Cast2 chat functionality')
-  }
-
   // Call cast component to generate the stream link
   const result = await cast.generateStreamLink({
-    walletAddress,
+    walletAddress: identity,
     worldName: body.worldName,
-    parcel: body.parcel,
+    parcel,
     sceneId,
     realmName
   })

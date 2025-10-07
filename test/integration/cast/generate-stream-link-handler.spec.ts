@@ -37,7 +37,8 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
             serverName: 'fenrir',
             hostname: 'https://peer.decentraland.zone',
             protocol: 'https'
-          }
+          },
+          parcel: '10,20'
         }
       },
       owner
@@ -78,7 +79,8 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
             serverName: 'fenrir',
             hostname: 'https://peer.decentraland.zone',
             protocol: 'https'
-          }
+          },
+          parcel: '10,20'
         }
       },
       owner
@@ -89,7 +91,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
     expect(body.error).toContain('sceneId and realmName are required')
   })
 
-  it('should reject request without realm_name in authMetadata', async () => {
+  it('should reject request without realm in authMetadata', async () => {
     const response = await makeRequest(
       components.localFetch,
       '/cast/generate-stream-link',
@@ -102,16 +104,17 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
           parcel: '10,20'
         }),
         metadata: {
-          sceneId: 'bafytest123'
+          sceneId: 'bafytest123',
+          parcel: '10,20'
           // Missing realm
         }
       },
       owner
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
     const body = await response.json()
-    expect(body.error).toContain('sceneId and realmName are required')
+    expect(body.error).toContain('no realm')
   })
 
   it('should generate stream link for world with scene_id and realm_name', async () => {
@@ -163,12 +166,14 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
         body: JSON.stringify({
           parcel: '10,20'
         }),
-        metadata: {}
+        metadata: {
+          parcel: '10,20'
+        }
       },
       owner
     )
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(401)
   })
 
   describe('when parcel or worldName is missing', () => {
@@ -229,7 +234,8 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
               serverName: 'fenrir',
               hostname: 'https://peer.decentraland.zone',
               protocol: 'https'
-            }
+            },
+            parcel: '10,20'
           }
         },
         owner

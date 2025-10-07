@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { AppComponents, SceneStreamAccess } from '../../types'
+import { AppComponents } from '../../types'
 import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { FOUR_DAYS } from '../time'
