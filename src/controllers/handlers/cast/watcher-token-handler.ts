@@ -24,7 +24,7 @@ export async function watcherTokenHandler(
   }
 
   // Call cast component to generate watcher credentials
-  const credentials = await cast.validateWatcherToken(body.roomId, body.identity || '')
+  const credentials = await cast.generateWatcherCredentials(body.roomId, body.identity || '')
 
   logger.info(`Watcher credentials generated for room ${body.roomId}`)
 

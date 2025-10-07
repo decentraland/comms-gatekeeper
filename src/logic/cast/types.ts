@@ -1,14 +1,15 @@
 export interface ICastComponent {
   generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult>
   validateStreamerToken(streamingKey: string): Promise<ValidateStreamerTokenResult>
-  validateWatcherToken(roomId: string, identity: string): Promise<ValidateWatcherTokenResult>
-  upgradeParticipantPermissions(params: UpgradePermissionsParams): Promise<void>
+  generateWatcherCredentials(roomId: string, identity: string): Promise<GenerateWatcherCredentialsResult>
 }
 
 export interface GenerateStreamLinkParams {
   walletAddress: string
   worldName?: string
   parcel?: string
+  sceneId: string
+  realmName: string
 }
 
 export interface GenerateStreamLinkResult {
@@ -27,16 +28,9 @@ export interface ValidateStreamerTokenResult {
   identity: string
 }
 
-export interface ValidateWatcherTokenResult {
+export interface GenerateWatcherCredentialsResult {
   url: string
   token: string
   roomId: string
   identity: string
-}
-
-export interface UpgradePermissionsParams {
-  roomId: string
-  participantId: string
-  walletAddress: string
-  signature: string
 }

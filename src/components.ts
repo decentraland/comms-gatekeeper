@@ -186,8 +186,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneStreamAccessManager,
     sceneManager,
     places,
-    config,
-    denyList
+    config
   })
 
   // LiveKit webhook event handlers

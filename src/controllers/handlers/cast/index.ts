@@ -1,5 +1,3 @@
 export { streamerTokenHandler } from './streamer-token-handler'
 export { watcherTokenHandler } from './watcher-token-handler'
-export { upgradePermissionsHandler } from './upgrade-permissions-handler'
-export { roomInfoHandler } from './room-info-handler'
 export { generateStreamLinkHandler } from './generate-stream-link-handler'

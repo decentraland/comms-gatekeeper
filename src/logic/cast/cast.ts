@@ -8,8 +8,7 @@ import {
   GenerateStreamLinkParams,
   GenerateStreamLinkResult,
   ValidateStreamerTokenResult,
-  ValidateWatcherTokenResult,
-  UpgradePermissionsParams
+  GenerateWatcherCredentialsResult
 } from './types'
 
 // Constants
@@ -18,10 +17,10 @@ const STREAM_LINK_EXPIRATION_DAYS = 4
 export function createCastComponent(
   components: Pick<
     AppComponents,
-    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'denyList' | 'config'
+    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config'
   >
 ): ICastComponent {
-  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, denyList, config } = components
+  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config } = components
   const logger = logs.getLogger('cast')
 
   /**
@@ -30,7 +29,12 @@ export function createCastComponent(
    * @returns Stream link details
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, parcel } = params
+    const { walletAddress, worldName, parcel, sceneId, realmName } = params
+
+    // Scene ID and realm name are required for chat functionality in Cast2
+    if (!sceneId || !realmName) {
+      throw new InvalidRequestError('sceneId and realmName are required for Cast2 chat functionality')
+    }
 
     // Get place information
     let place: PlaceAttributes
@@ -56,14 +60,20 @@ export function createCastComponent(
     const streamingKey = `cast2-link-${randomUUID()}`
     const expirationTime = Date.now() + FOUR_DAYS
 
+    // Generate the LiveKit room ID for the scene
+    const roomId = livekit.getSceneRoomName(realmName, sceneId)
+
     // Create stream access entry with expiration
     // Note: For Cast 2.0 with WebRTC, we don't use RTMP ingress
+    // Store room_id for efficient lookups by watchers
     await sceneStreamAccessManager.addAccess({
       place_id: place.id,
       streaming_url: '', // Not used for Cast 2.0 WebRTC
       streaming_key: streamingKey,
       ingress_id: '', // Not used for Cast 2.0 WebRTC
-      expiration_time: expirationTime
+      expiration_time: expirationTime,
+      room_id: roomId,
+      generated_by: walletAddress
     })
 
     // Get Cast2 URL from config
@@ -76,7 +86,9 @@ export function createCastComponent(
       placeId: place.id,
       streamingKey: streamingKey.substring(0, 20) + '...',
       expiresAt: new Date(expirationTime).toISOString(),
-      generatedBy: walletAddress
+      generatedBy: walletAddress,
+      sceneId: sceneId || 'none',
+      realmName: realmName || 'none'
     })
 
     return {
@@ -91,6 +103,7 @@ export function createCastComponent(
 
   /**
    * Validates a streaming token and generates LiveKit credentials for a streamer.
+   * Streamers connect directly to the scene room where they can publish video/audio streams.
    * @param streamingKey - The streaming key to validate
    * @returns LiveKit credentials and room information
    */
@@ -113,16 +126,18 @@ export function createCastComponent(
 
     // Generate anonymous identity for this streaming session
     const streamerId = `stream:${streamAccess.place_id}:${Date.now()}`
-    const roomId = `place:${streamAccess.place_id}`
 
-    // Create LiveKit credentials with publish permissions
+    // Use the room_id from the stream access (scene room format)
+    const roomId = streamAccess.room_id!
+
+    // Create LiveKit credentials with publish permissions for the scene room
     const credentials = await livekit.generateCredentials(
       streamerId,
       roomId,
       {
-        canPublish: true,
-        canSubscribe: true,
-        cast: [streamerId] // Grant full casting permissions
+        canPublish: true, // Streamers can publish video/audio
+        canSubscribe: true, // Can see other streams
+        cast: [streamerId] // Grant casting permissions
       },
       false, // Use production LiveKit
       {
@@ -132,7 +147,7 @@ export function createCastComponent(
       }
     )
 
-    logger.info(`Streamer token generated for place ${streamAccess.place_id}`, {
+    logger.info(`Streamer token generated for scene room ${roomId}`, {
       streamerId,
       roomId,
       placeId: streamAccess.place_id,
@@ -149,22 +164,26 @@ export function createCastComponent(
 
   /**
    * Generates LiveKit credentials for a watcher (viewer).
-   * @param roomId - The room ID to join
+   * Watchers connect to the scene room with read-only permissions (can view streams but not publish).
+   * @param roomId - The scene room ID to join (format: scene:${realmName}:${sceneId})
    * @param identity - The identity for the watcher
    * @returns LiveKit credentials
    */
-  async function validateWatcherToken(roomId: string, identity: string): Promise<ValidateWatcherTokenResult> {
+  async function generateWatcherCredentials(
+    roomId: string,
+    identity: string
+  ): Promise<GenerateWatcherCredentialsResult> {
     // Generate anonymous identity if not provided
     const watcherId = identity || `watcher:${roomId}:${Date.now()}-${randomUUID().slice(0, 8)}`
 
-    // Create LiveKit credentials with limited permissions (subscribe only)
+    // Create LiveKit credentials with watch-only permissions for the scene room
     const credentials = await livekit.generateCredentials(
       watcherId,
       roomId,
       {
-        canPublish: false, // Watchers can't publish video/audio by default
-        canSubscribe: true, // Can watch streams
-        cast: [] // No casting permissions initially
+        canPublish: false, // Watchers cannot publish video/audio
+        canSubscribe: true, // Can watch streams and see chat
+        cast: [] // No casting permissions
       },
       false, // Use production LiveKit
       {
@@ -173,7 +192,7 @@ export function createCastComponent(
       }
     )
 
-    logger.info(`Watcher token generated for room ${roomId}`, {
+    logger.info(`Watcher credentials generated for scene room ${roomId}`, {
       watcherId,
       roomId,
       livekitUrl: credentials.url
@@ -187,49 +206,9 @@ export function createCastComponent(
     }
   }
 
-  /**
-   * Upgrades a watcher's permissions to allow publishing after wallet verification.
-   * @param params - Parameters for upgrading permissions
-   */
-  async function upgradeParticipantPermissions(params: UpgradePermissionsParams): Promise<void> {
-    const { roomId, participantId, walletAddress, signature } = params
-
-    // Basic signature validation (not empty)
-    if (!signature || signature.length < 10) {
-      logger.warn(`Invalid signature for wallet ${walletAddress}`)
-      throw new UnauthorizedError('Invalid wallet signature')
-    }
-
-    // Check if wallet is blacklisted
-    const isBlacklisted = await denyList.isDenylisted(walletAddress)
-    if (isBlacklisted) {
-      logger.warn(`Blocked wallet attempted to upgrade permissions: ${walletAddress}`)
-      throw new UnauthorizedError('Access denied, deny-listed wallet')
-    }
-
-    // Update participant permissions to allow chat
-    await livekit.updateParticipantPermissions(roomId, participantId, {
-      canPublishData: true // Now can send chat messages
-    })
-
-    // Update participant metadata with wallet info
-    await livekit.updateParticipantMetadata(roomId, participantId, {
-      walletAddress,
-      authenticated: true,
-      upgradedAt: Date.now()
-    })
-
-    logger.info(`Permissions upgraded for participant ${participantId} in room ${roomId}`, {
-      participantId,
-      roomId,
-      walletAddress
-    })
-  }
-
   return {
     generateStreamLink,
     validateStreamerToken,
-    validateWatcherToken,
-    upgradeParticipantPermissions
+    generateWatcherCredentials
   }
 }

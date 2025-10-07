@@ -170,6 +170,8 @@ export type SceneStreamAccess = {
   streaming: boolean
   streaming_start_time: number
   expiration_time?: number
+  room_id?: string
+  generated_by?: string
 }
 
 export interface AddSceneAdminInput {
@@ -184,6 +186,8 @@ export interface AddSceneStreamAccessInput {
   streaming_key: string
   ingress_id: string
   expiration_time?: number
+  room_id?: string
+  generated_by?: string
 }
 
 export type ListSceneAdminFilters = {
@@ -206,6 +210,7 @@ export interface ISceneStreamAccessManager {
   removeAccessByPlaceIds(placeIds: string[]): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
   getAccessByStreamingKey(streamingKey: string): Promise<SceneStreamAccess | null>
+  getAccessByRoomId(roomId: string): Promise<SceneStreamAccess | null>
   getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]>
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>

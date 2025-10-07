@@ -10,7 +10,11 @@ export async function createSceneStreamAccessManagerComponent({
   const logger = logs.getLogger('scene-stream-access-manager')
 
   async function addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess> {
-    logger.debug('Adding stream access', { place_id: input.place_id })
+    logger.debug('Adding stream access', {
+      place_id: input.place_id,
+      room_id: input.room_id || 'none',
+      generated_by: input.generated_by || 'none'
+    })
 
     await database.query(
       SQL`UPDATE scene_stream_access 
@@ -22,9 +26,9 @@ export async function createSceneStreamAccessManagerComponent({
 
     const result = await database.query<SceneStreamAccess>(
       SQL`INSERT INTO scene_stream_access 
-          (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active) 
+          (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, room_id, generated_by) 
           VALUES 
-          (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true)
+          (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true, ${input.expiration_time || null}, ${input.room_id || null}, ${input.generated_by || null})
           RETURNING *`
     )
 
@@ -74,7 +78,7 @@ export async function createSceneStreamAccessManagerComponent({
     logger.debug('Getting stream access by streaming key', { streamingKey: streamingKey.substring(0, 8) + '...' })
 
     const result = await database.query<SceneStreamAccess>(
-      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time
+      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time, room_id, generated_by
         FROM scene_stream_access
         WHERE streaming_key = ${streamingKey} AND active = true
         LIMIT 1`
@@ -82,6 +86,24 @@ export async function createSceneStreamAccessManagerComponent({
 
     if (result.rowCount === 0) {
       logger.debug('No active streaming access found for key')
+      return null
+    }
+
+    return result.rows[0]
+  }
+
+  async function getAccessByRoomId(roomId: string): Promise<SceneStreamAccess | null> {
+    logger.debug('Getting stream access by room ID', { roomId })
+
+    const result = await database.query<SceneStreamAccess>(
+      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time, room_id, generated_by
+        FROM scene_stream_access
+        WHERE room_id = ${roomId} AND active = true
+        LIMIT 1`
+    )
+
+    if (result.rowCount === 0) {
+      logger.debug('No active streaming access found for room ID')
       return null
     }
 
@@ -156,6 +178,7 @@ export async function createSceneStreamAccessManagerComponent({
     removeAccessByPlaceIds,
     getAccess,
     getAccessByStreamingKey,
+    getAccessByRoomId,
     getExpiredStreamingKeys,
     startStreaming,
     stopStreaming,
