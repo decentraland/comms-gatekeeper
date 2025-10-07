@@ -8,8 +8,7 @@ import {
   GenerateStreamLinkParams,
   GenerateStreamLinkResult,
   ValidateStreamerTokenResult,
-  ValidateWatcherTokenResult,
-  UpgradePermissionsParams
+  ValidateWatcherTokenResult
 } from './types'
 
 // Constants
@@ -18,11 +17,60 @@ const STREAM_LINK_EXPIRATION_DAYS = 4
 export function createCastComponent(
   components: Pick<
     AppComponents,
-    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'denyList' | 'config'
+    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config'
   >
 ): ICastComponent {
-  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, denyList, config } = components
+  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config } = components
   const logger = logs.getLogger('cast')
+
+  /**
+   * Generates scene room credentials for chat access (read-only).
+   * @param identity - The user identity (streamer or watcher)
+   * @param sceneId - The scene ID
+   * @param realmName - The realm name
+   * @param placeId - The place ID
+   * @param userType - The type of user (for logging)
+   * @returns Scene room credentials or undefined if scene info is not available
+   */
+  async function generateSceneRoomCredentials(
+    identity: string,
+    sceneId: string | undefined,
+    realmName: string | undefined,
+    placeId: string,
+    userType: 'streamer' | 'watcher'
+  ): Promise<{ url: string; token: string; roomId: string } | undefined> {
+    if (!sceneId || !realmName) {
+      return undefined
+    }
+
+    const sceneRoomId = livekit.getSceneRoomName(realmName, sceneId)
+    const sceneCredentials = await livekit.generateCredentials(
+      identity,
+      sceneRoomId,
+      {
+        canPublish: false, // Read-only for chat
+        canSubscribe: true,
+        cast: [] // No casting permissions for chat readers
+      },
+      false,
+      {
+        role: 'chat-reader',
+        placeId
+      }
+    )
+
+    logger.debug(`Scene room credentials generated for ${userType}`, {
+      sceneRoomId,
+      sceneId,
+      realmName
+    })
+
+    return {
+      url: sceneCredentials.url,
+      token: sceneCredentials.token,
+      roomId: sceneRoomId
+    }
+  }
 
   /**
    * Generates a unique stream link for a scene.
@@ -30,7 +78,12 @@ export function createCastComponent(
    * @returns Stream link details
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, parcel } = params
+    const { walletAddress, worldName, parcel, sceneId, realmName } = params
+
+    // Scene ID and realm name are required for chat functionality in Cast2
+    if (!sceneId || !realmName) {
+      throw new InvalidRequestError('sceneId and realmName are required for Cast2 chat functionality')
+    }
 
     // Get place information
     let place: PlaceAttributes
@@ -58,12 +111,16 @@ export function createCastComponent(
 
     // Create stream access entry with expiration
     // Note: For Cast 2.0 with WebRTC, we don't use RTMP ingress
+    // Store scene_id and realm_name for chat room access
     await sceneStreamAccessManager.addAccess({
       place_id: place.id,
       streaming_url: '', // Not used for Cast 2.0 WebRTC
       streaming_key: streamingKey,
       ingress_id: '', // Not used for Cast 2.0 WebRTC
-      expiration_time: expirationTime
+      expiration_time: expirationTime,
+      scene_id: sceneId,
+      realm_name: realmName,
+      generated_by: walletAddress
     })
 
     // Get Cast2 URL from config
@@ -76,7 +133,9 @@ export function createCastComponent(
       placeId: place.id,
       streamingKey: streamingKey.substring(0, 20) + '...',
       expiresAt: new Date(expirationTime).toISOString(),
-      generatedBy: walletAddress
+      generatedBy: walletAddress,
+      sceneId: sceneId || 'none',
+      realmName: realmName || 'none'
     })
 
     return {
@@ -132,18 +191,29 @@ export function createCastComponent(
       }
     )
 
+    // Generate scene room credentials for chat if available
+    const sceneRoom = await generateSceneRoomCredentials(
+      streamerId,
+      streamAccess.scene_id,
+      streamAccess.realm_name,
+      streamAccess.place_id,
+      'streamer'
+    )
+
     logger.info(`Streamer token generated for place ${streamAccess.place_id}`, {
       streamerId,
       roomId,
       placeId: streamAccess.place_id,
-      livekitUrl: credentials.url
+      livekitUrl: credentials.url,
+      hasSceneRoom: sceneRoom ? 'yes' : 'no'
     })
 
     return {
       url: credentials.url,
       token: credentials.token,
       roomId,
-      identity: streamerId
+      identity: streamerId,
+      sceneRoom
     }
   }
 
@@ -173,63 +243,56 @@ export function createCastComponent(
       }
     )
 
+    // Extract placeId from roomId (format: place:${placeId})
+    const placeId = roomId.replace('place:', '')
+
+    // Try to get scene room credentials if available
+    let sceneRoom
+    let roomName
+    try {
+      const streamAccess = await sceneStreamAccessManager.getAccess(placeId)
+
+      // Get room name from LiveKit (if room exists)
+      try {
+        const roomInfo = await livekit.getRoomInfo(roomId)
+        roomName = roomInfo?.name
+      } catch (error) {
+        logger.debug(`Could not get room info for ${roomId}`)
+      }
+
+      // Generate scene room credentials for chat if available
+      sceneRoom = await generateSceneRoomCredentials(
+        watcherId,
+        streamAccess.scene_id,
+        streamAccess.realm_name,
+        placeId,
+        'watcher'
+      )
+    } catch (error) {
+      // Scene room credentials are optional, continue without them
+      logger.debug(`No scene room credentials available for place ${placeId}`)
+    }
+
     logger.info(`Watcher token generated for room ${roomId}`, {
       watcherId,
       roomId,
-      livekitUrl: credentials.url
+      livekitUrl: credentials.url,
+      hasSceneRoom: sceneRoom ? 'yes' : 'no'
     })
 
     return {
       url: credentials.url,
       token: credentials.token,
       roomId,
-      identity: watcherId
+      identity: watcherId,
+      roomName,
+      sceneRoom
     }
-  }
-
-  /**
-   * Upgrades a watcher's permissions to allow publishing after wallet verification.
-   * @param params - Parameters for upgrading permissions
-   */
-  async function upgradeParticipantPermissions(params: UpgradePermissionsParams): Promise<void> {
-    const { roomId, participantId, walletAddress, signature } = params
-
-    // Basic signature validation (not empty)
-    if (!signature || signature.length < 10) {
-      logger.warn(`Invalid signature for wallet ${walletAddress}`)
-      throw new UnauthorizedError('Invalid wallet signature')
-    }
-
-    // Check if wallet is blacklisted
-    const isBlacklisted = await denyList.isDenylisted(walletAddress)
-    if (isBlacklisted) {
-      logger.warn(`Blocked wallet attempted to upgrade permissions: ${walletAddress}`)
-      throw new UnauthorizedError('Access denied, deny-listed wallet')
-    }
-
-    // Update participant permissions to allow chat
-    await livekit.updateParticipantPermissions(roomId, participantId, {
-      canPublishData: true // Now can send chat messages
-    })
-
-    // Update participant metadata with wallet info
-    await livekit.updateParticipantMetadata(roomId, participantId, {
-      walletAddress,
-      authenticated: true,
-      upgradedAt: Date.now()
-    })
-
-    logger.info(`Permissions upgraded for participant ${participantId} in room ${roomId}`, {
-      participantId,
-      roomId,
-      walletAddress
-    })
   }
 
   return {
     generateStreamLink,
     validateStreamerToken,
-    validateWatcherToken,
-    upgradeParticipantPermissions
+    validateWatcherToken
   }
 }

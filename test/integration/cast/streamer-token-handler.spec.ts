@@ -16,73 +16,156 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
       identity: 'stream:test-place-456:123456'
     }
 
-    // Mock cast component
     spyComponents.cast.validateStreamerToken.mockResolvedValue(mockCredentials)
   })
 
-  it('should generate streamer token with valid streaming key', async () => {
-    const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: validToken })
+  describe('when the token is valid', () => {
+    it('should generate streamer token with valid streaming key', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: validToken })
+      })
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body.url).toBeDefined()
+      expect(body.token).toBeDefined()
+      expect(body.roomId).toBeDefined()
+      expect(body.identity).toBeDefined()
+      expect(spyComponents.cast.validateStreamerToken).toHaveBeenCalledWith(validToken)
     })
-
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.url).toBeDefined()
-    expect(body.token).toBeDefined()
-    expect(body.roomId).toBeDefined()
-    expect(body.identity).toBeDefined()
-    expect(spyComponents.cast.validateStreamerToken).toHaveBeenCalledWith(validToken)
   })
 
-  it('should reject invalid streaming token', async () => {
-    spyComponents.cast.validateStreamerToken.mockRejectedValue(
-      new UnauthorizedError('Invalid or expired streaming token')
-    )
-
-    const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'invalid-token' })
+  describe('when the token is invalid', () => {
+    beforeEach(() => {
+      spyComponents.cast.validateStreamerToken.mockRejectedValue(
+        new UnauthorizedError('Invalid or expired streaming token')
+      )
     })
 
-    expect(response.status).toBe(401)
+    it('should reject invalid streaming token', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'invalid-token' })
+      })
+
+      expect(response.status).toBe(401)
+    })
   })
 
-  it('should reject requests without token', async () => {
-    const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    })
+  describe('when the token is missing', () => {
+    it('should reject requests without token', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
 
-    expect(response.status).toBe(400)
+      expect(response.status).toBe(400)
+    })
   })
 
-  it('should handle invalid request errors gracefully', async () => {
-    spyComponents.cast.validateStreamerToken.mockRejectedValue(new InvalidRequestError('Internal error'))
-
-    const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: validToken })
+  describe('when validation fails with invalid request error', () => {
+    beforeEach(() => {
+      spyComponents.cast.validateStreamerToken.mockRejectedValue(new InvalidRequestError('Internal error'))
     })
 
-    expect(response.status).toBe(400)
+    it('should handle invalid request errors gracefully', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: validToken })
+      })
+
+      expect(response.status).toBe(400)
+    })
   })
 
-  it('should reject expired streaming token', async () => {
-    spyComponents.cast.validateStreamerToken.mockRejectedValue(new UnauthorizedError('Streaming token has expired'))
+  describe('when the token is expired', () => {
+    let expiredToken: string
 
-    const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'expired-token' })
+    beforeEach(() => {
+      expiredToken = 'expired-token'
+      spyComponents.cast.validateStreamerToken.mockRejectedValue(new UnauthorizedError('Streaming token has expired'))
     })
 
-    expect(response.status).toBe(401)
-    expect(spyComponents.cast.validateStreamerToken).toHaveBeenCalledWith('expired-token')
+    it('should reject expired streaming token', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: expiredToken })
+      })
+
+      expect(response.status).toBe(401)
+      expect(spyComponents.cast.validateStreamerToken).toHaveBeenCalledWith(expiredToken)
+    })
+  })
+
+  describe('when scene_id and realm_name are available', () => {
+    let mockCredentialsWithScene: any
+
+    beforeEach(() => {
+      mockCredentialsWithScene = {
+        ...mockCredentials,
+        sceneRoom: {
+          url: 'wss://livekit.example.com',
+          token: 'mock-scene-jwt-token',
+          roomId: 'scene:fenrir:bafytest123'
+        }
+      }
+
+      spyComponents.cast.validateStreamerToken.mockResolvedValue(mockCredentialsWithScene)
+    })
+
+    it('should return sceneRoom credentials', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: validToken })
+      })
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body.url).toBeDefined()
+      expect(body.token).toBeDefined()
+      expect(body.roomId).toBeDefined()
+      expect(body.identity).toBeDefined()
+      expect(body.sceneRoom).toBeDefined()
+      expect(body.sceneRoom.url).toBe('wss://livekit.example.com')
+      expect(body.sceneRoom.token).toBe('mock-scene-jwt-token')
+      expect(body.sceneRoom.roomId).toBe('scene:fenrir:bafytest123')
+    })
+  })
+
+  describe('when scene_id and realm_name are not available', () => {
+    let mockCredentialsWithoutScene: any
+
+    beforeEach(() => {
+      mockCredentialsWithoutScene = {
+        ...mockCredentials,
+        sceneRoom: undefined
+      }
+
+      spyComponents.cast.validateStreamerToken.mockResolvedValue(mockCredentialsWithoutScene)
+    })
+
+    it('should work without sceneRoom credentials', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: validToken })
+      })
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body.url).toBeDefined()
+      expect(body.token).toBeDefined()
+      expect(body.sceneRoom).toBeUndefined()
+    })
   })
 })

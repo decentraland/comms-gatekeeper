@@ -170,6 +170,9 @@ export type SceneStreamAccess = {
   streaming: boolean
   streaming_start_time: number
   expiration_time?: number
+  scene_id?: string
+  realm_name?: string
+  generated_by?: string
 }
 
 export interface AddSceneAdminInput {
@@ -184,6 +187,9 @@ export interface AddSceneStreamAccessInput {
   streaming_key: string
   ingress_id: string
   expiration_time?: number
+  scene_id?: string
+  realm_name?: string
+  generated_by?: string
 }
 
 export type ListSceneAdminFilters = {

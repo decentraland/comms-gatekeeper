@@ -10,7 +10,12 @@ export async function createSceneStreamAccessManagerComponent({
   const logger = logs.getLogger('scene-stream-access-manager')
 
   async function addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess> {
-    logger.debug('Adding stream access', { place_id: input.place_id })
+    logger.debug('Adding stream access', {
+      place_id: input.place_id,
+      scene_id: input.scene_id || 'none',
+      realm_name: input.realm_name || 'none',
+      generated_by: input.generated_by || 'none'
+    })
 
     await database.query(
       SQL`UPDATE scene_stream_access 
@@ -22,9 +27,9 @@ export async function createSceneStreamAccessManagerComponent({
 
     const result = await database.query<SceneStreamAccess>(
       SQL`INSERT INTO scene_stream_access 
-          (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active) 
+          (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, scene_id, realm_name, generated_by) 
           VALUES 
-          (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true)
+          (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true, ${input.expiration_time || null}, ${input.scene_id || null}, ${input.realm_name || null}, ${input.generated_by || null})
           RETURNING *`
     )
 
@@ -74,7 +79,7 @@ export async function createSceneStreamAccessManagerComponent({
     logger.debug('Getting stream access by streaming key', { streamingKey: streamingKey.substring(0, 8) + '...' })
 
     const result = await database.query<SceneStreamAccess>(
-      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time
+      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time, scene_id, realm_name, generated_by
         FROM scene_stream_access
         WHERE streaming_key = ${streamingKey} AND active = true
         LIMIT 1`

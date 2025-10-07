@@ -25,11 +25,22 @@ export async function generateStreamLinkHandler(
     throw new InvalidRequestError('Invalid JSON body')
   }
 
+  // Extract scene_id and realm_name from authMetadata for chat room access
+  const sceneId = verification.authMetadata?.sceneId
+  const realmName = verification.authMetadata?.realm?.serverName
+
+  // Validate required fields for Cast2 chat functionality
+  if (!sceneId || !realmName) {
+    throw new InvalidRequestError('sceneId and realmName are required in authMetadata for Cast2 chat functionality')
+  }
+
   // Call cast component to generate the stream link
   const result = await cast.generateStreamLink({
     walletAddress,
     worldName: body.worldName,
-    parcel: body.parcel
+    parcel: body.parcel,
+    sceneId,
+    realmName
   })
 
   return {
