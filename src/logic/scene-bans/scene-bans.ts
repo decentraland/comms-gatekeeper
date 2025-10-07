@@ -11,6 +11,7 @@ import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
 import { EthAddress, Events, UserBannedFromSceneEvent, UserUnbannedFromSceneEvent } from '@dcl/schemas'
+import { Room } from 'livekit-server-sdk'
 
 export function createSceneBansComponent(
   components: Pick<
@@ -34,16 +35,16 @@ export function createSceneBansComponent(
    * Refresh LiveKit room metadata with the current list of banned addresses for a scene.
    * @param place - The place attributes for the scene.
    * @param roomName - The room name.
+   * @param room - Optional room object from webhook event to avoid race conditions.
    */
-  async function refreshRoomBans(place: PlaceAttributes, roomName: string): Promise<void> {
+  async function refreshRoomBans(place: PlaceAttributes, roomName: string, room?: Room): Promise<void> {
     try {
       // Get the current list of banned addresses for this place
       const bannedAddresses = await sceneBanManager.listBannedAddresses(place.id)
 
       // Update the room metadata with the banned addresses
-      await livekit.updateRoomMetadata(roomName, {
-        bannedAddresses: bannedAddresses
-      })
+      const metadata = { bannedAddresses }
+      await livekit.updateRoomMetadata(roomName, metadata, room)
 
       logger.debug(`Updated room metadata for ${roomName} with ${bannedAddresses.length} banned addresses`)
     } catch (error) {
@@ -429,6 +430,37 @@ export function createSceneBansComponent(
     }
   }
 
+  /**
+   * Updates room metadata with banned addresses for a given room.
+   * This function handles the common logic of fetching banned addresses and updating room metadata.
+   * @param room - Livekit room object.
+   */
+  async function updateRoomMetadataWithBans(room: Room): Promise<void> {
+    try {
+      let place: PlaceAttributes
+
+      const { sceneId, worldName } = livekit.getSceneRoomMetadataFromRoomName(room.name)
+
+      if (!sceneId && !worldName) {
+        return
+      }
+
+      if (worldName) {
+        place = await places.getPlaceByWorldName(worldName)
+      } else {
+        // TODO: we could retry if fails
+        const entity = await contentClient.fetchEntityById(sceneId!)
+        place = await places.getPlaceByParcel(entity.metadata.scene.base)
+      }
+
+      await refreshRoomBans(place, room.name, room)
+    } catch (error) {
+      logger.error(`Error updating room metadata for room ${room.name}`, {
+        error: isErrorWithMessage(error) ? error.message : 'Unknown error'
+      })
+    }
+  }
+
   return {
     addSceneBan,
     addSceneBanByName,
@@ -437,6 +469,7 @@ export function createSceneBansComponent(
     listSceneBans,
     listSceneBannedAddresses,
     isUserBanned,
-    removeBansFromDisabledPlaces
+    removeBansFromDisabledPlaces,
+    updateRoomMetadataWithBans
   }
 }

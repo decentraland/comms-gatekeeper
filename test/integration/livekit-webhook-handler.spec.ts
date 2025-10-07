@@ -30,7 +30,9 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
     // Set up spies for voice component methods but preserve original implementation
     handleParticipantJoinedSpy = jest.spyOn(components.voice, 'handleParticipantJoined')
     handleParticipantLeftSpy = jest.spyOn(components.voice, 'handleParticipantLeft')
+
     spyComponents.publisher.publishMessages.mockReturnValue(undefined)
+    spyComponents.sceneBans.updateRoomMetadataWithBans.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -406,13 +408,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(spyComponents.livekit.updateRoomMetadata).toHaveBeenCalledWith(
-          webhookEvent.room.name,
-          expect.objectContaining({
-            bannedAddresses: expect.arrayContaining(bannedAddresses)
-          }),
-          webhookEvent.room
-        )
+        expect(spyComponents.sceneBans.updateRoomMetadataWithBans).toHaveBeenCalledWith(webhookEvent.room)
       })
     })
 
@@ -461,37 +457,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(spyComponents.livekit.updateRoomMetadata).toHaveBeenCalledWith(
-          webhookEvent.room.name,
-          expect.objectContaining({
-            bannedAddresses: expect.arrayContaining(bannedAddresses)
-          }),
-          webhookEvent.room
-        )
-      })
-    })
-
-    describe('and the room is neither scene nor world room', () => {
-      beforeEach(() => {
-        webhookEvent.room.name = 'unknown-room-format'
-        spyComponents.livekit.getSceneRoomMetadataFromRoomName.mockReturnValue({
-          sceneId: undefined,
-          worldName: undefined
-        })
-      })
-
-      it('should respond with a 200 and do nothing', async () => {
-        const response = await makeRequest(components.localFetch, '/livekit-webhook', {
-          method: 'POST',
-          headers: {
-            Authorization: 'Bearer aToken',
-            'Content-Type': 'application/json'
-          },
-          body: 'aBody'
-        })
-
-        expect(response.status).toBe(200)
-        expect(spyComponents.livekit.updateRoomMetadata).not.toHaveBeenCalled()
+        expect(spyComponents.sceneBans.updateRoomMetadataWithBans).toHaveBeenCalledWith(webhookEvent.room)
       })
     })
 
@@ -511,7 +477,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(spyComponents.livekit.updateRoomMetadata).not.toHaveBeenCalled()
+        expect(spyComponents.sceneBans.updateRoomMetadataWithBans).not.toHaveBeenCalled()
       })
     })
   })
