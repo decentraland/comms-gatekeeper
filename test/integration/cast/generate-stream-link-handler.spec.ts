@@ -88,7 +88,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
 
     expect(response.status).toBe(400)
     const body = await response.json()
-    expect(body.error).toContain('sceneId and realmName are required')
+    expect(body.error).toContain('sceneId is required')
   })
 
   it('should reject request without realm in authMetadata', async () => {

@@ -17,7 +17,7 @@ export async function generateStreamLinkHandler(
 
   // Validate required fields for Cast2 chat functionality
   if (!sceneId) {
-    throw new InvalidRequestError('sceneId are required in authMetadata for Cast2 chat functionality')
+    throw new InvalidRequestError('sceneId is required in authMetadata for Cast2 chat functionality')
   }
 
   let body: { worldName?: string }
