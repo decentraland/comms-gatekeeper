@@ -1,5 +1,6 @@
 import { EthAddress } from '@dcl/schemas'
 import { SceneBanAddressWithName } from '../../types'
+import { Room } from 'livekit-server-sdk'
 
 type BaseParams = {
   sceneId?: string
@@ -85,4 +86,11 @@ export interface ISceneBansComponent {
    * This function is designed to be called by a cron job to clean up bans for places that have been disabled.
    */
   removeBansFromDisabledPlaces(): Promise<void>
+
+  /**
+   * Updates room metadata with banned addresses for a given room.
+   * This function handles the common logic of fetching banned addresses and updating room metadata.
+   * @param room - Livekit room object.
+   */
+  updateRoomMetadataWithBans(room: Room): Promise<void>
 }

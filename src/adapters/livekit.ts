@@ -258,15 +258,15 @@ export async function createLivekitComponent(
     await roomClient.updateParticipant(roomId, participantId, undefined, permissions)
   }
 
-  async function updateRoomMetadata(roomId: string, metadata: Record<string, unknown>): Promise<void> {
+  async function updateRoomMetadata(roomId: string, metadata: Record<string, unknown>, room?: Room): Promise<void> {
     try {
-      // Get existing room metadata
-      const room = await getRoomInfo(roomId)
+      // Use provided room or get room info
+      const roomInfo = room || (await getRoomInfo(roomId))
       let existingMetadata: Record<string, unknown> = {}
 
-      if (room?.metadata) {
+      if (roomInfo?.metadata) {
         try {
-          existingMetadata = JSON.parse(room.metadata)
+          existingMetadata = JSON.parse(roomInfo.metadata)
         } catch (error) {
           logger.warn(
             `Error parsing existing room metadata for room ${roomId}: ${

@@ -11,6 +11,8 @@ import { createPublisherMockedComponent } from '../../mocks/publisher-mock'
 import { IPublisherComponent } from '../../../src/types'
 import { ILivekitComponent } from '../../../src/types/livekit.type'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
+import { ISceneBansComponent } from '../../../src/logic/scene-bans/types'
+import { createSceneBansMockedComponent } from '../../mocks/scene-bans-mock'
 import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
 
 describe('Participant Joined Handler', () => {
@@ -22,14 +24,17 @@ describe('Participant Joined Handler', () => {
   let fireEventMock: jest.MockedFunction<IAnalyticsComponent['fireEvent']>
   let publishMessagesMock: jest.MockedFunction<IPublisherComponent['publishMessages']>
   let getSceneRoomMetadataFromRoomNameMock: jest.MockedFunction<ILivekitComponent['getSceneRoomMetadataFromRoomName']>
+  let updateRoomMetadataWithBansMock: jest.MockedFunction<ISceneBansComponent['updateRoomMetadataWithBans']>
   let publisher: jest.Mocked<IPublisherComponent>
   let livekit: jest.Mocked<ILivekitComponent>
+  let sceneBans: jest.Mocked<ISceneBansComponent>
 
   beforeEach(() => {
     handleParticipantJoinedMock = jest.fn()
     fireEventMock = jest.fn()
     publishMessagesMock = jest.fn()
     getSceneRoomMetadataFromRoomNameMock = jest.fn()
+    updateRoomMetadataWithBansMock = jest.fn()
 
     voice = createVoiceMockedComponent({
       handleParticipantJoined: handleParticipantJoinedMock
@@ -47,6 +52,10 @@ describe('Participant Joined Handler', () => {
       getSceneRoomMetadataFromRoomName: getSceneRoomMetadataFromRoomNameMock
     })
 
+    sceneBans = createSceneBansMockedComponent({
+      updateRoomMetadataWithBans: updateRoomMetadataWithBansMock
+    })
+
     logs = createLoggerMockedComponent()
 
     handler = createParticipantJoinedHandler({
@@ -54,7 +63,8 @@ describe('Participant Joined Handler', () => {
       analytics,
       logs,
       livekit,
-      publisher
+      publisher,
+      sceneBans
     })
   })
 
@@ -100,6 +110,12 @@ describe('Participant Joined Handler', () => {
         await handler.handle(webhookEvent)
 
         expect(handleParticipantJoinedMock).toHaveBeenCalledWith(userAddress, roomName)
+      })
+
+      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
       })
 
       it('should not publish any message for voice chat rooms', async () => {
@@ -199,6 +215,12 @@ describe('Participant Joined Handler', () => {
         })
       })
 
+      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+      })
+
       it('should not call the voice handler', async () => {
         await handler.handle(webhookEvent)
 
@@ -248,6 +270,12 @@ describe('Participant Joined Handler', () => {
         })
       })
 
+      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+      })
+
       it('should not call the voice handler', async () => {
         await handler.handle(webhookEvent)
 
@@ -278,6 +306,12 @@ describe('Participant Joined Handler', () => {
           room: webhookEvent.room!.name,
           address: userAddress
         })
+      })
+
+      it('should still call sceneBans.updateRoomMetadataWithBans', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
       })
     })
 
