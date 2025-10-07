@@ -100,10 +100,14 @@ components:
       type: object
       required:
         - banned_address
+        - banned_name
       properties:
         banned_address:
           type: string
           description: 'ETH address of the user to ban'
+        banned_name:
+          type: string
+          description: 'Name of the user to ban'
 
     ListSceneBansResponse:
       type: object
