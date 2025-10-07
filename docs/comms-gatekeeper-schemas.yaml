@@ -100,7 +100,6 @@ components:
       type: object
       required:
         - banned_address
-        - banned_name
       properties:
         banned_address:
           type: string
