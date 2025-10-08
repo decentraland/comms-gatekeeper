@@ -72,29 +72,13 @@ components:
     # Scene ban schemas
     SceneBan:
       type: object
-      required:
-        - id
-        - place_id
-        - banned_address
-        - banned_by
-        - banned_at
       properties:
-        id:
-          type: string
-          description: 'Unique identifier of the ban'
-        place_id:
-          type: string
-          description: 'ID of the place where the ban applies'
-        banned_address:
+        bannedAddress:
           type: string
           description: 'ETH address of the banned user'
-        banned_by:
+        name:
           type: string
-          description: 'ETH address of the user who created the ban'
-        banned_at:
-          type: integer
-          format: int64
-          description: 'Timestamp when the ban was created'
+          description: 'Name of the banned user'
 
     AddSceneBanRequest:
       type: object
