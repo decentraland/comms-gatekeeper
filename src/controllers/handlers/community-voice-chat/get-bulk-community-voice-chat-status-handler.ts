@@ -24,14 +24,6 @@ export async function getBulkCommunityVoiceChatStatusHandler(
     throw new InvalidRequestError('The parameter community_ids must be an array')
   }
 
-  if (communityIds.length === 0) {
-    logger.debug('Empty community_ids array provided')
-    return {
-      status: 200,
-      body: { data: [] }
-    }
-  }
-
   if (communityIds.some((id) => typeof id !== 'string' || id.trim() === '')) {
     throw new InvalidRequestError('All community_ids must be non-empty strings')
   }
