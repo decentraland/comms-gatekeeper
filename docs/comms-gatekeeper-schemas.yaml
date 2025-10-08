@@ -68,6 +68,9 @@ components:
         admin:
           type: string
           description: 'ETH address of the admin to add'
+        name:
+          type: string
+          description: 'Decentraland name of the admin to add'
 
     # Scene ban schemas
     SceneBan:
