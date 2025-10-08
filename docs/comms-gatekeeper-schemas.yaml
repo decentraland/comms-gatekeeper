@@ -352,6 +352,51 @@ components:
           type: integer
           description: 'Total number of active community voice chats'
 
+    GetBulkCommunityVoiceChatStatusRequest:
+      type: object
+      required:
+        - community_ids
+      properties:
+        community_ids:
+          type: array
+          items:
+            type: string
+          description: 'Array of community IDs to get status for'
+          example: ['community-1', 'community-2', 'community-3']
+          minItems: 1
+
+    CommunityVoiceChatStatus:
+      type: object
+      required:
+        - community_id
+        - active
+        - participant_count
+        - moderator_count
+      properties:
+        community_id:
+          type: string
+          description: 'ID of the community'
+        active:
+          type: boolean
+          description: 'Whether the community voice chat is active'
+        participant_count:
+          type: integer
+          description: 'Number of participants in the voice chat'
+        moderator_count:
+          type: integer
+          description: 'Number of moderators in the voice chat'
+
+    GetBulkCommunityVoiceChatStatusResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommunityVoiceChatStatus'
+          description: 'Array of community voice chat statuses'
+
     # LiveKit webhook schemas
     LivekitWebhookRequest:
       type: object

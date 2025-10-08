@@ -9,6 +9,7 @@ import { AnalyticsEventPayload } from '../../src/types/analytics'
 import { CommunityRole } from '../../src/types/social.type'
 import { CommunityVoiceChatAction } from '../../src/types/community-voice'
 import { createLivekitMockedComponent } from '../mocks/livekit-mock'
+import { createVoiceDBMockedComponent } from '../mocks/voice-db-mock'
 
 describe('CommunityVoiceLogic', () => {
   let voiceComponent: IVoiceComponent
@@ -16,37 +17,14 @@ describe('CommunityVoiceLogic', () => {
   let mockLivekit: jest.Mocked<ILivekitComponent>
   let mockLogs: jest.Mocked<ILoggerComponent>
   let mockAnalytics: jest.Mocked<IAnalyticsComponent<AnalyticsEventPayload>>
+
   const validCommunityId = 'test-community-123'
   const validModeratorAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
   const validMemberAddress = '0x742d35Cc6635C0532925a3b8D6Ac6C2b6000b8B0'
   const validUserAddress = '0x1234567890123456789012345678901234567890'
 
   beforeEach(() => {
-    mockVoiceDB = {
-      isPrivateRoomActive: jest.fn(),
-      joinUserToRoom: jest.fn(),
-      updateUserStatusAsDisconnected: jest.fn(),
-      updateUserStatusAsConnectionInterrupted: jest.fn(),
-      deletePrivateVoiceChat: jest.fn(),
-      getRoomUserIsIn: jest.fn(),
-      createVoiceChatRoom: jest.fn(),
-      getUsersInRoom: jest.fn(),
-      deleteExpiredPrivateVoiceChats: jest.fn(),
-      deletePrivateVoiceChatUserIsOrWasIn: jest.fn(),
-
-      // Community voice chat methods
-      joinUserToCommunityRoom: jest.fn(),
-      updateCommunityUserStatus: jest.fn(),
-      getCommunityUsersInRoom: jest.fn(),
-      isCommunityRoomActive: jest.fn(),
-
-      deleteCommunityVoiceChat: jest.fn(),
-      deleteExpiredCommunityVoiceChats: jest.fn(),
-      isActiveCommunityUser: jest.fn(),
-      getAllActiveCommunityVoiceChats: jest.fn(),
-      isUserInAnyCommunityVoiceChat: jest.fn()
-    } as jest.Mocked<IVoiceDBComponent>
-
+    mockVoiceDB = createVoiceDBMockedComponent()
     mockLivekit = createLivekitMockedComponent()
 
     const mockLogger = {

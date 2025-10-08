@@ -1,6 +1,6 @@
 import SQL from 'sql-template-strings'
 import { PoolClient } from 'pg'
-import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX } from '../../logic/voice/utils'
+import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX, getCommunityVoiceChatRoomName } from '../../logic/voice/utils'
 import { AppComponents } from '../../types'
 import { IVoiceDBComponent, VoiceChatUser, VoiceChatUserStatus, CommunityVoiceChatUser } from './types'
 import { RoomDoesNotExistError } from './errors'
@@ -509,6 +509,75 @@ export async function createVoiceDBComponent({
     return result.rows[0].user_exists
   }
 
+  /**
+   * Gets the status of multiple community voice chats in a single efficient query.
+   * @param communityIds - Array of community IDs to get status for.
+   * @returns Array of status objects for each community, including inactive ones.
+   */
+  async function getBulkCommunityVoiceChatStatus(communityIds: string[]): Promise<
+    Array<{
+      communityId: string
+      active: boolean
+      participantCount: number
+      moderatorCount: number
+    }>
+  > {
+    if (communityIds.length === 0) {
+      return []
+    }
+
+    const now = Date.now()
+    const isConnectedQuery = getIsConnectedQuery(now)
+
+    // Create room names for the given community IDs
+    const roomNames = communityIds.map(getCommunityVoiceChatRoomName)
+
+    const bulkStatusQuery = SQL`
+      WITH room_data AS (
+        SELECT 
+          room_name,
+          REPLACE(room_name, ${COMMUNITY_VOICE_CHAT_ROOM_PREFIX} || '-', '') as community_id,
+          COUNT(CASE 
+            WHEN (`
+      .append(isConnectedQuery)
+      .append(
+        SQL`) THEN 1 
+          END) as participant_count,
+          COUNT(CASE 
+            WHEN is_moderator = true AND (`
+      )
+      .append(isConnectedQuery).append(SQL`) THEN 1 
+          END) as moderator_count
+        FROM community_voice_chat_users 
+        WHERE room_name = ANY(${roomNames})
+        GROUP BY room_name
+      ),
+      all_communities AS (
+        SELECT unnest(${roomNames}::text[]) as room_name
+      )
+      SELECT 
+        COALESCE(REPLACE(ac.room_name, ${COMMUNITY_VOICE_CHAT_ROOM_PREFIX} || '-', ''), '') as community_id,
+        COALESCE(rd.participant_count, 0) as participant_count,
+        COALESCE(rd.moderator_count, 0) as moderator_count,
+        CASE 
+          WHEN rd.moderator_count > 0 THEN true 
+          ELSE false 
+        END as active
+      FROM all_communities ac
+      LEFT JOIN room_data rd ON ac.room_name = rd.room_name
+      ORDER BY ac.room_name
+    `)
+
+    const result = await database.query(bulkStatusQuery)
+
+    return result.rows.map((row) => ({
+      communityId: row.community_id,
+      active: row.active,
+      participantCount: parseInt(row.participant_count),
+      moderatorCount: parseInt(row.moderator_count)
+    }))
+  }
+
   return {
     deleteExpiredPrivateVoiceChats,
     deletePrivateVoiceChat,
@@ -530,6 +599,7 @@ export async function createVoiceDBComponent({
     deleteExpiredCommunityVoiceChats,
     getAllActiveCommunityVoiceChats,
     isUserInAnyCommunityVoiceChat,
+    getBulkCommunityVoiceChatStatus,
     // Export helper function for reuse
     isActiveCommunityUser: (user: CommunityVoiceChatUser, now: number) => isActiveCommunityUser(user, now)
   }

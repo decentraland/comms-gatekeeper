@@ -12,7 +12,7 @@ export async function getCommunityVoiceChatStatusHandler(
 
   const communityId = params.communityId
 
-  if (!communityId) {
+  if (!communityId?.trim()) {
     throw new InvalidRequestError('The parameter communityId is required')
   }
 

@@ -603,6 +603,48 @@ export function createVoiceComponent(
     }
   }
 
+  /**
+   * Gets the status of multiple community voice chats in a single efficient query.
+   * @param communityIds - Array of community IDs to get status for.
+   * @returns Array of status objects for each community, including inactive ones.
+   */
+  async function getBulkCommunityVoiceChatStatus(communityIds: string[]): Promise<
+    Array<{
+      communityId: string
+      active: boolean
+      participantCount: number
+      moderatorCount: number
+    }>
+  > {
+    if (communityIds.length === 0) {
+      logger.debug('No community IDs provided for bulk status check')
+      return []
+    }
+
+    logger.debug(`Getting bulk status for ${communityIds.length} communities: ${communityIds.join(', ')}`)
+
+    try {
+      const results = await voiceDB.getBulkCommunityVoiceChatStatus(communityIds)
+
+      logger.debug(
+        `Bulk status ${results.length} results: ${results.map((r) => `${r.communityId}:${r.active}`).join(', ')}`
+      )
+
+      return results
+    } catch (error) {
+      logger.warn(
+        `Error getting bulk community voice chat status: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
+      )
+
+      return communityIds.map((communityId) => ({
+        communityId,
+        active: false,
+        participantCount: 0,
+        moderatorCount: 0
+      }))
+    }
+  }
+
   return {
     isUserInVoiceChat,
     handleParticipantJoined,
@@ -613,6 +655,7 @@ export function createVoiceComponent(
     getCommunityVoiceChatCredentialsWithRole,
     expireCommunityVoiceChats,
     getCommunityVoiceChatStatus,
+    getBulkCommunityVoiceChatStatus,
     requestToSpeakInCommunity,
     rejectSpeakRequestInCommunity,
     promoteSpeakerInCommunity,
