@@ -1,5 +1,5 @@
 import { EthAddress } from '@dcl/schemas'
-import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
+import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
 import { PlaceAttributes } from '../../../types/places.type'
@@ -7,14 +7,14 @@ import { PlaceAttributes } from '../../../types/places.type'
 export async function addSceneAdminHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneAdminManager' | 'logs' | 'config' | 'sceneManager' | 'places',
+      'fetch' | 'sceneAdminManager' | 'logs' | 'config' | 'sceneManager' | 'places' | 'names',
       '/scene-admin'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places },
+    components: { logs, sceneAdminManager, sceneManager, places, names },
     request,
     verification
   } = ctx
@@ -28,11 +28,15 @@ export async function addSceneAdminHandler(
     throw new InvalidRequestError('Authentication required')
   }
 
-  const payload = await request.json()
-  const adminToAdd = payload.admin
-  if (!adminToAdd || !EthAddress.validate(adminToAdd)) {
-    logger.warn(`Invalid scene admin payload`, payload)
-    throw new InvalidRequestError(`Invalid payload`)
+  const payload: { admin?: string; name?: string } = await request.json()
+  const { admin, name } = payload
+
+  if (!admin && !name) {
+    logger.warn(`Invalid scene admin payload, missing admin or name`, payload)
+    throw new InvalidRequestError(`Invalid payload, missing admin or name`)
+  } else if (admin && !EthAddress.validate(admin)) {
+    logger.warn(`Invalid scene admin payload, invalid admin address`, payload)
+    throw new InvalidRequestError(`Invalid payload, invalid admin address`)
   }
 
   const {
@@ -55,7 +59,21 @@ export async function addSceneAdminHandler(
     throw new UnauthorizedError('You do not have permission to add admins to this place')
   }
 
-  const userToAddScenePermissions = await getUserScenePermissions(place, adminToAdd.toLowerCase())
+  let adminToAdd: string
+
+  if (admin) {
+    adminToAdd = admin.toLowerCase()
+  } else {
+    const nameOwner = await names.getNameOwner(name!)
+
+    if (!nameOwner) {
+      throw new NotFoundError(`Could not find the owner of the name ${name}`)
+    }
+
+    adminToAdd = nameOwner.toLowerCase()
+  }
+
+  const userToAddScenePermissions = await getUserScenePermissions(place, adminToAdd)
 
   if (
     userToAddScenePermissions.owner ||
@@ -67,7 +85,7 @@ export async function addSceneAdminHandler(
 
   await sceneAdminManager.addAdmin({
     place_id: place.id,
-    admin: adminToAdd.toLowerCase(),
+    admin: adminToAdd,
     added_by: authenticatedAddress.toLowerCase()
   })
 
