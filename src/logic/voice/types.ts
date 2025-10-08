@@ -150,4 +150,18 @@ export interface IVoiceComponent {
    * @returns Promise<boolean> - True if user is in a community voice chat, false otherwise
    */
   isUserInCommunityVoiceChat(userAddress: string): Promise<boolean>
+
+  /**
+   * Gets the status of multiple community voice chats in a single efficient query.
+   * @param communityIds - Array of community IDs to get status for.
+   * @returns Array of status objects for each community, including inactive ones.
+   */
+  getBulkCommunityVoiceChatStatus(communityIds: string[]): Promise<
+    Array<{
+      communityId: string
+      active: boolean
+      participantCount: number
+      moderatorCount: number
+    }>
+  >
 }

@@ -29,6 +29,7 @@ import { deletePrivateVoiceChatHandler } from './handlers/voice-chat/delete-priv
 import {
   communityVoiceChatHandler,
   getCommunityVoiceChatStatusHandler,
+  getBulkCommunityVoiceChatStatusHandler,
   requestToSpeakHandler,
   rejectSpeakRequestHandler,
   promoteSpeakerHandler,
@@ -104,6 +105,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.get('/users/:userAddress/community-voice-chat-status', tokenAuthMiddleware, checkUserCommunityStatusHandler)
   router.post('/community-voice-chat', tokenAuthMiddleware, communityVoiceChatHandler)
   router.get('/community-voice-chat/:communityId/status', tokenAuthMiddleware, getCommunityVoiceChatStatusHandler)
+  router.post('/community-voice-chat/status', tokenAuthMiddleware, getBulkCommunityVoiceChatStatusHandler)
   router.get('/community-voice-chat/active', tokenAuthMiddleware, getAllActiveCommunityVoiceChatsHandler)
   router.post(
     '/community-voice-chat/:communityId/users/:userAddress/speak-request',
