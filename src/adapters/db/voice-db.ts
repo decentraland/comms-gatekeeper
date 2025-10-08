@@ -553,7 +553,7 @@ export async function createVoiceDBComponent({
         GROUP BY room_name
       ),
       all_communities AS (
-        SELECT unnest(${roomNames}) as room_name
+        SELECT unnest(${roomNames}::text[]) as room_name
       )
       SELECT 
         COALESCE(REPLACE(ac.room_name, ${COMMUNITY_VOICE_CHAT_ROOM_PREFIX} || '-', ''), '') as community_id,
