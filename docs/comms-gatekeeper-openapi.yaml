@@ -1037,6 +1037,51 @@ paths:
       tags:
         - Community Voice Chat
 
+  /community-voice-chat/status:
+    post:
+      operationId: getBulkCommunityVoiceChatStatus
+      summary: Get bulk community voice chat status
+      description: |
+        Gets the status of multiple community voice chats in a single request.
+        This endpoint is optimized for bulk queries and returns the status for all
+        requested communities, including inactive ones.
+        Requires Bearer Token authentication.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/GetBulkCommunityVoiceChatStatusRequest'
+      responses:
+        '200':
+          description: Bulk community voice chat status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/GetBulkCommunityVoiceChatStatusResponse'
+        '400':
+          description: Invalid request - Invalid community IDs or request format
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Community Voice Chat
+
   /community-voice-chat/{communityId}/users/{userAddress}/speak-request:
     post:
       operationId: requestToSpeak
