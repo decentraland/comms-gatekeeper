@@ -21,11 +21,12 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
   })
 
   describe('when the token is valid', () => {
-    it('should generate streamer token with valid streaming key', async () => {
+    it('should generate streamer token with valid streaming key and identity', async () => {
+      const identity = 'happy-fox'
       const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: validToken })
+        body: JSON.stringify({ token: validToken, identity })
       })
 
       const body = await response.json()
@@ -35,7 +36,7 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
       expect(body.token).toBeDefined()
       expect(body.roomId).toBeDefined()
       expect(body.identity).toBeDefined()
-      expect(spyComponents.cast.validateStreamerToken).toHaveBeenCalledWith(validToken)
+      expect(spyComponents.cast.validateStreamerToken).toHaveBeenCalledWith(validToken, identity)
     })
   })
 
@@ -50,7 +51,7 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: 'invalid-token' })
+        body: JSON.stringify({ token: 'invalid-token', identity: 'happy-fox' })
       })
 
       expect(response.status).toBe(401)
@@ -69,6 +70,40 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
     })
   })
 
+  describe('when identity is missing', () => {
+    it('should reject requests without identity', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: validToken })
+      })
+
+      expect(response.status).toBe(400)
+    })
+  })
+
+  describe('when identity is empty', () => {
+    it('should reject requests with empty identity', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: validToken, identity: '' })
+      })
+
+      expect(response.status).toBe(400)
+    })
+
+    it('should reject requests with whitespace-only identity', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: validToken, identity: '   ' })
+      })
+
+      expect(response.status).toBe(400)
+    })
+  })
+
   describe('when validation fails with invalid request error', () => {
     beforeEach(() => {
       spyComponents.cast.validateStreamerToken.mockRejectedValue(new InvalidRequestError('Internal error'))
@@ -78,7 +113,7 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: validToken })
+        body: JSON.stringify({ token: validToken, identity: 'test-user' })
       })
 
       expect(response.status).toBe(400)
@@ -97,11 +132,11 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: expiredToken })
+        body: JSON.stringify({ token: expiredToken, identity: 'test-user' })
       })
 
       expect(response.status).toBe(401)
-      expect(spyComponents.cast.validateStreamerToken).toHaveBeenCalledWith(expiredToken)
+      expect(spyComponents.cast.validateStreamerToken).toHaveBeenCalledWith(expiredToken, 'test-user')
     })
   })
 
@@ -110,7 +145,7 @@ test('Cast: Streamer Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/streamer-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: validToken })
+        body: JSON.stringify({ token: validToken, identity: 'brave-lion' })
       })
 
       const body = await response.json()

@@ -12,7 +12,7 @@ export async function watcherTokenHandler(
 
   const logger = logs.getLogger('watcher-token-handler')
 
-  let body: { roomId: string; identity?: string }
+  let body: { roomId: string; identity: string }
   try {
     body = await request.json()
   } catch (error) {
@@ -23,8 +23,12 @@ export async function watcherTokenHandler(
     throw new InvalidRequestError('Room ID is required')
   }
 
+  if (!body.identity || body.identity.trim() === '') {
+    throw new InvalidRequestError('Identity is required')
+  }
+
   // Call cast component to generate watcher credentials
-  const credentials = await cast.generateWatcherCredentials(body.roomId, body.identity || '')
+  const credentials = await cast.generateWatcherCredentials(body.roomId, body.identity)
 
   logger.info(`Watcher credentials generated for room ${body.roomId}`)
 

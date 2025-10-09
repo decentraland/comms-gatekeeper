@@ -12,7 +12,7 @@ export async function streamerTokenHandler(
 
   const logger = logs.getLogger('streamer-token-handler')
 
-  let body: { token: string }
+  let body: { token: string; identity: string }
   try {
     body = await request.json()
   } catch (error) {
@@ -23,8 +23,12 @@ export async function streamerTokenHandler(
     throw new InvalidRequestError('Streaming token is required')
   }
 
+  if (!body.identity || body.identity.trim() === '') {
+    throw new InvalidRequestError('Identity is required')
+  }
+
   // Call cast component to validate and generate credentials
-  const credentials = await cast.validateStreamerToken(body.token)
+  const credentials = await cast.validateStreamerToken(body.token, body.identity)
 
   logger.info(`Streamer credentials generated for room ${credentials.roomId}`)
 

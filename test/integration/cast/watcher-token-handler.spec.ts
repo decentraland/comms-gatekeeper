@@ -21,12 +21,13 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
     spyComponents.cast.generateWatcherCredentials.mockResolvedValue(mockCredentials)
   })
 
-  describe('when requesting with valid room id', () => {
+  describe('when requesting with valid room id and identity', () => {
     it('should generate watcher token for valid room', async () => {
+      const identity = 'clever-bear'
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: validRoomId })
+        body: JSON.stringify({ roomId: validRoomId, identity })
       })
 
       const body = await response.json()
@@ -36,7 +37,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(body.token).toBeDefined()
       expect(body.roomId).toBeDefined()
       expect(body.identity).toBeDefined()
-      expect(spyComponents.cast.generateWatcherCredentials).toHaveBeenCalledWith(validRoomId, '')
+      expect(spyComponents.cast.generateWatcherCredentials).toHaveBeenCalledWith(validRoomId, identity)
     })
   })
 
@@ -69,7 +70,41 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ identity: 'test-user' })
+      })
+
+      expect(response.status).toBe(400)
+    })
+  })
+
+  describe('when identity is missing', () => {
+    it('should reject requests without identity', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: validRoomId })
+      })
+
+      expect(response.status).toBe(400)
+    })
+  })
+
+  describe('when identity is empty', () => {
+    it('should reject requests with empty identity', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: validRoomId, identity: '' })
+      })
+
+      expect(response.status).toBe(400)
+    })
+
+    it('should reject requests with whitespace-only identity', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: validRoomId, identity: '   ' })
       })
 
       expect(response.status).toBe(400)
@@ -85,7 +120,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: validRoomId })
+        body: JSON.stringify({ roomId: validRoomId, identity: 'test-user' })
       })
 
       expect(response.status).toBe(400)
@@ -97,7 +132,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: validRoomId })
+        body: JSON.stringify({ roomId: validRoomId, identity: 'happy-penguin' })
       })
 
       const body = await response.json()
