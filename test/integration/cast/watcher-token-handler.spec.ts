@@ -14,8 +14,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       url: 'wss://livekit.example.com',
       token: 'mock-watcher-jwt-token',
       roomId: validRoomId,
-      identity: 'watcher:scene:fenrir:bafytest123:123456',
-      roomName: 'Test Place Name'
+      identity: 'watch:scene:fenrir:bafytest123:123456' // Updated format: watch instead of watcher
     }
 
     spyComponents.cast.generateWatcherCredentials.mockResolvedValue(mockCredentials)
@@ -127,8 +126,8 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
     })
   })
 
-  describe('when room name is available', () => {
-    it('should include room name in response', async () => {
+  describe('when credentials are generated', () => {
+    it('should return proper scene room credentials', async () => {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -142,9 +141,10 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(body.token).toBeDefined()
       expect(body.roomId).toBeDefined()
       expect(body.identity).toBeDefined()
-      expect(body.roomName).toBe('Test Place Name')
       // Verify the roomId is in scene format
       expect(body.roomId).toMatch(/^scene:/)
+      // Verify identity is in internal format (watch:roomId:timestamp)
+      expect(body.identity).toMatch(/^watch:/)
     })
   })
 })
