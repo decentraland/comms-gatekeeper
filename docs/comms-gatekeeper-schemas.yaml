@@ -62,8 +62,6 @@ components:
 
     AddSceneAdminRequest:
       type: object
-      required:
-        - admin
       properties:
         admin:
           type: string
@@ -71,6 +69,13 @@ components:
         name:
           type: string
           description: 'Decentraland name of the admin to add'
+
+    RemoveSceneAdminRequest:
+      type: object
+      properties:
+        admin:
+          type: string
+          description: 'ETH address of the admin to add'
 
     # Scene ban schemas
     SceneBan:
@@ -85,8 +90,6 @@ components:
 
     AddSceneBanRequest:
       type: object
-      required:
-        - banned_address
       properties:
         banned_address:
           type: string
