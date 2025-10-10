@@ -278,7 +278,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneAdminRequest'
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/RemoveSceneAdminRequest'
       responses:
         '204':
           description: Scene administrator removed successfully
