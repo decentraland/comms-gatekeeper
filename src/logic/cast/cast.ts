@@ -105,7 +105,7 @@ export function createCastComponent(
    * Validates a streaming token and generates LiveKit credentials for a streamer.
    * Streamers connect directly to the scene room where they can publish video/audio streams.
    * @param streamingKey - The streaming key to validate
-   * @param identity - Identity/display name for the streamer (required, provided by frontend)
+   * @param identity - Display name for the streamer (required, provided by frontend)
    * @returns LiveKit credentials and room information
    */
   async function validateStreamerToken(streamingKey: string, identity: string): Promise<ValidateStreamerTokenResult> {
@@ -125,35 +125,34 @@ export function createCastComponent(
       throw new UnauthorizedError('Streaming token has expired')
     }
 
-    // Use the provided identity directly (frontend is responsible for generating if needed)
-    const streamerId = identity
-
     // Use the room_id from the stream access (scene room format)
     const roomId = streamAccess.room_id!
 
-    // Internal tracking ID for casting permissions
+    // Generate unique internal ID for LiveKit identity (prevents collisions)
+    // Format: stream:{placeId}:{timestamp}
     const internalId = `stream:${streamAccess.place_id}:${Date.now()}`
 
     // Create LiveKit credentials with publish permissions for the scene room
+    // Use internalId as LiveKit identity (guaranteed unique)
+    // Store user's display name in metadata for UI display
     const credentials = await livekit.generateCredentials(
-      streamerId,
+      internalId,
       roomId,
       {
         canPublish: true, // Streamers can publish video/audio
         canSubscribe: true, // Can see other streams
-        cast: [internalId] // Grant casting permissions using internal ID
+        cast: [internalId] // Grant full casting permissions using the unique internal ID
       },
       false, // Use production LiveKit
       {
         role: 'streamer',
-        placeId: streamAccess.place_id,
-        streamingKey,
-        internalId // Store internal ID for tracking
+        displayName: identity
       }
     )
 
     logger.info(`Streamer token generated for scene room ${roomId}`, {
-      streamerId,
+      internalId,
+      displayName: identity,
       roomId,
       placeId: streamAccess.place_id,
       livekitUrl: credentials.url
@@ -163,7 +162,7 @@ export function createCastComponent(
       url: credentials.url,
       token: credentials.token,
       roomId,
-      identity: streamerId
+      identity: internalId // Return the unique internal ID
     }
   }
 
@@ -171,19 +170,22 @@ export function createCastComponent(
    * Generates LiveKit credentials for a watcher (viewer).
    * Watchers connect to the scene room with read-only permissions (can view streams but not publish).
    * @param roomId - The scene room ID to join (format: scene:${realmName}:${sceneId})
-   * @param identity - Identity/display name for the watcher (required, provided by frontend)
+   * @param identity - Display name for the watcher (required, provided by frontend)
    * @returns LiveKit credentials
    */
   async function generateWatcherCredentials(
     roomId: string,
     identity: string
   ): Promise<GenerateWatcherCredentialsResult> {
-    // Use the provided identity directly (frontend is responsible for generating if needed)
-    const watcherId = identity
+    // Generate unique internal ID for LiveKit identity (prevents collisions)
+    // Format: watch:{roomId}:{timestamp}
+    const internalId = `watch:${roomId}:${Date.now()}`
 
     // Create LiveKit credentials with watch-only permissions for the scene room
+    // Use internalId as LiveKit identity (guaranteed unique)
+    // Store user's display name in metadata for UI display
     const credentials = await livekit.generateCredentials(
-      watcherId,
+      internalId,
       roomId,
       {
         canPublish: false, // Watchers cannot publish video/audio
@@ -193,12 +195,14 @@ export function createCastComponent(
       false, // Use production LiveKit
       {
         role: 'watcher',
+        displayName: identity,
         roomId
       }
     )
 
     logger.info(`Watcher credentials generated for scene room ${roomId}`, {
-      watcherId,
+      internalId,
+      displayName: identity,
       roomId,
       livekitUrl: credentials.url
     })
@@ -207,7 +211,7 @@ export function createCastComponent(
       url: credentials.url,
       token: credentials.token,
       roomId,
-      identity: watcherId
+      identity: internalId // Return the unique internal ID
     }
   }
 
