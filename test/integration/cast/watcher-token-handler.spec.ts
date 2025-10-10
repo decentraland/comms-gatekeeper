@@ -14,7 +14,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       url: 'wss://livekit.example.com',
       token: 'mock-watcher-jwt-token',
       roomId: validRoomId,
-      identity: 'watch:scene:fenrir:bafytest123:123456' // Updated format: watch instead of watcher
+      identity: 'watch:scene:fenrir:bafytest123:123456'
     }
 
     spyComponents.cast.generateWatcherCredentials.mockResolvedValue(mockCredentials)
