@@ -10,6 +10,7 @@ export const createSceneStreamAccessManagerMockedComponent = (
     getAccess: jest.fn(),
     getAccessByStreamingKey: jest.fn(),
     getAccessByRoomId: jest.fn(),
+    getLatestAccessByPlaceId: jest.fn(),
     getExpiredStreamingKeys: jest.fn(),
     startStreaming: jest.fn(),
     stopStreaming: jest.fn(),

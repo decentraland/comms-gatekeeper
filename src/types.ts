@@ -211,6 +211,7 @@ export interface ISceneStreamAccessManager {
   getAccess(placeId: string): Promise<SceneStreamAccess>
   getAccessByStreamingKey(streamingKey: string): Promise<SceneStreamAccess | null>
   getAccessByRoomId(roomId: string): Promise<SceneStreamAccess | null>
+  getLatestAccessByPlaceId(placeId: string): Promise<SceneStreamAccess | null>
   getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]>
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>

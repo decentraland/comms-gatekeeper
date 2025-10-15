@@ -82,17 +82,23 @@ export function createCastComponent(
     // Generate the stream link
     const streamLink = `${cast2BaseUrl}/s/${streamingKey}`
 
+    // Generate the watcher link using worldName or parcel
+    const location = worldName || parcel || 'none' // wolrdName or parcel will be provided in the request
+    const watcherLink = `${cast2BaseUrl}/w/${location}`
+
     logger.info(`Stream link generated for place ${place.id} by admin ${walletAddress}`, {
       placeId: place.id,
       streamingKey: streamingKey.substring(0, 20) + '...',
       expiresAt: new Date(expirationTime).toISOString(),
       generatedBy: walletAddress,
       sceneId: sceneId || 'none',
-      realmName: realmName || 'none'
+      realmName: realmName || 'none',
+      location
     })
 
     return {
       streamLink,
+      watcherLink,
       streamingKey,
       placeId: place.id,
       placeName: place.title || place.id,
@@ -215,9 +221,72 @@ export function createCastComponent(
     }
   }
 
+  /**
+   * Generates LiveKit credentials for a watcher (viewer) using location (parcel or world name).
+   * Looks up the most recent active stream for the given location and validates it hasn't expired.
+   * @param location - Either parcel coordinates (e.g., "20,-4") or world name (e.g., "goerliplaza.dcl.eth")
+   * @param identity - Display name for the watcher (required, provided by frontend)
+   * @returns LiveKit credentials with place name
+   */
+  async function generateWatcherCredentialsByLocation(
+    location: string,
+    identity: string
+  ): Promise<GenerateWatcherCredentialsResult> {
+    // Detect if location is a world name (contains .dcl.eth) or parcel coordinates
+    const isWorldName = location.includes('.dcl.eth')
+
+    // Get place information from location
+    const place = isWorldName ? await places.getPlaceByWorldName(location) : await places.getPlaceByParcel(location)
+
+    // Get the most recent stream access for this place
+    const streamAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(place.id)
+
+    if (!streamAccess) {
+      logger.warn(`No active stream found for location ${location}`, {
+        placeId: place.id,
+        isWorldName: isWorldName ? 'true' : 'false'
+      })
+      throw new UnauthorizedError('No active stream found for this location')
+    }
+
+    // Check if the stream access has expired (4 days limit for Cast2)
+    if (streamAccess.expiration_time && Date.now() > streamAccess.expiration_time) {
+      logger.warn(`Expired stream access for location ${location}`, {
+        placeId: place.id,
+        isWorldName: isWorldName ? 'true' : 'false',
+        expiredAt: new Date(streamAccess.expiration_time).toISOString()
+      })
+      throw new UnauthorizedError('Stream access has expired. Please generate a new stream link.')
+    }
+
+    // Use the room_id from the stream access
+    const roomId = streamAccess.room_id!
+
+    // Generate watcher credentials using the existing method
+    const credentials = await generateWatcherCredentials(roomId, identity)
+
+    // Add place name to credentials for UI display
+    const placeName = place.title || (place.world_name ? place.world_name : location)
+
+    logger.info(`Watcher credentials generated for location ${location}`, {
+      location,
+      isWorldName: isWorldName ? 'true' : 'false',
+      placeId: place.id,
+      placeName,
+      roomId,
+      identity: credentials.identity
+    })
+
+    return {
+      ...credentials,
+      placeName
+    }
+  }
+
   return {
     generateStreamLink,
     validateStreamerToken,
-    generateWatcherCredentials
+    generateWatcherCredentials,
+    generateWatcherCredentialsByLocation
   }
 }
