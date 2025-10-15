@@ -11,7 +11,7 @@ export async function generateStreamLinkHandler(
   } = context
 
   // Validate signed fetch and extract auth data
-  const { identity, sceneId, realm, parcel } = await validate(context)
+  const { identity, sceneId, realm, parcel, isWorld } = await validate(context)
 
   const realmName = realm.serverName
 
@@ -20,17 +20,10 @@ export async function generateStreamLinkHandler(
     throw new InvalidRequestError('sceneId is required in authMetadata for Cast2 chat functionality')
   }
 
-  let body: { worldName?: string }
-  try {
-    body = await context.request.json()
-  } catch (error) {
-    throw new InvalidRequestError('Invalid JSON body')
-  }
-
   // Call cast component to generate the stream link
   const result = await cast.generateStreamLink({
     walletAddress: identity,
-    worldName: body.worldName,
+    worldName: isWorld ? realm.serverName : undefined,
     parcel,
     sceneId,
     realmName
