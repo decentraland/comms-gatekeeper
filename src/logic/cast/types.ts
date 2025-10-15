@@ -15,6 +15,7 @@ export interface GenerateStreamLinkParams {
 
 export interface GenerateStreamLinkResult {
   streamLink: string
+  watcherLink: string
   streamingKey: string
   placeId: string
   placeName: string

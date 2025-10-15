@@ -82,17 +82,23 @@ export function createCastComponent(
     // Generate the stream link
     const streamLink = `${cast2BaseUrl}/s/${streamingKey}`
 
+    // Generate the watcher link using worldName or parcel
+    const location = worldName || parcel || 'none' // wolrdName or parcel will be provided in the request
+    const watcherLink = `${cast2BaseUrl}/w/${location}`
+
     logger.info(`Stream link generated for place ${place.id} by admin ${walletAddress}`, {
       placeId: place.id,
       streamingKey: streamingKey.substring(0, 20) + '...',
       expiresAt: new Date(expirationTime).toISOString(),
       generatedBy: walletAddress,
       sceneId: sceneId || 'none',
-      realmName: realmName || 'none'
+      realmName: realmName || 'none',
+      location
     })
 
     return {
       streamLink,
+      watcherLink,
       streamingKey,
       placeId: place.id,
       placeName: place.title || place.id,

@@ -8,6 +8,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
   beforeEach(() => {
     mockStreamLinkResult = {
       streamLink: 'https://cast2.decentraland.org/s/cast2-link-abc123',
+      watcherLink: 'https://cast2.decentraland.org/w/10,20',
       streamingKey: 'cast2-link-abc123',
       placeId: 'test-place-id',
       placeName: 'Test Place',
@@ -48,6 +49,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
 
     expect(response.status).toBe(200)
     expect(body.streamLink).toBeDefined()
+    expect(body.watcherLink).toBeDefined()
     expect(body.streamingKey).toBeDefined()
     expect(body.placeId).toBeDefined()
     expect(body.placeName).toBeDefined()
@@ -142,6 +144,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
 
     expect(response.status).toBe(200)
     expect(body.streamLink).toBeDefined()
+    expect(body.watcherLink).toBeDefined()
     expect(spyComponents.cast.generateStreamLink).toHaveBeenCalledWith({
       walletAddress: owner.authChain[0].payload,
       worldName: 'myworld.dcl.eth',
