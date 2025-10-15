@@ -126,13 +126,10 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          worldName: 'myworld.dcl.eth'
-        }),
         metadata: {
           sceneId: 'bafytest456',
           realm: {
-            serverName: 'thor',
+            serverName: 'myworld.dcl.eth',
             hostname: 'https://worlds-content-server.decentraland.org',
             protocol: 'https'
           }
@@ -150,7 +147,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       worldName: 'myworld.dcl.eth',
       parcel: undefined,
       sceneId: 'bafytest456',
-      realmName: 'thor'
+      realmName: 'myworld.dcl.eth'
     })
   })
 

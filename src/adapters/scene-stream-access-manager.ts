@@ -110,13 +110,33 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]
   }
 
+  async function getLatestAccessByPlaceId(placeId: string): Promise<SceneStreamAccess | null> {
+    logger.debug('Getting latest stream access by place ID', { placeId })
+
+    const result = await database.query<SceneStreamAccess>(
+      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time, room_id, generated_by
+        FROM scene_stream_access
+        WHERE place_id = ${placeId} AND active = true
+        ORDER BY created_at DESC
+        LIMIT 1`
+    )
+
+    if (result.rowCount === 0) {
+      logger.debug('No active streaming access found for place')
+      return null
+    }
+
+    return result.rows[0]
+  }
+
   async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]> {
     const result = await database.query<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>>(
       SQL`SELECT ingress_id, place_id 
         FROM scene_stream_access 
         WHERE active = true 
           AND streaming = false 
-          AND created_at < ${Date.now() - FOUR_DAYS}
+          AND expiration_time IS NOT NULL 
+          AND expiration_time < ${Date.now()}
         LIMIT 100`
     )
     return result.rows
@@ -179,6 +199,7 @@ export async function createSceneStreamAccessManagerComponent({
     getAccess,
     getAccessByStreamingKey,
     getAccessByRoomId,
+    getLatestAccessByPlaceId,
     getExpiredStreamingKeys,
     startStreaming,
     stopStreaming,
