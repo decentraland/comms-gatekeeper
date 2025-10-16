@@ -116,6 +116,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       }
     ])
     stubComponents.names.getNameOwner.resolves(null)
+    stubComponents.sceneBans.isUserBanned.resolves(false)
   })
 
   afterEach(async () => {
@@ -552,6 +553,178 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       })
 
       expect(response.status).toBe(400)
+    })
+  })
+
+  describe('when trying to add a banned user as admin', () => {
+    beforeEach(() => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: false,
+        hasLandLease: false
+      })
+      stubComponents.sceneBans.isUserBanned.resolves(true)
+    })
+
+    it('should return 400 when admin is banned from the scene', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-admin',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            admin: admin.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(400)
+      expect(stubComponents.sceneBans.isUserBanned.calledOnce).toBe(true)
+      expect(stubComponents.sceneAdminManager.addAdmin.called).toBe(false)
+    })
+
+    it('should return 400 when admin by name is banned from the scene', async () => {
+      const { localFetch } = components
+
+      const testName = 'banned-user.dcl.eth'
+      const nameOwnerAddress = admin.authChain[0].payload
+
+      stubComponents.names.getNameOwner.resolves(nameOwnerAddress)
+      stubComponents.sceneBans.isUserBanned.resolves(true)
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-admin',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            name: testName
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(400)
+      expect(stubComponents.names.getNameOwner.calledWith(testName)).toBe(true)
+      expect(stubComponents.sceneBans.isUserBanned.calledOnce).toBe(true)
+      expect(stubComponents.sceneAdminManager.addAdmin.called).toBe(false)
+    })
+
+    it('should check ban status with correct parameters for land scene', async () => {
+      const { localFetch } = components
+
+      await makeRequest(
+        localFetch,
+        '/scene-admin',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            admin: admin.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(
+        stubComponents.sceneBans.isUserBanned.calledWith(admin.authChain[0].payload.toLowerCase(), {
+          sceneId: metadataLand.sceneId,
+          parcel: metadataLand.parcel,
+          realmName: metadataLand.realm.serverName,
+          isWorld: false
+        })
+      ).toBe(true)
+    })
+
+    it('should check ban status with correct parameters for world scene', async () => {
+      const { localFetch } = components
+
+      jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataWorld)
+
+      await makeRequest(
+        localFetch,
+        '/scene-admin',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            admin: admin.authChain[0].payload
+          }),
+          metadata: metadataWorld
+        },
+        owner
+      )
+
+      expect(
+        stubComponents.sceneBans.isUserBanned.calledWith(admin.authChain[0].payload.toLowerCase(), {
+          sceneId: metadataWorld.sceneId,
+          parcel: metadataWorld.parcel,
+          realmName: metadataWorld.realm.serverName,
+          isWorld: true
+        })
+      ).toBe(true)
+    })
+  })
+
+  describe('when trying to add a non-banned user as admin', () => {
+    beforeEach(() => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.getUserScenePermissions.resolves({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: false,
+        hasLandLease: false
+      })
+      stubComponents.sceneBans.isUserBanned.resolves(false)
+      stubComponents.sceneAdminManager.listActiveAdmins.resolves([
+        {
+          id: 'test-admin-id',
+          place_id: testPlaceId,
+          admin: admin.authChain[0].payload.toLowerCase(),
+          added_by: owner.authChain[0].payload.toLowerCase(),
+          active: true,
+          created_at: Date.now()
+        }
+      ])
+    })
+
+    it('should successfully add admin when user is not banned', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-admin',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            admin: admin.authChain[0].payload
+          }),
+          metadata: metadataLand
+        },
+        owner
+      )
+
+      expect(response.status).toBe(204)
+      expect(stubComponents.sceneBans.isUserBanned.calledOnce).toBe(true)
+      expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
+
+      const result = await components.sceneAdminManager.listActiveAdmins({
+        place_id: testPlaceId,
+        admin: admin.authChain[0].payload
+      })
+
+      if (result.length > 0) {
+        cleanup.trackInsert('scene_admin', { id: result[0].id })
+      }
+
+      expect(result.length).toBe(1)
+      expect(result[0].active).toBe(true)
     })
   })
 

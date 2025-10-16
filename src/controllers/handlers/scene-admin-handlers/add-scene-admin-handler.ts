@@ -7,14 +7,14 @@ import { PlaceAttributes } from '../../../types/places.type'
 export async function addSceneAdminHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneAdminManager' | 'logs' | 'config' | 'sceneManager' | 'places' | 'names',
+      'fetch' | 'sceneAdminManager' | 'logs' | 'config' | 'sceneManager' | 'places' | 'names' | 'sceneBans',
       '/scene-admin'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places, names },
+    components: { logs, sceneAdminManager, sceneManager, places, names, sceneBans },
     request,
     verification
   } = ctx
@@ -40,11 +40,14 @@ export async function addSceneAdminHandler(
   }
 
   const {
+    sceneId,
     parcel,
     realm: { serverName, hostname }
   } = await validate(ctx)
+
   const isWorld = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
+
   let place: PlaceAttributes
 
   if (isWorld) {
@@ -81,6 +84,17 @@ export async function addSceneAdminHandler(
     userToAddScenePermissions.hasExtendedPermissions
   ) {
     throw new InvalidRequestError('Cannot add this address as an admin')
+  }
+
+  const isBanned = await sceneBans.isUserBanned(adminToAdd, {
+    sceneId: sceneId,
+    parcel: parcel,
+    realmName: serverName,
+    isWorld: isWorld
+  })
+
+  if (isBanned) {
+    throw new InvalidRequestError('Cannot add this address as an admin because it is banned from this scene')
   }
 
   await sceneAdminManager.addAdmin({
