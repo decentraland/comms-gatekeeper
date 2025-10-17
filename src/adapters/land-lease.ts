@@ -72,16 +72,11 @@ export async function createLandLeaseComponent({
         return false
       }
 
-      const userAuthorization = authorizations.authorizations.find((auth) =>
-        auth.addresses.some((addr) => addr.toLowerCase() === normalizedAddress)
+      const hasAccess = authorizations.authorizations.some(
+        ({ addresses, plots }) =>
+          addresses.some((addr) => addr.toLowerCase() === normalizedAddress) &&
+          plots.some((plot) => parcels.includes(plot))
       )
-
-      if (!userAuthorization) {
-        return false
-      }
-
-      // Check if user has access to any of the parcels
-      const hasAccess = parcels.some((parcel) => userAuthorization.plots.includes(parcel))
 
       if (hasAccess) {
         logger.info('Land lease access granted', { address: normalizedAddress, parcels: parcels.join(',') })
