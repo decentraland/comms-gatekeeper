@@ -249,4 +249,165 @@ describe('when the land lease component is created', () => {
       expect(mockFetch.fetch).toHaveBeenCalledTimes(2)
     })
   })
+
+  describe('and the user has multiple authorizations with different parcels', () => {
+    beforeEach(async () => {
+      const multipleAuthorizations = [
+        {
+          name: 'First Authorization',
+          desc: 'Has user address but different parcels',
+          contactInfo: { name: 'Contact 1' },
+          addresses: ['0x5555555555555555555555555555555555555555'],
+          plots: ['999,999', '888,888']
+        },
+        {
+          name: 'Second Authorization',
+          desc: 'Has user address and correct parcels',
+          contactInfo: { name: 'Contact 2' },
+          addresses: ['0x5555555555555555555555555555555555555555'],
+          plots: ['-73,50', '10,20']
+        }
+      ]
+
+      mockFetch.fetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(multipleAuthorizations)
+      })
+
+      landLease = await createLandLeaseComponent({
+        fetch: mockFetch,
+        logs: mockLogs
+      })
+    })
+
+    it('should return true when user has access through any authorization', async () => {
+      const result = await landLease.hasLandLease('0x5555555555555555555555555555555555555555', ['-73,50'])
+
+      expect(result).toBe(true)
+    })
+
+    it('should return false when user has no access to any requested parcels', async () => {
+      const result = await landLease.hasLandLease('0x5555555555555555555555555555555555555555', ['777,777'])
+
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('and the user has access to multiple parcels from same authorization', () => {
+    beforeEach(async () => {
+      const multiParcelAuthorization = [
+        {
+          name: 'Multi Parcel Authorization',
+          desc: 'Has user address and multiple parcels',
+          contactInfo: { name: 'Contact 1' },
+          addresses: ['0x6666666666666666666666666666666666666666'],
+          plots: ['-73,50', '10,20', '30,40']
+        }
+      ]
+
+      mockFetch.fetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(multiParcelAuthorization)
+      })
+
+      landLease = await createLandLeaseComponent({
+        fetch: mockFetch,
+        logs: mockLogs
+      })
+    })
+
+    it('should return true when user has access to any of the requested parcels', async () => {
+      const result = await landLease.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '999,999'])
+
+      expect(result).toBe(true)
+    })
+
+    it('should return true when user has access to all requested parcels', async () => {
+      const result = await landLease.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '10,20'])
+
+      expect(result).toBe(true)
+    })
+  })
+
+  describe('and the user has access but not to the specific parcels requested', () => {
+    beforeEach(async () => {
+      const limitedAccessAuthorization = [
+        {
+          name: 'Limited Access Authorization',
+          desc: 'Has user address but limited parcels',
+          contactInfo: { name: 'Contact 1' },
+          addresses: ['0x7777777777777777777777777777777777777777'],
+          plots: ['-100,100', '200,300']
+        }
+      ]
+
+      mockFetch.fetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(limitedAccessAuthorization)
+      })
+
+      landLease = await createLandLeaseComponent({
+        fetch: mockFetch,
+        logs: mockLogs
+      })
+    })
+
+    it('should return false when user has access to other parcels but not the requested ones', async () => {
+      const result = await landLease.hasLandLease('0x7777777777777777777777777777777777777777', ['-73,50'])
+
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('and multiple users have access to the same parcels', () => {
+    beforeEach(async () => {
+      const sharedAccessAuthorization = [
+        {
+          name: 'Shared Access Authorization',
+          desc: 'Multiple users have access to same parcels',
+          contactInfo: { name: 'Contact 1' },
+          addresses: ['0x8888888888888888888888888888888888888888', '0x9999999999999999999999999999999999999999'],
+          plots: ['-73,50', '10,20']
+        }
+      ]
+
+      mockFetch.fetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(sharedAccessAuthorization)
+      })
+
+      landLease = await createLandLeaseComponent({
+        fetch: mockFetch,
+        logs: mockLogs
+      })
+    })
+
+    it('should return true for both users', async () => {
+      const result1 = await landLease.hasLandLease('0x8888888888888888888888888888888888888888', ['-73,50'])
+      const result2 = await landLease.hasLandLease('0x9999999999999999999999999999999999999999', ['-73,50'])
+
+      expect(result1).toBe(true)
+      expect(result2).toBe(true)
+    })
+  })
+
+  describe('and the parcels array is empty', () => {
+    beforeEach(async () => {
+      mockFetch.fetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockAuthorizations)
+      })
+
+      landLease = await createLandLeaseComponent({
+        fetch: mockFetch,
+        logs: mockLogs
+      })
+    })
+
+    it('should return false when parcels array is empty', async () => {
+      const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', [])
+
+      expect(result).toBe(false)
+    })
+  })
 })
