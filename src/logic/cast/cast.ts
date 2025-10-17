@@ -61,7 +61,7 @@ export function createCastComponent(
     const expirationTime = Date.now() + FOUR_DAYS
 
     // Generate the LiveKit room ID for the scene
-    const roomId = livekit.getSceneRoomName(realmName, sceneId)
+    const roomId = worldName ? livekit.getWorldRoomName(worldName) : livekit.getSceneRoomName(realmName, sceneId)
 
     // Create stream access entry with expiration
     // Note: For Cast 2.0 with WebRTC, we don't use RTMP ingress
