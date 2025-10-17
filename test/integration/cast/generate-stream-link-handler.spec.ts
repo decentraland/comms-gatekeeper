@@ -25,13 +25,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       components.localFetch,
       '/cast/generate-stream-link',
       {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          parcel: '10,20'
-        }),
+        method: 'GET',
         metadata: {
           sceneId: 'bafytest123',
           realm: {
@@ -68,13 +62,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       components.localFetch,
       '/cast/generate-stream-link',
       {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          parcel: '10,20'
-        }),
+        method: 'GET',
         metadata: {
           // Missing sceneId
           realm: {
@@ -98,13 +86,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       components.localFetch,
       '/cast/generate-stream-link',
       {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          parcel: '10,20'
-        }),
+        method: 'GET',
         metadata: {
           sceneId: 'bafytest123',
           parcel: '10,20'
@@ -124,10 +106,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       components.localFetch,
       '/cast/generate-stream-link',
       {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        method: 'GET',
         metadata: {
           sceneId: 'bafytest456',
           realm: {
@@ -159,13 +138,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       components.localFetch,
       '/cast/generate-stream-link',
       {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          parcel: '10,20'
-        }),
+        method: 'GET',
         metadata: {
           parcel: '10,20'
         }
@@ -188,11 +161,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
         components.localFetch,
         '/cast/generate-stream-link',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({}),
+          method: 'GET',
           metadata: {
             sceneId: 'bafytest123',
             realm: {
@@ -221,13 +190,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
         components.localFetch,
         '/cast/generate-stream-link',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            parcel: '10,20'
-          }),
+          method: 'GET',
           metadata: {
             sceneId: 'bafytest123',
             realm: {
