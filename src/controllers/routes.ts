@@ -134,7 +134,6 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   // Cast 2.0 endpoints
   router.post('/cast/streamer-token', streamerTokenHandler)
   router.post('/cast/watcher-token', watcherTokenHandler)
-  router.post('/cast/generate-stream-link', auth, generateStreamLinkHandler)
-
+  router.get('/cast/generate-stream-link', auth, generateStreamLinkHandler)
   return router
 }
