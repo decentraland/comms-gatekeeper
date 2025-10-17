@@ -280,16 +280,20 @@ describe('when the land lease component is created', () => {
       })
     })
 
-    it('should return true when user has access through any authorization', async () => {
-      const result = await landLease.hasLandLease('0x5555555555555555555555555555555555555555', ['-73,50'])
+    describe('when the user has access through any authorization', () => {
+      it('should return true', async () => {
+        const result = await landLease.hasLandLease('0x5555555555555555555555555555555555555555', ['-73,50'])
 
-      expect(result).toBe(true)
+        expect(result).toBe(true)
+      })
     })
 
-    it('should return false when user has no access to any requested parcels', async () => {
-      const result = await landLease.hasLandLease('0x5555555555555555555555555555555555555555', ['777,777'])
+    describe('when the user has no access to any requested parcels', () => {
+      it('should return false', async () => {
+        const result = await landLease.hasLandLease('0x5555555555555555555555555555555555555555', ['777,777'])
 
-      expect(result).toBe(false)
+        expect(result).toBe(false)
+      })
     })
   })
 
@@ -316,16 +320,20 @@ describe('when the land lease component is created', () => {
       })
     })
 
-    it('should return true when user has access to any of the requested parcels', async () => {
-      const result = await landLease.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '999,999'])
+    describe('when the user has access to any of the requested parcels', () => {
+      it('should return true', async () => {
+        const result = await landLease.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '999,999'])
 
-      expect(result).toBe(true)
+        expect(result).toBe(true)
+      })
     })
 
-    it('should return true when user has access to all requested parcels', async () => {
-      const result = await landLease.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '10,20'])
+    describe('when the user has access to all requested parcels', () => {
+      it('should return true', async () => {
+        const result = await landLease.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '10,20'])
 
-      expect(result).toBe(true)
+        expect(result).toBe(true)
+      })
     })
   })
 
@@ -352,7 +360,7 @@ describe('when the land lease component is created', () => {
       })
     })
 
-    it('should return false when user has access to other parcels but not the requested ones', async () => {
+    it('should return false', async () => {
       const result = await landLease.hasLandLease('0x7777777777777777777777777777777777777777', ['-73,50'])
 
       expect(result).toBe(false)
@@ -404,7 +412,7 @@ describe('when the land lease component is created', () => {
       })
     })
 
-    it('should return false when parcels array is empty', async () => {
+    it('should return false', async () => {
       const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', [])
 
       expect(result).toBe(false)
