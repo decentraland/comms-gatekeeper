@@ -43,7 +43,6 @@ export async function getStreamInfoHandler(
 
   // Fetch place information from Places API
   const place = await places.getPlaceStatusByIds([streamAccess.place_id])
-  console.log('place:', place)
 
   if (!place || place.length === 0) {
     logger.debug(`Place not found for place_id: ${streamAccess.place_id}`)
