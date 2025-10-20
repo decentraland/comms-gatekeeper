@@ -26,7 +26,7 @@ export async function createSceneStreamAccessManagerComponent({
 
     const result = await database.query<SceneStreamAccess>(
       SQL`INSERT INTO scene_stream_access 
-          (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, room_id, generated_by) 
+          (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, room_id, generated_by)
           VALUES 
           (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true, ${input.expiration_time || null}, ${input.room_id || null}, ${input.generated_by || null})
           RETURNING *`

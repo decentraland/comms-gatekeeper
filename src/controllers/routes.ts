@@ -41,6 +41,7 @@ import {
 import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-active-community-voice-chats-handler'
 import { commsServerSceneHandler } from './handlers/comms-server-scene-handler'
 import { streamerTokenHandler, watcherTokenHandler, generateStreamLinkHandler } from './handlers/cast'
+import { getStreamInfoHandler } from './handlers/cast/get-stream-info-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -135,5 +136,6 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post('/cast/streamer-token', streamerTokenHandler)
   router.post('/cast/watcher-token', watcherTokenHandler)
   router.get('/cast/generate-stream-link', auth, generateStreamLinkHandler)
+  router.get('/cast/stream-info/:streamingKey', getStreamInfoHandler)
   return router
 }
