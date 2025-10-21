@@ -3,7 +3,7 @@ info:
   title: Comms Gatekeeper API
   version: 1.0.0
   description: |
-    API documentation for the Comms Gatekeeper service.
+    API docs for the Comms Gatekeeper service.
     This service manages communications, voice chats, scene administration, and streaming access for Decentraland.
   license:
     name: MIT
