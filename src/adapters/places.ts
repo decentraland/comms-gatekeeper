@@ -39,6 +39,9 @@ export async function createPlacesComponent(
   ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>[]> {
     const response = await fetch.fetch(`${placesApiUrl}/places/status`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(ids)
     })
 

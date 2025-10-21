@@ -127,6 +127,9 @@ describe('PlacesComponent', () => {
 
       expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places/status', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(['1', '2'])
       })
 
@@ -149,6 +152,9 @@ describe('PlacesComponent', () => {
 
       expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places/status', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(['1', '2'])
       })
     })
