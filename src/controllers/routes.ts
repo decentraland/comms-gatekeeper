@@ -42,10 +42,11 @@ import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-activ
 import { commsServerSceneHandler } from './handlers/comms-server-scene-handler'
 import { streamerTokenHandler, watcherTokenHandler, generateStreamLinkHandler } from './handlers/cast'
 import { getStreamInfoHandler } from './handlers/cast/get-stream-info-handler'
+import { AddSceneBanRequestSchema } from './handlers/scene-ban-handlers/schemas'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
-  const { config } = components
+  const { config, validator } = components
 
   const socialServiceInteractionsToken = await config.requireString('COMMS_GATEKEEPER_AUTH_TOKEN')
   const tokenAuthMiddleware = bearerTokenMiddleware(socialServiceInteractionsToken)
@@ -81,7 +82,12 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   // Scene ban routes
   router.get('/scene-bans', auth, listSceneBansHandler)
   router.get('/scene-bans/addresses', auth, listSceneBansAddressesHandler)
-  router.post('/scene-bans', auth, addSceneBanHandler)
+  router.post(
+    '/scene-bans',
+    auth,
+    validator.withSchemaValidatorMiddleware(AddSceneBanRequestSchema),
+    addSceneBanHandler
+  )
   router.delete('/scene-bans', auth, removeSceneBanHandler)
 
   // Scene stream access routes

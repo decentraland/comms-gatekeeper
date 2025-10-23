@@ -32,6 +32,7 @@ import { ICastComponent } from './logic/cast'
 import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
 import { IContentClientComponent } from './types/content-client.type'
+import { ISchemaValidatorComponent } from '@dcl/schema-validator-component'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -74,6 +75,7 @@ export type BaseComponents = {
   disabledPlacesBansRemovalJob?: ICronJobComponent
   contentClient: IContentClientComponent
   cast: ICastComponent
+  validator: ISchemaValidatorComponent<GlobalContext>
 }
 
 export type AppComponents = BaseComponents & {
