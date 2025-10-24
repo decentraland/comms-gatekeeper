@@ -87,7 +87,7 @@ paths:
       summary: Service status
       description: |
         Returns the current status of the service including version information,
-        current timestamp, and git commit hash.
+        current timestamp, and commit hash.
         No authentication required.
       security: []
       responses:
