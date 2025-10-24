@@ -49,8 +49,6 @@ components:
       description: |
         Bearer token authentication for service-to-service communication.
 
-# Global security - individual endpoints can override this
-
 paths:
   /ping:
     get:
