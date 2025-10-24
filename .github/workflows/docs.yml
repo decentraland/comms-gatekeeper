@@ -19,3 +19,4 @@ jobs:
       output-directory: './docs'
       output-bundle-file: 'docs/api-reference.yaml'
       node-version: '20'
+    secrets: inherit
