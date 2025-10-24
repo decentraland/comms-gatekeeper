@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: Comms Gatekeeper API 
+  title: Comms Gatekeeper API
   version: 1.0.0
   description: |
     API documentation for the Comms Gatekeeper service.
