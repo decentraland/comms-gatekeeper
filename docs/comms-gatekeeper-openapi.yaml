@@ -1355,3 +1355,175 @@ paths:
                 $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
+
+  # Cast 2.0 endpoints
+  /cast/streamer-token:
+    post:
+      operationId: getStreamerToken
+      summary: Get streamer token
+      description: |
+        Generates LiveKit credentials for a streamer to broadcast in a scene.
+        This endpoint validates a streaming token and provides the necessary
+        credentials for a streamer to connect to the LiveKit room and start streaming.
+        No authentication required - uses streaming token for validation.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/StreamerTokenRequest'
+      responses:
+        '200':
+          description: Streamer token generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/StreamerTokenResponse'
+        '400':
+          description: Invalid request - Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid or expired streaming token
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Cast 2.0
+
+  /cast/watcher-token:
+    post:
+      operationId: getWatcherToken
+      summary: Get watcher token
+      description: |
+        Generates LiveKit credentials for a watcher to view streams in a location.
+        This endpoint allows users to join as viewers in a specific location (parcel or world)
+        and watch active streams. No authentication required.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/WatcherTokenRequest'
+      responses:
+        '200':
+          description: Watcher token generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/WatcherTokenResponse'
+        '400':
+          description: Invalid request - Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - No active stream found for location
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Cast 2.0
+
+  /cast/generate-stream-link:
+    get:
+      operationId: generateStreamLink
+      summary: Generate stream link
+      description: |
+        Generates a unique stream link for a scene that allows streamers to broadcast
+        and watchers to view the stream. Only scene administrators can generate stream links.
+        The generated link expires after 4 days.
+        Requires Signed Fetch authentication from decentraland-kernel-scene.
+        Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+      security:
+        - SignedFetch: []
+      responses:
+        '200':
+          description: Stream link generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/GenerateStreamLinkResponse'
+        '400':
+          description: Invalid request - Missing required fields or invalid scene data
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Authentication required or insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Cast 2.0
+
+  /cast/stream-info/{streamingKey}:
+    get:
+      operationId: getStreamInfo
+      summary: Get stream information
+      description: |
+        Retrieves information about a stream using its streaming key.
+        This endpoint provides details about the place, location, and stream status.
+        No authentication required.
+      security: []
+      parameters:
+        - name: streamingKey
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 'Streaming key for the stream'
+      responses:
+        '200':
+          description: Stream information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/StreamInfoResponse'
+        '400':
+          description: Invalid request - Invalid streaming key
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Stream not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Cast 2.0

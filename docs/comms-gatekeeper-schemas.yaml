@@ -464,3 +464,131 @@ components:
         token:
           type: string
           description: 'Bearer token for authentication'
+
+    # Cast 2.0 schemas
+    StreamerTokenRequest:
+      type: object
+      required:
+        - token
+        - identity
+      properties:
+        token:
+          type: string
+          description: 'Streaming token for authentication'
+        identity:
+          type: string
+          description: 'Display name for the streamer'
+
+    WatcherTokenRequest:
+      type: object
+      required:
+        - location
+        - identity
+      properties:
+        location:
+          type: string
+          description: 'Location (parcel coordinates or world name)'
+          example: '20,-4'
+        identity:
+          type: string
+          description: 'Display name for the watcher'
+
+    StreamerTokenResponse:
+      type: object
+      required:
+        - url
+        - token
+        - roomId
+        - identity
+      properties:
+        url:
+          type: string
+          description: 'LiveKit connection URL'
+        token:
+          type: string
+          description: 'LiveKit JWT token for authentication'
+        roomId:
+          type: string
+          description: 'LiveKit room ID'
+        identity:
+          type: string
+          description: 'Unique internal identity for the streamer'
+
+    WatcherTokenResponse:
+      type: object
+      required:
+        - url
+        - token
+        - roomId
+        - identity
+      properties:
+        url:
+          type: string
+          description: 'LiveKit connection URL'
+        token:
+          type: string
+          description: 'LiveKit JWT token for authentication'
+        roomId:
+          type: string
+          description: 'LiveKit room ID'
+        identity:
+          type: string
+          description: 'Unique internal identity for the watcher'
+        placeName:
+          type: string
+          description: 'Name of the place being watched'
+
+    GenerateStreamLinkResponse:
+      type: object
+      required:
+        - streamLink
+        - watcherLink
+        - streamingKey
+        - placeId
+        - placeName
+        - expiresAt
+        - expiresInDays
+      properties:
+        streamLink:
+          type: string
+          description: 'URL for streamers to access the stream'
+        watcherLink:
+          type: string
+          description: 'URL for watchers to access the stream'
+        streamingKey:
+          type: string
+          description: 'Unique streaming key for authentication'
+        placeId:
+          type: string
+          description: 'ID of the place'
+        placeName:
+          type: string
+          description: 'Name of the place'
+        expiresAt:
+          type: string
+          format: date-time
+          description: 'Expiration timestamp in ISO format'
+        expiresInDays:
+          type: integer
+          description: 'Number of days until expiration'
+
+    StreamInfoResponse:
+      type: object
+      required:
+        - placeName
+        - placeId
+        - location
+        - isWorld
+      properties:
+        placeName:
+          type: string
+          description: 'Name of the place'
+        placeId:
+          type: string
+          description: 'ID of the place'
+        location:
+          type: string
+          description: 'Location identifier (world name or parcel coordinates)'
+        isWorld:
+          type: boolean
+          description: 'Whether this is a world or a parcel'

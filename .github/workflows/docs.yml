@@ -15,6 +15,7 @@ jobs:
     uses: decentraland/platform-actions/.github/workflows/apps-docs.yml@main
     with:
       api-spec-file: 'docs/comms-gatekeeper-openapi.yaml'
-      output-file: 'docs/index.html'
+      api-spec-name: 'comms-gatekeeper-api'
       output-directory: './docs'
+      output-bundle-file: 'docs/api-reference.yaml'
       node-version: '20'
