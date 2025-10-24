@@ -68,19 +68,19 @@ paths:
           content:
             text/plain:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/PingResponse'
+                $ref: './schemas.yaml#/components/schemas/PingResponse'
         '400':
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Health
 
@@ -99,19 +99,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/StatusResponse'
+                $ref: './schemas.yaml#/components/schemas/StatusResponse'
         '400':
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Health
 
@@ -140,37 +140,37 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneAdapterResponse'
+                $ref: './schemas.yaml#/components/schemas/SceneAdapterResponse'
         '400':
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid authentication or blacklisted user
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '403':
           description: Forbidden - User is banned from this scene
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Not found - Realm or scene not found
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Communications
 
@@ -201,25 +201,25 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneAdmin'
+                  $ref: './schemas.yaml#/components/schemas/SceneAdmin'
         '400':
           description: Invalid request parameters
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required or insufficient permissions
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Administration
 
@@ -238,7 +238,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneAdminRequest'
+              $ref: './schemas.yaml#/components/schemas/AddSceneAdminRequest'
       responses:
         '204':
           description: Scene administrator added successfully
@@ -247,19 +247,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required or insufficient permissions
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Administration
 
@@ -278,7 +278,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/RemoveSceneAdminRequest'
+              $ref: './schemas.yaml#/components/schemas/RemoveSceneAdminRequest'
       responses:
         '204':
           description: Scene administrator removed successfully
@@ -287,19 +287,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required or insufficient permissions
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Administration
 
@@ -339,25 +339,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ListSceneBansResponse'
+                $ref: './schemas.yaml#/components/schemas/ListSceneBansResponse'
         '400':
           description: Invalid request parameters
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Bans
 
@@ -376,7 +376,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneBanRequest'
+              $ref: './schemas.yaml#/components/schemas/AddSceneBanRequest'
       responses:
         '204':
           description: User banned successfully
@@ -385,19 +385,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Bans
 
@@ -416,7 +416,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneBanRequest'
+              $ref: './schemas.yaml#/components/schemas/AddSceneBanRequest'
       responses:
         '204':
           description: Ban removed successfully
@@ -425,19 +425,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Bans
 
@@ -458,19 +458,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneBannedAddressesResponse'
+                $ref: './schemas.yaml#/components/schemas/SceneBannedAddressesResponse'
         '401':
           description: Unauthorized - Authentication required
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Bans
 
@@ -492,25 +492,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneStreamAccess'
+                $ref: './schemas.yaml#/components/schemas/SceneStreamAccess'
         '401':
           description: Unauthorized - Authentication required
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Stream access not found
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Stream Access
 
@@ -529,32 +529,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/AddSceneStreamAccessRequest'
+              $ref: './schemas.yaml#/components/schemas/AddSceneStreamAccessRequest'
       responses:
         '201':
           description: Stream access added successfully
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/SceneStreamAccess'
+                $ref: './schemas.yaml#/components/schemas/SceneStreamAccess'
         '400':
           description: Invalid request
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Stream Access
 
@@ -576,19 +576,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Stream access not found
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Stream Access
 
@@ -611,19 +611,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Stream access not found
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Scene Stream Access
 
@@ -643,7 +643,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/LivekitWebhookRequest'
+              $ref: './schemas.yaml#/components/schemas/LivekitWebhookRequest'
       responses:
         '200':
           description: Webhook processed successfully
@@ -652,13 +652,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Webhooks
 
@@ -680,19 +680,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/PrivateMessagesTokenResponse'
+                $ref: './schemas.yaml#/components/schemas/PrivateMessagesTokenResponse'
         '401':
           description: Unauthorized - Invalid authentication or blacklisted user
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Private Messages
 
@@ -718,7 +718,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/UpdatePrivateMessagesPrivacyRequest'
+              $ref: './schemas.yaml#/components/schemas/UpdatePrivateMessagesPrivacyRequest'
       responses:
         '204':
           description: Privacy settings updated successfully
@@ -727,19 +727,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Private Messages
 
@@ -766,25 +766,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/VoiceChatStatusResponse'
+                $ref: './schemas.yaml#/components/schemas/VoiceChatStatusResponse'
         '400':
           description: Invalid request - Invalid address
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Private Voice Chat
 
@@ -803,32 +803,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CreatePrivateVoiceChatRequest'
+              $ref: './schemas.yaml#/components/schemas/CreatePrivateVoiceChatRequest'
       responses:
         '200':
           description: Private voice chat created successfully
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CreatePrivateVoiceChatResponse'
+                $ref: './schemas.yaml#/components/schemas/CreatePrivateVoiceChatResponse'
         '400':
           description: Invalid request - Invalid addresses or room ID
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Private Voice Chat
 
@@ -857,19 +857,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Private voice chat not found
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Private Voice Chat
 
@@ -896,25 +896,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/VoiceChatStatusResponse'
+                $ref: './schemas.yaml#/components/schemas/VoiceChatStatusResponse'
         '400':
           description: Invalid request - Invalid address
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -933,32 +933,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CommunityVoiceChatRequest'
+              $ref: './schemas.yaml#/components/schemas/CommunityVoiceChatRequest'
       responses:
         '200':
           description: Community voice chat credentials generated successfully
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CommunityVoiceChatResponse'
+                $ref: './schemas.yaml#/components/schemas/CommunityVoiceChatResponse'
         '400':
           description: Invalid request - Invalid community ID, address, or action
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -984,25 +984,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/CommunityVoiceChatStatusResponse'
+                $ref: './schemas.yaml#/components/schemas/CommunityVoiceChatStatusResponse'
         '400':
           description: Invalid request - Invalid community ID
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -1021,19 +1021,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/GetAllActiveCommunityVoiceChatsResponse'
+                $ref: './schemas.yaml#/components/schemas/GetAllActiveCommunityVoiceChatsResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -1053,32 +1053,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/GetBulkCommunityVoiceChatStatusRequest'
+              $ref: './schemas.yaml#/components/schemas/GetBulkCommunityVoiceChatStatusRequest'
       responses:
         '200':
           description: Bulk community voice chat status retrieved successfully
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/GetBulkCommunityVoiceChatStatusResponse'
+                $ref: './schemas.yaml#/components/schemas/GetBulkCommunityVoiceChatStatusResponse'
         '400':
           description: Invalid request - Invalid community IDs or request format
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -1113,19 +1113,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -1159,19 +1159,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -1206,19 +1206,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -1252,19 +1252,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -1299,19 +1299,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -1340,19 +1340,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Community Voice Chat
 
@@ -1372,32 +1372,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/StreamerTokenRequest'
+              $ref: './schemas.yaml#/components/schemas/StreamerTokenRequest'
       responses:
         '200':
           description: Streamer token generated successfully
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/StreamerTokenResponse'
+                $ref: './schemas.yaml#/components/schemas/StreamerTokenResponse'
         '400':
           description: Invalid request - Missing required fields
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid or expired streaming token
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Cast 2.0
 
@@ -1415,32 +1415,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/WatcherTokenRequest'
+              $ref: './schemas.yaml#/components/schemas/WatcherTokenRequest'
       responses:
         '200':
           description: Watcher token generated successfully
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/WatcherTokenResponse'
+                $ref: './schemas.yaml#/components/schemas/WatcherTokenResponse'
         '400':
           description: Invalid request - Missing required fields
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - No active stream found for location
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Cast 2.0
 
@@ -1462,25 +1462,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/GenerateStreamLinkResponse'
+                $ref: './schemas.yaml#/components/schemas/GenerateStreamLinkResponse'
         '400':
           description: Invalid request - Missing required fields or invalid scene data
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required or insufficient permissions
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Cast 2.0
 
@@ -1506,24 +1506,24 @@ paths:
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/StreamInfoResponse'
+                $ref: './schemas.yaml#/components/schemas/StreamInfoResponse'
         '400':
           description: Invalid request - Invalid streaming key
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Stream not found or expired
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: './comms-gatekeeper-schemas.yaml#/components/schemas/ErrorResponse'
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Cast 2.0
