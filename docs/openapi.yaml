@@ -48,7 +48,6 @@ components:
       scheme: bearer
       description: |
         Bearer token authentication for service-to-service communication.
-        Requires COMMS_GATEKEEPER_AUTH_TOKEN.
 
 # Global security - individual endpoints can override this
 
