@@ -742,10 +742,10 @@
     eth-connect "^6.0.3"
     ethereum-cryptography "^1.0.3"
 
-"@dcl/eslint-config@^2.2.1":
-  version "2.2.1"
-  resolved "https://registry.npmjs.org/@dcl/eslint-config/-/eslint-config-2.2.1.tgz"
-  integrity sha512-9GBeC0+bzfAHsCtXGqgx5UnQDAzCym5lQGt0hysx3yNNcujcWswFaBU1iPMfp58qRFJangLonZmoP80SM3AMgg==
+"@dcl/eslint-config@^2.3.1":
+  version "2.3.1"
+  resolved "https://registry.yarnpkg.com/@dcl/eslint-config/-/eslint-config-2.3.1.tgz#51607934352c288594c3bd99d70fb1e2c2e664be"
+  integrity sha512-R3RzJSOCX6v7uVicsIHvWibW03xyeV+coxGxQzyNjSGpeab97/TvbyE9IbV//GPM00ItSvUN1B6CntTLRDgokA==
   dependencies:
     "@typescript-eslint/eslint-plugin" "^6.21.0"
     "@typescript-eslint/parser" "^6.21.0"
