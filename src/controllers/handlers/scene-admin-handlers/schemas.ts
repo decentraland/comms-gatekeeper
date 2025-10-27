@@ -7,20 +7,10 @@ export type AddSceneAdminRequestBody = {
 
 export const AddSceneAdminRequestSchema: Schema = {
   type: 'object',
-  oneOf: [
-    {
-      type: 'object',
-      properties: {
-        admin: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' }
-      },
-      required: ['admin']
-    },
-    {
-      type: 'object',
-      properties: {
-        name: { type: 'string' }
-      },
-      required: ['name']
-    }
-  ]
+  properties: {
+    admin: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' },
+    name: { type: 'string' }
+  },
+  anyOf: [{ required: ['admin'] }, { required: ['name'] }],
+  additionalProperties: false
 }

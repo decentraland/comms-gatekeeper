@@ -42,7 +42,7 @@ export type BulkCommunityVoiceChatStatusRequestBody = {
 export const BulkCommunityVoiceChatStatusRequestSchema: Schema = {
   type: 'object',
   properties: {
-    community_ids: { type: 'array', items: { type: 'string', minLength: 1 } }
+    community_ids: { type: 'array', items: { type: 'string', pattern: '^\\S+.*$' } }
   },
   required: ['community_ids']
 }

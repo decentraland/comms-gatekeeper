@@ -8,8 +8,8 @@ export type StreamerTokenRequestBody = {
 export const StreamerTokenRequestSchema: Schema = {
   type: 'object',
   properties: {
-    token: { type: 'string', minLength: 1 },
-    identity: { type: 'string', minLength: 1 }
+    token: { type: 'string', pattern: '^\\S+.*$' },
+    identity: { type: 'string', pattern: '^\\S+.*$' }
   },
   required: ['token', 'identity']
 }
@@ -22,8 +22,8 @@ export type WatcherTokenRequestBody = {
 export const WatcherTokenRequestSchema: Schema = {
   type: 'object',
   properties: {
-    location: { type: 'string', minLength: 1 },
-    identity: { type: 'string', minLength: 1 }
+    location: { type: 'string', pattern: '^\\S+.*$' },
+    identity: { type: 'string', pattern: '^\\S+.*$' }
   },
   required: ['location', 'identity']
 }

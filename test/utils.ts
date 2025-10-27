@@ -129,7 +129,9 @@ export async function makeRequest(fetch: any, path: string, options: any = {}, i
           ...metadata
         },
         (payload) => Authenticator.signPayload(authIdentity, payload)
-      )
+      ),
+      // Add content-type header for requests with body
+      ...(otherOptions.body && { 'content-type': 'application/json' })
     }
   }
 

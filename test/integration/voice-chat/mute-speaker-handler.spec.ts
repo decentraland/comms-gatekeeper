@@ -124,7 +124,7 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
 
       expect(response.status).toBe(400)
       const body = await response.json()
-      expect(body.error).toBeDefined()
+      expect(body.message).toBeDefined()
       expect(spyComponents.voice.muteSpeakerInCommunityVoiceChat).not.toHaveBeenCalled()
     })
 
@@ -146,7 +146,7 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
 
       expect(response.status).toBe(400)
       const body = await response.json()
-      expect(body.error).toBeDefined()
+      expect(body.message).toBeDefined()
       expect(spyComponents.voice.muteSpeakerInCommunityVoiceChat).not.toHaveBeenCalled()
     })
 
@@ -168,7 +168,7 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
 
       expect(response.status).toBe(400)
       const body = await response.json()
-      expect(body.error).toBeDefined()
+      expect(body.message).toBeDefined()
       expect(spyComponents.voice.muteSpeakerInCommunityVoiceChat).not.toHaveBeenCalled()
     })
 
@@ -188,7 +188,7 @@ test('Mute Speaker Handler', ({ components, spyComponents }) => {
 
       expect(response.status).toBe(400)
       const body = await response.json()
-      expect(body.error).toBeDefined()
+      expect(body.message).toBeDefined()
       expect(spyComponents.voice.muteSpeakerInCommunityVoiceChat).not.toHaveBeenCalled()
     })
   })

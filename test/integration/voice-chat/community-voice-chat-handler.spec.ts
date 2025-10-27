@@ -238,7 +238,8 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
 
       expect(response.status).toBe(400)
       const body = await response.json()
-      expect(body.error).toContain('Invalid user_role')
+      expect(body.message).toBe('Invalid JSON body')
+      expect(body.data[0].instancePath).toBe('/user_role')
     })
 
     it('should return 400 when request body is invalid JSON', async () => {

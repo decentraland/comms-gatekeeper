@@ -10,11 +10,11 @@ export const PrivateVoiceChatRequestSchema: Schema = {
   properties: {
     user_addresses: {
       type: 'array',
-      items: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' },
+      items: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$', minLength: 42, maxLength: 42 },
       minItems: 2,
       maxItems: 2
     },
-    room_id: { type: 'string', minLength: 1 }
+    room_id: { type: 'string', pattern: '^\\S+.*$' }
   },
   required: ['user_addresses', 'room_id']
 }
