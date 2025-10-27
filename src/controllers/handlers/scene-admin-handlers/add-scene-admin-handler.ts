@@ -1,8 +1,8 @@
-import { EthAddress } from '@dcl/schemas'
 import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
 import { PlaceAttributes } from '../../../types/places.type'
+import { AddSceneAdminRequestBody } from './schemas'
 
 export async function addSceneAdminHandler(
   ctx: Pick<
@@ -14,12 +14,10 @@ export async function addSceneAdminHandler(
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places, names, sceneBans },
+    components: { sceneAdminManager, sceneManager, places, names, sceneBans },
     request,
     verification
   } = ctx
-
-  const logger = logs.getLogger('add-scene-admin-handler')
 
   const { getPlaceByWorldName, getPlaceByParcel } = places
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
@@ -28,16 +26,8 @@ export async function addSceneAdminHandler(
     throw new InvalidRequestError('Authentication required')
   }
 
-  const payload: { admin?: string; name?: string } = await request.json()
+  const payload: AddSceneAdminRequestBody = await request.json()
   const { admin, name } = payload
-
-  if (!admin && !name) {
-    logger.warn(`Invalid scene admin payload, missing admin or name`, payload)
-    throw new InvalidRequestError(`Invalid payload, missing admin or name`)
-  } else if (admin && !EthAddress.validate(admin)) {
-    logger.warn(`Invalid scene admin payload, invalid admin address`, payload)
-    throw new InvalidRequestError(`Invalid payload, invalid admin address`)
-  }
 
   const {
     sceneId,

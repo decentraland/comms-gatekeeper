@@ -1,5 +1,5 @@
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError } from '../../../types/errors'
+import { BulkCommunityVoiceChatStatusRequestBody } from './schemas'
 
 export async function getBulkCommunityVoiceChatStatusHandler(
   context: HandlerContextWithPath<'logs' | 'voice', '/community-voice-chat/status'>
@@ -10,23 +10,9 @@ export async function getBulkCommunityVoiceChatStatusHandler(
   } = context
   const logger = logs.getLogger('get-bulk-community-voice-chat-status-handler')
 
-  let body: { community_ids: string[] }
-
-  try {
-    body = await request.json()
-  } catch (error) {
-    throw new InvalidRequestError('The request body is required and must be a valid JSON object')
-  }
+  const body: BulkCommunityVoiceChatStatusRequestBody = await request.json()
 
   const { community_ids: communityIds } = body
-
-  if (!Array.isArray(communityIds)) {
-    throw new InvalidRequestError('The parameter community_ids must be an array')
-  }
-
-  if (communityIds.some((id) => typeof id !== 'string' || id.trim() === '')) {
-    throw new InvalidRequestError('All community_ids must be non-empty strings')
-  }
 
   logger.debug(`Getting bulk community voice chat status for ${communityIds.length} communities`)
 

@@ -1,6 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError } from '../../../types/errors'
+import { StreamerTokenRequestBody } from './schemas'
 
 export async function streamerTokenHandler(
   context: HandlerContextWithPath<'logs' | 'cast', '/cast/streamer-token'>
@@ -12,20 +12,7 @@ export async function streamerTokenHandler(
 
   const logger = logs.getLogger('streamer-token-handler')
 
-  let body: { token: string; identity: string }
-  try {
-    body = await request.json()
-  } catch (error) {
-    throw new InvalidRequestError('Invalid JSON body')
-  }
-
-  if (!body.token) {
-    throw new InvalidRequestError('Streaming token is required')
-  }
-
-  if (!body.identity || body.identity.trim() === '') {
-    throw new InvalidRequestError('Identity is required')
-  }
+  const body: StreamerTokenRequestBody = await request.json()
 
   // Call cast component to validate and generate credentials
   const credentials = await cast.validateStreamerToken(body.token, body.identity)

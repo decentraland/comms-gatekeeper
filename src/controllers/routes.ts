@@ -43,6 +43,14 @@ import { commsServerSceneHandler } from './handlers/comms-server-scene-handler'
 import { streamerTokenHandler, watcherTokenHandler, generateStreamLinkHandler } from './handlers/cast'
 import { getStreamInfoHandler } from './handlers/cast/get-stream-info-handler'
 import { AddSceneBanRequestSchema } from './handlers/scene-ban-handlers/schemas'
+import { AddSceneAdminRequestBodySchema } from './handlers/scene-admin-handlers/schemas'
+import { PrivateVoiceChatRequestSchema } from './handlers/voice-chat/schemas'
+import {
+  CommunityVoiceChatRequestSchema,
+  BulkCommunityVoiceChatStatusRequestSchema,
+  MuteSpeakerRequestSchema
+} from './handlers/community-voice-chat/schemas'
+import { StreamerTokenRequestSchema, WatcherTokenRequestSchema } from './handlers/cast/schemas'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -76,7 +84,12 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   // Scene admin routes
   router.get('/scene-admin', auth, listSceneAdminsHandler)
-  router.post('/scene-admin', auth, addSceneAdminHandler)
+  router.post(
+    '/scene-admin',
+    auth,
+    validator.withSchemaValidatorMiddleware(AddSceneAdminRequestBodySchema),
+    addSceneAdminHandler
+  )
   router.delete('/scene-admin', auth, removeSceneAdminHandler)
 
   // Scene ban routes
@@ -105,14 +118,29 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   // Private voice chat routes
   router.get('/users/:address/voice-chat-status', tokenAuthMiddleware, getVoiceChatStatusHandler)
-  router.post('/private-voice-chat', tokenAuthMiddleware, createPrivateVoiceChatCredentialsHandler)
+  router.post(
+    '/private-voice-chat',
+    tokenAuthMiddleware,
+    validator.withSchemaValidatorMiddleware(PrivateVoiceChatRequestSchema),
+    createPrivateVoiceChatCredentialsHandler
+  )
   router.delete('/private-voice-chat/:id', tokenAuthMiddleware, deletePrivateVoiceChatHandler)
 
   // Community voice chat routes
   router.get('/users/:userAddress/community-voice-chat-status', tokenAuthMiddleware, checkUserCommunityStatusHandler)
-  router.post('/community-voice-chat', tokenAuthMiddleware, communityVoiceChatHandler)
+  router.post(
+    '/community-voice-chat',
+    tokenAuthMiddleware,
+    validator.withSchemaValidatorMiddleware(CommunityVoiceChatRequestSchema),
+    communityVoiceChatHandler
+  )
   router.get('/community-voice-chat/:communityId/status', tokenAuthMiddleware, getCommunityVoiceChatStatusHandler)
-  router.post('/community-voice-chat/status', tokenAuthMiddleware, getBulkCommunityVoiceChatStatusHandler)
+  router.post(
+    '/community-voice-chat/status',
+    tokenAuthMiddleware,
+    validator.withSchemaValidatorMiddleware(BulkCommunityVoiceChatStatusRequestSchema),
+    getBulkCommunityVoiceChatStatusHandler
+  )
   router.get('/community-voice-chat/active', tokenAuthMiddleware, getAllActiveCommunityVoiceChatsHandler)
   router.post(
     '/community-voice-chat/:communityId/users/:userAddress/speak-request',
@@ -135,12 +163,25 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     demoteSpeakerHandler
   )
   router.delete('/community-voice-chat/:communityId/users/:userAddress', tokenAuthMiddleware, kickPlayerHandler)
-  router.patch('/community-voice-chat/:communityId/users/:userAddress/mute', tokenAuthMiddleware, muteSpeakerHandler)
+  router.patch(
+    '/community-voice-chat/:communityId/users/:userAddress/mute',
+    tokenAuthMiddleware,
+    validator.withSchemaValidatorMiddleware(MuteSpeakerRequestSchema),
+    muteSpeakerHandler
+  )
   router.delete('/community-voice-chat/:communityId', tokenAuthMiddleware, endCommunityVoiceChatHandler)
 
   // Cast 2.0 endpoints
-  router.post('/cast/streamer-token', streamerTokenHandler)
-  router.post('/cast/watcher-token', watcherTokenHandler)
+  router.post(
+    '/cast/streamer-token',
+    validator.withSchemaValidatorMiddleware(StreamerTokenRequestSchema),
+    streamerTokenHandler
+  )
+  router.post(
+    '/cast/watcher-token',
+    validator.withSchemaValidatorMiddleware(WatcherTokenRequestSchema),
+    watcherTokenHandler
+  )
   router.get('/cast/generate-stream-link', auth, generateStreamLinkHandler)
   router.get('/cast/stream-info/:streamingKey', getStreamInfoHandler)
   return router
