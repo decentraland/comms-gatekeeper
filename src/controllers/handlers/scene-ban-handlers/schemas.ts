@@ -1,11 +1,11 @@
-import { JSONSchemaType } from 'ajv'
+import type { Schema } from 'ajv'
 
 export type AddSceneBanRequest = {
   banned_address?: string
   banned_name?: string
 }
 
-export const AddSceneBanRequestSchema: JSONSchemaType<AddSceneBanRequest> = {
+export const AddSceneBanRequestSchema: Schema = {
   type: 'object',
   oneOf: [
     {

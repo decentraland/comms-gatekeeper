@@ -1,4 +1,4 @@
-import { JSONSchemaType } from 'ajv'
+import type { Schema } from 'ajv'
 import { CommunityVoiceChatAction } from '../../../types/community-voice'
 import { CommunityRole } from '../../../types/social.type'
 
@@ -14,13 +14,13 @@ export type CommunityVoiceChatRequestBody = {
   }
 }
 
-export const CommunityVoiceChatRequestSchema: JSONSchemaType<CommunityVoiceChatRequestBody> = {
+export const CommunityVoiceChatRequestSchema: Schema = {
   type: 'object',
   properties: {
     community_id: { type: 'string', minLength: 1 },
     user_address: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' },
-    action: { type: 'string', enum: Object.values(CommunityVoiceChatAction) },
-    user_role: { type: 'string', nullable: true, enum: Object.values(CommunityRole) },
+    action: { type: 'string', enum: Object.values(CommunityVoiceChatAction) as string[] },
+    user_role: { type: 'string', nullable: true, enum: Object.values(CommunityRole) as string[] },
     profile_data: {
       type: 'object',
       nullable: true,
@@ -39,7 +39,7 @@ export type BulkCommunityVoiceChatStatusRequestBody = {
   community_ids: string[]
 }
 
-export const BulkCommunityVoiceChatStatusRequestSchema: JSONSchemaType<BulkCommunityVoiceChatStatusRequestBody> = {
+export const BulkCommunityVoiceChatStatusRequestSchema: Schema = {
   type: 'object',
   properties: {
     community_ids: { type: 'array', items: { type: 'string', minLength: 1 } }
@@ -51,7 +51,7 @@ export type MuteSpeakerRequestBody = {
   muted: boolean
 }
 
-export const MuteSpeakerRequestSchema: JSONSchemaType<MuteSpeakerRequestBody> = {
+export const MuteSpeakerRequestSchema: Schema = {
   type: 'object',
   properties: {
     muted: { type: 'boolean' }

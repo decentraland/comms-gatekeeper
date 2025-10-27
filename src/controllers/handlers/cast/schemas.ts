@@ -1,11 +1,11 @@
-import { JSONSchemaType } from 'ajv'
+import type { Schema } from 'ajv'
 
 export type StreamerTokenRequestBody = {
   token: string
   identity: string
 }
 
-export const StreamerTokenRequestSchema: JSONSchemaType<StreamerTokenRequestBody> = {
+export const StreamerTokenRequestSchema: Schema = {
   type: 'object',
   properties: {
     token: { type: 'string', minLength: 1 },
@@ -19,7 +19,7 @@ export type WatcherTokenRequestBody = {
   identity: string
 }
 
-export const WatcherTokenRequestSchema: JSONSchemaType<WatcherTokenRequestBody> = {
+export const WatcherTokenRequestSchema: Schema = {
   type: 'object',
   properties: {
     location: { type: 'string', minLength: 1 },

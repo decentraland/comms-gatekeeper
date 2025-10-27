@@ -1,11 +1,11 @@
-import { JSONSchemaType } from 'ajv'
+import type { Schema } from 'ajv'
 
 export type AddSceneAdminRequestBody = {
   admin?: string
   name?: string
 }
 
-export const AddSceneAdminRequestSchema: JSONSchemaType<AddSceneAdminRequestBody> = {
+export const AddSceneAdminRequestSchema: Schema = {
   type: 'object',
   oneOf: [
     {

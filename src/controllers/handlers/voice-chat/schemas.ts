@@ -1,11 +1,11 @@
-import { JSONSchemaType } from 'ajv'
+import type { Schema } from 'ajv'
 
 export type PrivateVoiceChatRequestBody = {
   user_addresses: string[]
   room_id: string
 }
 
-export const PrivateVoiceChatRequestSchema: JSONSchemaType<PrivateVoiceChatRequestBody> = {
+export const PrivateVoiceChatRequestSchema: Schema = {
   type: 'object',
   properties: {
     user_addresses: {
