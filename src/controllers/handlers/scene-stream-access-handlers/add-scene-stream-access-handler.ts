@@ -62,15 +62,32 @@ export async function addSceneStreamAccessHandler(
   let access: SceneStreamAccess
   try {
     access = await sceneStreamAccessManager.getAccess(place.id)
+    logger.info(`Reusing existing OBS stream key for place ${place.id}`, {
+      placeId: place.id,
+      streamingKey: access.streaming_key.substring(0, 8) + '...',
+      ingressId: access.ingress_id
+    })
   } catch (error) {
     if (error instanceof StreamingAccessNotFoundError) {
       const participantIdentity = randomUUID()
       const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
+      const expirationTime = Date.now() + FOUR_DAYS
+
       access = await sceneStreamAccessManager.addAccess({
         place_id: place.id,
         streaming_url: ingress.url!,
         streaming_key: ingress.streamKey!,
-        ingress_id: ingress.ingressId!
+        ingress_id: ingress.ingressId!,
+        room_id: roomName,
+        expiration_time: expirationTime,
+        generated_by: authenticatedAddress
+      })
+
+      logger.info(`Created new OBS stream key for place ${place.id}`, {
+        placeId: place.id,
+        streamingKey: access.streaming_key.substring(0, 8) + '...',
+        ingressId: access.ingress_id,
+        expiresAt: new Date(expirationTime).toISOString()
       })
     } else {
       logger.debug('Error getting stream access: ', { error: JSON.stringify(error) })
@@ -84,7 +101,7 @@ export async function addSceneStreamAccessHandler(
       streaming_url: access.streaming_url,
       streaming_key: access.streaming_key,
       created_at: Number(access.created_at),
-      ends_at: Number(access.created_at) + FOUR_DAYS
+      ends_at: access.expiration_time || Number(access.created_at) + FOUR_DAYS
     }
   }
 }

@@ -110,6 +110,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       hasLandLease: false
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+    stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.resolves(null)
   })
 
   afterEach(async () => {
@@ -119,6 +120,9 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
   it('returns 200 with streaming access when user has land permission', async () => {
     const { localFetch } = components
+
+    // Configure getLatestAccessByPlaceId to return existing access (reuse scenario)
+    stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.resolves(mockSceneStreamAccess)
 
     const response = await makeRequest(
       localFetch,
@@ -142,11 +146,11 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: Number(mockSceneStreamAccess.created_at),
-      ends_at: Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
+      ends_at: mockSceneStreamAccess.expiration_time || Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
     })
 
     const created = Number(body.created_at)
-    const ends = Number(body.ends_at) + FOUR_DAYS
+    const ends = Number(body.ends_at)
     expect(ends).toBeGreaterThan(created)
   })
 
@@ -154,6 +158,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
+    // Configure getLatestAccessByPlaceId to return existing access (reuse scenario)
+    stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.resolves(mockSceneStreamAccess)
 
     const response = await makeRequest(
       localFetch,
@@ -177,7 +183,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: Number(mockSceneStreamAccess.created_at),
-      ends_at: Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
+      ends_at: mockSceneStreamAccess.expiration_time || Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
     })
   })
 
@@ -199,6 +205,8 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       hasExtendedPermissions: false,
       hasLandLease: false
     })
+    // Configure getLatestAccessByPlaceId to return existing access (reuse scenario)
+    stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.resolves(mockSceneStreamAccess)
 
     const response = await makeRequest(
       localFetch,
@@ -222,7 +230,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: Number(mockSceneStreamAccess.created_at),
-      ends_at: Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
+      ends_at: mockSceneStreamAccess.expiration_time || Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
     })
   })
 
@@ -236,6 +244,20 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     } as PlaceAttributes)
     stubComponents.livekit.getSceneRoomName.resolves(`another-test-realm:another-test-scene`)
     stubComponents.livekit.getOrCreateIngress.resolves(mockIngress)
+    stubComponents.sceneStreamAccessManager.addAccess.resolves({
+      ...mockIngress,
+      id: 'new-access-id',
+      place_id: anotherPlaceId,
+      streaming_url: mockIngress.url!,
+      streaming_key: mockIngress.streamKey!,
+      ingress_id: mockIngress.ingressId!,
+      created_at: Date.now(),
+      active: true,
+      streaming: false,
+      streaming_start_time: 0,
+      room_id: 'another-test-realm:another-test-scene',
+      expiration_time: Date.now() + FOUR_DAYS
+    } as any)
 
     const response = await makeRequest(
       localFetch,
@@ -381,7 +403,9 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       streaming_key: 'mock-stream-key',
       ingress_id: 'mock-ingress-id',
       created_at: Date.now(),
-      active: true
+      active: true,
+      room_id: 'test-realm:test-scene',
+      expiration_time: Date.now() + 4 * 24 * 60 * 60 * 1000
     }
 
     metadataLand = {
@@ -440,12 +464,15 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     })
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
+    stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.resolves(null)
     stubComponents.livekit.getOrCreateIngress.resolves({
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
       streamKey: 'mock-stream-key',
       ingressId: 'mock-ingress-id'
     } as IngressInfo)
+    stubComponents.livekit.getSceneRoomName.resolves('test-realm:test-scene')
+    stubComponents.livekit.getWorldRoomName.resolves('name.dcl.eth')
   })
 
   afterEach(async () => {
