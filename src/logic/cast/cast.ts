@@ -11,8 +11,21 @@ import {
   GenerateWatcherCredentialsResult
 } from './types'
 
-// Constants
-const STREAM_LINK_EXPIRATION_DAYS = 4
+/**
+ * Helper function to build stream and watcher links from streaming key and location.
+ * @internal
+ */
+export function buildStreamLinks(
+  cast2BaseUrl: string | undefined,
+  streamingKey: string,
+  location: string
+): { streamLink: string; watcherLink: string } {
+  const baseUrl = cast2BaseUrl || 'https://cast2.decentraland.org'
+  return {
+    streamLink: `${baseUrl}/s/${streamingKey}`,
+    watcherLink: `${baseUrl}/w/${location}`
+  }
+}
 
 export function createCastComponent(
   components: Pick<
@@ -56,45 +69,68 @@ export function createCastComponent(
       throw new UnauthorizedError('Only scene administrators can generate stream links')
     }
 
-    // Generate a new streaming token
-    const streamingKey = `cast2-link-${randomUUID()}`
-    const expirationTime = Date.now() + FOUR_DAYS
-
     // Generate the LiveKit room ID for the scene
     const roomId = worldName ? livekit.getWorldRoomName(worldName) : livekit.getSceneRoomName(realmName, sceneId)
 
-    // Create stream access entry with expiration
-    // Note: For Cast 2.0 with WebRTC, we don't use RTMP ingress
-    // Store room_id for efficient lookups by watchers
-    await sceneStreamAccessManager.addAccess({
-      place_id: place.id,
-      streaming_url: '', // Not used for Cast 2.0 WebRTC
-      streaming_key: streamingKey,
-      ingress_id: '', // Not used for Cast 2.0 WebRTC
-      expiration_time: expirationTime,
-      room_id: roomId,
-      generated_by: walletAddress
-    })
+    // Try to reuse existing active stream key
+    const existingAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(place.id)
 
-    // Get Cast2 URL from config
+    // Reuse if:
+    // - Exists an active key
+    // - Has not expired
+    // - Has the same room_id (same location)
+    const canReuse =
+      existingAccess &&
+      existingAccess.room_id === roomId &&
+      (!existingAccess.expiration_time || existingAccess.expiration_time > Date.now())
+
+    let streamingKey: string
+    let expirationTime: number
+
+    if (canReuse && existingAccess) {
+      streamingKey = existingAccess.streaming_key
+      expirationTime = existingAccess.expiration_time || Date.now() + FOUR_DAYS
+
+      logger.info(`Reusing existing stream key for place ${place.id}`, {
+        placeId: place.id,
+        streamingKey: streamingKey.substring(0, 20) + '...',
+        ingressId: existingAccess.ingress_id ? existingAccess.ingress_id.substring(0, 10) + '...' : 'none',
+        roomId: existingAccess.room_id || 'none'
+      })
+    } else {
+      // Create new stream key with ingress for OBS compatibility
+      const participantIdentity = randomUUID()
+      const ingress = await livekit.getOrCreateIngress(roomId, `${participantIdentity}-streamer`)
+
+      streamingKey = `cast2-link-${randomUUID()}`
+      expirationTime = Date.now() + FOUR_DAYS
+
+      // Create stream access entry with BOTH ingress_id and room_id for full compatibility
+      await sceneStreamAccessManager.addAccess({
+        place_id: place.id,
+        streaming_url: ingress.url || '',
+        streaming_key: streamingKey,
+        ingress_id: ingress.ingressId || '',
+        expiration_time: expirationTime,
+        room_id: roomId,
+        generated_by: walletAddress
+      })
+
+      logger.info(`Stream link generated for place ${place.id} by admin ${walletAddress}`, {
+        placeId: place.id,
+        streamingKey: streamingKey.substring(0, 20) + '...',
+        expiresAt: new Date(expirationTime).toISOString(),
+        generatedBy: walletAddress,
+        sceneId: sceneId || 'none',
+        realmName: realmName || 'none'
+      })
+    }
+
+    // Build links and calculate expiration (common for both reuse and new)
     const cast2BaseUrl = await config.getString('CAST2_URL')
-
-    // Generate the stream link
-    const streamLink = `${cast2BaseUrl}/s/${streamingKey}`
-
-    // Generate the watcher link using worldName or parcel
-    const location = worldName || parcel || 'none' // wolrdName or parcel will be provided in the request
-    const watcherLink = `${cast2BaseUrl}/w/${location}`
-
-    logger.info(`Stream link generated for place ${place.id} by admin ${walletAddress}`, {
-      placeId: place.id,
-      streamingKey: streamingKey.substring(0, 20) + '...',
-      expiresAt: new Date(expirationTime).toISOString(),
-      generatedBy: walletAddress,
-      sceneId: sceneId || 'none',
-      realmName: realmName || 'none',
-      location
-    })
+    const location = worldName || parcel || 'none'
+    const { streamLink, watcherLink } = buildStreamLinks(cast2BaseUrl, streamingKey, location)
+    const daysLeft = Math.ceil((expirationTime - Date.now()) / (24 * 60 * 60 * 1000))
 
     return {
       streamLink,
@@ -103,7 +139,7 @@ export function createCastComponent(
       placeId: place.id,
       placeName: place.title || place.id,
       expiresAt: new Date(expirationTime).toISOString(),
-      expiresInDays: STREAM_LINK_EXPIRATION_DAYS
+      expiresInDays: daysLeft
     }
   }
 

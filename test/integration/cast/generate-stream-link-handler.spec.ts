@@ -48,12 +48,118 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
     expect(body.placeId).toBeDefined()
     expect(body.placeName).toBeDefined()
     expect(body.expiresAt).toBeDefined()
+    expect(body.expiresInDays).toBe(4)
     expect(spyComponents.cast.generateStreamLink).toHaveBeenCalledWith({
       walletAddress: owner.authChain[0].payload,
       parcel: '10,20',
       worldName: undefined,
       sceneId: 'bafytest123',
       realmName: 'fenrir'
+    })
+  })
+
+  describe('when calling generate-stream-link twice for same place', () => {
+    beforeEach(() => {
+      let callCount = 0
+      spyComponents.cast.generateStreamLink.mockImplementation(async () => {
+        callCount++
+        if (callCount === 1) {
+          return mockStreamLinkResult
+        }
+        // Second call should return same key (reused)
+        return mockStreamLinkResult
+      })
+    })
+
+    it('should reuse the same streaming key', async () => {
+      const firstResponse = await makeRequest(
+        components.localFetch,
+        '/cast/generate-stream-link',
+        {
+          method: 'GET',
+          metadata: {
+            sceneId: 'bafytest123',
+            realm: {
+              serverName: 'fenrir',
+              hostname: 'https://peer.decentraland.zone',
+              protocol: 'https'
+            },
+            parcel: '10,20'
+          }
+        },
+        owner
+      )
+
+      const firstBody = await firstResponse.json()
+      const firstKey = firstBody.streamingKey
+
+      const secondResponse = await makeRequest(
+        components.localFetch,
+        '/cast/generate-stream-link',
+        {
+          method: 'GET',
+          metadata: {
+            sceneId: 'bafytest123',
+            realm: {
+              serverName: 'fenrir',
+              hostname: 'https://peer.decentraland.zone',
+              protocol: 'https'
+            },
+            parcel: '10,20'
+          }
+        },
+        owner
+      )
+
+      const secondBody = await secondResponse.json()
+
+      expect(secondResponse.status).toBe(200)
+      expect(secondBody.streamingKey).toBe(firstKey)
+    })
+  })
+
+  describe('when existing key is expired', () => {
+    let mockNewStreamLinkResult: any
+
+    beforeEach(() => {
+      mockNewStreamLinkResult = {
+        streamLink: 'https://cast2.decentraland.org/s/cast2-link-new456',
+        watcherLink: 'https://cast2.decentraland.org/w/10,20',
+        streamingKey: 'cast2-link-new456',
+        placeId: 'test-place-id',
+        placeName: 'Test Place',
+        expiresAt: '2024-01-15T00:00:00.000Z',
+        expiresInDays: 4
+      }
+
+      // Mock implementation: generate new key instead of reusing expired one
+      spyComponents.cast.generateStreamLink.mockResolvedValue(mockNewStreamLinkResult)
+    })
+
+    it('should generate a new streaming key', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/cast/generate-stream-link',
+        {
+          method: 'GET',
+          metadata: {
+            sceneId: 'bafytest123',
+            realm: {
+              serverName: 'fenrir',
+              hostname: 'https://peer.decentraland.zone',
+              protocol: 'https'
+            },
+            parcel: '10,20'
+          }
+        },
+        owner
+      )
+
+      const body = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(body.streamingKey).toBe('cast2-link-new456')
+      expect(body.expiresInDays).toBe(4)
     })
   })
 
