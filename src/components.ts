@@ -111,7 +111,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager, landLease })
   const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
   const denyList = await createDenyListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
-  const validator = await createSchemaValidatorComponent()
+  const validator = await createSchemaValidatorComponent({ ensureJsonContentType: false })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
