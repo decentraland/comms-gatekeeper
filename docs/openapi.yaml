@@ -4,7 +4,49 @@ info:
   version: 1.0.0
   description: |
     API documentation for the Comms Gatekeeper service.
-    This service manages communications, voice chats, scene administration, and streaming access for Decentraland.
+    
+    ## Overview
+    
+    The Comms Gatekeeper API is a comprehensive service that manages communications, voice chats, scene administration, and streaming access for the Decentraland metaverse. It provides the infrastructure for real-time voice communication, scene management, user moderation, and content streaming capabilities.
+    
+    ### Core Features
+    
+    **Scene Management**
+    - Scene adapter connection for LiveKit voice chat rooms
+    - Scene administration (add/remove admins)
+    - Scene banning system for user moderation
+    
+    **Streaming Access**
+    - Live streaming key management for scene content creators
+    - RTMP streaming URL and key generation
+    - Streaming access lifecycle management
+    
+    **Voice Communication**
+    - Private voice chat sessions between users
+    - Community voice chat with speaker management
+    - Request-to-speak functionality for moderated discussions
+    - Real-time participant management
+    
+    **User Management**
+    - Private messages token generation
+    - Privacy settings management
+    - User ban management per scene
+    - Scene access control
+    
+    ### Authentication
+    
+    The API supports three authentication methods:
+    
+    - **Signed Fetch (Scene)**: Used for scene-based requests from `decentraland-kernel-scene`
+    - **Signed Fetch (Explorer)**: Used for explorer-based requests from `dcl:explorer`
+    - **Bearer Token**: Used for service-to-service communication
+    
+    Most endpoints require Signed Fetch authentication with a complete identity header chain including scene metadata (sceneId, parcel, realmName).
+    
+    ### Base URLs
+    
+    - Production: `https://comms-gatekeeper.decentraland.org`
+    - Development: `https://comms-gatekeeper.decentraland.zone`
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -50,37 +92,6 @@ components:
         Bearer token authentication for service-to-service communication.
 
 paths:
-  /ping:
-    get:
-      operationId: ping
-      summary: Ping endpoint
-      description: |
-        Simple ping endpoint that returns the requested pathname.
-        Used for health checks and basic connectivity testing.
-        No authentication required.
-      security: []
-      responses:
-        '200':
-          description: Ping successful
-          content:
-            text/plain:
-              schema:
-                $ref: './schemas.yaml#/components/schemas/PingResponse'
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
-      tags:
-        - Health
-
   /status:
     get:
       operationId: getStatus
