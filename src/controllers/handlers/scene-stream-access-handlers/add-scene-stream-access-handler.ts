@@ -101,7 +101,7 @@ export async function addSceneStreamAccessHandler(
       streaming_url: access.streaming_url,
       streaming_key: access.streaming_key,
       created_at: Number(access.created_at),
-      ends_at: access.expiration_time || Number(access.created_at) + FOUR_DAYS
+      ends_at: access.expiration_time ? Number(access.expiration_time) : Number(access.created_at) + FOUR_DAYS
     }
   }
 }

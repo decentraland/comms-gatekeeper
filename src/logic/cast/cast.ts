@@ -82,14 +82,14 @@ export function createCastComponent(
     const canReuse =
       existingAccess &&
       existingAccess.room_id === roomId &&
-      (!existingAccess.expiration_time || existingAccess.expiration_time > Date.now())
+      (!existingAccess.expiration_time || Number(existingAccess.expiration_time) > Date.now())
 
     let streamingKey: string
     let expirationTime: number
 
     if (canReuse && existingAccess) {
       streamingKey = existingAccess.streaming_key
-      expirationTime = existingAccess.expiration_time || Date.now() + FOUR_DAYS
+      expirationTime = existingAccess.expiration_time ? Number(existingAccess.expiration_time) : Date.now() + FOUR_DAYS
 
       logger.info(`Reusing existing stream key for place ${place.id}`, {
         placeId: place.id,
@@ -160,9 +160,9 @@ export function createCastComponent(
     }
 
     // Check if token has expired (for temporary stream links)
-    if (streamAccess.expiration_time && Date.now() > streamAccess.expiration_time) {
+    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
       logger.warn(`Expired streaming token: ${streamingKey.substring(0, 8)}...`, {
-        expiredAt: new Date(streamAccess.expiration_time).toISOString()
+        expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
       })
       throw new UnauthorizedError('Streaming token has expired')
     }
@@ -286,11 +286,11 @@ export function createCastComponent(
     }
 
     // Check if the stream access has expired (4 days limit for Cast2)
-    if (streamAccess.expiration_time && Date.now() > streamAccess.expiration_time) {
+    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
       logger.warn(`Expired stream access for location ${location}`, {
         placeId: place.id,
         isWorldName: isWorldName ? 'true' : 'false',
-        expiredAt: new Date(streamAccess.expiration_time).toISOString()
+        expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
       })
       throw new UnauthorizedError('Stream access has expired. Please generate a new stream link.')
     }
