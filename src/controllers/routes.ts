@@ -54,7 +54,7 @@ import { StreamerTokenRequestSchema, WatcherTokenRequestSchema } from './handler
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
-  const { config, validator } = components
+  const { config, schemaValidator } = components
 
   const socialServiceInteractionsToken = await config.requireString('COMMS_GATEKEEPER_AUTH_TOKEN')
   const tokenAuthMiddleware = bearerTokenMiddleware(socialServiceInteractionsToken)
@@ -87,7 +87,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post(
     '/scene-admin',
     auth,
-    validator.withSchemaValidatorMiddleware(AddSceneAdminRequestSchema),
+    schemaValidator.withSchemaValidatorMiddleware(AddSceneAdminRequestSchema),
     addSceneAdminHandler
   )
   router.delete('/scene-admin', auth, removeSceneAdminHandler)
@@ -98,7 +98,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post(
     '/scene-bans',
     auth,
-    validator.withSchemaValidatorMiddleware(AddSceneBanRequestSchema),
+    schemaValidator.withSchemaValidatorMiddleware(AddSceneBanRequestSchema),
     addSceneBanHandler
   )
   router.delete('/scene-bans', auth, removeSceneBanHandler)
@@ -121,7 +121,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post(
     '/private-voice-chat',
     tokenAuthMiddleware,
-    validator.withSchemaValidatorMiddleware(PrivateVoiceChatRequestSchema),
+    schemaValidator.withSchemaValidatorMiddleware(PrivateVoiceChatRequestSchema),
     createPrivateVoiceChatCredentialsHandler
   )
   router.delete('/private-voice-chat/:id', tokenAuthMiddleware, deletePrivateVoiceChatHandler)
@@ -131,14 +131,14 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post(
     '/community-voice-chat',
     tokenAuthMiddleware,
-    validator.withSchemaValidatorMiddleware(CommunityVoiceChatRequestSchema),
+    schemaValidator.withSchemaValidatorMiddleware(CommunityVoiceChatRequestSchema),
     communityVoiceChatHandler
   )
   router.get('/community-voice-chat/:communityId/status', tokenAuthMiddleware, getCommunityVoiceChatStatusHandler)
   router.post(
     '/community-voice-chat/status',
     tokenAuthMiddleware,
-    validator.withSchemaValidatorMiddleware(BulkCommunityVoiceChatStatusRequestSchema),
+    schemaValidator.withSchemaValidatorMiddleware(BulkCommunityVoiceChatStatusRequestSchema),
     getBulkCommunityVoiceChatStatusHandler
   )
   router.get('/community-voice-chat/active', tokenAuthMiddleware, getAllActiveCommunityVoiceChatsHandler)
@@ -166,7 +166,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.patch(
     '/community-voice-chat/:communityId/users/:userAddress/mute',
     tokenAuthMiddleware,
-    validator.withSchemaValidatorMiddleware(MuteSpeakerRequestSchema),
+    schemaValidator.withSchemaValidatorMiddleware(MuteSpeakerRequestSchema),
     muteSpeakerHandler
   )
   router.delete('/community-voice-chat/:communityId', tokenAuthMiddleware, endCommunityVoiceChatHandler)
@@ -174,12 +174,12 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   // Cast 2.0 endpoints
   router.post(
     '/cast/streamer-token',
-    validator.withSchemaValidatorMiddleware(StreamerTokenRequestSchema),
+    schemaValidator.withSchemaValidatorMiddleware(StreamerTokenRequestSchema),
     streamerTokenHandler
   )
   router.post(
     '/cast/watcher-token',
-    validator.withSchemaValidatorMiddleware(WatcherTokenRequestSchema),
+    schemaValidator.withSchemaValidatorMiddleware(WatcherTokenRequestSchema),
     watcherTokenHandler
   )
   router.get('/cast/generate-stream-link', auth, generateStreamLinkHandler)
