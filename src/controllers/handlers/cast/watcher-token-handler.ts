@@ -1,6 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError } from '../../../types/errors'
+import { WatcherTokenRequestBody } from './schemas'
 
 export async function watcherTokenHandler(
   context: HandlerContextWithPath<'logs' | 'cast', '/cast/watcher-token'>
@@ -12,20 +12,7 @@ export async function watcherTokenHandler(
 
   const logger = logs.getLogger('watcher-token-handler')
 
-  let body: { location: string; identity: string }
-  try {
-    body = await request.json()
-  } catch (error) {
-    throw new InvalidRequestError('Invalid JSON body')
-  }
-
-  if (!body.location) {
-    throw new InvalidRequestError('Location (parcel coordinates or world name) is required')
-  }
-
-  if (!body.identity || body.identity.trim() === '') {
-    throw new InvalidRequestError('Identity is required')
-  }
+  const body: WatcherTokenRequestBody = await request.json()
 
   // Call cast component to generate watcher credentials using location (parcel or world)
   const credentials = await cast.generateWatcherCredentialsByLocation(body.location, body.identity)

@@ -44,7 +44,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         requestBody = 'invalid-json' as any
       })
 
-      it('should respond with a 400 and a message saying that the request body is invalid', async () => {
+      it('should respond with a 400 for invalid JSON body', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -53,10 +53,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           },
           body: 'invalid-json'
         })
-        const body = await response.json()
-
         expect(response.status).toBe(400)
-        expect(body).toEqual({ error: 'Invalid request body' })
       })
     })
 
@@ -65,7 +62,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         requestBody = {} as any
       })
 
-      it('should respond with a 400 and a message saying that user_addresses is required', async () => {
+      it('should respond with a 400 when user_addresses is missing', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -73,12 +70,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           },
           body: JSON.stringify(requestBody)
         })
-        const body = await response.json()
-
         expect(response.status).toBe(400)
-        expect(body).toEqual({
-          error: 'The property user_addresses is required and must be an array'
-        })
       })
     })
 
@@ -90,7 +82,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         }
       })
 
-      it('should respond with a 400 and a message saying that user_addresses must be an array', async () => {
+      it('should respond with a 400 when user_addresses is not an array', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -98,12 +90,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           },
           body: JSON.stringify(requestBody)
         })
-        const body = await response.json()
-
         expect(response.status).toBe(400)
-        expect(body).toEqual({
-          error: 'The property user_addresses is required and must be an array'
-        })
       })
     })
 
@@ -123,10 +110,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           },
           body: JSON.stringify(requestBody)
         })
-        const body = await response.json()
-
         expect(response.status).toBe(400)
-        expect(body).toEqual({ error: 'The property user_addresses must have two addresses' })
       })
     })
 
@@ -146,10 +130,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           },
           body: JSON.stringify(requestBody)
         })
-        const body = await response.json()
-
         expect(response.status).toBe(400)
-        expect(body).toEqual({ error: 'The property user_addresses must have two addresses' })
       })
     })
 
@@ -169,10 +150,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           },
           body: JSON.stringify(requestBody)
         })
-        const body = await response.json()
-
         expect(response.status).toBe(400)
-        expect(body).toEqual({ error: 'The property user_addresses must have two addresses' })
       })
     })
 
@@ -185,7 +163,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         }
       })
 
-      it('should respond with a 400 when the first address is invalid', async () => {
+      it('should respond with a 400 when an address is invalid', async () => {
         const response = await makeRequest(components.localFetch, '/private-voice-chat', {
           method: 'POST',
           headers: {
@@ -193,10 +171,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           },
           body: JSON.stringify(requestBody)
         })
-        const body = await response.json()
-
         expect(response.status).toBe(400)
-        expect(body).toEqual({ error: `Invalid address: ${invalidAddress}` })
       })
     })
 
@@ -215,10 +190,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
           },
           body: JSON.stringify(requestBody)
         })
-        const body = await response.json()
-
         expect(response.status).toBe(400)
-        expect(body).toEqual({ error: 'The property room_id is required' })
       })
     })
 

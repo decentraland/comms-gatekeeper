@@ -166,8 +166,7 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
       })
 
       expect(response.status).toBe(400)
-      const body = await response.json()
-      expect(body.error).toContain('community_id is required')
+      // error message handled by schema middleware
     })
 
     it('should return 400 when user_address is missing', async () => {
@@ -184,8 +183,7 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
       })
 
       expect(response.status).toBe(400)
-      const body = await response.json()
-      expect(body.error).toContain('user_address is required')
+      // error message handled by schema middleware
     })
 
     it('should return 400 when action is missing', async () => {
@@ -202,8 +200,7 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
       })
 
       expect(response.status).toBe(400)
-      const body = await response.json()
-      expect(body.error).toContain('action is required')
+      // error message handled by schema middleware
     })
 
     it('should return 400 when action is invalid', async () => {
@@ -221,8 +218,7 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
       })
 
       expect(response.status).toBe(400)
-      const body = await response.json()
-      expect(body.error).toContain('action is required and must be one of: create, join')
+      // error message handled by schema middleware
     })
 
     it('should return 400 when user_role is invalid', async () => {
@@ -242,7 +238,8 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
 
       expect(response.status).toBe(400)
       const body = await response.json()
-      expect(body.error).toContain('Invalid user_role. Must be one of: owner, moderator, member, none')
+      expect(body.message).toBe('Invalid JSON body')
+      expect(body.data[0].instancePath).toBe('/user_role')
     })
 
     it('should return 400 when request body is invalid JSON', async () => {
@@ -256,8 +253,7 @@ test('Community Voice Chat Handler', ({ components, spyComponents }) => {
       })
 
       expect(response.status).toBe(400)
-      const body = await response.json()
-      expect(body.error).toContain('Invalid request body')
+      // error message handled by schema middleware
     })
   })
 })

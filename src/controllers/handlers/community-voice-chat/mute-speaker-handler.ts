@@ -1,5 +1,6 @@
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
+import { MuteSpeakerRequestBody } from './schemas'
 
 export async function muteSpeakerHandler(
   context: HandlerContextWithPath<'logs' | 'voice', '/community-voice-chat/:communityId/users/:userAddress/mute'>
@@ -21,16 +22,7 @@ export async function muteSpeakerHandler(
     throw new InvalidRequestError('The parameter userAddress is required')
   }
 
-  let body: { muted?: boolean }
-  try {
-    body = await request.json()
-  } catch (error) {
-    throw new InvalidRequestError('Wrongly formatted JSON body')
-  }
-
-  if (typeof body.muted !== 'boolean') {
-    throw new InvalidRequestError('The field muted is required and must be a boolean')
-  }
+  const body: MuteSpeakerRequestBody = await request.json()
 
   const lowerCaseUserAddress = userAddress.toLowerCase()
   const { muted } = body

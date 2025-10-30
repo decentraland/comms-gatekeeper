@@ -6,6 +6,7 @@ import { createLogComponent } from '@well-known-components/logger'
 import { createMetricsComponent, instrumentHttpServerWithMetrics } from '@well-known-components/metrics'
 import { createTracerComponent } from '@well-known-components/tracer-component'
 import { instrumentHttpServerWithRequestLogger } from '@well-known-components/http-requests-logger-component'
+import { createSchemaValidatorComponent } from '@dcl/schema-validator-component'
 import { createHttpTracerComponent } from '@well-known-components/http-tracer-component'
 import { createPgComponent } from '@well-known-components/pg-component'
 import { AppComponents, GlobalContext } from './types'
@@ -110,6 +111,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager, landLease })
   const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
   const denyList = await createDenyListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
+  const schemaValidator = await createSchemaValidatorComponent({ ensureJsonContentType: false })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
@@ -261,6 +263,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     landLease,
     livekitWebhook,
     contentClient,
+    schemaValidator,
     cast
   }
 }
