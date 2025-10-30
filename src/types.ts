@@ -75,7 +75,7 @@ export type BaseComponents = {
   disabledPlacesBansRemovalJob?: ICronJobComponent
   contentClient: IContentClientComponent
   cast: ICastComponent
-  validator: ISchemaValidatorComponent<GlobalContext>
+  schemaValidator: ISchemaValidatorComponent<GlobalContext>
 }
 
 export type AppComponents = BaseComponents & {
