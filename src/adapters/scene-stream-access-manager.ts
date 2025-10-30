@@ -130,13 +130,14 @@ export async function createSceneStreamAccessManagerComponent({
   }
 
   async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]> {
+    const now = Date.now().toString()
     const result = await database.query<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>>(
       SQL`SELECT ingress_id, place_id 
         FROM scene_stream_access 
         WHERE active = true 
           AND streaming = false 
           AND expiration_time IS NOT NULL 
-          AND expiration_time < ${Date.now()}
+          AND expiration_time < ${now}
         LIMIT 100`
     )
     return result.rows

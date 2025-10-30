@@ -171,7 +171,7 @@ export type SceneStreamAccess = {
   active: boolean
   streaming: boolean
   streaming_start_time: number
-  expiration_time?: number
+  expiration_time?: string
   room_id?: string
   generated_by?: string
 }
