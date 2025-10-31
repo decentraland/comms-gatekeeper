@@ -102,7 +102,8 @@ export function createCastComponent(
       const participantIdentity = randomUUID()
       const ingress = await livekit.getOrCreateIngress(roomId, `${participantIdentity}-streamer`)
 
-      streamingKey = `cast2-link-${randomUUID()}`
+      // Use ingress streamKey for full OBS compatibility
+      streamingKey = ingress.streamKey
       expirationTime = Date.now() + FOUR_DAYS
 
       // Create stream access entry with BOTH ingress_id and room_id for full compatibility

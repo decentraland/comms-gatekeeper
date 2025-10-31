@@ -123,9 +123,9 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
 
     beforeEach(() => {
       mockNewStreamLinkResult = {
-        streamLink: 'https://cast2.decentraland.org/s/cast2-link-new456',
+        streamLink: 'https://cast2.decentraland.org/s/new-ingress-stream-key-456',
         watcherLink: 'https://cast2.decentraland.org/w/10,20',
-        streamingKey: 'cast2-link-new456',
+        streamingKey: 'new-ingress-stream-key-456',
         placeId: 'test-place-id',
         placeName: 'Test Place',
         expiresAt: '2024-01-15T00:00:00.000Z',
@@ -158,7 +158,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       const body = await response.json()
 
       expect(response.status).toBe(200)
-      expect(body.streamingKey).toBe('cast2-link-new456')
+      expect(body.streamingKey).toBe('new-ingress-stream-key-456')
       expect(body.expiresInDays).toBe(4)
     })
   })
