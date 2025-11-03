@@ -47,48 +47,57 @@ export async function resetSceneStreamAccessHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  let place: PlaceAttributes
-  if (isWorld) {
-    place = await getPlaceByWorldName(serverName)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  try {
+    let place: PlaceAttributes
+    if (isWorld) {
+      place = await getPlaceByWorldName(serverName)
+    } else {
+      place = await getPlaceByParcel(parcel)
+    }
 
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
-  if (!isOwnerOrAdmin) {
-    logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
-    throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
-  }
+    const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+    if (!isOwnerOrAdmin) {
+      logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
+      throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
+    }
 
-  const existingAccess = await sceneStreamAccessManager.getAccess(place.id)
-  await livekit.removeIngress(existingAccess.ingress_id)
-  await sceneStreamAccessManager.removeAccess(place.id)
+    const existingAccess = await sceneStreamAccessManager.getAccess(place.id)
+    await livekit.removeIngress(existingAccess.ingress_id)
+    await sceneStreamAccessManager.removeAccess(place.id)
+    let roomName: string
+    if (isWorld) {
+      roomName = livekit.getWorldRoomName(serverName)
+    } else {
+      roomName = livekit.getSceneRoomName(serverName, sceneId!)
+    }
 
-  let roomName: string
-  if (isWorld) {
-    roomName = livekit.getWorldRoomName(serverName)
-  } else {
-    roomName = livekit.getSceneRoomName(serverName, sceneId!)
-  }
+    const participantIdentity = randomUUID()
+    const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
+    const access = await sceneStreamAccessManager.addAccess({
+      place_id: place.id,
+      streaming_url: ingress.url!,
+      streaming_key: ingress.streamKey!,
+      ingress_id: ingress.ingressId!
+    })
 
-  const participantIdentity = randomUUID()
-  const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
-  const access = await sceneStreamAccessManager.addAccess({
-    place_id: place.id,
-    streaming_url: ingress.url!,
-    streaming_key: ingress.streamKey!,
-    ingress_id: ingress.ingressId!
-  })
+    await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_RESET, place)
 
-  await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_RESET, place)
-
-  return {
-    status: 200,
-    body: {
-      streaming_url: access.streaming_url,
-      streaming_key: access.streaming_key,
-      created_at: Number(access.created_at),
-      ends_at: Number(access.created_at) + FOUR_DAYS
+    return {
+      status: 200,
+      body: {
+        streaming_url: access.streaming_url,
+        streaming_key: access.streaming_key,
+        created_at: Number(access.created_at),
+        ends_at: Number(access.created_at) + FOUR_DAYS
+      }
+    }
+  } catch (error) {
+    logger.error('Error resetting scene stream access', { error: JSON.stringify(error) })
+    return {
+      status: 500,
+      body: {
+        error: 'Failed to reset scene stream access'
+      }
     }
   }
 }
