@@ -93,6 +93,14 @@ export async function resetSceneStreamAccessHandler(
     }
   } catch (error) {
     logger.error('Error resetting scene stream access', { error: JSON.stringify(error) })
+    if (error instanceof UnauthorizedError) {
+      return {
+        status: 401,
+        body: {
+          error: error.message
+        }
+      }
+    }
     return {
       status: 500,
       body: {
