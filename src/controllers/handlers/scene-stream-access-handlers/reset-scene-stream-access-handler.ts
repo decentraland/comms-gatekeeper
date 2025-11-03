@@ -62,8 +62,12 @@ export async function resetSceneStreamAccessHandler(
     }
 
     const existingAccess = await sceneStreamAccessManager.getAccess(place.id)
+    logger.info(`Removing ingress ${existingAccess.ingress_id}`)
     await livekit.removeIngress(existingAccess.ingress_id)
+    logger.info(`Removed ingress ${existingAccess.ingress_id}`)
+    logger.info(`Removing access ${place.id}`)
     await sceneStreamAccessManager.removeAccess(place.id)
+    logger.info(`Removed access ${place.id}`)
     let roomName: string
     if (isWorld) {
       roomName = livekit.getWorldRoomName(serverName)
@@ -73,13 +77,14 @@ export async function resetSceneStreamAccessHandler(
 
     const participantIdentity = randomUUID()
     const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
+    logger.info(`Created ingress ${ingress.ingressId}`)
     const access = await sceneStreamAccessManager.addAccess({
       place_id: place.id,
       streaming_url: ingress.url!,
       streaming_key: ingress.streamKey!,
       ingress_id: ingress.ingressId!
     })
-
+    logger.info(`Created access ${access.id}`)
     await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_RESET, place)
 
     return {
