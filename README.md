@@ -56,7 +56,7 @@ The service uses `node-pg-migrate` for database migrations. Check the [documenta
 - **Lint code:** `yarn lint:check`
 - **Fix linting issues:** `yarn lint:fix`
 
-## 🤖 AI Agent Context
+## AI Agent Context
 
 **Service Purpose:** Generates and validates LiveKit access tokens for Decentraland's communication system. Acts as a security gatekeeper, processing signed fetch requests from clients and issuing tokens that grant access to LiveKit rooms for scene/world communication, with separate handling for Archipelago communication channels.
 
