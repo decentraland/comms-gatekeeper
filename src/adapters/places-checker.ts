@@ -72,7 +72,7 @@ export async function createPlaceChecker(
   }
 
   async function stop() {
-    job?.stop()
+    await job?.stop()
   }
 
   return {
