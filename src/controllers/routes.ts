@@ -1,4 +1,4 @@
-import { Router } from '@well-known-components/http-server'
+import { Router } from '@dcl/wkc-http-server'
 import { bearerTokenMiddleware } from '@dcl/platform-server-commons'
 import { wellKnownComponents as authVerificationMiddleware } from '@dcl/platform-crypto-middleware'
 import { GlobalContext } from '../types'
@@ -56,6 +56,9 @@ import { StreamerTokenRequestSchema, WatcherTokenRequestSchema } from './handler
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
   const { config, schemaValidator } = components
 
+  // Check if LiveKit is disabled
+  const isLivekitDisabled = (await config.getString('DISABLE_LIVEKIT')) === 'true'
+
   const socialServiceInteractionsToken = await config.requireString('COMMS_GATEKEEPER_AUTH_TOKEN')
   const tokenAuthMiddleware = bearerTokenMiddleware(socialServiceInteractionsToken)
 
@@ -109,8 +112,10 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.delete('/scene-stream-access', auth, removeSceneStreamAccessHandler)
   router.put('/scene-stream-access', auth, resetSceneStreamAccessHandler)
 
-  // Livekit webhook routes
-  router.post('/livekit-webhook', livekitWebhookHandler)
+  // Livekit webhook routes (only if LiveKit is enabled)
+  if (!isLivekitDisabled) {
+    router.post('/livekit-webhook', livekitWebhookHandler)
+  }
 
   // Private messages routes
   router.get('/private-messages/token', authExplorer, getPrivateMessagesTokenHandler)
