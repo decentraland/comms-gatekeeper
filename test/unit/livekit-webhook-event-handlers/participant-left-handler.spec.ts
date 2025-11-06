@@ -1,18 +1,18 @@
 import { WebhookEvent } from 'livekit-server-sdk'
+import { IAnalyticsComponent } from '@dcl/analytics-component'
+import { Events } from '@dcl/schemas'
+import { IPublisherComponent } from '@dcl/sns-component'
+import { DisconnectReason } from '@livekit/protocol'
+import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createParticipantLeftHandler } from '../../../src/logic/livekit-webhook/event-handlers/participant-left-handler'
 import { IVoiceComponent } from '../../../src/logic/voice/types'
-import { IAnalyticsComponent } from '@dcl/analytics-component'
-import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createAnalyticsMockedComponent } from '../../mocks/analytics-mocks'
 import { createVoiceMockedComponent } from '../../mocks/voice-mock'
 import { AnalyticsEvent } from '../../../src/types/analytics'
-import { DisconnectReason } from '@livekit/protocol'
-import { IPublisherComponent } from '../../../src/types'
 import { ILivekitComponent, SceneRoomMetadata } from '../../../src/types/livekit.type'
 import { createPublisherMockedComponent } from '../../mocks/publisher-mock'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
-import { Events } from '@dcl/schemas'
 
 describe('Participant Left Handler', () => {
   let handler: ReturnType<typeof createParticipantLeftHandler>

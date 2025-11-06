@@ -1,6 +1,9 @@
+import { IAnalyticsComponent } from '@dcl/analytics-component'
+import { Events } from '@dcl/schemas'
+import { IPublisherComponent } from '@dcl/sns-component'
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createSceneBansComponent, ISceneBansComponent } from '../../src/logic/scene-bans'
-import { IPublisherComponent, ISceneBanManager } from '../../src/types'
+import { ISceneBanManager } from '../../src/types'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 import { IPlacesComponent, PlaceAttributes } from '../../src/types/places.type'
 import { ISceneManager, UserScenePermissions } from '../../src/types/scene-manager.type'
@@ -9,7 +12,6 @@ import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createSceneBanManagerMockedComponent } from '../mocks/scene-ban-manager-mock'
 import { createMockedPlace, createMockedWorldPlace, createPlacesMockedComponent } from '../mocks/places-mock'
 import { createSceneManagerMockedComponent } from '../mocks/scene-manager-mock'
-import { IAnalyticsComponent } from '@dcl/analytics-component'
 import { createAnalyticsMockedComponent } from '../mocks/analytics-mocks'
 import { AnalyticsEvent } from '../../src/types/analytics'
 import { INamesComponent } from '../../src/types/names.type'
@@ -18,7 +20,6 @@ import { createContentClientMockedComponent } from '../mocks/content-client-mock
 import { IsUserBannedParams } from '../../src/logic/scene-bans/types'
 import { IContentClientComponent } from '../../src/types/content-client.type'
 import { createPublisherMockedComponent } from '../mocks/publisher-mock'
-import { Events } from '@dcl/schemas'
 
 describe('SceneBanComponent', () => {
   let sceneBanComponent: ISceneBansComponent

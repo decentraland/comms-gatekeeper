@@ -1,19 +1,19 @@
 import { WebhookEvent } from 'livekit-server-sdk'
+import { IAnalyticsComponent } from '@dcl/analytics-component'
+import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
+import { IPublisherComponent } from '@dcl/sns-component'
+import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createParticipantJoinedHandler } from '../../../src/logic/livekit-webhook/event-handlers/participant-joined-handler'
 import { IVoiceComponent } from '../../../src/logic/voice/types'
-import { IAnalyticsComponent } from '@dcl/analytics-component'
-import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createAnalyticsMockedComponent } from '../../mocks/analytics-mocks'
 import { createVoiceMockedComponent } from '../../mocks/voice-mock'
 import { AnalyticsEvent } from '../../../src/types/analytics'
 import { createPublisherMockedComponent } from '../../mocks/publisher-mock'
-import { IPublisherComponent } from '../../../src/types'
 import { ILivekitComponent } from '../../../src/types/livekit.type'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { ISceneBansComponent } from '../../../src/logic/scene-bans/types'
 import { createSceneBansMockedComponent } from '../../mocks/scene-bans-mock'
-import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
 
 describe('Participant Joined Handler', () => {
   let handler: ReturnType<typeof createParticipantJoinedHandler>
