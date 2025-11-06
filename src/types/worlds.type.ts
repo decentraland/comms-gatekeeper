@@ -5,6 +5,7 @@ export type IWorldComponent = IBaseComponent & {
   hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldDeployPermission(authAddress: string, worldName: string): Promise<boolean>
+  fetchWorldActionPermissionsNonCached(worldName: string): Promise<PermissionsOverWorld | undefined>
 }
 
 export enum PermissionType {

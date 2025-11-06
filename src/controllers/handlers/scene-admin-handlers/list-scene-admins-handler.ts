@@ -20,7 +20,7 @@ export async function listSceneAdminsHandler(
   } = ctx
 
   const logger = logs.getLogger('list-scene-admins-handler')
-  const { getPlaceByWorldName, getPlaceByParcel } = places
+  const { getPlaceByWorldNameNonCached, getPlaceByParcelNonCached } = places
   const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification || verification?.auth === undefined) {
@@ -38,9 +38,9 @@ export async function listSceneAdminsHandler(
 
   let place: PlaceAttributes
   if (isWorld) {
-    place = await getPlaceByWorldName(serverName)
+    place = await getPlaceByWorldNameNonCached(serverName)
   } else {
-    place = await getPlaceByParcel(parcel)
+    place = await getPlaceByParcelNonCached(parcel)
   }
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
@@ -64,7 +64,7 @@ export async function listSceneAdminsHandler(
     throw new InvalidRequestError(`Invalid parameters: ${validationResult.error}`)
   }
 
-  const allAddresses = await sceneAdmins.getAdminsAndExtraAddresses(place, validationResult.value.admin)
+  const allAddresses = await sceneAdmins.getAdminsAndExtraAddressesNonCached(place, validationResult.value.admin)
 
   // Get land lease owners
   const landLeaseOwners = new Set<string>()
