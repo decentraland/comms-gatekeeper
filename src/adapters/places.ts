@@ -55,9 +55,45 @@ export async function createPlacesComponent(
     return places.data
   }
 
+  async function getPlaceByParcelNonCached(parcel: string): Promise<PlaceAttributes> {
+    const response = await fetch.fetch(`${placesApiUrl}/places?positions=${parcel}`)
+
+    if (!response.ok) {
+      throw new Error(`Error getting place by parcel ${parcel}, status: ${response.status}`)
+    }
+
+    const placeResponse = (await response.json()) as PlaceResponse
+
+    if (!placeResponse?.data?.length) {
+      logger.info(`No place found with parcel ${parcel}`)
+      throw new PlaceNotFoundError(`No place found with parcel ${parcel}`)
+    }
+
+    return placeResponse.data[0]
+  }
+
+  async function getPlaceByWorldNameNonCached(worldName: string): Promise<PlaceAttributes> {
+    const response = await fetch.fetch(`${placesApiUrl}/worlds?names=${worldName}`)
+
+    if (!response.ok) {
+      throw new Error(`Error getting place by world name ${worldName}, status: ${response.status}`)
+    }
+
+    const placeResponse = (await response.json()) as PlaceResponse
+
+    if (!placeResponse?.data || placeResponse.data.length === 0) {
+      logger.info(`No world found with name ${worldName}`)
+      throw new PlaceNotFoundError(`No world found with name ${worldName}`)
+    }
+
+    return placeResponse.data[0]
+  }
+
   return {
     getPlaceByParcel,
     getPlaceByWorldName,
-    getPlaceStatusByIds
+    getPlaceStatusByIds,
+    getPlaceByParcelNonCached,
+    getPlaceByWorldNameNonCached
   }
 }

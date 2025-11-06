@@ -4,9 +4,9 @@ import { LandPermissionsNotFoundError } from '../types/errors'
 import { ILandComponent, LandsParcelOperatorsResponse, LandsParcelPermissionsResponse } from '../types/lands.type'
 
 export async function createLandsComponent(
-  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
+  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs' | 'fetch'>
 ): Promise<ILandComponent> {
-  const { config, cachedFetch, logs } = components
+  const { config, cachedFetch, logs, fetch } = components
   const logger = logs.getLogger('land-component')
 
   const lambdasUrl = await config.requireString('LAMBDAS_URL')
@@ -55,8 +55,32 @@ export async function createLandsComponent(
     return parcelPermissionsResponse
   }
 
+  async function getLandOperatorsNonCached(parcel: string): Promise<LandsParcelOperatorsResponse> {
+    const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
+    if (!baseUrl) {
+      logger.error('Lambdas URL is not set')
+      throw new Error('Lambdas URL is not set')
+    }
+    const [x, y] = parcel.split(',')
+    const response = await fetch.fetch(`${baseUrl}parcels/${x}/${y}/operators`)
+
+    if (!response.ok) {
+      throw new Error(`Error fetching land operators for ${x},${y}, status: ${response.status}`)
+    }
+
+    const parcelPermissionsResponse = (await response.json()) as LandsParcelOperatorsResponse
+
+    if (!parcelPermissionsResponse) {
+      logger.info(`Land permissions not found for ${x},${y}`)
+      throw new LandPermissionsNotFoundError(`Land permissions not found for ${x},${y}`)
+    }
+
+    return parcelPermissionsResponse
+  }
+
   return {
     getLandPermissions,
-    getLandOperators
+    getLandOperators,
+    getLandOperatorsNonCached
   }
 }

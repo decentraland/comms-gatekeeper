@@ -4,9 +4,9 @@ import { IWorldComponent, PermissionsOverWorld, PermissionType } from '../types/
 import { InvalidRequestError } from '../types/errors'
 
 export async function createWorldsComponent(
-  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
+  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs' | 'fetch'>
 ): Promise<IWorldComponent> {
-  const { config, cachedFetch, logs } = components
+  const { config, cachedFetch, logs, fetch } = components
   const logger = logs.getLogger('world-component')
 
   const [worldContentUrl, lambdasUrl] = await Promise.all([
@@ -62,10 +62,24 @@ export async function createWorldsComponent(
     )
   }
 
+  async function fetchWorldActionPermissionsNonCached(worldName: string): Promise<PermissionsOverWorld | undefined> {
+    const response = await fetch.fetch(`${worldContentUrl}/world/${worldName.toLowerCase()}/permissions`)
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return undefined
+      }
+      throw new Error(`Error fetching world permissions for ${worldName}, status: ${response.status}`)
+    }
+
+    return response.json()
+  }
+
   return {
     fetchWorldActionPermissions,
     hasWorldOwnerPermission,
     hasWorldStreamingPermission,
-    hasWorldDeployPermission
+    hasWorldDeployPermission,
+    fetchWorldActionPermissionsNonCached
   }
 }

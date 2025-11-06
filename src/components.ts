@@ -103,9 +103,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     { fetch: tracedFetch, logs },
     { allowStaleOnFetchRejection: true }
   )
-  const worlds = await createWorldsComponent({ config, logs, cachedFetch })
+  const worlds = await createWorldsComponent({ config, logs, cachedFetch, fetch: tracedFetch })
   const places = await createPlacesComponent({ config, logs, cachedFetch, fetch: tracedFetch })
-  const lands = await createLandsComponent({ config, logs, cachedFetch })
+  const lands = await createLandsComponent({ config, logs, cachedFetch, fetch: tracedFetch })
   const names = await createNamesComponent({ config, logs, fetch: tracedFetch })
   const landLease = await createLandLeaseComponent({ fetch: tracedFetch, logs })
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager, landLease })
