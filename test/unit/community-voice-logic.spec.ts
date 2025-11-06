@@ -1,5 +1,6 @@
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { IAnalyticsComponent } from '@dcl/analytics-component'
+import { IPublisherComponent } from '@dcl/sns-component'
 import { createVoiceComponent } from '../../src/logic/voice/voice'
 import { getCommunityVoiceChatRoomName } from '../../src/logic/voice/utils'
 import { IVoiceComponent } from '../../src/logic/voice/types'
@@ -10,6 +11,7 @@ import { CommunityRole } from '../../src/types/social.type'
 import { CommunityVoiceChatAction } from '../../src/types/community-voice'
 import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 import { createVoiceDBMockedComponent } from '../mocks/voice-db-mock'
+import { createPublisherMockedComponent } from '../mocks/publisher-mock'
 
 describe('CommunityVoiceLogic', () => {
   let voiceComponent: IVoiceComponent
@@ -17,6 +19,7 @@ describe('CommunityVoiceLogic', () => {
   let mockLivekit: jest.Mocked<ILivekitComponent>
   let mockLogs: jest.Mocked<ILoggerComponent>
   let mockAnalytics: jest.Mocked<IAnalyticsComponent<AnalyticsEventPayload>>
+  let mockPublisher: jest.Mocked<IPublisherComponent>
 
   const validCommunityId = 'test-community-123'
   const validModeratorAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
@@ -45,11 +48,14 @@ describe('CommunityVoiceLogic', () => {
       sendEvent: jest.fn()
     } as jest.Mocked<IAnalyticsComponent<AnalyticsEventPayload>>
 
+    mockPublisher = createPublisherMockedComponent()
+
     voiceComponent = createVoiceComponent({
       voiceDB: mockVoiceDB,
       livekit: mockLivekit,
       logs: mockLogs,
-      analytics: mockAnalytics
+      analytics: mockAnalytics,
+      publisher: mockPublisher
     })
   })
 
