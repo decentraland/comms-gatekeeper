@@ -65,7 +65,7 @@ export async function createStreamingKeyTTLChecker(
   }
 
   async function stop() {
-    job?.stop()
+    await job?.stop()
   }
 
   return {

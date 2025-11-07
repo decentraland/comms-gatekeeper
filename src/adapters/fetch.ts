@@ -32,7 +32,7 @@ export async function cachedFetchComponent(
 
           return response.json()
         } catch (err: any) {
-          logger.warn(err)
+          logger.error(`Error getting ${url}`, { err: err.message })
           throw err
         }
       }

@@ -79,7 +79,7 @@ export async function createStreamingTTLChecker(
   }
 
   async function stop() {
-    job?.stop()
+    await job?.stop()
   }
 
   return {

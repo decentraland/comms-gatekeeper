@@ -30,7 +30,7 @@ export async function createCronJobComponent(
   }
 
   async function stop() {
-    job.stop()
+    await job.stop()
   }
 
   return {

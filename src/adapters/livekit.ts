@@ -29,6 +29,13 @@ export async function createLivekitComponent(
 
   const logger = logs.getLogger('livekit-adapter')
 
+  // Check if LiveKit is disabled
+  const isLivekitDisabled = await config.getString('DISABLE_LIVEKIT')
+  if (isLivekitDisabled === 'true') {
+    logger.info('LiveKit integration is disabled - creating no-op component')
+    return createNoOpLivekitComponent({ config, logs })
+  }
+
   const [
     worldRoomPrefix,
     sceneRoomPrefix,
@@ -318,5 +325,177 @@ export async function createLivekitComponent(
     getOrCreateIngress,
     removeIngress,
     getWebhookEvent
+  }
+}
+
+// No-op implementation when LiveKit is disabled
+async function createNoOpLivekitComponent(
+  components: Pick<AppComponents, 'config' | 'logs'>
+): Promise<ILivekitComponent> {
+  const { config, logs } = components
+  const logger = logs.getLogger('livekit-adapter-noop')
+
+  const [worldRoomPrefix, sceneRoomPrefix] = await Promise.all([
+    config.getString('WORLD_ROOM_PREFIX') || 'world-',
+    config.getString('SCENE_ROOM_PREFIX') || 'scene-'
+  ])
+
+  function logNoOpWarning(operation: string) {
+    logger.warn(`LiveKit operation '${operation}' called but LiveKit is disabled - no-op`)
+  }
+
+  // Helper to create mock Room object
+  function createMockRoom(name: string): Room {
+    return {
+      sid: 'disabled-room-sid',
+      name,
+      emptyTimeout: 300,
+      maxParticipants: 100,
+      creationTime: BigInt(Date.now() * 1000000), // Convert to nanoseconds
+      turnPassword: '',
+      enabledCodecs: [],
+      metadata: '{}',
+      numParticipants: 0,
+      numPublishers: 0,
+      activeRecording: false
+    } as Room
+  }
+
+  // Helper to create mock IngressInfo
+  function createMockIngress(roomName: string, participantIdentity: string): IngressInfo {
+    return {
+      ingressId: 'disabled-ingress-id',
+      name: `${roomName}-ingress`,
+      streamKey: 'disabled-stream-key',
+      url: 'rtmp://disabled.livekit.io/live',
+      inputType: 0, // RTMP_INPUT
+      roomName,
+      participantIdentity,
+      participantName: participantIdentity,
+      reusable: false,
+      state: {
+        status: 1, // ENDPOINT_INACTIVE
+        error: '',
+        video: undefined,
+        audio: undefined,
+        roomId: '',
+        startedAt: undefined,
+        endedAt: undefined,
+        updatedAt: BigInt(Date.now() * 1000000), // Convert to nanoseconds
+        resourceId: '',
+        tracks: []
+      } as any
+    } as IngressInfo
+  }
+
+  return {
+    async deleteRoom(_roomName: string): Promise<void> {
+      logNoOpWarning('deleteRoom')
+    },
+
+    buildConnectionUrl(_url: string, _token: string): string {
+      logNoOpWarning('buildConnectionUrl')
+      return `livekit:disabled://?access_token=disabled`
+    },
+
+    async generateCredentials(
+      _identity: string,
+      _roomId: string,
+      _permissions: Omit<Permissions, 'mute'>,
+      _forPreview: boolean,
+      _metadata?: Record<string, unknown>
+    ): Promise<LivekitCredentials> {
+      logNoOpWarning('generateCredentials')
+      return {
+        url: 'wss://disabled.livekit.io',
+        token: 'disabled-token'
+      }
+    },
+
+    async muteParticipant(_roomId: string, _participantId: string): Promise<void> {
+      logNoOpWarning('muteParticipant')
+    },
+
+    async removeParticipant(_roomId: string, _participantId: string): Promise<void> {
+      logNoOpWarning('removeParticipant')
+    },
+
+    getWorldRoomName(worldName: string): string {
+      return `${worldRoomPrefix}${worldName}`
+    },
+
+    getSceneRoomName(realmName: string, sceneId: string): string {
+      return `${sceneRoomPrefix}${realmName}:${sceneId}`
+    },
+
+    getSceneRoomMetadataFromRoomName(roomName: string): SceneRoomMetadata {
+      const [realmName, sceneId] = roomName.includes(sceneRoomPrefix)
+        ? roomName.replace(`${sceneRoomPrefix}`, '').split(':')
+        : []
+      const worldName = roomName.includes(worldRoomPrefix) ? roomName.replace(`${worldRoomPrefix}`, '') : undefined
+      return { realmName, sceneId, worldName }
+    },
+
+    getRoomName(realmName: string, params: GetRoomNameParams): string {
+      const { isWorld, sceneId } = params
+      if (isWorld) {
+        return `${worldRoomPrefix}${realmName}`
+      } else {
+        if (!sceneId) {
+          throw new Error('No sceneId provided for scene room')
+        }
+        return `${sceneRoomPrefix}${realmName}:${sceneId}`
+      }
+    },
+
+    async getRoom(roomName: string): Promise<Room> {
+      logNoOpWarning('getRoom')
+      return createMockRoom(roomName)
+    },
+
+    async getRoomInfo(roomName: string): Promise<Room | null> {
+      logNoOpWarning('getRoomInfo')
+      return createMockRoom(roomName)
+    },
+
+    async getOrCreateIngress(roomName: string, participantIdentity: string): Promise<IngressInfo> {
+      logNoOpWarning('getOrCreateIngress')
+      return createMockIngress(roomName, participantIdentity)
+    },
+
+    async removeIngress(_ingressId: string): Promise<IngressInfo> {
+      logNoOpWarning('removeIngress')
+      return createMockIngress('disabled-room', 'disabled-participant')
+    },
+
+    async getWebhookEvent(_body: string, _authorization: string) {
+      logNoOpWarning('getWebhookEvent')
+      throw new Error('LiveKit webhooks are disabled')
+    },
+
+    async getParticipantInfo(_roomId: string, _participantId: string): Promise<ParticipantInfo | null> {
+      logNoOpWarning('getParticipantInfo')
+      return null
+    },
+
+    async updateParticipantMetadata(
+      _roomId: string,
+      _participantId: string,
+      _metadata: Record<string, unknown>
+    ): Promise<void> {
+      logNoOpWarning('updateParticipantMetadata')
+    },
+
+    async updateParticipantPermissions(
+      _roomId: string,
+      _participantId: string,
+      _permissions: ParticipantPermissions
+    ): Promise<void> {
+      logNoOpWarning('updateParticipantPermissions')
+    },
+
+    async updateRoomMetadata(_roomId: string, _metadata: Record<string, unknown>, _room?: Room): Promise<void> {
+      logNoOpWarning('updateRoomMetadata')
+    }
   }
 }
