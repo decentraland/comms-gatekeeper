@@ -6,8 +6,6 @@ export type IPlacesComponent = IBaseComponent & {
   getPlaceStatusByIds(
     ids: string[]
   ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>[]>
-  getPlaceByParcelNonCached(parcel: string): Promise<PlaceAttributes>
-  getPlaceByWorldNameNonCached(worldName: string): Promise<PlaceAttributes>
 }
 
 export type PlaceAttributes = {

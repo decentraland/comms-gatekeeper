@@ -19,5 +19,4 @@ export type LandsParcelOperatorsResponse = {
 export type ILandComponent = IBaseComponent & {
   getLandPermissions(authAddress: string, placePositions: string[]): Promise<LandsParcelPermissionsResponse>
   getLandOperators(parcel: string): Promise<LandsParcelOperatorsResponse>
-  getLandOperatorsNonCached(parcel: string): Promise<LandsParcelOperatorsResponse>
 }

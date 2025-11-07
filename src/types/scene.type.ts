@@ -11,12 +11,4 @@ export type ISceneAdmins = IBaseComponent & {
     extraAddresses: Set<string>
     addresses: Set<string>
   }>
-  getAdminsAndExtraAddressesNonCached: (
-    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position'>,
-    admin?: string
-  ) => Promise<{
-    admins: Set<SceneAdmin>
-    extraAddresses: Set<string>
-    addresses: Set<string>
-  }>
 }

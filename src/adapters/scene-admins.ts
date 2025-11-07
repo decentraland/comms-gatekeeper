@@ -73,73 +73,7 @@ export async function createSceneAdminsComponent(
     }
   }
 
-  async function getAdminsAndExtraAddressesNonCached(
-    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position'>,
-    admin?: string
-  ): Promise<{
-    admins: Set<SceneAdmin>
-    extraAddresses: Set<string>
-    addresses: Set<string>
-  }> {
-    const { worlds, lands, sceneAdminManager } = components
-
-    const { fetchWorldActionPermissionsNonCached } = worlds
-    const { getLandOperatorsNonCached } = lands
-
-    const sceneAdminFilters = {
-      place_id: place.id,
-      admin: admin
-    }
-
-    const admins = await sceneAdminManager.listActiveAdmins(sceneAdminFilters)
-
-    const extraAddresses = new Set<string>()
-    let worldActionPermissions: PermissionsOverWorld | undefined
-    let landActionPermissions: LandsParcelOperatorsResponse | undefined
-
-    if (place.world) {
-      worldActionPermissions = await fetchWorldActionPermissionsNonCached(place.world_name!)
-    } else {
-      landActionPermissions = await getLandOperatorsNonCached(place.base_position)
-    }
-
-    if (landActionPermissions) {
-      extraAddresses.add(landActionPermissions.owner.toLowerCase())
-      if (landActionPermissions.operator) {
-        extraAddresses.add(landActionPermissions.operator.toLowerCase())
-      }
-      if (landActionPermissions.updateOperator) {
-        extraAddresses.add(landActionPermissions.updateOperator.toLowerCase())
-      }
-      landActionPermissions.updateManagers.forEach((operator) => extraAddresses.add(operator.toLowerCase()))
-      landActionPermissions.approvedForAll.forEach((operator) => extraAddresses.add(operator.toLowerCase()))
-    }
-
-    if (worldActionPermissions?.permissions.deployment.type === PermissionType.AllowList) {
-      worldActionPermissions.permissions.deployment.wallets.forEach((wallet) =>
-        extraAddresses.add(wallet.toLowerCase())
-      )
-    }
-
-    if (worldActionPermissions?.permissions.streaming.type === PermissionType.AllowList) {
-      worldActionPermissions.permissions.streaming.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
-    }
-
-    const ownerAddress = worldActionPermissions?.owner
-
-    if (ownerAddress) {
-      extraAddresses.add(ownerAddress.toLowerCase())
-    }
-
-    return {
-      admins: new Set(admins),
-      extraAddresses,
-      addresses: new Set([...admins.map((admin) => admin.admin), ...extraAddresses])
-    }
-  }
-
   return {
-    getAdminsAndExtraAddresses,
-    getAdminsAndExtraAddressesNonCached
+    getAdminsAndExtraAddresses
   }
 }
