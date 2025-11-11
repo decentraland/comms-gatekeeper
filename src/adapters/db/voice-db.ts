@@ -365,6 +365,18 @@ export async function createVoiceDBComponent({
   }
 
   /**
+   * Gets the total participant count for a community voice chat room.
+   * This is optimized to only return the count without loading all user data.
+   * @param roomName - The name of the community room.
+   * @returns The total number of participants in the room.
+   */
+  async function getCommunityVoiceChatParticipantCount(roomName: string): Promise<number> {
+    const query = SQL`SELECT COUNT(*) as total_count FROM community_voice_chat_users WHERE room_name = ${roomName}`
+    const result = await database.query(query)
+    return result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0
+  }
+
+  /**
    * Deletes a community voice chat room.
    */
   async function deleteCommunityVoiceChat(roomName: string): Promise<void> {
@@ -578,6 +590,46 @@ export async function createVoiceDBComponent({
     }))
   }
 
+  /**
+   * Gets the total participant count (all participants, not just active) for a batch of community voice chats.
+   * This is optimized for bulk queries and counts all participants regardless of their status.
+   * @param communityIds - Array of community IDs to get participant counts for.
+   * @returns Map of room name to total participant count.
+   */
+  async function getBulkCommunityVoiceChatParticipantCount(communityIds: string[]): Promise<Map<string, number>> {
+    if (communityIds.length === 0) {
+      return new Map()
+    }
+
+    // Create room names for the given community IDs
+    const roomNames = communityIds.map(getCommunityVoiceChatRoomName)
+
+    const bulkCountQuery = SQL`
+      SELECT 
+        room_name,
+        COUNT(*) as total_participant_count
+      FROM community_voice_chat_users 
+      WHERE room_name = ANY(${roomNames})
+      GROUP BY room_name
+    `
+
+    const result = await database.query(bulkCountQuery)
+
+    const countsMap = new Map<string, number>()
+    for (const row of result.rows) {
+      countsMap.set(row.room_name, parseInt(row.total_participant_count))
+    }
+
+    // Ensure all requested rooms are in the map (with 0 if they don't exist)
+    for (const roomName of roomNames) {
+      if (!countsMap.has(roomName)) {
+        countsMap.set(roomName, 0)
+      }
+    }
+
+    return countsMap
+  }
+
   return {
     deleteExpiredPrivateVoiceChats,
     deletePrivateVoiceChat,
@@ -593,6 +645,7 @@ export async function createVoiceDBComponent({
     joinUserToCommunityRoom,
     updateCommunityUserStatus,
     getCommunityUsersInRoom,
+    getCommunityVoiceChatParticipantCount,
     isCommunityRoomActive,
 
     deleteCommunityVoiceChat,
@@ -600,6 +653,7 @@ export async function createVoiceDBComponent({
     getAllActiveCommunityVoiceChats,
     isUserInAnyCommunityVoiceChat,
     getBulkCommunityVoiceChatStatus,
+    getBulkCommunityVoiceChatParticipantCount,
     // Export helper function for reuse
     isActiveCommunityUser: (user: CommunityVoiceChatUser, now: number) => isActiveCommunityUser(user, now)
   }

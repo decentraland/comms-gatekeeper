@@ -33,6 +33,7 @@ import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
 import { IContentClientComponent } from './types/content-client.type'
 import { ISchemaValidatorComponent } from '@dcl/schema-validator-component'
+import { IPublisherComponent } from '@dcl/sns-component'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -220,13 +221,6 @@ export interface ISceneStreamAccessManager {
   isStreaming(ingressId: string): Promise<boolean>
   getExpiredStreamAccesses(): Promise<Pick<SceneStreamAccess, 'streaming_start_time' | 'ingress_id' | 'place_id'>[]>
   killStreaming(ingressId: string): Promise<void>
-}
-
-export interface IPublisherComponent {
-  publishMessages(events: any[]): Promise<{
-    successfulMessageIds: string[]
-    failedEvents: any[]
-  }>
 }
 
 export type SceneBan = {

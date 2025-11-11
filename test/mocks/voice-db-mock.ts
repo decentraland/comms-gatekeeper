@@ -19,6 +19,7 @@ export const createVoiceDBMockedComponent = (
     joinUserToCommunityRoom: overrides?.joinUserToCommunityRoom ?? jest.fn(),
     updateCommunityUserStatus: overrides?.updateCommunityUserStatus ?? jest.fn(),
     getCommunityUsersInRoom: overrides?.getCommunityUsersInRoom ?? jest.fn(),
+    getCommunityVoiceChatParticipantCount: overrides?.getCommunityVoiceChatParticipantCount ?? jest.fn(),
     isCommunityRoomActive: overrides?.isCommunityRoomActive ?? jest.fn(),
 
     deleteCommunityVoiceChat: overrides?.deleteCommunityVoiceChat ?? jest.fn(),
@@ -26,6 +27,7 @@ export const createVoiceDBMockedComponent = (
     isActiveCommunityUser: overrides?.isActiveCommunityUser ?? jest.fn(),
     getAllActiveCommunityVoiceChats: overrides?.getAllActiveCommunityVoiceChats ?? jest.fn(),
     isUserInAnyCommunityVoiceChat: overrides?.isUserInAnyCommunityVoiceChat ?? jest.fn(),
-    getBulkCommunityVoiceChatStatus: overrides?.getBulkCommunityVoiceChatStatus ?? jest.fn()
+    getBulkCommunityVoiceChatStatus: overrides?.getBulkCommunityVoiceChatStatus ?? jest.fn(),
+    getBulkCommunityVoiceChatParticipantCount: overrides?.getBulkCommunityVoiceChatParticipantCount ?? jest.fn()
   }
 }
