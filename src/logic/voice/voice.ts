@@ -108,6 +108,11 @@ export function createVoiceComponent(
    * @param participantCount - The number of active participants in the room.
    */
   async function publishCommunityStreamingEndedEvent(roomName: string, participantCount: number): Promise<void> {
+    if (participantCount === 0) {
+      logger.debug(`Skipping event publication since voice chat was already deleted`)
+      return
+    }
+
     try {
       const communityId = getCommunityIdFromRoomName(roomName)
 
@@ -156,7 +161,6 @@ export function createVoiceComponent(
       // Room was already deleted by LiveKit, get participant count before cleaning up DB
       const participantCount = await voiceDB.getCommunityVoiceChatParticipantCount(roomName)
       await voiceDB.deleteCommunityVoiceChat(roomName)
-      // Publish event after cleanup
       await publishCommunityStreamingEndedEvent(roomName, participantCount)
       return
     }
