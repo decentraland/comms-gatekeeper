@@ -1,14 +1,17 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError } from '../../../types/errors'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate } from '../../../logic/utils'
+import { GenerateStreamLinkResult } from '../../../logic/cast/types'
 
 export async function generateStreamLinkHandler(
-  context: HandlerContextWithPath<'cast' | 'fetch' | 'config', '/cast/generate-stream-link'>
+  context: HandlerContextWithPath<'cast' | 'fetch' | 'config' | 'logs', '/cast/generate-stream-link'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { cast }
+    components: { cast, logs }
   } = context
+
+  const logger = logs.getLogger('generate-stream-link-handler')
 
   // Validate signed fetch and extract auth data
   const { identity, sceneId, realm, parcel, isWorld } = await validate(context)
@@ -20,14 +23,33 @@ export async function generateStreamLinkHandler(
     throw new InvalidRequestError('sceneId is required in authMetadata for Cast2 chat functionality')
   }
 
-  // Call cast component to generate the stream link
-  const result = await cast.generateStreamLink({
-    walletAddress: identity,
-    worldName: isWorld ? realm.serverName : undefined,
-    parcel,
-    sceneId,
-    realmName
-  })
+  let result: GenerateStreamLinkResult
+
+  try {
+    result = await cast.generateStreamLink({
+      walletAddress: identity,
+      worldName: isWorld ? realm.serverName : undefined,
+      parcel,
+      sceneId,
+      realmName
+    })
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return {
+        status: 401,
+        body: {
+          error: error.message
+        }
+      }
+    }
+    logger.error(`Failed to generate stream link for ${identity} in ${realmName}`, { error: JSON.stringify(error) })
+    return {
+      status: 500,
+      body: {
+        error: 'Failed to generate stream link'
+      }
+    }
+  }
 
   return {
     status: 200,
