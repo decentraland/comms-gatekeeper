@@ -41,6 +41,13 @@ export async function generateStreamLinkHandler(
           error: error.message
         }
       }
+    } else if (error instanceof InvalidRequestError) {
+      return {
+        status: 400,
+        body: {
+          error: error.message
+        }
+      }
     }
     logger.error(`Failed to generate stream link for ${identity} in ${realmName}`, { error: JSON.stringify(error) })
     return {
