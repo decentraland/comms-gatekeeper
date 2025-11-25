@@ -13,7 +13,7 @@
     "migrate": "node-pg-migrate --tsconfig ./tsconfig.json --migrations-dir ./src/migrations"
   },
   "devDependencies": {
-    "@dcl/eslint-config": "^2.2.1",
+    "@dcl/eslint-config": "^2.3.1",
     "@types/node": "^20.7.1",
     "@well-known-components/test-helpers": "^1.5.8",
     "nodemon": "^3.0.1",
