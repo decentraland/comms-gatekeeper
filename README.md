@@ -55,3 +55,7 @@ The service uses `node-pg-migrate` for database migrations. Check the [documenta
 - **Run tests:** `yarn test`
 - **Lint code:** `yarn lint:check`
 - **Fix linting issues:** `yarn lint:fix`
+
+## AI Agent Context
+
+For detailed AI Agent context, see [docs/ai-agent-context.md](docs/ai-agent-context.md).
