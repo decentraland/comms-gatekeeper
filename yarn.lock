@@ -1092,27 +1092,30 @@
   dependencies:
     "@jridgewell/trace-mapping" "0.3.9"
 
-"@dcl/analytics-component@^0.2.5":
-  version "0.2.5"
-  resolved "https://registry.yarnpkg.com/@dcl/analytics-component/-/analytics-component-0.2.5.tgz#f12bf9e5e8786cefee0a88d248576e686e406019"
-  integrity sha512-/pn4IvgoIsFDw0CFEsK1eEiyRWwW5RuECPA/AIK3zipZzlrEb1N0DArBtUa7T9/PWAYg0VhRti/aMmiVk/2OpQ==
+"@dcl/analytics-component@^0.2.7":
+  version "0.2.7"
+  resolved "https://registry.yarnpkg.com/@dcl/analytics-component/-/analytics-component-0.2.7.tgz#044f6571d3b7b15b92e633dc4290345d782a5db0"
+  integrity sha512-N6KimVKa91NUcFF7+LRc9JORacaepCrf/0lBAU/RMikIxwfpadn4txFbJZHTLeHFLpq53OBEP7JDRNgVD/uf4w==
   dependencies:
-    "@dcl/core-commons" "0.4.0"
+    "@dcl/core-commons" "0.5.1"
+    "@well-known-components/interfaces" "^1.5.2"
 
 "@dcl/catalyst-contracts@^4.4.0":
   version "4.4.2"
   resolved "https://registry.yarnpkg.com/@dcl/catalyst-contracts/-/catalyst-contracts-4.4.2.tgz#e7a329d7aee25c90d7ee07dbe82200a048f17ff9"
   integrity sha512-gJZo3IB8U+jhBJWR0DgoLS+zaUDIb/u79e7Rp+MEM78uH3bvC19S3Dd8lxWEbPXNKlCB0saUptfK/Buw0c1y2Q==
 
-"@dcl/core-commons@0.4.0":
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.4.0.tgz#3cb11db360504ee01f71e043205b06f122647d34"
-  integrity sha512-fnGlXeUQK3eYToNbs+MALIn5kDUMJLkGRmpv4rMjMgdJ5NUn/lQML4JCVM44HkwWm+kL1jKNmSSL9UqEq7jNcA==
-
 "@dcl/core-commons@0.5.0":
   version "0.5.0"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.5.0.tgz#a3fd055cb1dfb69758b2506b0867cda4547dd800"
   integrity sha512-Lru7p7LcpTiIeZnpYQKRbYwHNqZBPieB7OLeGZ44kWt7+YdC6N7xj/GpAkn8xMGu+jcd7DaIZcfktZJqw+ELNA==
+
+"@dcl/core-commons@0.5.1":
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.5.1.tgz#a0fe702ac3dfe09b8253ef319f1ba8be63cfbfff"
+  integrity sha512-958pmcxYQ3YI8olTH09IMf4w35MjPWAo48+k0uf97b3IiySGz0akjidawY0wK8oVbE849umgDiQSf3keiJJaew==
+  dependencies:
+    "@well-known-components/interfaces" "^1.5.2"
 
 "@dcl/crypto@^3.4.0", "@dcl/crypto@^3.4.3", "@dcl/crypto@^3.4.5":
   version "3.4.5"
@@ -2729,7 +2732,7 @@
     "@well-known-components/interfaces" "^1.2.0"
     tslib "^2.5.0"
 
-"@well-known-components/interfaces@^1.2.0", "@well-known-components/interfaces@^1.4.1", "@well-known-components/interfaces@^1.4.2", "@well-known-components/interfaces@^1.4.3", "@well-known-components/interfaces@^1.5.1":
+"@well-known-components/interfaces@^1.2.0", "@well-known-components/interfaces@^1.4.1", "@well-known-components/interfaces@^1.4.2", "@well-known-components/interfaces@^1.4.3", "@well-known-components/interfaces@^1.5.1", "@well-known-components/interfaces@^1.5.2":
   version "1.5.2"
   resolved "https://registry.npmjs.org/@well-known-components/interfaces/-/interfaces-1.5.2.tgz"
   integrity sha512-TzKQblOci2Azczk1DZ4JL5aJW7hwq7kHrFMO4lCRMmW51bA71BtiZlq0WP72Dln067xTSoHQAU4WHCFJlGYvEQ==
