@@ -237,6 +237,26 @@ describe('WorldComponent', () => {
   })
 
   describe('hasWorldAccessPermission', () => {
+    it('should return true when world access is unrestricted', async () => {
+      const mockPermissionsWithUnrestricted = {
+        permissions: {
+          deployment: {
+            type: 'allow-list',
+            wallets: []
+          },
+          access: {
+            type: PermissionType.Unrestricted
+          }
+        }
+      }
+
+      mockFetch.mockResolvedValueOnce(mockPermissionsWithUnrestricted)
+
+      const result = await worldsComponent.hasWorldAccessPermission('0xanyuser', 'test-world')
+      expect(result).toBe(true)
+      expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+    })
+
     it('should return true when user is in access allowlist', async () => {
       const mockPermissionsWithAllowList = {
         permissions: {

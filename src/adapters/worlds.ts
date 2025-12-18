@@ -66,8 +66,9 @@ export async function createWorldsComponent(
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
 
     return (
-      permissionsOverWorld?.permissions?.access.type === PermissionType.AllowList &&
-      permissionsOverWorld.permissions.access.wallets.includes(authAddress)
+      permissionsOverWorld?.permissions?.access.type === PermissionType.Unrestricted ||
+      (permissionsOverWorld?.permissions?.access.type === PermissionType.AllowList &&
+        permissionsOverWorld.permissions.access.wallets.includes(authAddress))
     )
   }
 

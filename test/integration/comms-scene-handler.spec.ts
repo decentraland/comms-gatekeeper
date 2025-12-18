@@ -156,5 +156,29 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         })
       })
     })
+
+    describe('when world has unrestricted access', () => {
+      beforeEach(() => {
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+      })
+
+      it('should return the livekit adapter for any user', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: worldMetadata
+          },
+          nonOwner
+        )
+
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(body).toEqual({
+          adapter: 'livekit:wss://test-livekit-url?access_token=test-token'
+        })
+      })
+    })
   })
 })
