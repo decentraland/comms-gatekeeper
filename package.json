@@ -39,7 +39,7 @@
     "@dcl/analytics-component": "^0.2.5",
     "@dcl/crypto": "^3.4.5",
     "@dcl/platform-crypto-middleware": "^1.1.0",
-    "@dcl/platform-server-commons": "^0.2.0",
+    "@dcl/platform-server-commons": "^1.0.0",
     "@dcl/schema-validator-component": "^0.2.0",
     "@dcl/schemas": "^19.8.0",
     "@dcl/sns-component": "^3.0.0",
