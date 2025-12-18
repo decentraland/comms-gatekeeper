@@ -88,4 +88,73 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       })
     })
   })
+
+  describe('when accessing a world', () => {
+    let worldMetadata: Metadata
+
+    beforeEach(() => {
+      worldMetadata = {
+        identity: owner.authChain[0].payload,
+        realmName: 'test-world.eth',
+        parcel: '10,20',
+        sceneId: 'test-scene'
+      }
+
+      stubComponents.sceneBans.isUserBanned.resolves(false)
+      stubComponents.livekit.getWorldRoomName.returns('test-world.eth')
+      stubComponents.livekit.generateCredentials.resolves({
+        url: 'wss://test-livekit-url',
+        token: 'test-token'
+      })
+    })
+
+    describe('when user does not have world access permission', () => {
+      beforeEach(() => {
+        stubComponents.worlds.hasWorldAccessPermission.resolves(false)
+      })
+
+      it('should reject access returning 401', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: worldMetadata
+          },
+          owner
+        )
+
+        expect(response.status).toBe(401)
+
+        const body = await response.json()
+        expect(body).toEqual({
+          error: 'Access denied, you are not authorized to access this world'
+        })
+      })
+    })
+
+    describe('when user has world access permission', () => {
+      beforeEach(() => {
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+      })
+
+      it('should return the livekit adapter', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: worldMetadata
+          },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(body).toEqual({
+          adapter: 'livekit:wss://test-livekit-url?access_token=test-token'
+        })
+      })
+    })
+  })
 })

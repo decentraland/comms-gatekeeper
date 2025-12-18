@@ -235,4 +235,73 @@ describe('WorldComponent', () => {
       expect(result).toBe(false)
     })
   })
+
+  describe('hasWorldAccessPermission', () => {
+    it('should return true when user is in access allowlist', async () => {
+      const mockPermissionsWithAllowList = {
+        permissions: {
+          deployment: {
+            type: 'allow-list',
+            wallets: []
+          },
+          access: {
+            type: PermissionType.AllowList,
+            wallets: ['0xuseraddress', '0xotheraddress']
+          }
+        }
+      }
+
+      mockFetch.mockResolvedValueOnce(mockPermissionsWithAllowList)
+
+      const result = await worldsComponent.hasWorldAccessPermission('0xuseraddress', 'test-world')
+      expect(result).toBe(true)
+      expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+    })
+
+    it('should return false when user is not in access allowlist', async () => {
+      const mockPermissionsWithoutUser = {
+        permissions: {
+          deployment: {
+            type: 'allow-list',
+            wallets: []
+          },
+          access: {
+            type: PermissionType.AllowList,
+            wallets: ['0xotheraddress']
+          }
+        }
+      }
+
+      mockFetch.mockResolvedValueOnce(mockPermissionsWithoutUser)
+
+      const result = await worldsComponent.hasWorldAccessPermission('0xuseraddress', 'test-world')
+      expect(result).toBe(false)
+    })
+
+    it('should return false when access permissions are not allowlist type', async () => {
+      const mockPermissionsWithOtherType = {
+        permissions: {
+          deployment: {
+            type: 'allow-list',
+            wallets: []
+          },
+          access: {
+            type: 'other-type',
+            wallets: ['0xUserAddress']
+          }
+        }
+      }
+
+      mockFetch.mockResolvedValueOnce(mockPermissionsWithOtherType)
+
+      const result = await worldsComponent.hasWorldAccessPermission('0xUserAddress', 'test-world')
+      expect(result).toBe(false)
+    })
+
+    it('should return false when permissions are not available', async () => {
+      mockFetch.mockResolvedValueOnce({})
+      const result = await worldsComponent.hasWorldAccessPermission('0xUserAddress', 'test-world')
+      expect(result).toBe(false)
+    })
+  })
 })
