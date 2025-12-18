@@ -9,17 +9,17 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
 ## Table of Contents
 
 - [Features](#features)
-- [Dependencies & Related Services](#dependencies--related-services)
+- [Dependencies](#dependencies)
 - [API Documentation](#api-documentation)
-- [Database Schema](#database-schema)
+- [Database](#database)
+  - [Schema](#schema)
+  - [Migrations](#migrations)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Configuration](#configuration)
   - [Running the Service](#running-the-service)
 - [Testing](#testing)
-- [How to Contribute](#how-to-contribute)
-- [License](#license)
 
 ## Features
 
@@ -31,17 +31,12 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
 - **Request-to-Speak**: Implements moderated voice chat with speaker management
 - **Privacy Controls**: Manages user privacy settings and access control
 
-## Dependencies & Related Services
-
-This service interacts with the following services:
+## Dependencies
 
 - **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Separate communication channel for Archipelago rooms
 - **[Catalyst](https://github.com/decentraland/catalyst)**: Content server for scene metadata and validation
 - **[Places API](https://github.com/decentraland/places-api)**: Scene and place information
 - **[Social Service](https://github.com/decentraland/social-service-ea)**: User relationships and social data
-
-External dependencies:
-
 - **LiveKit**: Real-time voice communication infrastructure
 - **PostgreSQL**: Database for scene administration, streaming access, voice chat users, and bans
 - **AWS SNS**: Event notifications for streaming and communication events
@@ -60,9 +55,41 @@ The API supports three authentication methods:
 
 Most endpoints require Signed Fetch authentication with a complete identity header chain including scene metadata (sceneId, parcel, realmName).
 
-## Database Schema
+## Database
+
+### Schema
 
 See [docs/database-schemas.md](docs/database-schemas.md) for detailed schema, column definitions, and relationships.
+
+### Migrations
+
+The service uses `node-pg-migrate` for database migrations. These migrations are located in `src/migrations/`. The service automatically runs the migrations when starting up.
+
+#### Create a new migration
+
+Migrations are created by running the create command:
+
+```bash
+yarn migrate create name-of-the-migration
+```
+
+This will result in the creation of a migration file inside of the `src/migrations/` directory. This migration file MUST contain the migration set up and rollback procedures.
+
+#### Manually applying migrations
+
+If required, these migrations can be run manually.
+
+To run them manually:
+
+```bash
+yarn migrate up
+```
+
+To rollback them manually:
+
+```bash
+yarn migrate down
+```
 
 ## Getting Started
 
@@ -98,16 +125,13 @@ yarn build
 
 ### Configuration
 
-The service uses environment variables for configuration. Create a `.env` file in the root directory following the ones defined in the `.env.default` file.
+The service uses environment variables for configuration. Copy the example file and adjust as needed:
 
-Key configuration variables include:
+```bash
+cp .env.default .env
+```
 
-- `PG_COMPONENT_PSQL_CONNECTION_STRING`: PostgreSQL connection string
-- `LIVEKIT_HOST`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`: LiveKit configuration
-- `CATALYST_URL`: Catalyst content server URL
-- `PLACES_API_URL`: Places API endpoint
-- `SOCIAL_SERVICE_URL`: Social service endpoint
-- `AWS_SNS_ARN`: SNS topic ARN for event notifications
+See `.env.default` for available configuration options.
 
 ### Running the Service
 
@@ -142,24 +166,6 @@ For watch mode with automatic rebuilds:
 yarn dev
 ```
 
-### Database Migrations
-
-The service uses `node-pg-migrate` for database migrations. Migrations are located in `src/migrations/`.
-
-To run migrations:
-
-```bash
-yarn migrate up
-```
-
-To rollback migrations:
-
-```bash
-yarn migrate down
-```
-
-For more information, check the [node-pg-migrate documentation](https://salsita.github.io/node-pg-migrate/).
-
 ## Testing
 
 This service includes comprehensive test coverage with both unit and integration tests.
@@ -176,6 +182,18 @@ Run tests in watch mode:
 
 ```bash
 yarn test --watch
+```
+
+Run only unit tests:
+
+```bash
+yarn test test/unit
+```
+
+Run only integration tests:
+
+```bash
+yarn test test/integration
 ```
 
 ### Test Structure
