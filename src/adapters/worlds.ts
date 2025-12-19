@@ -68,7 +68,9 @@ export async function createWorldsComponent(
     return (
       permissionsOverWorld?.permissions?.access.type === PermissionType.Unrestricted ||
       (permissionsOverWorld?.permissions?.access.type === PermissionType.AllowList &&
-        permissionsOverWorld.permissions.access.wallets.includes(authAddress))
+        permissionsOverWorld.permissions.access.wallets.some(
+          (wallet) => wallet.toLowerCase() === authAddress.toLowerCase()
+        ))
     )
   }
 
