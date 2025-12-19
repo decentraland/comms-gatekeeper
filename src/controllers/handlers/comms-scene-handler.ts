@@ -8,12 +8,12 @@ const PREVIEW = 'preview'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'sceneBans' | 'places',
+    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'sceneBans' | 'places' | 'worlds',
     '/get-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, denyList, sceneBans }
+    components: { livekit, logs, denyList, sceneBans, worlds }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -73,6 +73,12 @@ export async function commsSceneHandler(
 
     forPreview = true
   } else if (isWorld) {
+    const hasAccess = await worlds.hasWorldAccessPermission(identity, realmName)
+
+    if (!hasAccess) {
+      throw new UnauthorizedError('Access denied, you are not authorized to access this world')
+    }
+
     room = livekit.getWorldRoomName(realmName)
   } else {
     if (!sceneId) {
