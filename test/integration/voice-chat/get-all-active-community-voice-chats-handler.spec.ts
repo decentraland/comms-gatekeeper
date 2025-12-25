@@ -1,16 +1,20 @@
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
 import { VoiceChatUserStatus } from '../../../src/adapters/db/types'
-import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX } from '../../../src/logic/voice/utils'
 
 test('GET /community-voice-chats/active', ({ components, spyComponents }) => {
   let token: string
+  let roomName1: string
+  let roomName2: string
   const communityId1 = 'test-1'
   const communityId2 = 'test-2'
-  const roomName1 = `${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-${communityId1}`
-  const roomName2 = `${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-${communityId2}`
   const moderatorAddress = '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd'
   const userAddress = '0x1234567890123456789012345678901234567890'
+
+  beforeEach(() => {
+    roomName1 = components.livekit.getCommunityVoiceChatRoomName(communityId1)
+    roomName2 = components.livekit.getCommunityVoiceChatRoomName(communityId2)
+  })
 
   describe('when the authorization token is invalid', () => {
     beforeEach(() => {

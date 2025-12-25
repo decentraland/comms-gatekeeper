@@ -1,4 +1,4 @@
-import { Events, UserLeftRoomEvent } from '@dcl/schemas'
+import { Events, RoomType, UserLeftRoomEvent } from '@dcl/schemas'
 import { WebhookEvent } from 'livekit-server-sdk'
 import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
@@ -19,33 +19,40 @@ export function createParticipantLeftHandler(
       }
 
       const { room, participant } = webhookEvent
-      const { sceneId, worldName, realmName } = components.livekit.getSceneRoomMetadataFromRoomName(room.name)
+      const { sceneId, worldName, realmName, communityId, voiceChatId, islandName, roomType } =
+        components.livekit.getRoomMetadataFromRoomName(room.name)
 
-      // Only emit the user left room event if the room is a scene or world room
-      if (sceneId || worldName) {
-        const event: UserLeftRoomEvent = {
-          type: Events.Type.COMMS,
-          subType: Events.SubType.Comms.USER_LEFT_ROOM,
-          key: `user-left-room-${room.name}`,
-          timestamp: Date.now(),
-          metadata: {
-            sceneId: sceneId,
-            userAddress: participant.identity.toLowerCase(),
-            isWorld: !!worldName,
-            realmName: worldName || realmName || ''
-          }
-        }
+      if (roomType === RoomType.UNKNOWN) {
+        logger.warn(`Unknown room type for participant left: ${room.name}`)
+        return
+      }
 
-        try {
-          await components.publisher.publishMessages([event])
-          logger.debug(`Published UserLeftRoomEvent for ${participant.identity} in room ${room}`)
-        } catch (error: any) {
-          logger.error(`Failed to publish UserLeftRoomEvent: ${error}`, {
-            error,
-            event: JSON.stringify(event),
-            room: room.name
-          })
+      const event: UserLeftRoomEvent = {
+        type: Events.Type.COMMS,
+        subType: Events.SubType.Comms.USER_LEFT_ROOM,
+        key: `user-left-room-${room.name}`,
+        timestamp: Date.now(),
+        metadata: {
+          sceneId: sceneId,
+          userAddress: participant.identity.toLowerCase(),
+          isWorld: !!worldName,
+          realmName: worldName || realmName || '',
+          roomType,
+          islandName,
+          communityId,
+          voiceChatId
         }
+      }
+
+      try {
+        await components.publisher.publishMessages([event])
+        logger.debug(`Published UserLeftRoomEvent for ${participant.identity} in room ${room}`)
+      } catch (error: any) {
+        logger.error(`Failed to publish UserLeftRoomEvent: ${error}`, {
+          error,
+          event: JSON.stringify(event),
+          room: room.name
+        })
       }
 
       components.analytics.fireEvent(AnalyticsEvent.PARTICIPANT_LEFT_ROOM, {

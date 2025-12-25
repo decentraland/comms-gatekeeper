@@ -10,7 +10,7 @@ import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../typ
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
-import { EthAddress, Events, UserBannedFromSceneEvent, UserUnbannedFromSceneEvent } from '@dcl/schemas'
+import { EthAddress, Events, RoomType, UserBannedFromSceneEvent, UserUnbannedFromSceneEvent } from '@dcl/schemas'
 import { Room } from 'livekit-server-sdk'
 
 export function createSceneBansComponent(
@@ -439,9 +439,10 @@ export function createSceneBansComponent(
     try {
       let place: PlaceAttributes
 
-      const { sceneId, worldName } = livekit.getSceneRoomMetadataFromRoomName(room.name)
+      const { sceneId, worldName, roomType } = livekit.getRoomMetadataFromRoomName(room.name)
 
-      if (!sceneId && !worldName) {
+      if (roomType !== RoomType.SCENE && roomType !== RoomType.WORLD) {
+        logger.warn(`Room ${room.name} is not a scene or world room, skipping update of room metadata with bans`)
         return
       }
 

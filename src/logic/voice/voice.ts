@@ -1,12 +1,6 @@
 import { DisconnectReason } from '@livekit/protocol'
 import { AppComponents } from '../../types'
 import { IVoiceComponent } from './types'
-import {
-  getCallIdFromRoomName,
-  getPrivateVoiceChatRoomName,
-  getCommunityVoiceChatRoomName,
-  getCommunityIdFromRoomName
-} from './utils'
 import { AnalyticsEvent } from '../../types/analytics'
 import { VoiceChatUserStatus } from '../../adapters/db/types'
 import { CommunityRole, CommunityVoiceChatUserMetadata, CommunityVoiceChatUserProfile } from '../../types/social.type'
@@ -67,7 +61,7 @@ export function createVoiceComponent(
       await livekit.deleteRoom(roomName)
 
       analytics.fireEvent(AnalyticsEvent.END_CALL, {
-        call_id: getCallIdFromRoomName(roomName),
+        call_id: livekit.getCallIdFromRoomName(roomName),
         user_id: userAddress
       })
 
@@ -76,7 +70,7 @@ export function createVoiceComponent(
     } else if (disconnectReason === DisconnectReason.ROOM_DELETED) {
       // If the room was deleted, remove the room from the database to prevent the room from being re-created.
       analytics.fireEvent(AnalyticsEvent.END_CALL, {
-        room: getCallIdFromRoomName(roomName),
+        room: livekit.getCallIdFromRoomName(roomName),
         address: userAddress
       })
       logger.debug(
@@ -149,7 +143,7 @@ export function createVoiceComponent(
           logger.debug(`No active moderators left in community room ${roomName}, destroying room`)
           await Promise.all([livekit.deleteRoom(roomName), voiceDB.deleteCommunityVoiceChat(roomName)])
 
-          const communityId = getCommunityIdFromRoomName(roomName)
+          const communityId = livekit.getCommunityIdFromRoomName(roomName)
           analytics.fireEvent(AnalyticsEvent.END_CALL, {
             call_id: communityId
           })
@@ -215,7 +209,7 @@ export function createVoiceComponent(
     roomId: string,
     userAddresses: string[]
   ): Promise<Record<string, { connectionUrl: string }>> {
-    const roomName = getPrivateVoiceChatRoomName(roomId)
+    const roomName = livekit.getPrivateVoiceChatRoomName(roomId)
     // Generate credentials for each user.
     const roomKeys = await Promise.all(
       userAddresses.map(async (userAddress) => {
@@ -251,7 +245,7 @@ export function createVoiceComponent(
    * @returns The addresses of the users that were in the deleted room.
    */
   async function endPrivateVoiceChat(roomId: string, address: string): Promise<string[]> {
-    const roomName = getPrivateVoiceChatRoomName(roomId)
+    const roomName = livekit.getPrivateVoiceChatRoomName(roomId)
     const usersInRoom = await voiceDB.deletePrivateVoiceChatUserIsOrWasIn(roomName, address)
     await livekit.deleteRoom(roomName)
     logger.debug(`Deleted private voice chat room ${roomName} for user ${address}`)
@@ -267,7 +261,7 @@ export function createVoiceComponent(
     // Delete the expired rooms from LiveKit.
     for (const roomName of expiredRoomNames) {
       analytics.fireEvent(AnalyticsEvent.EXPIRE_CALL, {
-        call_id: getCallIdFromRoomName(roomName)
+        call_id: livekit.getCallIdFromRoomName(roomName)
       })
       await livekit.deleteRoom(roomName)
     }
@@ -293,7 +287,7 @@ export function createVoiceComponent(
     profileData?: CommunityVoiceChatUserProfile,
     action: CommunityVoiceChatAction = CommunityVoiceChatAction.JOIN
   ): Promise<{ connectionUrl: string }> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
+    const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     // Determine if user is a speaker:
     // - Creator of the room is the only speaker by default
@@ -352,7 +346,7 @@ export function createVoiceComponent(
 
     // Delete the expired rooms from LiveKit.
     for (const roomName of expiredRoomNames) {
-      const communityId = getCommunityIdFromRoomName(roomName)
+      const communityId = livekit.getCommunityIdFromRoomName(roomName)
       logger.info(`Expiring community voice chat room: ${roomName} (community: ${communityId})`)
 
       analytics.fireEvent(AnalyticsEvent.EXPIRE_CALL, {
@@ -375,7 +369,7 @@ export function createVoiceComponent(
     participantCount: number
     moderatorCount: number
   }> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
+    const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     logger.debug(`Getting status for community voice chat: ${roomName}`)
 
@@ -432,7 +426,7 @@ export function createVoiceComponent(
    * @param userAddress - The address of the user requesting to speak.
    */
   async function requestToSpeakInCommunity(communityId: string, userAddress: string): Promise<void> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
+    const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     await livekit.updateParticipantMetadata(roomName, userAddress, {
       isRequestingToSpeak: true
@@ -447,7 +441,7 @@ export function createVoiceComponent(
    * @param userAddress - The address of the user whose speak request is being rejected.
    */
   async function rejectSpeakRequestInCommunity(communityId: string, userAddress: string): Promise<void> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
+    const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     await livekit.updateParticipantMetadata(roomName, userAddress, {
       isRequestingToSpeak: false
@@ -462,7 +456,7 @@ export function createVoiceComponent(
    * @param userAddress - The address of the user to promote.
    */
   async function promoteSpeakerInCommunity(communityId: string, userAddress: string): Promise<void> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
+    const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     await livekit.updateParticipantPermissions(roomName, userAddress, {
       canPublish: true,
@@ -484,7 +478,7 @@ export function createVoiceComponent(
    * @param userAddress - The address of the user to demote.
    */
   async function demoteSpeakerInCommunity(communityId: string, userAddress: string): Promise<void> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
+    const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     await livekit.updateParticipantPermissions(roomName, userAddress, {
       canPublish: false,
@@ -506,7 +500,7 @@ export function createVoiceComponent(
    * @param userAddress - The address of the user to kick.
    */
   async function kickPlayerFromCommunity(communityId: string, userAddress: string): Promise<void> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
+    const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     await livekit.removeParticipant(roomName, userAddress)
 
@@ -524,7 +518,7 @@ export function createVoiceComponent(
     userAddress: string,
     muted: boolean
   ): Promise<void> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
+    const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     await livekit.updateParticipantMetadata(roomName, userAddress, {
       muted
@@ -540,7 +534,7 @@ export function createVoiceComponent(
    * @param userAddress - The address of the user ending the chat.
    */
   async function endCommunityVoiceChat(communityId: string, userAddress: string): Promise<void> {
-    const roomName = getCommunityVoiceChatRoomName(communityId)
+    const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     logger.info(`Ending community voice chat for community ${communityId} by user ${userAddress}`)
 

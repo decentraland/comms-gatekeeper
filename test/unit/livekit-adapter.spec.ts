@@ -680,42 +680,63 @@ describe('when updating room metadata', () => {
   })
 })
 
-describe('when getting scene room metadata from room name', () => {
+describe('when getting room metadata from room name', () => {
   describe('when room name is a scene room', () => {
-    it('should extract realm name and scene ID from scene room name and return undefined for world name', () => {
+    it('should extract realm name and scene ID and return SCENE room type', () => {
       const roomName = 'scene-realm1:scene-id-123'
-      const result = livekitComponent.getSceneRoomMetadataFromRoomName(roomName)
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
 
       expect(result).toEqual({
         realmName: 'realm1',
         sceneId: 'scene-id-123',
-        worldName: undefined
+        roomType: 'scene'
       })
     })
   })
 
   describe('when room name is a world room', () => {
-    it('should extract world name and return undefined for scene id and realm name', () => {
+    it('should extract world name and return WORLD room type', () => {
       const roomName = 'world-world-name-123'
-      const result = livekitComponent.getSceneRoomMetadataFromRoomName(roomName)
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
 
       expect(result).toEqual({
-        realmName: undefined,
-        sceneId: undefined,
-        worldName: 'world-name-123'
+        worldName: 'world-name-123',
+        roomType: 'world'
       })
     })
   })
 
-  describe('when room name is neither scene nor world room', () => {
-    it('should return undefined values', () => {
-      const roomName = 'unknown-room-name'
-      const result = livekitComponent.getSceneRoomMetadataFromRoomName(roomName)
+  describe('when room name is a community voice chat room', () => {
+    it('should extract community ID and return COMMUNITY_VOICE_CHAT room type', () => {
+      const roomName = 'voice-chat-community-community-id-123'
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
 
       expect(result).toEqual({
-        realmName: undefined,
-        sceneId: undefined,
-        worldName: undefined
+        communityId: 'community-id-123',
+        roomType: 'community-voice-chat'
+      })
+    })
+  })
+
+  describe('when room name is a private voice chat room', () => {
+    it('should extract voice chat ID and return VOICE_CHAT room type', () => {
+      const roomName = 'voice-chat-private-call-id-123'
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        voiceChatId: 'call-id-123',
+        roomType: 'voice-chat'
+      })
+    })
+  })
+
+  describe('when room name is unknown', () => {
+    it('should return UNKNOWN room type', () => {
+      const roomName = 'unknown-room-name'
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        roomType: 'unknown'
       })
     })
   })

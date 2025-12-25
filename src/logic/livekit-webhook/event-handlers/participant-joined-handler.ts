@@ -3,7 +3,7 @@ import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
 import { isRoomEventValid, isVoiceChatRoom } from './utils'
-import { Events } from '@dcl/schemas'
+import { Events, RoomType } from '@dcl/schemas'
 import { UserJoinedRoomEvent } from '@dcl/schemas'
 
 export function createParticipantJoinedHandler(
@@ -13,9 +13,11 @@ export function createParticipantJoinedHandler(
   const logger = logs.getLogger('participant-joined-handler')
 
   async function publishUserJoinedRoomEvent(room: Room, address: string): Promise<void> {
-    const { sceneId, worldName, realmName } = livekit.getSceneRoomMetadataFromRoomName(room.name)
+    const { sceneId, worldName, realmName, roomType, communityId, voiceChatId, islandName } =
+      livekit.getRoomMetadataFromRoomName(room.name)
 
-    if (!sceneId && !worldName) {
+    if (roomType === RoomType.UNKNOWN) {
+      logger.warn(`Unknown room type for participant joined: ${room.name}`)
       return
     }
 
@@ -29,7 +31,11 @@ export function createParticipantJoinedHandler(
         userAddress: address,
         parcel: '',
         realmName: worldName ?? realmName ?? '',
-        isWorld: !!worldName
+        isWorld: !!worldName,
+        voiceChatId,
+        communityId,
+        islandName,
+        roomType
       }
     }
 
