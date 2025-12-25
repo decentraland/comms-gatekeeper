@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { FOUR_DAYS } from '../../../logic/time'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
+import { InvalidRequestError, LivekitIngressNotFoundError, UnauthorizedError } from '../../../types/errors'
 import { PlaceAttributes } from '../../../types/places.type'
 import { NotificationStreamingType } from '../../../types/notification.type'
 
@@ -63,7 +63,16 @@ export async function resetSceneStreamAccessHandler(
 
     const existingAccess = await sceneStreamAccessManager.getAccess(place.id)
     logger.info(`Removing ingress ${existingAccess.ingress_id}`)
-    await livekit.removeIngress(existingAccess.ingress_id)
+    try {
+      await livekit.removeIngress(existingAccess.ingress_id)
+    } catch (error) {
+      if (error instanceof LivekitIngressNotFoundError) {
+        logger.error(`Ingress ${existingAccess.ingress_id} not found`)
+      } else {
+        logger.error(`Error removing ingress ${existingAccess.ingress_id}`, { error: JSON.stringify(error) })
+        throw error
+      }
+    }
     logger.info(`Removed ingress ${existingAccess.ingress_id}`)
     logger.info(`Removing access ${place.id}`)
     await sceneStreamAccessManager.removeAccess(place.id)

@@ -27,7 +27,7 @@ import { createSocialComponent } from './adapters/social'
 import { createPlaceChecker } from './adapters/places-checker'
 import { createStreamingTTLChecker } from './adapters/streaming-ttl-checker'
 import { createStreamingKeyTTLChecker } from './adapters/streaming-key-ttl-checker'
-import { createSnsComponent } from './adapters/sns'
+import { createSnsComponent } from '@dcl/sns-component'
 import { createNotificationsComponent } from './adapters/notifications'
 import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
@@ -147,7 +147,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
-  const voice = createVoiceComponent({ voiceDB, logs, livekit, analytics })
+  const voice = createVoiceComponent({ voiceDB, logs, livekit, analytics, publisher })
   const voiceChatExpirationJob = await createCronJobComponent(
     { logs },
     voice.expirePrivateVoiceChats,

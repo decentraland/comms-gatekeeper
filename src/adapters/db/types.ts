@@ -141,6 +141,14 @@ export interface IVoiceDBComponent {
   isCommunityRoomActive: (roomName: string) => Promise<boolean>
 
   /**
+   * Gets the total participant count for a community voice chat room.
+   * This is optimized to only return the count without loading all user data.
+   * @param roomName - The name of the community room.
+   * @returns The total number of participants in the room.
+   */
+  getCommunityVoiceChatParticipantCount: (roomName: string) => Promise<number>
+
+  /**
    * Deletes a community voice chat room.
    * @param roomName - The name of the community room.
    */
@@ -192,4 +200,12 @@ export interface IVoiceDBComponent {
       moderatorCount: number
     }>
   >
+
+  /**
+   * Gets the total participant count (all participants, not just active) for a batch of community voice chats.
+   * This is optimized for bulk queries and counts all participants regardless of their status.
+   * @param communityIds - Array of community IDs to get participant counts for.
+   * @returns Map of room name to total participant count.
+   */
+  getBulkCommunityVoiceChatParticipantCount: (communityIds: string[]) => Promise<Map<string, number>>
 }
