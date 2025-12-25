@@ -108,7 +108,7 @@ export function createVoiceComponent(
     }
 
     try {
-      const communityId = getCommunityIdFromRoomName(roomName)
+      const communityId = livekit.getCommunityIdFromRoomName(roomName)
 
       const event: CommunityStreamingEndedEvent = {
         type: Events.Type.STREAMING,

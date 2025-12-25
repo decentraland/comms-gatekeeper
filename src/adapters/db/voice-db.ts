@@ -603,7 +603,7 @@ export async function createVoiceDBComponent({
     }
 
     // Create room names for the given community IDs
-    const roomNames = communityIds.map(getCommunityVoiceChatRoomName)
+    const roomNames = communityIds.map((id) => livekit.getCommunityVoiceChatRoomName(id))
 
     const bulkCountQuery = SQL`
       SELECT 
