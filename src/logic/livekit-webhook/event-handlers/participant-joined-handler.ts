@@ -12,7 +12,7 @@ export function createParticipantJoinedHandler(
   const { livekit, logs, publisher, analytics, voice, sceneBans } = components
   const logger = logs.getLogger('participant-joined-handler')
 
-  async function publishUserJoinedRoomEvent(room: Room, address: string): Promise<void> {
+  async function publishUserJoinedRoomEvent(room: Room, userAddress: string): Promise<void> {
     const { sceneId, worldName, realmName, roomType, communityId, voiceChatId, islandName } =
       livekit.getRoomMetadataFromRoomName(room.name)
 
@@ -24,11 +24,11 @@ export function createParticipantJoinedHandler(
     const event: UserJoinedRoomEvent = {
       type: Events.Type.COMMS,
       subType: Events.SubType.Comms.USER_JOINED_ROOM,
-      key: `user-joined-room-${room.name}-${address.slice(0, 42)}`,
+      key: `user-joined-room-${room.name}-${userAddress}`,
       timestamp: Date.now(),
       metadata: {
         sceneId: sceneId ?? '',
-        userAddress: address,
+        userAddress,
         parcel: '',
         realmName: worldName ?? realmName ?? '',
         isWorld: !!worldName,
@@ -41,7 +41,7 @@ export function createParticipantJoinedHandler(
 
     try {
       await publisher.publishMessages([event])
-      logger.debug(`Published UserJoinedRoomEvent for ${address} in room ${room.name}`)
+      logger.debug(`Published UserJoinedRoomEvent for ${userAddress} in room ${room.name}`)
     } catch (error: any) {
       logger.error(`Failed to publish UserJoinedRoomEvent: ${error}`, {
         error,
@@ -72,7 +72,7 @@ export function createParticipantJoinedHandler(
       }
       const { room, participant } = webhookEvent
 
-      const address = participant.identity.toLowerCase()
+      const address = participant.identity.toLowerCase().slice(0, 42)
 
       await Promise.all([
         publishUserJoinedRoomEvent(room, address),

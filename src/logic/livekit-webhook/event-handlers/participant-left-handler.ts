@@ -26,15 +26,16 @@ export function createParticipantLeftHandler(
         logger.warn(`Unknown room type for participant left: ${room.name}`)
         return
       }
+      const userAddress = participant.identity.toLowerCase().slice(0, 42)
 
       const event: UserLeftRoomEvent = {
         type: Events.Type.COMMS,
         subType: Events.SubType.Comms.USER_LEFT_ROOM,
-        key: `user-left-room-${room.name}-${participant.identity.toLowerCase().slice(0, 42)}`,
+        key: `user-left-room-${room.name}-${userAddress}`,
         timestamp: Date.now(),
         metadata: {
           sceneId: sceneId,
-          userAddress: participant.identity.toLowerCase(),
+          userAddress,
           isWorld: !!worldName,
           realmName: worldName || realmName || '',
           roomType,
@@ -46,7 +47,7 @@ export function createParticipantLeftHandler(
 
       try {
         await components.publisher.publishMessages([event])
-        logger.debug(`Published UserLeftRoomEvent for ${participant.identity} in room ${room}`)
+        logger.debug(`Published UserLeftRoomEvent for ${userAddress} in room ${room}`)
       } catch (error: any) {
         logger.error(`Failed to publish UserLeftRoomEvent: ${error}`, {
           error,
@@ -57,20 +58,16 @@ export function createParticipantLeftHandler(
 
       components.analytics.fireEvent(AnalyticsEvent.PARTICIPANT_LEFT_ROOM, {
         room: room.name,
-        address: participant.identity,
+        address: userAddress,
         reason: participant.disconnectReason.toString()
       })
 
       if (isVoiceChatRoom(webhookEvent)) {
         const disconnectReason = webhookEvent.participant.disconnectReason
         logger.debug(
-          `Participant ${webhookEvent.participant.identity} left voice chat room ${webhookEvent.room.name} with reason ${disconnectReason}`
+          `Participant ${userAddress} left voice chat room ${webhookEvent.room.name} with reason ${disconnectReason}`
         )
-        await components.voice.handleParticipantLeft(
-          webhookEvent.participant.identity,
-          webhookEvent.room.name,
-          disconnectReason
-        )
+        await components.voice.handleParticipantLeft(userAddress, webhookEvent.room.name, disconnectReason)
       }
     }
   }
