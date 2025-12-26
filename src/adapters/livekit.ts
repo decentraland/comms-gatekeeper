@@ -38,6 +38,7 @@ export async function createLivekitComponent(
     worldRoomPrefix,
     sceneRoomPrefix,
     prodHost,
+    privateMessagesRoomId,
     prodApiKey,
     prodSecret,
     previewHost,
@@ -47,6 +48,7 @@ export async function createLivekitComponent(
     config.requireString('WORLD_ROOM_PREFIX'),
     config.requireString('SCENE_ROOM_PREFIX'),
     config.requireString('PROD_LIVEKIT_HOST'),
+    config.requireString('PRIVATE_MESSAGES_ROOM_ID'),
     config.requireString('PROD_LIVEKIT_API_KEY'),
     config.requireString('PROD_LIVEKIT_API_SECRET'),
     config.requireString('PREVIEW_LIVEKIT_HOST'),
@@ -155,6 +157,11 @@ export async function createLivekitComponent(
     if (roomName.startsWith(PRIVATE_VOICE_CHAT_ROOM_PREFIX)) {
       const voiceChatId = getCallIdFromRoomName(roomName)
       return { voiceChatId, roomType: RoomType.VOICE_CHAT }
+    }
+
+    // Private messages: private-messages
+    if (roomName.startsWith(privateMessagesRoomId)) {
+      return { roomType: RoomType.PRIVATE_MESSAGE }
     }
 
     // Unknown room type

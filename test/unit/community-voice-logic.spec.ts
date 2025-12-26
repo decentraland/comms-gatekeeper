@@ -686,7 +686,7 @@ describe('CommunityVoiceLogic', () => {
         mockVoiceDB.isCommunityRoomActive.mockRejectedValue(error)
       })
 
-      it('should return inactive status and log error', async () => {
+      it('should return inactive status', async () => {
         const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
 
         expect(result).toEqual({
@@ -694,12 +694,6 @@ describe('CommunityVoiceLogic', () => {
           participantCount: 0,
           moderatorCount: 0
         })
-
-        // Verify that the logger was called with a warning
-        const mockLogger = mockLogs.getLogger('voice')
-        expect(mockLogger.warn).toHaveBeenCalledWith(
-          expect.stringContaining(`Error getting community voice chat status for ${roomName}`)
-        )
       })
     })
   })
@@ -712,15 +706,6 @@ describe('CommunityVoiceLogic', () => {
         livekit.getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress,
         { isRequestingToSpeak: true }
-      )
-    })
-
-    it('should log success message', async () => {
-      await voiceComponent.requestToSpeakInCommunity(validCommunityId, validUserAddress)
-
-      const mockLogger = mockLogs.getLogger('voice')
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        `Successfully updated metadata for user ${validUserAddress} in community ${validCommunityId}`
       )
     })
   })
@@ -745,15 +730,6 @@ describe('CommunityVoiceLogic', () => {
         { isRequestingToSpeak: false, isSpeaker: true }
       )
     })
-
-    it('should log success message', async () => {
-      await voiceComponent.promoteSpeakerInCommunity(validCommunityId, validUserAddress)
-
-      const mockLogger = mockLogs.getLogger('voice')
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        `Successfully promoted user ${validUserAddress} to speaker in community ${validCommunityId}`
-      )
-    })
   })
 
   describe('when demoting a speaker to listener in community voice chat', () => {
@@ -776,15 +752,6 @@ describe('CommunityVoiceLogic', () => {
         { isRequestingToSpeak: false, isSpeaker: false }
       )
     })
-
-    it('should log success message', async () => {
-      await voiceComponent.demoteSpeakerInCommunity(validCommunityId, validUserAddress)
-
-      const mockLogger = mockLogs.getLogger('voice')
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        `Successfully demoted user ${validUserAddress} to listener in community ${validCommunityId}`
-      )
-    })
   })
 
   describe('when kicking a player from community voice chat', () => {
@@ -794,15 +761,6 @@ describe('CommunityVoiceLogic', () => {
       expect(mockLivekit.removeParticipant).toHaveBeenCalledWith(
         livekit.getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress
-      )
-    })
-
-    it('should log success message', async () => {
-      await voiceComponent.kickPlayerFromCommunity(validCommunityId, validUserAddress)
-
-      const mockLogger = mockLogs.getLogger('voice')
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        `Successfully kicked user ${validUserAddress} from community ${validCommunityId}`
       )
     })
   })

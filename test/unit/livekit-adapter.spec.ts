@@ -36,6 +36,8 @@ beforeEach(async () => {
             return Promise.resolve('world-')
           case 'SCENE_ROOM_PREFIX':
             return Promise.resolve('scene-')
+          case 'PRIVATE_MESSAGES_ROOM_ID':
+            return Promise.resolve('private-messages')
           case 'PROD_LIVEKIT_HOST':
             return Promise.resolve('prod.livekit.example.com')
           case 'PROD_LIVEKIT_API_KEY':
@@ -738,6 +740,17 @@ describe('when getting room metadata from room name', () => {
       expect(result).toEqual({
         islandName: 'island-name-123',
         roomType: 'island'
+      })
+    })
+  })
+
+  describe('when room name is a private messages room', () => {
+    it('should return PRIVATE_MESSAGE room type', () => {
+      const roomName = 'private-messages'
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        roomType: 'private-message'
       })
     })
   })
