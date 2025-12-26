@@ -1,4 +1,4 @@
-import { Router } from '@well-known-components/http-server'
+import { Router } from '@dcl/wkc-http-server'
 import { bearerTokenMiddleware } from '@dcl/platform-server-commons'
 import { wellKnownComponents as authVerificationMiddleware } from '@dcl/platform-crypto-middleware'
 import { GlobalContext } from '../types'
