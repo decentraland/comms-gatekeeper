@@ -730,6 +730,18 @@ describe('when getting room metadata from room name', () => {
     })
   })
 
+  describe('when room name is an island room', () => {
+    it('should extract island name and return ISLAND room type', () => {
+      const roomName = 'island-island-name-123'
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        islandName: 'island-name-123',
+        roomType: 'island'
+      })
+    })
+  })
+
   describe('when room name is unknown', () => {
     it('should return UNKNOWN room type', () => {
       const roomName = 'unknown-room-name'

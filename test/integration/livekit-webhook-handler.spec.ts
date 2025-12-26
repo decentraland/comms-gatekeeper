@@ -3,7 +3,7 @@ import { WebhookEvent } from 'livekit-server-sdk'
 import { test } from '../components'
 import { makeRequest } from '../utils'
 import { VoiceChatUserStatus } from '../../src/adapters/db/types'
-import { EntityType } from '@dcl/schemas'
+import { EntityType, RoomType } from '@dcl/schemas'
 import { createMockedPlace, createMockedWorldPlace } from '../mocks/places-mock'
 
 test('POST /livekit-webhook', ({ components, spyComponents }) => {
@@ -370,9 +370,10 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           }
         }
 
-        spyComponents.livekit.getSceneRoomMetadataFromRoomName.mockReturnValue({
+        spyComponents.livekit.getRoomMetadataFromRoomName.mockReturnValue({
           sceneId: 'scene-id-123',
-          worldName: undefined
+          worldName: undefined,
+          roomType: RoomType.SCENE
         })
         spyComponents.config.requireString.mockResolvedValue('http://localhost:9000')
         spyComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
@@ -421,9 +422,10 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         placeId = 'test-world-place-id'
         bannedAddresses = ['0x789', '0xabc']
 
-        spyComponents.livekit.getSceneRoomMetadataFromRoomName.mockReturnValue({
+        spyComponents.livekit.getRoomMetadataFromRoomName.mockReturnValue({
           sceneId: undefined,
-          worldName: 'world-name-123'
+          worldName: 'world-name-123',
+          roomType: RoomType.WORLD
         })
         const mockedWorldPlace = createMockedWorldPlace({ id: placeId })
         spyComponents.places.getPlaceByWorldName.mockResolvedValue(mockedWorldPlace)

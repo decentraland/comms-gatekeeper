@@ -1,6 +1,6 @@
 import { WebhookEvent } from 'livekit-server-sdk'
 import { IAnalyticsComponent } from '@dcl/analytics-component'
-import { Events, UserJoinedRoomEvent } from '@dcl/schemas'
+import { Events, RoomType, UserJoinedRoomEvent } from '@dcl/schemas'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createParticipantJoinedHandler } from '../../../src/logic/livekit-webhook/event-handlers/participant-joined-handler'
@@ -23,7 +23,7 @@ describe('Participant Joined Handler', () => {
   let handleParticipantJoinedMock: jest.MockedFunction<IVoiceComponent['handleParticipantJoined']>
   let fireEventMock: jest.MockedFunction<IAnalyticsComponent['fireEvent']>
   let publishMessagesMock: jest.MockedFunction<IPublisherComponent['publishMessages']>
-  let getSceneRoomMetadataFromRoomNameMock: jest.MockedFunction<ILivekitComponent['getSceneRoomMetadataFromRoomName']>
+  let getRoomMetadataFromRoomNameMock: jest.MockedFunction<ILivekitComponent['getRoomMetadataFromRoomName']>
   let updateRoomMetadataWithBansMock: jest.MockedFunction<ISceneBansComponent['updateRoomMetadataWithBans']>
   let publisher: jest.Mocked<IPublisherComponent>
   let livekit: jest.Mocked<ILivekitComponent>
@@ -33,7 +33,7 @@ describe('Participant Joined Handler', () => {
     handleParticipantJoinedMock = jest.fn()
     fireEventMock = jest.fn()
     publishMessagesMock = jest.fn()
-    getSceneRoomMetadataFromRoomNameMock = jest.fn()
+    getRoomMetadataFromRoomNameMock = jest.fn()
     updateRoomMetadataWithBansMock = jest.fn()
 
     voice = createVoiceMockedComponent({
@@ -49,7 +49,7 @@ describe('Participant Joined Handler', () => {
     })
 
     livekit = createLivekitMockedComponent({
-      getSceneRoomMetadataFromRoomName: getSceneRoomMetadataFromRoomNameMock
+      getRoomMetadataFromRoomName: getRoomMetadataFromRoomNameMock
     })
 
     sceneBans = createSceneBansMockedComponent({
@@ -90,10 +90,11 @@ describe('Participant Joined Handler', () => {
     describe('and room is a voice chat room', () => {
       beforeEach(() => {
         // Default mock to return no scene/world metadata for voice chat rooms
-        getSceneRoomMetadataFromRoomNameMock.mockReturnValue({
-          sceneId: null,
-          worldName: null,
-          realmName: null
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: undefined,
+          roomType: RoomType.VOICE_CHAT
         })
       })
 
@@ -118,10 +119,28 @@ describe('Participant Joined Handler', () => {
         expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
       })
 
-      it('should not publish any message for voice chat rooms', async () => {
+      it('should publish UserJoinedRoomEvent message for voice chat rooms', async () => {
         await handler.handle(webhookEvent)
 
-        expect(publishMessagesMock).not.toHaveBeenCalled()
+        expect(publishMessagesMock).toHaveBeenCalledWith([
+          {
+            type: Events.Type.COMMS,
+            subType: Events.SubType.Comms.USER_JOINED_ROOM,
+            key: `user-joined-room-${roomName}-${userAddress.slice(0, 42)}`,
+            timestamp: expect.any(Number),
+            metadata: {
+              sceneId: '',
+              userAddress: userAddress,
+              parcel: '',
+              realmName: '',
+              isWorld: false,
+              voiceChatId: undefined,
+              communityId: undefined,
+              islandName: undefined,
+              roomType: RoomType.VOICE_CHAT
+            }
+          }
+        ])
       })
     })
 
@@ -136,7 +155,7 @@ describe('Participant Joined Handler', () => {
         expect(fireEventMock).not.toHaveBeenCalled()
         expect(handleParticipantJoinedMock).not.toHaveBeenCalled()
         expect(publishMessagesMock).not.toHaveBeenCalled()
-        expect(getSceneRoomMetadataFromRoomNameMock).not.toHaveBeenCalled()
+        expect(getRoomMetadataFromRoomNameMock).not.toHaveBeenCalled()
       })
     })
 
@@ -151,7 +170,7 @@ describe('Participant Joined Handler', () => {
         expect(fireEventMock).not.toHaveBeenCalled()
         expect(handleParticipantJoinedMock).not.toHaveBeenCalled()
         expect(publishMessagesMock).not.toHaveBeenCalled()
-        expect(getSceneRoomMetadataFromRoomNameMock).not.toHaveBeenCalled()
+        expect(getRoomMetadataFromRoomNameMock).not.toHaveBeenCalled()
       })
     })
 
@@ -167,7 +186,7 @@ describe('Participant Joined Handler', () => {
         expect(fireEventMock).not.toHaveBeenCalled()
         expect(handleParticipantJoinedMock).not.toHaveBeenCalled()
         expect(publishMessagesMock).not.toHaveBeenCalled()
-        expect(getSceneRoomMetadataFromRoomNameMock).not.toHaveBeenCalled()
+        expect(getRoomMetadataFromRoomNameMock).not.toHaveBeenCalled()
       })
     })
 
@@ -180,22 +199,24 @@ describe('Participant Joined Handler', () => {
         sceneId = 'scene-123'
         realmName = 'realm-456'
         webhookEvent.room!.name = 'scene-room-name'
-        getSceneRoomMetadataFromRoomNameMock.mockReturnValue({
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
           sceneId,
-          worldName: null,
-          realmName
+          worldName: undefined,
+          realmName,
+          roomType: RoomType.SCENE
         })
         expectedEvent = {
           type: Events.Type.COMMS,
           subType: Events.SubType.Comms.USER_JOINED_ROOM,
-          key: `user-joined-room-${webhookEvent.room!.name}`,
+          key: `user-joined-room-${webhookEvent.room!.name}-${userAddress.slice(0, 42)}`,
           timestamp: expect.any(Number),
           metadata: {
             sceneId,
             userAddress: userAddress,
             parcel: '',
             realmName,
-            isWorld: false
+            isWorld: false,
+            roomType: RoomType.SCENE
           }
         }
       })
@@ -235,22 +256,24 @@ describe('Participant Joined Handler', () => {
       beforeEach(() => {
         worldName = 'world-789'
         webhookEvent.room!.name = 'world-room-name'
-        getSceneRoomMetadataFromRoomNameMock.mockReturnValue({
-          sceneId: null,
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId: undefined,
           worldName,
-          realmName: null
+          realmName: undefined,
+          roomType: RoomType.WORLD
         })
         expectedEvent = {
           type: Events.Type.COMMS,
           subType: Events.SubType.Comms.USER_JOINED_ROOM,
-          key: `user-joined-room-${webhookEvent.room!.name}`,
+          key: `user-joined-room-${webhookEvent.room!.name}-${userAddress.slice(0, 42)}`,
           timestamp: expect.any(Number),
           metadata: {
             sceneId: '',
             userAddress: userAddress,
             parcel: '',
             realmName: worldName,
-            isWorld: true
+            isWorld: true,
+            roomType: RoomType.WORLD
           }
         }
       })
@@ -283,13 +306,132 @@ describe('Participant Joined Handler', () => {
       })
     })
 
-    describe('and room is neither scene nor world room', () => {
+    describe('and room is a community voice chat room', () => {
+      let communityId: string
+      let expectedEvent: UserJoinedRoomEvent
+
+      beforeEach(() => {
+        communityId = 'community-123'
+        webhookEvent.room!.name = `voice-chat-community-${communityId}`
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: undefined,
+          communityId,
+          roomType: RoomType.COMMUNITY_VOICE_CHAT
+        })
+        expectedEvent = {
+          type: Events.Type.COMMS,
+          subType: Events.SubType.Comms.USER_JOINED_ROOM,
+          key: `user-joined-room-${webhookEvent.room!.name}-${userAddress.slice(0, 42)}`,
+          timestamp: expect.any(Number),
+          metadata: {
+            sceneId: '',
+            userAddress: userAddress,
+            parcel: '',
+            realmName: '',
+            isWorld: false,
+            communityId,
+            roomType: RoomType.COMMUNITY_VOICE_CHAT
+          }
+        }
+      })
+
+      it('should publish UserJoinedRoomEvent message with community metadata', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(publishMessagesMock).toHaveBeenCalledWith([expectedEvent])
+      })
+
+      it('should fire analytics event', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_JOINED_ROOM, {
+          room: webhookEvent.room!.name,
+          address: userAddress
+        })
+      })
+
+      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+      })
+
+      it('should call the voice handler for community voice chat rooms', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(handleParticipantJoinedMock).toHaveBeenCalledWith(userAddress, webhookEvent.room!.name)
+      })
+    })
+
+    describe('and room is an island room', () => {
+      let islandName: string
+      let expectedEvent: UserJoinedRoomEvent
+
+      beforeEach(() => {
+        islandName = 'island-123'
+        webhookEvent.room!.name = `island-${islandName}`
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: undefined,
+          islandName,
+          roomType: RoomType.ISLAND
+        })
+        expectedEvent = {
+          type: Events.Type.COMMS,
+          subType: Events.SubType.Comms.USER_JOINED_ROOM,
+          key: `user-joined-room-${webhookEvent.room!.name}-${userAddress.slice(0, 42)}`,
+          timestamp: expect.any(Number),
+          metadata: {
+            sceneId: '',
+            userAddress: userAddress,
+            parcel: '',
+            realmName: '',
+            isWorld: false,
+            islandName,
+            roomType: RoomType.ISLAND
+          }
+        }
+      })
+
+      it('should publish UserJoinedRoomEvent message with island metadata', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(publishMessagesMock).toHaveBeenCalledWith([expectedEvent])
+      })
+
+      it('should fire analytics event', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_JOINED_ROOM, {
+          room: webhookEvent.room!.name,
+          address: userAddress
+        })
+      })
+
+      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+      })
+
+      it('should not call the voice handler for island rooms', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(handleParticipantJoinedMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and room is an unknown room type', () => {
       beforeEach(() => {
         webhookEvent.room!.name = 'other-room-name'
-        getSceneRoomMetadataFromRoomNameMock.mockReturnValue({
-          sceneId: null,
-          worldName: null,
-          realmName: 'some-realm'
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: 'some-realm',
+          roomType: RoomType.UNKNOWN
         })
       })
 
@@ -313,6 +455,12 @@ describe('Participant Joined Handler', () => {
 
         expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
       })
+
+      it('should not call the voice handler', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(handleParticipantJoinedMock).not.toHaveBeenCalled()
+      })
     })
 
     describe('and message publishing fails', () => {
@@ -323,10 +471,11 @@ describe('Participant Joined Handler', () => {
         publishError = new Error('Publishing failed')
         sceneId = 'scene-123'
         webhookEvent.room!.name = 'scene-room-name'
-        getSceneRoomMetadataFromRoomNameMock.mockReturnValue({
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
           sceneId,
-          worldName: null,
-          realmName: 'realm-456'
+          worldName: undefined,
+          realmName: 'realm-456',
+          roomType: RoomType.SCENE
         })
         publishMessagesMock.mockRejectedValue(publishError)
       })
@@ -348,11 +497,12 @@ describe('Participant Joined Handler', () => {
       beforeEach(() => {
         error = new Error('Voice handler failed')
         handleParticipantJoinedMock.mockRejectedValue(error)
-        // Mock the getSceneRoomMetadataFromRoomName to return no scene/world data
-        getSceneRoomMetadataFromRoomNameMock.mockReturnValue({
-          sceneId: null,
-          worldName: null,
-          realmName: null
+        // Mock the getRoomMetadataFromRoomName to return no scene/world data
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: undefined,
+          roomType: RoomType.VOICE_CHAT
         })
       })
 
@@ -375,11 +525,12 @@ describe('Participant Joined Handler', () => {
         fireEventMock.mockImplementation(() => {
           throw error
         })
-        // Mock the getSceneRoomMetadataFromRoomName to return no scene/world data
-        getSceneRoomMetadataFromRoomNameMock.mockReturnValue({
-          sceneId: null,
-          worldName: null,
-          realmName: null
+        // Mock the getRoomMetadataFromRoomName to return no scene/world data
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: undefined,
+          roomType: RoomType.VOICE_CHAT
         })
       })
 

@@ -50,6 +50,7 @@ export type ILivekitComponent = IBaseComponent & {
   getCallIdFromRoomName: (roomName: string) => string
   getCommunityVoiceChatRoomName: (communityId: string) => string
   getCommunityIdFromRoomName: (roomName: string) => string
+  getIslandNameFromRoomName: (roomName: string) => string
   getRoomMetadataFromRoomName: (roomName: string) => RoomMetadata
   getRoomName: (realmName: string, params: GetRoomNameParams) => string
   getRoom: (roomName: string) => Promise<Room>

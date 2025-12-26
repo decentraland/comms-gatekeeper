@@ -25,6 +25,7 @@ import { isErrorWithMessage } from '../logic/errors'
 
 export const COMMUNITY_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-community'
 export const PRIVATE_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-private-'
+export const ISLAND_ROOM_PREFIX = 'island-'
 
 export async function createLivekitComponent(
   components: Pick<AppComponents, 'config' | 'logs'>
@@ -121,6 +122,10 @@ export async function createLivekitComponent(
     return roomName.replace(`${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-`, '')
   }
 
+  function getIslandNameFromRoomName(roomName: string): string {
+    return roomName.replace(ISLAND_ROOM_PREFIX, '')
+  }
+
   function getRoomMetadataFromRoomName(roomName: string): RoomMetadata {
     // Scene room: {sceneRoomPrefix}{realmName}:{sceneId}
     if (roomName.startsWith(sceneRoomPrefix)) {
@@ -132,6 +137,12 @@ export async function createLivekitComponent(
     if (roomName.startsWith(worldRoomPrefix)) {
       const worldName = roomName.replace(worldRoomPrefix, '')
       return { worldName, roomType: RoomType.WORLD }
+    }
+
+    // Island room: island-{islandName}
+    if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
+      const islandName = getIslandNameFromRoomName(roomName)
+      return { islandName, roomType: RoomType.ISLAND }
     }
 
     // Community voice chat: {COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-{communityId}
@@ -354,6 +365,7 @@ export async function createLivekitComponent(
     getCallIdFromRoomName,
     getCommunityVoiceChatRoomName,
     getCommunityIdFromRoomName,
+    getIslandNameFromRoomName,
     getRoomMetadataFromRoomName,
     getRoomName,
     muteParticipant,

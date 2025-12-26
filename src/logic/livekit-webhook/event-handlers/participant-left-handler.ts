@@ -30,7 +30,7 @@ export function createParticipantLeftHandler(
       const event: UserLeftRoomEvent = {
         type: Events.Type.COMMS,
         subType: Events.SubType.Comms.USER_LEFT_ROOM,
-        key: `user-left-room-${room.name}`,
+        key: `user-left-room-${room.name}-${participant.identity.toLowerCase().slice(0, 42)}`,
         timestamp: Date.now(),
         metadata: {
           sceneId: sceneId,

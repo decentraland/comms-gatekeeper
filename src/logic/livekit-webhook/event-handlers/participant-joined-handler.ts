@@ -24,7 +24,7 @@ export function createParticipantJoinedHandler(
     const event: UserJoinedRoomEvent = {
       type: Events.Type.COMMS,
       subType: Events.SubType.Comms.USER_JOINED_ROOM,
-      key: `user-joined-room-${room.name}`,
+      key: `user-joined-room-${room.name}-${address.slice(0, 42)}`,
       timestamp: Date.now(),
       metadata: {
         sceneId: sceneId ?? '',
