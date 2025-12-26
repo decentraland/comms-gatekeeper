@@ -1,5 +1,4 @@
 import { VoiceChatUserStatus } from '../../../src/adapters/db/types'
-import { getPrivateVoiceChatRoomName } from '../../../src/logic/voice/utils'
 import { LivekitCredentials } from '../../../src/types/livekit.type'
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
@@ -244,7 +243,9 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         })
 
         afterEach(async () => {
-          await components.voiceDB.deletePrivateVoiceChat(getPrivateVoiceChatRoomName(requestBody.room_id))
+          await components.voiceDB.deletePrivateVoiceChat(
+            components.livekit.getPrivateVoiceChatRoomName(requestBody.room_id)
+          )
         })
 
         it('should create respond with a 200 and the voice chat credentials', async () => {
@@ -267,18 +268,18 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
             }
           })
           await expect(
-            components.voiceDB.getUsersInRoom(getPrivateVoiceChatRoomName(requestBody.room_id))
+            components.voiceDB.getUsersInRoom(components.livekit.getPrivateVoiceChatRoomName(requestBody.room_id))
           ).resolves.toEqual([
             {
               address: validAddress1.toLowerCase(),
-              roomName: getPrivateVoiceChatRoomName(requestBody.room_id),
+              roomName: components.livekit.getPrivateVoiceChatRoomName(requestBody.room_id),
               status: VoiceChatUserStatus.NotConnected,
               joinedAt: expect.any(Number),
               statusUpdatedAt: expect.any(Number)
             },
             {
               address: validAddress2.toLowerCase(),
-              roomName: getPrivateVoiceChatRoomName(requestBody.room_id),
+              roomName: components.livekit.getPrivateVoiceChatRoomName(requestBody.room_id),
               status: VoiceChatUserStatus.NotConnected,
               joinedAt: expect.any(Number),
               statusUpdatedAt: expect.any(Number)

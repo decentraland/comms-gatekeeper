@@ -1,4 +1,3 @@
-import { getPrivateVoiceChatRoomName } from '../../../src/logic/voice/utils'
 import { test } from '../../components'
 import { setUserJoinedAt } from '../../db-utils'
 import { makeRequest } from '../../utils'
@@ -170,7 +169,7 @@ test('DELETE /private-voice-chat/:id', ({ components, spyComponents }) => {
         let roomName: string
 
         beforeEach(async () => {
-          roomName = getPrivateVoiceChatRoomName(roomId)
+          roomName = components.livekit.getPrivateVoiceChatRoomName(roomId)
           await components.voiceDB.createVoiceChatRoom(roomName, usersInRoom)
           spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
         })
@@ -192,7 +191,9 @@ test('DELETE /private-voice-chat/:id', ({ components, spyComponents }) => {
               })
               const body = await response.json()
 
-              expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(getPrivateVoiceChatRoomName(roomId))
+              expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(
+                components.livekit.getPrivateVoiceChatRoomName(roomId)
+              )
               expect(response.status).toBe(200)
               expect(body).toEqual({
                 users_in_voice_chat: expect.arrayContaining(usersInRoom)
@@ -217,7 +218,9 @@ test('DELETE /private-voice-chat/:id', ({ components, spyComponents }) => {
               })
               const body = await response.json()
 
-              expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(getPrivateVoiceChatRoomName(roomId))
+              expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(
+                components.livekit.getPrivateVoiceChatRoomName(roomId)
+              )
               expect(response.status).toBe(200)
               expect(body).toEqual({
                 users_in_voice_chat: expect.arrayContaining(usersInRoom)
@@ -243,7 +246,9 @@ test('DELETE /private-voice-chat/:id', ({ components, spyComponents }) => {
               })
               const body = await response.json()
 
-              expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(getPrivateVoiceChatRoomName(roomId))
+              expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(
+                components.livekit.getPrivateVoiceChatRoomName(roomId)
+              )
               expect(response.status).toBe(200)
               expect(body).toEqual({
                 users_in_voice_chat: expect.arrayContaining(usersInRoom)
@@ -268,7 +273,9 @@ test('DELETE /private-voice-chat/:id', ({ components, spyComponents }) => {
               })
               const body = await response.json()
 
-              expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(getPrivateVoiceChatRoomName(roomId))
+              expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(
+                components.livekit.getPrivateVoiceChatRoomName(roomId)
+              )
               expect(response.status).toBe(200)
               expect(body).toEqual({
                 users_in_voice_chat: expect.arrayContaining(usersInRoom)
@@ -292,7 +299,9 @@ test('DELETE /private-voice-chat/:id', ({ components, spyComponents }) => {
               body: JSON.stringify(requestBody)
             })
 
-            expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(getPrivateVoiceChatRoomName(roomId))
+            expect(spyComponents.livekit.deleteRoom).toHaveBeenCalledWith(
+              components.livekit.getPrivateVoiceChatRoomName(roomId)
+            )
             expect(response.status).toBe(200)
             const body = await response.json()
             expect(body).toEqual({

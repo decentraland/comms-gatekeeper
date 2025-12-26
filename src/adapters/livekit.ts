@@ -10,6 +10,7 @@ import {
   TrackSource,
   WebhookReceiver
 } from 'livekit-server-sdk'
+import { RoomType } from '@dcl/schemas'
 import { AppComponents, Permissions } from '../types'
 import { LivekitIngressNotFoundError } from '../types/errors'
 import {
@@ -18,9 +19,13 @@ import {
   LivekitCredentials,
   LivekitSettings,
   ParticipantPermissions,
-  SceneRoomMetadata
+  RoomMetadata
 } from '../types/livekit.type'
 import { isErrorWithMessage } from '../logic/errors'
+
+export const COMMUNITY_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-community'
+export const PRIVATE_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-private-'
+export const ISLAND_ROOM_PREFIX = 'island-'
 
 export async function createLivekitComponent(
   components: Pick<AppComponents, 'config' | 'logs'>
@@ -33,6 +38,7 @@ export async function createLivekitComponent(
     worldRoomPrefix,
     sceneRoomPrefix,
     prodHost,
+    privateMessagesRoomId,
     prodApiKey,
     prodSecret,
     previewHost,
@@ -42,6 +48,7 @@ export async function createLivekitComponent(
     config.requireString('WORLD_ROOM_PREFIX'),
     config.requireString('SCENE_ROOM_PREFIX'),
     config.requireString('PROD_LIVEKIT_HOST'),
+    config.requireString('PRIVATE_MESSAGES_ROOM_ID'),
     config.requireString('PROD_LIVEKIT_API_KEY'),
     config.requireString('PROD_LIVEKIT_API_SECRET'),
     config.requireString('PREVIEW_LIVEKIT_HOST'),
@@ -101,12 +108,64 @@ export async function createLivekitComponent(
     return `${sceneRoomPrefix}${realmName}:${sceneId}`
   }
 
-  function getSceneRoomMetadataFromRoomName(roomName: string): SceneRoomMetadata {
-    const [realmName, sceneId] = roomName.includes(sceneRoomPrefix)
-      ? roomName.replace(`${sceneRoomPrefix}`, '').split(':')
-      : []
-    const worldName = roomName.includes(worldRoomPrefix) ? roomName.replace(`${worldRoomPrefix}`, '') : undefined
-    return { realmName, sceneId, worldName }
+  function getPrivateVoiceChatRoomName(roomId: string): string {
+    return `${PRIVATE_VOICE_CHAT_ROOM_PREFIX}${roomId}`
+  }
+
+  function getCallIdFromRoomName(roomName: string): string {
+    return roomName.replace(PRIVATE_VOICE_CHAT_ROOM_PREFIX, '')
+  }
+
+  function getCommunityVoiceChatRoomName(communityId: string): string {
+    return `${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-${communityId}`
+  }
+
+  function getCommunityIdFromRoomName(roomName: string): string {
+    return roomName.replace(`${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-`, '')
+  }
+
+  function getIslandNameFromRoomName(roomName: string): string {
+    return roomName.replace(ISLAND_ROOM_PREFIX, '')
+  }
+
+  function getRoomMetadataFromRoomName(roomName: string): RoomMetadata {
+    // Scene room: {sceneRoomPrefix}{realmName}:{sceneId}
+    if (roomName.startsWith(sceneRoomPrefix)) {
+      const [realmName, sceneId] = roomName.replace(sceneRoomPrefix, '').split(':')
+      return { realmName, sceneId, roomType: RoomType.SCENE }
+    }
+
+    // World room: {worldRoomPrefix}{worldName}
+    if (roomName.startsWith(worldRoomPrefix)) {
+      const worldName = roomName.replace(worldRoomPrefix, '')
+      return { worldName, roomType: RoomType.WORLD }
+    }
+
+    // Island room: island-{islandName}
+    if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
+      const islandName = getIslandNameFromRoomName(roomName)
+      return { islandName, roomType: RoomType.ISLAND }
+    }
+
+    // Community voice chat: {COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-{communityId}
+    if (roomName.startsWith(COMMUNITY_VOICE_CHAT_ROOM_PREFIX)) {
+      const communityId = getCommunityIdFromRoomName(roomName)
+      return { communityId, roomType: RoomType.COMMUNITY_VOICE_CHAT }
+    }
+
+    // Private voice chat: voice-chat-private-{callId}
+    if (roomName.startsWith(PRIVATE_VOICE_CHAT_ROOM_PREFIX)) {
+      const voiceChatId = getCallIdFromRoomName(roomName)
+      return { voiceChatId, roomType: RoomType.VOICE_CHAT }
+    }
+
+    // Private messages: private-messages
+    if (roomName.startsWith(privateMessagesRoomId)) {
+      return { roomType: RoomType.PRIVATE_MESSAGE }
+    }
+
+    // Unknown room type
+    return { roomType: RoomType.UNKNOWN }
   }
 
   function getRoomName(realmName: string, params: GetRoomNameParams): string {
@@ -309,7 +368,12 @@ export async function createLivekitComponent(
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
-    getSceneRoomMetadataFromRoomName,
+    getPrivateVoiceChatRoomName,
+    getCallIdFromRoomName,
+    getCommunityVoiceChatRoomName,
+    getCommunityIdFromRoomName,
+    getIslandNameFromRoomName,
+    getRoomMetadataFromRoomName,
     getRoomName,
     muteParticipant,
     removeParticipant,

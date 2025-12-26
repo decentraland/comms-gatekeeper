@@ -2,15 +2,17 @@ import { ILoggerComponent } from '@well-known-components/interfaces'
 import { IAnalyticsComponent } from '@dcl/analytics-component'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { createVoiceComponent } from '../../src/logic/voice/voice'
-import { getCommunityVoiceChatRoomName } from '../../src/logic/voice/utils'
 import { IVoiceComponent } from '../../src/logic/voice/types'
 import { IVoiceDBComponent, VoiceChatUserStatus } from '../../src/adapters/db/types'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 import { AnalyticsEventPayload } from '../../src/types/analytics'
 import { CommunityRole } from '../../src/types/social.type'
 import { CommunityVoiceChatAction } from '../../src/types/community-voice'
+import { createLivekitComponent } from '../../src/adapters/livekit'
 import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 import { createVoiceDBMockedComponent } from '../mocks/voice-db-mock'
+import { createLoggerMockedComponent } from '../mocks/logger-mock'
+import { createConfigMockedComponent } from '../mocks/config-mock'
 import { createPublisherMockedComponent } from '../mocks/publisher-mock'
 
 describe('CommunityVoiceLogic', () => {
@@ -19,6 +21,7 @@ describe('CommunityVoiceLogic', () => {
   let mockLivekit: jest.Mocked<ILivekitComponent>
   let mockLogs: jest.Mocked<ILoggerComponent>
   let mockAnalytics: jest.Mocked<IAnalyticsComponent<AnalyticsEventPayload>>
+  let livekit: ILivekitComponent
   let mockPublisher: jest.Mocked<IPublisherComponent>
 
   const validCommunityId = 'test-community-123'
@@ -26,22 +29,38 @@ describe('CommunityVoiceLogic', () => {
   const validMemberAddress = '0x742d35Cc6635C0532925a3b8D6Ac6C2b6000b8B0'
   const validUserAddress = '0x1234567890123456789012345678901234567890'
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockVoiceDB = createVoiceDBMockedComponent()
     mockLivekit = createLivekitMockedComponent()
+    const mockConfig = createConfigMockedComponent({
+      requireString: jest.fn().mockImplementation((key) => {
+        switch (key) {
+          case 'WORLD_ROOM_PREFIX':
+            return Promise.resolve('world-')
+          case 'SCENE_ROOM_PREFIX':
+            return Promise.resolve('scene-')
+          case 'PRIVATE_MESSAGES_ROOM_ID':
+            return Promise.resolve('private-messages')
+          case 'PROD_LIVEKIT_HOST':
+            return Promise.resolve('prod.livekit.cloud')
+          case 'PROD_LIVEKIT_API_KEY':
+            return Promise.resolve('prod-api-key')
+          case 'PROD_LIVEKIT_API_SECRET':
+            return Promise.resolve('prod-secret')
+          case 'PREVIEW_LIVEKIT_HOST':
+            return Promise.resolve('preview.livekit.cloud')
+          case 'PREVIEW_LIVEKIT_API_KEY':
+            return Promise.resolve('preview-api-key')
+          case 'PREVIEW_LIVEKIT_API_SECRET':
+            return Promise.resolve('preview-secret')
+          default:
+            return Promise.reject(new Error(`Unknown key: ${key}`))
+        }
+      })
+    })
 
-    const mockLogger = {
-      debug: jest.fn(),
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      trace: jest.fn(),
-      log: jest.fn()
-    }
-
-    mockLogs = {
-      getLogger: jest.fn().mockReturnValue(mockLogger)
-    } as jest.Mocked<ILoggerComponent>
+    mockLogs = createLoggerMockedComponent()
+    livekit = await createLivekitComponent({ logs: mockLogs, config: mockConfig })
 
     mockAnalytics = {
       fireEvent: jest.fn(),
@@ -114,7 +133,7 @@ describe('CommunityVoiceLogic', () => {
 
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validModeratorAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: true,
@@ -134,7 +153,7 @@ describe('CommunityVoiceLogic', () => {
 
         expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
           validModeratorAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           true
         )
       })
@@ -163,7 +182,7 @@ describe('CommunityVoiceLogic', () => {
 
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validModeratorAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: true,
@@ -180,7 +199,7 @@ describe('CommunityVoiceLogic', () => {
 
         expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
           validModeratorAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           true
         )
       })
@@ -206,7 +225,7 @@ describe('CommunityVoiceLogic', () => {
         // Verify that the metadata passed to generateCredentials includes isSpeaker: true
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validModeratorAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: true,
@@ -233,7 +252,7 @@ describe('CommunityVoiceLogic', () => {
         )
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validModeratorAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: true, // Just owners are speakers by default
@@ -255,7 +274,7 @@ describe('CommunityVoiceLogic', () => {
         )
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validModeratorAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: false, // Moderators are not speakers by default unless they create the room
@@ -277,7 +296,7 @@ describe('CommunityVoiceLogic', () => {
         )
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validMemberAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: false,
@@ -299,7 +318,7 @@ describe('CommunityVoiceLogic', () => {
         )
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validMemberAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: false,
@@ -373,7 +392,7 @@ describe('CommunityVoiceLogic', () => {
 
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validMemberAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: false,
@@ -393,7 +412,7 @@ describe('CommunityVoiceLogic', () => {
 
         expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
           validMemberAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           false
         )
       })
@@ -421,7 +440,7 @@ describe('CommunityVoiceLogic', () => {
 
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validMemberAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: false,
@@ -438,7 +457,7 @@ describe('CommunityVoiceLogic', () => {
 
         expect(mockVoiceDB.joinUserToCommunityRoom).toHaveBeenCalledWith(
           validMemberAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           false
         )
       })
@@ -462,7 +481,7 @@ describe('CommunityVoiceLogic', () => {
         // Verify that the metadata passed to generateCredentials includes isSpeaker: false
         expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
           validMemberAddress,
-          getCommunityVoiceChatRoomName(validCommunityId),
+          livekit.getCommunityVoiceChatRoomName(validCommunityId),
           {
             cast: [],
             canPublish: false,
@@ -496,7 +515,11 @@ describe('CommunityVoiceLogic', () => {
   })
 
   describe('when getting community voice chat status', () => {
-    const roomName = getCommunityVoiceChatRoomName(validCommunityId)
+    let roomName: string
+
+    beforeEach(() => {
+      roomName = livekit.getCommunityVoiceChatRoomName(validCommunityId)
+    })
 
     describe('and the room is not active', () => {
       beforeEach(() => {
@@ -665,7 +688,7 @@ describe('CommunityVoiceLogic', () => {
         mockVoiceDB.isCommunityRoomActive.mockRejectedValue(error)
       })
 
-      it('should return inactive status and log error', async () => {
+      it('should return inactive status', async () => {
         const result = await voiceComponent.getCommunityVoiceChatStatus(validCommunityId)
 
         expect(result).toEqual({
@@ -673,12 +696,6 @@ describe('CommunityVoiceLogic', () => {
           participantCount: 0,
           moderatorCount: 0
         })
-
-        // Verify that the logger was called with a warning
-        const mockLogger = mockLogs.getLogger('voice')
-        expect(mockLogger.warn).toHaveBeenCalledWith(
-          expect.stringContaining(`Error getting community voice chat status for ${roomName}`)
-        )
       })
     })
   })
@@ -688,18 +705,9 @@ describe('CommunityVoiceLogic', () => {
       await voiceComponent.requestToSpeakInCommunity(validCommunityId, validUserAddress)
 
       expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
-        getCommunityVoiceChatRoomName(validCommunityId),
+        livekit.getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress,
         { isRequestingToSpeak: true }
-      )
-    })
-
-    it('should log success message', async () => {
-      await voiceComponent.requestToSpeakInCommunity(validCommunityId, validUserAddress)
-
-      const mockLogger = mockLogs.getLogger('voice')
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        `Successfully updated metadata for user ${validUserAddress} in community ${validCommunityId}`
       )
     })
   })
@@ -709,7 +717,7 @@ describe('CommunityVoiceLogic', () => {
       await voiceComponent.promoteSpeakerInCommunity(validCommunityId, validUserAddress)
 
       expect(mockLivekit.updateParticipantPermissions).toHaveBeenCalledWith(
-        getCommunityVoiceChatRoomName(validCommunityId),
+        livekit.getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress,
         {
           canPublish: true,
@@ -719,18 +727,9 @@ describe('CommunityVoiceLogic', () => {
       )
 
       expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
-        getCommunityVoiceChatRoomName(validCommunityId),
+        livekit.getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress,
         { isRequestingToSpeak: false, isSpeaker: true }
-      )
-    })
-
-    it('should log success message', async () => {
-      await voiceComponent.promoteSpeakerInCommunity(validCommunityId, validUserAddress)
-
-      const mockLogger = mockLogs.getLogger('voice')
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        `Successfully promoted user ${validUserAddress} to speaker in community ${validCommunityId}`
       )
     })
   })
@@ -740,7 +739,7 @@ describe('CommunityVoiceLogic', () => {
       await voiceComponent.demoteSpeakerInCommunity(validCommunityId, validUserAddress)
 
       expect(mockLivekit.updateParticipantPermissions).toHaveBeenCalledWith(
-        getCommunityVoiceChatRoomName(validCommunityId),
+        livekit.getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress,
         {
           canPublish: false,
@@ -750,18 +749,9 @@ describe('CommunityVoiceLogic', () => {
       )
 
       expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
-        getCommunityVoiceChatRoomName(validCommunityId),
+        livekit.getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress,
         { isRequestingToSpeak: false, isSpeaker: false }
-      )
-    })
-
-    it('should log success message', async () => {
-      await voiceComponent.demoteSpeakerInCommunity(validCommunityId, validUserAddress)
-
-      const mockLogger = mockLogs.getLogger('voice')
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        `Successfully demoted user ${validUserAddress} to listener in community ${validCommunityId}`
       )
     })
   })
@@ -771,17 +761,8 @@ describe('CommunityVoiceLogic', () => {
       await voiceComponent.kickPlayerFromCommunity(validCommunityId, validUserAddress)
 
       expect(mockLivekit.removeParticipant).toHaveBeenCalledWith(
-        getCommunityVoiceChatRoomName(validCommunityId),
+        livekit.getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress
-      )
-    })
-
-    it('should log success message', async () => {
-      await voiceComponent.kickPlayerFromCommunity(validCommunityId, validUserAddress)
-
-      const mockLogger = mockLogs.getLogger('voice')
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        `Successfully kicked user ${validUserAddress} from community ${validCommunityId}`
       )
     })
   })

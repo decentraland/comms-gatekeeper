@@ -1,6 +1,7 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
 import { IngressInfo, Room, WebhookEvent, ParticipantInfo } from 'livekit-server-sdk'
 import { Permissions } from '../types'
+import { RoomType } from '@dcl/schemas'
 
 export type LivekitCredentials = {
   token: string
@@ -19,10 +20,14 @@ export type ParticipantPermissions = {
   canPublishData?: boolean
 }
 
-export type SceneRoomMetadata = {
+export type RoomMetadata = {
+  communityId?: string
+  voiceChatId?: string
+  islandName?: string
   realmName?: string
   sceneId?: string
   worldName?: string
+  roomType: RoomType
 }
 
 export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
@@ -41,7 +46,12 @@ export type ILivekitComponent = IBaseComponent & {
   removeParticipant: (roomId: string, participantId: string) => Promise<void>
   getWorldRoomName: (worldName: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
-  getSceneRoomMetadataFromRoomName: (roomName: string) => SceneRoomMetadata
+  getPrivateVoiceChatRoomName: (roomId: string) => string
+  getCallIdFromRoomName: (roomName: string) => string
+  getCommunityVoiceChatRoomName: (communityId: string) => string
+  getCommunityIdFromRoomName: (roomName: string) => string
+  getIslandNameFromRoomName: (roomName: string) => string
+  getRoomMetadataFromRoomName: (roomName: string) => RoomMetadata
   getRoomName: (realmName: string, params: GetRoomNameParams) => string
   getRoom: (roomName: string) => Promise<Room>
   getRoomInfo: (roomName: string) => Promise<Room | null>

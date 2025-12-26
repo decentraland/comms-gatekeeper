@@ -3,7 +3,7 @@ import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
 import { isRoomEventValid, isVoiceChatRoom } from './utils'
-import { Events } from '@dcl/schemas'
+import { Events, RoomType } from '@dcl/schemas'
 import { UserJoinedRoomEvent } from '@dcl/schemas'
 
 export function createParticipantJoinedHandler(
@@ -12,30 +12,36 @@ export function createParticipantJoinedHandler(
   const { livekit, logs, publisher, analytics, voice, sceneBans } = components
   const logger = logs.getLogger('participant-joined-handler')
 
-  async function publishUserJoinedRoomEvent(room: Room, address: string): Promise<void> {
-    const { sceneId, worldName, realmName } = livekit.getSceneRoomMetadataFromRoomName(room.name)
+  async function publishUserJoinedRoomEvent(room: Room, userAddress: string): Promise<void> {
+    const { sceneId, worldName, realmName, roomType, communityId, voiceChatId, islandName } =
+      livekit.getRoomMetadataFromRoomName(room.name)
 
-    if (!sceneId && !worldName) {
+    if (roomType === RoomType.UNKNOWN) {
+      logger.warn(`Unknown room type for participant joined: ${room.name}`)
       return
     }
 
     const event: UserJoinedRoomEvent = {
       type: Events.Type.COMMS,
       subType: Events.SubType.Comms.USER_JOINED_ROOM,
-      key: `user-joined-room-${room.name}`,
+      key: `user-joined-room-${room.name}-${userAddress}`,
       timestamp: Date.now(),
       metadata: {
         sceneId: sceneId ?? '',
-        userAddress: address,
+        userAddress,
         parcel: '',
         realmName: worldName ?? realmName ?? '',
-        isWorld: !!worldName
+        isWorld: !!worldName,
+        voiceChatId,
+        communityId,
+        islandName,
+        roomType
       }
     }
 
     try {
       await publisher.publishMessages([event])
-      logger.debug(`Published UserJoinedRoomEvent for ${address} in room ${room.name}`)
+      logger.debug(`Published UserJoinedRoomEvent for ${userAddress} in room ${room.name}`)
     } catch (error: any) {
       logger.error(`Failed to publish UserJoinedRoomEvent: ${error}`, {
         error,
@@ -66,7 +72,7 @@ export function createParticipantJoinedHandler(
       }
       const { room, participant } = webhookEvent
 
-      const address = participant.identity.toLowerCase()
+      const address = participant.identity.toLowerCase().slice(0, 42)
 
       await Promise.all([
         publishUserJoinedRoomEvent(room, address),

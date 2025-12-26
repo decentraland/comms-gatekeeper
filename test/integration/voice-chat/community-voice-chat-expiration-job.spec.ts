@@ -1,19 +1,19 @@
 import { test } from '../../components'
-import { getCommunityVoiceChatRoomName } from '../../../src/logic/voice/utils'
 import { VoiceChatUserStatus } from '../../../src/adapters/db/types'
 import { setCommunityUserStatus } from '../../db-utils'
 
 test('Community voice chat expiration job', ({ components }) => {
   const communityId = 'test-community-expiration'
-  const roomName = getCommunityVoiceChatRoomName(communityId)
   const moderatorAddress = '0x1234567890123456789012345678901234567890'
   const memberAddress = '0x1234567890123456789012345678901234567891'
 
+  let roomName: string
   let VOICE_CHAT_CONNECTION_INTERRUPTED_TTL: number
   let VOICE_CHAT_INITIAL_CONNECTION_TTL: number
   let COMMUNITY_VOICE_CHAT_NO_MODERATOR_TTL: number
 
   beforeEach(async () => {
+    roomName = components.livekit.getCommunityVoiceChatRoomName(communityId)
     // Get TTL values from config - this is critical for the tests to work correctly
     VOICE_CHAT_CONNECTION_INTERRUPTED_TTL = await components.config.requireNumber(
       'VOICE_CHAT_CONNECTION_INTERRUPTED_TTL'

@@ -1,6 +1,6 @@
 import SQL from 'sql-template-strings'
 import { PoolClient } from 'pg'
-import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX, getCommunityVoiceChatRoomName } from '../../logic/voice/utils'
+import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX } from '../livekit'
 import { AppComponents } from '../../types'
 import { IVoiceDBComponent, VoiceChatUser, VoiceChatUserStatus, CommunityVoiceChatUser } from './types'
 import { RoomDoesNotExistError } from './errors'
@@ -8,8 +8,9 @@ import { RoomDoesNotExistError } from './errors'
 export async function createVoiceDBComponent({
   database,
   logs,
-  config
-}: Pick<AppComponents, 'database' | 'logs' | 'config'>): Promise<IVoiceDBComponent> {
+  config,
+  livekit
+}: Pick<AppComponents, 'database' | 'logs' | 'config' | 'livekit'>): Promise<IVoiceDBComponent> {
   const logger = logs.getLogger('voice-db')
   const VOICE_CHAT_CONNECTION_INTERRUPTED_TTL = await config.requireNumber('VOICE_CHAT_CONNECTION_INTERRUPTED_TTL')
   const VOICE_CHAT_INITIAL_CONNECTION_TTL = await config.requireNumber('VOICE_CHAT_INITIAL_CONNECTION_TTL')
@@ -542,7 +543,7 @@ export async function createVoiceDBComponent({
     const isConnectedQuery = getIsConnectedQuery(now)
 
     // Create room names for the given community IDs
-    const roomNames = communityIds.map(getCommunityVoiceChatRoomName)
+    const roomNames = communityIds.map((id) => livekit.getCommunityVoiceChatRoomName(id))
 
     const bulkStatusQuery = SQL`
       WITH room_data AS (
@@ -602,7 +603,7 @@ export async function createVoiceDBComponent({
     }
 
     // Create room names for the given community IDs
-    const roomNames = communityIds.map(getCommunityVoiceChatRoomName)
+    const roomNames = communityIds.map((id) => livekit.getCommunityVoiceChatRoomName(id))
 
     const bulkCountQuery = SQL`
       SELECT 

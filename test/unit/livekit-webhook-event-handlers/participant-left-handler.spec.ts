@@ -1,6 +1,6 @@
 import { WebhookEvent } from 'livekit-server-sdk'
 import { IAnalyticsComponent } from '@dcl/analytics-component'
-import { Events } from '@dcl/schemas'
+import { Events, RoomType } from '@dcl/schemas'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { DisconnectReason } from '@livekit/protocol'
 import { ILoggerComponent } from '@well-known-components/interfaces'
@@ -10,14 +10,14 @@ import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createAnalyticsMockedComponent } from '../../mocks/analytics-mocks'
 import { createVoiceMockedComponent } from '../../mocks/voice-mock'
 import { AnalyticsEvent } from '../../../src/types/analytics'
-import { ILivekitComponent, SceneRoomMetadata } from '../../../src/types/livekit.type'
+import { ILivekitComponent, RoomMetadata } from '../../../src/types/livekit.type'
 import { createPublisherMockedComponent } from '../../mocks/publisher-mock'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 
 describe('Participant Left Handler', () => {
   let handler: ReturnType<typeof createParticipantLeftHandler>
   let publishMessagesMock: jest.MockedFunction<IPublisherComponent['publishMessages']>
-  let getSceneRoomMetadataFromRoomNameMock: jest.MockedFunction<ILivekitComponent['getSceneRoomMetadataFromRoomName']>
+  let getRoomMetadataFromRoomNameMock: jest.MockedFunction<ILivekitComponent['getRoomMetadataFromRoomName']>
   let voice: jest.Mocked<IVoiceComponent>
   let analytics: jest.Mocked<IAnalyticsComponent>
   let logs: jest.Mocked<ILoggerComponent>
@@ -29,7 +29,7 @@ describe('Participant Left Handler', () => {
   beforeEach(() => {
     handleParticipantLeftMock = jest.fn()
     fireEventMock = jest.fn()
-    getSceneRoomMetadataFromRoomNameMock = jest.fn()
+    getRoomMetadataFromRoomNameMock = jest.fn()
     publishMessagesMock = jest.fn()
 
     voice = createVoiceMockedComponent({
@@ -37,7 +37,7 @@ describe('Participant Left Handler', () => {
     })
 
     livekit = createLivekitMockedComponent({
-      getSceneRoomMetadataFromRoomName: getSceneRoomMetadataFromRoomNameMock
+      getRoomMetadataFromRoomName: getRoomMetadataFromRoomNameMock
     })
     publisher = createPublisherMockedComponent({
       publishMessages: publishMessagesMock
@@ -63,7 +63,7 @@ describe('Participant Left Handler', () => {
     let roomName: string
     let disconnectReason: DisconnectReason
     let webhookEvent: WebhookEvent
-    let roomMetadata: SceneRoomMetadata
+    let roomMetadata: RoomMetadata
 
     beforeEach(() => {
       userAddress = '0x1234567890123456789012345678901234567890'
@@ -72,7 +72,8 @@ describe('Participant Left Handler', () => {
       roomMetadata = {
         sceneId: undefined,
         worldName: undefined,
-        realmName: undefined
+        realmName: undefined,
+        roomType: RoomType.VOICE_CHAT
       }
       webhookEvent = {
         event: 'participant_left',
@@ -84,7 +85,7 @@ describe('Participant Left Handler', () => {
           disconnectReason
         }
       } as WebhookEvent
-      getSceneRoomMetadataFromRoomNameMock.mockReturnValueOnce(roomMetadata)
+      getRoomMetadataFromRoomNameMock.mockReturnValueOnce(roomMetadata)
     })
 
     describe('and room and participant data are valid', () => {
@@ -111,23 +112,6 @@ describe('Participant Left Handler', () => {
         })
       })
 
-      describe('and room is not a voice chat room', () => {
-        beforeEach(() => {
-          webhookEvent.room!.name = 'not-a-voice-chat-room'
-        })
-
-        it('should not call the participant left handler', async () => {
-          await handler.handle(webhookEvent)
-
-          expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_LEFT_ROOM, {
-            room: 'not-a-voice-chat-room',
-            address: userAddress,
-            reason: disconnectReason.toString()
-          })
-          expect(handleParticipantLeftMock).not.toHaveBeenCalled()
-        })
-      })
-
       describe('and room is a genesis city scene room', () => {
         beforeEach(() => {
           webhookEvent.room!.name = 'genesis-city-prd-scene-room-a-realm-name:scene-id-123'
@@ -143,13 +127,17 @@ describe('Participant Left Handler', () => {
             {
               type: Events.Type.COMMS,
               subType: Events.SubType.Comms.USER_LEFT_ROOM,
-              key: `user-left-room-${webhookEvent.room!.name}`,
+              key: `user-left-room-${webhookEvent.room!.name}-${userAddress.slice(0, 42)}`,
               timestamp: expect.any(Number),
               metadata: {
                 sceneId: 'scene-id-123',
                 userAddress: userAddress,
                 isWorld: false,
-                realmName: 'a-realm-name'
+                realmName: 'a-realm-name',
+                roomType: RoomType.VOICE_CHAT,
+                islandName: undefined,
+                communityId: undefined,
+                voiceChatId: undefined
               }
             }
           ])
@@ -159,10 +147,11 @@ describe('Participant Left Handler', () => {
       describe('and room is a world room', () => {
         beforeEach(() => {
           webhookEvent.room!.name = 'world-world-name-123'
-          getSceneRoomMetadataFromRoomNameMock.mockReturnValueOnce({
+          getRoomMetadataFromRoomNameMock.mockReturnValueOnce({
             sceneId: undefined,
             worldName: 'world-world-name-123',
-            realmName: undefined
+            realmName: undefined,
+            roomType: RoomType.WORLD
           })
         })
 
@@ -175,6 +164,123 @@ describe('Participant Left Handler', () => {
               subType: Events.SubType.Comms.USER_LEFT_ROOM
             })
           ])
+        })
+      })
+
+      describe('and room is a community voice chat room', () => {
+        let communityId: string
+
+        beforeEach(() => {
+          getRoomMetadataFromRoomNameMock.mockReset()
+          communityId = 'community-123'
+          webhookEvent.room!.name = `voice-chat-community-${communityId}`
+          getRoomMetadataFromRoomNameMock.mockReturnValue({
+            sceneId: undefined,
+            worldName: undefined,
+            realmName: undefined,
+            communityId,
+            roomType: RoomType.COMMUNITY_VOICE_CHAT
+          })
+        })
+
+        it('should publish the user left room event with community metadata', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(publishMessagesMock).toHaveBeenCalledWith([
+            expect.objectContaining({
+              type: Events.Type.COMMS,
+              subType: Events.SubType.Comms.USER_LEFT_ROOM,
+              key: `user-left-room-${webhookEvent.room!.name}-${userAddress.slice(0, 42)}`,
+              timestamp: expect.any(Number),
+              metadata: expect.objectContaining({
+                userAddress: userAddress,
+                isWorld: false,
+                realmName: '',
+                communityId,
+                roomType: RoomType.COMMUNITY_VOICE_CHAT
+              })
+            })
+          ])
+        })
+
+        it('should call the participant left handler for community voice chat rooms', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(handleParticipantLeftMock).toHaveBeenCalledWith(userAddress, webhookEvent.room!.name, disconnectReason)
+        })
+      })
+
+      describe('and room is an island room', () => {
+        let islandName: string
+
+        beforeEach(() => {
+          getRoomMetadataFromRoomNameMock.mockReset()
+          islandName = 'island-123'
+          webhookEvent.room!.name = `island-${islandName}`
+          getRoomMetadataFromRoomNameMock.mockReturnValue({
+            sceneId: undefined,
+            worldName: undefined,
+            realmName: undefined,
+            islandName,
+            roomType: RoomType.ISLAND
+          })
+        })
+
+        it('should publish the user left room event with island metadata', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(publishMessagesMock).toHaveBeenCalledWith([
+            expect.objectContaining({
+              type: Events.Type.COMMS,
+              subType: Events.SubType.Comms.USER_LEFT_ROOM,
+              key: `user-left-room-${webhookEvent.room!.name}-${userAddress.slice(0, 42)}`,
+              timestamp: expect.any(Number),
+              metadata: expect.objectContaining({
+                userAddress: userAddress,
+                isWorld: false,
+                realmName: '',
+                islandName,
+                roomType: RoomType.ISLAND
+              })
+            })
+          ])
+        })
+
+        it('should not call the participant left handler for island rooms', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(handleParticipantLeftMock).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and room is an unknown room type', () => {
+        beforeEach(() => {
+          getRoomMetadataFromRoomNameMock.mockReset()
+          webhookEvent.room!.name = 'unknown-room-type'
+          getRoomMetadataFromRoomNameMock.mockReturnValue({
+            sceneId: undefined,
+            worldName: undefined,
+            realmName: undefined,
+            roomType: RoomType.UNKNOWN
+          })
+        })
+
+        it('should not publish any message', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(publishMessagesMock).not.toHaveBeenCalled()
+        })
+
+        it('should not fire analytics event', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(fireEventMock).not.toHaveBeenCalled()
+        })
+
+        it('should not call the participant left handler', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(handleParticipantLeftMock).not.toHaveBeenCalled()
         })
       })
 
@@ -240,10 +346,11 @@ describe('Participant Left Handler', () => {
       beforeEach(() => {
         error = new Error('Voice handler failed')
         handleParticipantLeftMock.mockRejectedValue(error)
-        getSceneRoomMetadataFromRoomNameMock.mockReturnValueOnce({
+        getRoomMetadataFromRoomNameMock.mockReturnValueOnce({
           sceneId: undefined,
           worldName: undefined,
-          realmName: undefined
+          realmName: undefined,
+          roomType: RoomType.VOICE_CHAT
         })
       })
 
@@ -267,10 +374,11 @@ describe('Participant Left Handler', () => {
         fireEventMock.mockImplementation(() => {
           throw error
         })
-        getSceneRoomMetadataFromRoomNameMock.mockReturnValueOnce({
+        getRoomMetadataFromRoomNameMock.mockReturnValueOnce({
           sceneId: undefined,
           worldName: undefined,
-          realmName: undefined
+          realmName: undefined,
+          roomType: RoomType.VOICE_CHAT
         })
       })
 

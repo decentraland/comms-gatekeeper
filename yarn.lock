@@ -1193,10 +1193,10 @@
     ajv-keywords "^5.1.0"
     mitt "^3.0.1"
 
-"@dcl/schemas@^19.8.0":
-  version "19.8.0"
-  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-19.8.0.tgz#0a1edb79b89e359c4c5efa7a8858ab0504a2ece4"
-  integrity sha512-Jx0osV3akupfuzza2p+Ohqzewz9zaE8MCaOSH2+wfvph1WuvBkyQP5WrCEzs8iIZx7Dh2uCr6Q4+o3tgfC+vnQ==
+"@dcl/schemas@^21.0.0":
+  version "21.0.0"
+  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-21.0.0.tgz#d9352a9fed13227e4346b404d1d23029a15d98a2"
+  integrity sha512-J1sfHhf3mRj/LYOJWY1oMCv9c0AG9Xmk8aFoDqNcKuU3b5eQsneUi+SMFuC87mAktsTd5lNgJWvVGbRmqGDoIA==
   dependencies:
     ajv "^8.11.0"
     ajv-errors "^3.0.0"
