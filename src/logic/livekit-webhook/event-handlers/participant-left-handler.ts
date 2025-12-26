@@ -47,7 +47,7 @@ export function createParticipantLeftHandler(
 
       try {
         await components.publisher.publishMessages([event])
-        logger.debug(`Published UserLeftRoomEvent for ${userAddress} in room ${room}`)
+        logger.debug(`Published UserLeftRoomEvent for ${userAddress} in room ${room.name}`)
       } catch (error: any) {
         logger.error(`Failed to publish UserLeftRoomEvent: ${error}`, {
           error,
