@@ -2,7 +2,7 @@ import { InvalidRequestError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { getPaginationParams } from '@dcl/platform-server-commons'
+import { getPaginationParams } from '@dcl/http-commons'
 
 export async function listSceneBansAddressesHandler(
   ctx: Pick<

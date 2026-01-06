@@ -1,4 +1,4 @@
-import { generateRandomWalletAddresses } from '@dcl/platform-server-commons'
+import { generateRandomWalletAddresses } from '@dcl/http-commons'
 import { test } from '../../components'
 import { setUserJoinedAt, setUserStatusUpdatedAt } from '../../db-utils'
 

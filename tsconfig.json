@@ -15,6 +15,7 @@
     "noImplicitThis": true,
     "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
   },
   "include": [
     "src"

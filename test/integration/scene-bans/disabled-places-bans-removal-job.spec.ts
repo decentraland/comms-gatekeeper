@@ -1,5 +1,5 @@
 import { test } from '../../components'
-import { generateRandomWalletAddresses } from '@dcl/platform-server-commons'
+import { generateRandomWalletAddresses } from '@dcl/http-commons'
 import { TestCleanup } from '../../db-cleanup'
 
 test('Disabled places bans removal job', ({ components, spyComponents }) => {
