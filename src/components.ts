@@ -1,7 +1,7 @@
 import { resolve } from 'path'
 import { createAnalyticsComponent } from '@dcl/analytics-component'
 import { createDotEnvConfigComponent } from '@well-known-components/env-config-provider'
-import { createServerComponent, createStatusCheckComponent } from '@well-known-components/http-server'
+import { createServerComponent, createStatusCheckComponent } from '@dcl/http-server'
 import { createLogComponent } from '@well-known-components/logger'
 import { createMetricsComponent, instrumentHttpServerWithMetrics } from '@well-known-components/metrics'
 import { createTracerComponent } from '@well-known-components/tracer-component'

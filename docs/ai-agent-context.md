@@ -19,7 +19,7 @@
 
 - Runtime: Node.js (LTS version)
 - Language: TypeScript
-- HTTP Framework: @well-known-components/http-server
+- HTTP Framework: @dcl/http-server
 - Database: PostgreSQL (via @well-known-components/pg-component)
 - Communication: LiveKit Server SDK for token generation and room management
 - Component Architecture: @well-known-components (logger, metrics, http-server, pg-component, env-config-provider)
