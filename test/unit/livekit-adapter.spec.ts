@@ -33,7 +33,7 @@ beforeEach(async () => {
       requireString: jest.fn().mockImplementation((key) => {
         switch (key) {
           case 'WORLD_ROOM_PREFIX':
-            return Promise.resolve('world-')
+            return Promise.resolve('world-prod-scene-room-')
           case 'SCENE_ROOM_PREFIX':
             return Promise.resolve('scene-')
           case 'PRIVATE_MESSAGES_ROOM_ID':
@@ -193,7 +193,7 @@ describe('when getting a world room name', () => {
   it('should return world room name with prefix', () => {
     const worldName = 'test-world'
     const result = livekitComponent.getWorldRoomName(worldName)
-    expect(result).toBe('world-test-world')
+    expect(result).toBe('world-prod-scene-room-test-world')
   })
 })
 
@@ -211,7 +211,7 @@ describe('when getting a room name', () => {
     it('should return world room name', () => {
       const realmName = 'test-realm'
       const result = livekitComponent.getRoomName(realmName, { isWorld: true })
-      expect(result).toBe('world-test-realm')
+      expect(result).toBe('world-prod-scene-room-test-realm')
     })
   })
 
@@ -696,13 +696,35 @@ describe('when getting room metadata from room name', () => {
     })
   })
 
-  describe('when room name is a world room', () => {
+  describe('when room name is a world scene room', () => {
     it('should extract world name and return WORLD room type', () => {
-      const roomName = 'world-world-name-123'
+      const roomName = 'world-prod-scene-room-world-name-123'
       const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
 
       expect(result).toEqual({
         worldName: 'world-name-123',
+        roomType: 'world'
+      })
+    })
+  })
+
+  describe('when room name is a world room (just domain)', () => {
+    it('should return WORLD room type for .dcl.eth domain', () => {
+      const roomName = 'juan.dcl.eth'
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        worldName: 'juan.dcl.eth',
+        roomType: 'world'
+      })
+    })
+
+    it('should return WORLD room type for .eth domain', () => {
+      const roomName = 'juan.eth'
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        worldName: 'juan.eth',
         roomType: 'world'
       })
     })

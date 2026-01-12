@@ -135,10 +135,15 @@ export async function createLivekitComponent(
       return { realmName, sceneId, roomType: RoomType.SCENE }
     }
 
-    // World room: {worldRoomPrefix}{worldName}
+    // World scene room: {worldRoomPrefix}{worldName}
     if (roomName.startsWith(worldRoomPrefix)) {
       const worldName = roomName.replace(worldRoomPrefix, '')
       return { worldName, roomType: RoomType.WORLD }
+    }
+
+    // World room: just the domain (e.g., juan.dcl.eth or juan.eth)
+    if (roomName.endsWith('.eth')) {
+      return { worldName: roomName, roomType: RoomType.WORLD }
     }
 
     // Island room: island-{islandName}
