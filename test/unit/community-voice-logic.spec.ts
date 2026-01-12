@@ -36,7 +36,7 @@ describe('CommunityVoiceLogic', () => {
       requireString: jest.fn().mockImplementation((key) => {
         switch (key) {
           case 'WORLD_ROOM_PREFIX':
-            return Promise.resolve('world-')
+            return Promise.resolve('world-prod-scene-room-')
           case 'SCENE_ROOM_PREFIX':
             return Promise.resolve('scene-')
           case 'PRIVATE_MESSAGES_ROOM_ID':
