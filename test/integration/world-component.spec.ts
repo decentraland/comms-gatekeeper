@@ -237,9 +237,36 @@ describe('WorldComponent', () => {
   })
 
   describe('hasWorldAccessPermission', () => {
+    describe('when auth address is the world owner', () => {
+      beforeEach(() => {
+        const mockPermissionsWithOwner = {
+          owner: '0xOwnerAddress',
+          permissions: {
+            deployment: {
+              type: 'allow-list',
+              wallets: []
+            },
+            access: {
+              type: PermissionType.AllowList,
+              wallets: []
+            }
+          }
+        }
+
+        mockFetch.mockResolvedValueOnce(mockPermissionsWithOwner)
+      })
+
+      it('should return true (case insensitive)', async () => {
+        const result = await worldsComponent.hasWorldAccessPermission('0xowneraddress', 'test-world')
+        expect(result).toBe(true)
+        expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+      })
+    })
+
     describe('when world access is unrestricted', () => {
       beforeEach(() => {
         const mockPermissionsWithUnrestricted = {
+          owner: '0xSomeOtherOwner',
           permissions: {
             deployment: {
               type: 'allow-list',
@@ -265,6 +292,7 @@ describe('WorldComponent', () => {
       describe('and user wallet (lowercased) is in the lowercased allowlist', () => {
         beforeEach(() => {
           const mockPermissionsWithAllowList = {
+            owner: '0xSomeOtherOwner',
             permissions: {
               deployment: {
                 type: 'allow-list',
@@ -290,6 +318,7 @@ describe('WorldComponent', () => {
       describe('and user wallet is not in the allowlist', () => {
         beforeEach(() => {
           const mockPermissionsWithAllowList = {
+            owner: '0xSomeOtherOwner',
             permissions: {
               deployment: {
                 type: 'allow-list',
@@ -316,6 +345,7 @@ describe('WorldComponent', () => {
     describe('when world access is not allowlist nor unrestricted', () => {
       beforeEach(() => {
         const mockPermissionsWithOtherType = {
+          owner: '0xSomeOtherOwner',
           permissions: {
             deployment: {
               type: 'allow-list',
@@ -327,6 +357,8 @@ describe('WorldComponent', () => {
             }
           }
         }
+
+        mockFetch.mockResolvedValueOnce(mockPermissionsWithOtherType)
       })
 
       it('should return false', async () => {

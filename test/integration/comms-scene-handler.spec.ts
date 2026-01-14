@@ -133,7 +133,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       })
     })
 
-    describe('when user has world access permission', () => {
+    describe('when user is the world owner', () => {
       beforeEach(() => {
         stubComponents.worlds.hasWorldAccessPermission.resolves(true)
       })
@@ -147,6 +147,30 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
             metadata: worldMetadata
           },
           owner
+        )
+
+        expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(body).toEqual({
+          adapter: 'livekit:wss://test-livekit-url?access_token=test-token'
+        })
+      })
+    })
+
+    describe('when user is in the world access allowlist', () => {
+      beforeEach(() => {
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+      })
+
+      it('should return the livekit adapter', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: worldMetadata
+          },
+          nonOwner
         )
 
         expect(response.status).toBe(200)
