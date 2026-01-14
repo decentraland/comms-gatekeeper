@@ -64,13 +64,13 @@ export async function createWorldsComponent(
 
   async function hasWorldAccessPermission(authAddress: string, worldName: string): Promise<boolean> {
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
+    const { permissions, owner } = permissionsOverWorld ?? {}
 
     return (
-      permissionsOverWorld?.permissions?.access.type === PermissionType.Unrestricted ||
-      (permissionsOverWorld?.permissions?.access.type === PermissionType.AllowList &&
-        permissionsOverWorld.permissions.access.wallets.some(
-          (wallet) => wallet.toLowerCase() === authAddress.toLowerCase()
-        ))
+      owner?.toLowerCase() === authAddress.toLowerCase() ||
+      permissions?.access.type === PermissionType.Unrestricted ||
+      (permissions?.access.type === PermissionType.AllowList &&
+        permissions.access.wallets.some((wallet) => wallet.toLowerCase() === authAddress.toLowerCase()))
     )
   }
 
