@@ -182,6 +182,81 @@ paths:
       tags:
         - Communications
 
+  /room-participants:
+    get:
+      operationId: getRoomParticipants
+      summary: Get room participants
+      security: []
+      description: |
+        Retrieves the list of participant wallet addresses connected to a scene or world room.
+        
+        **Query Parameters (provide one of):**
+        - `pointer` + `realm_name`: For scene rooms (pointer is the scene position, e.g., "10,20")
+        - `world_name`: For world rooms (e.g., "mycoolworld.dcl.eth")
+        
+        **Response:**
+        Returns an array of wallet addresses (lowercase, 42 characters) of users currently
+        connected to the room. Returns an empty array if the room doesn't exist or has no participants.
+      parameters:
+        - name: pointer
+          in: query
+          description: |
+            Scene position/pointer (e.g., "10,20"). Use with realm_name for scene rooms.
+          required: false
+          schema:
+            type: string
+            pattern: '^-?\d{1,3},-?\d{1,3}$'
+        - name: realm_name
+          in: query
+          description: |
+            Realm name for scene rooms. Defaults to "main" if not provided.
+          required: false
+          schema:
+            type: string
+            default: main
+        - name: world_name
+          in: query
+          description: |
+            World name for world rooms (e.g., "mycoolworld.dcl.eth").
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Room participants retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      addresses:
+                        type: array
+                        items:
+                          type: string
+                          pattern: '^0x[a-fA-F0-9]{40}$'
+                        description: List of participant wallet addresses (lowercase)
+                        example: ["0x1234567890abcdef1234567890abcdef12345678"]
+        '400':
+          description: Invalid request - must provide either world_name or (pointer + realm_name)
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Communications
+
   # Scene Admin endpoints
   /scene-admin:
     get:

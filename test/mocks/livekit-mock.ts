@@ -39,6 +39,7 @@ export const createLivekitMockedComponent = (
     removeIngress: jest.fn(),
     getWebhookEvent: jest.fn(),
     getParticipantInfo: jest.fn(),
+    listRoomParticipants: jest.fn(),
     updateParticipantMetadata: jest.fn(),
     updateParticipantPermissions: jest.fn(),
     updateRoomMetadata: jest.fn(),
