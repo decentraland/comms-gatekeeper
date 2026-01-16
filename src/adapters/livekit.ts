@@ -277,6 +277,17 @@ export async function createLivekitComponent(
     }
   }
 
+  async function listRoomParticipants(roomName: string): Promise<ParticipantInfo[]> {
+    try {
+      return await roomClient.listParticipants(roomName)
+    } catch (error) {
+      logger.warn(
+        `Error listing participants for room ${roomName}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
+      )
+      return []
+    }
+  }
+
   async function updateParticipantMetadata(
     roomId: string,
     participantId: string,
@@ -370,6 +381,7 @@ export async function createLivekitComponent(
     updateParticipantPermissions,
     updateRoomMetadata,
     getParticipantInfo,
+    listRoomParticipants,
     generateCredentials,
     getWorldRoomName,
     getSceneRoomName,
