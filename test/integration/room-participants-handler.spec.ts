@@ -38,8 +38,8 @@ test('GET /room-participants', ({ components, stubComponents }) => {
             ]
           }
         })
-        expect(stubComponents.livekit.getSceneRoomName).toHaveBeenCalledWith(realmName, pointer)
-        expect(stubComponents.livekit.listRoomParticipants).toHaveBeenCalled()
+        expect(stubComponents.livekit.getSceneRoomName.calledWith(realmName, pointer)).toBe(true)
+        expect(stubComponents.livekit.listRoomParticipants.called).toBe(true)
       })
     })
 
@@ -117,8 +117,8 @@ test('GET /room-participants', ({ components, stubComponents }) => {
             ]
           }
         })
-        expect(stubComponents.livekit.getWorldRoomName).toHaveBeenCalledWith(worldName)
-        expect(stubComponents.livekit.listRoomParticipants).toHaveBeenCalled()
+        expect(stubComponents.livekit.getWorldRoomName.calledWith(worldName)).toBe(true)
+        expect(stubComponents.livekit.listRoomParticipants.called).toBe(true)
       })
     })
 
@@ -176,7 +176,7 @@ test('GET /room-participants', ({ components, stubComponents }) => {
       const response = await components.localFetch.fetch(`/room-participants?pointer=${pointer}`)
 
       expect(response.status).toBe(200)
-      expect(stubComponents.livekit.getSceneRoomName).toHaveBeenCalledWith('main', pointer)
+      expect(stubComponents.livekit.getSceneRoomName.calledWith('main', pointer)).toBe(true)
     })
   })
 })
