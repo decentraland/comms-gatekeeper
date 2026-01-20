@@ -1,6 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { ParticipantInfo } from 'livekit-server-sdk'
-import { InvalidRequestError } from '../../types/errors'
+import { InvalidRequestError, NotFoundError } from '../../types/errors'
 import { HandlerContextWithPath } from '../../types'
 
 export type RoomParticipantsResponse = {
@@ -14,16 +14,17 @@ export type RoomParticipantsResponse = {
  * Handler to get the list of participant addresses in a scene or world room.
  *
  * Query parameters:
- * - pointer: Scene pointer/parcel (e.g., "10,20") - used with realm_name for scene rooms
+ * - pointer: Scene pointer/base parcel (e.g., "10,20") - used with realm_name for scene rooms.
+ *            The scene ID is fetched from the catalyst using this pointer.
  * - world_name: World name (e.g., "mycoolworld.dcl.eth") - for world rooms
  * - realm_name: Realm name (default: "main") - used with pointer for scene rooms
  *
  * Returns a list of wallet addresses (lowercase, 42 chars) of connected participants.
  */
 export async function getRoomParticipantsHandler(
-  context: HandlerContextWithPath<'livekit' | 'logs', '/room-participants'>
+  context: HandlerContextWithPath<'livekit' | 'logs' | 'contentClient', '/room-participants'>
 ): Promise<IHttpServerComponent.IResponse> {
-  const { livekit, logs } = context.components
+  const { livekit, logs, contentClient } = context.components
   const { url } = context
   const logger = logs.getLogger('room-participants-handler')
 
@@ -37,8 +38,17 @@ export async function getRoomParticipantsHandler(
     // World room
     roomName = livekit.getWorldRoomName(worldName)
   } else if (pointer && realmName) {
-    // Scene room - pointer is used as sceneId
-    roomName = livekit.getSceneRoomName(realmName, pointer)
+    // Scene room - fetch the scene ID from the catalyst using the pointer
+    const entities = await contentClient.fetchEntitiesByPointers([pointer])
+
+    if (!entities || entities.length === 0) {
+      throw new NotFoundError(`No scene found for pointer: ${pointer}`)
+    }
+
+    const sceneId = entities[0].id
+    logger.debug(`Resolved pointer ${pointer} to sceneId ${sceneId}`)
+
+    roomName = livekit.getSceneRoomName(realmName, sceneId)
   } else {
     throw new InvalidRequestError('Either world_name or (pointer + realm_name) is required')
   }

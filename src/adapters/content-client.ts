@@ -1,5 +1,6 @@
 import { LRUCache } from 'lru-cache'
 import { ContentClient, createContentClient } from 'dcl-catalyst-client'
+import { Entity } from '@dcl/schemas'
 import { AppComponents } from '../types'
 import { IContentClientComponent } from '../types/content-client.type'
 
@@ -31,9 +32,31 @@ export async function createContentClientComponent(
     }
   })
 
+  const pointerCache = new LRUCache<string, Entity[]>({
+    max,
+    ttl,
+    fetchMethod: async function (pointerKey: string): Promise<Entity[]> {
+      const pointers = pointerKey.split(',')
+      try {
+        logger.debug(`Fetching entities for pointers: ${pointerKey}`)
+        const entities = await client.fetchEntitiesByPointers(pointers)
+        logger.debug(`Successfully fetched ${entities.length} entities for pointers: ${pointerKey}`)
+        return entities
+      } catch (err: any) {
+        logger.warn(`Error fetching entities for pointers ${pointerKey}:`, err)
+        throw err
+      }
+    }
+  })
+
   return {
     fetchEntityById: async (sceneId: string) => {
       return entityCache.fetch(sceneId)
+    },
+    fetchEntitiesByPointers: async (pointers: string[]) => {
+      const pointerKey = pointers.join(',')
+      const result = await pointerCache.fetch(pointerKey)
+      return result ?? []
     }
   }
 }

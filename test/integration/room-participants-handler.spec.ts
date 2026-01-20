@@ -1,7 +1,8 @@
 import { ParticipantInfo } from 'livekit-server-sdk'
+import { Entity, EntityType } from '@dcl/schemas'
 import { test } from '../components'
 
-test('GET /room-participants', ({ components, stubComponents }) => {
+test('GET /room-participants', ({ components, stubComponents, spyComponents }) => {
   const mockParticipants = [
     { identity: '0x1234567890abcdef1234567890abcdef12345678', metadata: '{}' },
     { identity: '0xabcdef1234567890abcdef1234567890abcdef12', metadata: '{}' }
@@ -10,14 +11,30 @@ test('GET /room-participants', ({ components, stubComponents }) => {
   describe('when requesting participants for a scene room', () => {
     const pointer = '10,20'
     const realmName = 'main'
+    const sceneId = 'bafkreiabc123456789scene'
+    let mockEntity: Entity
 
     beforeEach(() => {
-      stubComponents.livekit.getSceneRoomName.returns(`scene-${realmName}:${pointer}`)
+      mockEntity = {
+        version: 'v3',
+        id: sceneId,
+        type: EntityType.SCENE,
+        pointers: [pointer],
+        timestamp: Date.now(),
+        content: []
+      }
+
+      spyComponents.contentClient.fetchEntitiesByPointers.mockResolvedValue([mockEntity])
+      stubComponents.livekit.getSceneRoomName.returns(`scene-${realmName}:${sceneId}`)
+    })
+
+    afterEach(() => {
+      spyComponents.contentClient.fetchEntitiesByPointers.mockReset()
     })
 
     describe('when room exists with participants', () => {
       beforeEach(() => {
-        stubComponents.livekit.getRoomInfo.resolves({ name: `scene-${realmName}:${pointer}` } as any)
+        stubComponents.livekit.getRoomInfo.resolves({ name: `scene-${realmName}:${sceneId}` } as any)
         stubComponents.livekit.listRoomParticipants.resolves(mockParticipants)
       })
 
@@ -38,7 +55,8 @@ test('GET /room-participants', ({ components, stubComponents }) => {
             ]
           }
         })
-        expect(stubComponents.livekit.getSceneRoomName.calledWith(realmName, pointer)).toBe(true)
+        expect(spyComponents.contentClient.fetchEntitiesByPointers).toHaveBeenCalledWith([pointer])
+        expect(stubComponents.livekit.getSceneRoomName.calledWith(realmName, sceneId)).toBe(true)
         expect(stubComponents.livekit.listRoomParticipants.called).toBe(true)
       })
     })
@@ -67,7 +85,7 @@ test('GET /room-participants', ({ components, stubComponents }) => {
 
     describe('when room exists but has no participants', () => {
       beforeEach(() => {
-        stubComponents.livekit.getRoomInfo.resolves({ name: `scene-${realmName}:${pointer}` } as any)
+        stubComponents.livekit.getRoomInfo.resolves({ name: `scene-${realmName}:${sceneId}` } as any)
         stubComponents.livekit.listRoomParticipants.resolves([])
       })
 
@@ -85,6 +103,23 @@ test('GET /room-participants', ({ components, stubComponents }) => {
             addresses: []
           }
         })
+      })
+    })
+
+    describe('when no scene is found for the pointer', () => {
+      beforeEach(() => {
+        spyComponents.contentClient.fetchEntitiesByPointers.mockResolvedValue([])
+      })
+
+      it('should return 404 error', async () => {
+        const response = await components.localFetch.fetch(
+          `/room-participants?pointer=${pointer}&realm_name=${realmName}`
+        )
+
+        expect(response.status).toBe(404)
+
+        const body = await response.json()
+        expect(body.error).toContain(`No scene found for pointer: ${pointer}`)
       })
     })
   })
@@ -165,18 +200,35 @@ test('GET /room-participants', ({ components, stubComponents }) => {
 
   describe('when using default realm_name', () => {
     const pointer = '15,25'
+    const sceneId = 'bafkreidefault123scene'
+    let mockEntity: Entity
 
     beforeEach(() => {
-      stubComponents.livekit.getSceneRoomName.returns(`scene-main:${pointer}`)
-      stubComponents.livekit.getRoomInfo.resolves({ name: `scene-main:${pointer}` } as any)
+      mockEntity = {
+        version: 'v3',
+        id: sceneId,
+        type: EntityType.SCENE,
+        pointers: [pointer],
+        timestamp: Date.now(),
+        content: []
+      }
+
+      spyComponents.contentClient.fetchEntitiesByPointers.mockResolvedValue([mockEntity])
+      stubComponents.livekit.getSceneRoomName.returns(`scene-main:${sceneId}`)
+      stubComponents.livekit.getRoomInfo.resolves({ name: `scene-main:${sceneId}` } as any)
       stubComponents.livekit.listRoomParticipants.resolves([])
+    })
+
+    afterEach(() => {
+      spyComponents.contentClient.fetchEntitiesByPointers.mockReset()
     })
 
     it('should use "main" as default realm_name when not provided', async () => {
       const response = await components.localFetch.fetch(`/room-participants?pointer=${pointer}`)
 
       expect(response.status).toBe(200)
-      expect(stubComponents.livekit.getSceneRoomName.calledWith('main', pointer)).toBe(true)
+      expect(spyComponents.contentClient.fetchEntitiesByPointers).toHaveBeenCalledWith([pointer])
+      expect(stubComponents.livekit.getSceneRoomName.calledWith('main', sceneId)).toBe(true)
     })
   })
 })
