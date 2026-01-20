@@ -35,15 +35,14 @@ export async function createContentClientComponent(
   const pointerCache = new LRUCache<string, Entity[]>({
     max,
     ttl,
-    fetchMethod: async function (pointerKey: string): Promise<Entity[]> {
-      const pointers = pointerKey.split(',')
+    fetchMethod: async function (pointer: string): Promise<Entity[]> {
       try {
-        logger.debug(`Fetching entities for pointers: ${pointerKey}`)
-        const entities = await client.fetchEntitiesByPointers(pointers)
-        logger.debug(`Successfully fetched ${entities.length} entities for pointers: ${pointerKey}`)
+        logger.debug(`Fetching entity for pointer: ${pointer}`)
+        const entities = await client.fetchEntitiesByPointers([pointer])
+        logger.debug(`Successfully fetched ${entities.length} entities for pointer: ${pointer}`)
         return entities
       } catch (err: any) {
-        logger.warn(`Error fetching entities for pointers ${pointerKey}:`, err)
+        logger.warn(`Error fetching entity for pointer ${pointer}:`, err)
         throw err
       }
     }
@@ -54,8 +53,7 @@ export async function createContentClientComponent(
       return entityCache.fetch(sceneId)
     },
     fetchEntitiesByPointers: async (pointers: string[]) => {
-      const pointerKey = pointers.join(',')
-      const result = await pointerCache.fetch(pointerKey)
+      const result = await pointerCache.fetch(pointers[0])
       return result ?? []
     }
   }
