@@ -2,7 +2,7 @@ import { ParticipantInfo } from 'livekit-server-sdk'
 import { Entity, EntityType } from '@dcl/schemas'
 import { test } from '../components'
 
-test('GET /room-participants', ({ components, stubComponents, spyComponents }) => {
+test('GET /scene-participants', ({ components, stubComponents, spyComponents }) => {
   const mockParticipants = [
     { identity: '0x1234567890abcdef1234567890abcdef12345678', metadata: '{}' },
     { identity: '0xabcdef1234567890abcdef1234567890abcdef12', metadata: '{}' }
@@ -40,7 +40,7 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
 
       it('should return list of participant addresses', async () => {
         const response = await components.localFetch.fetch(
-          `/room-participants?pointer=${pointer}&realm_name=${realmName}`
+          `/scene-participants?pointer=${pointer}&realm_name=${realmName}`
         )
 
         expect(response.status).toBe(200)
@@ -68,7 +68,7 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
 
       it('should return empty addresses array', async () => {
         const response = await components.localFetch.fetch(
-          `/room-participants?pointer=${pointer}&realm_name=${realmName}`
+          `/scene-participants?pointer=${pointer}&realm_name=${realmName}`
         )
 
         expect(response.status).toBe(200)
@@ -91,7 +91,7 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
 
       it('should return empty addresses array', async () => {
         const response = await components.localFetch.fetch(
-          `/room-participants?pointer=${pointer}&realm_name=${realmName}`
+          `/scene-participants?pointer=${pointer}&realm_name=${realmName}`
         )
 
         expect(response.status).toBe(200)
@@ -113,7 +113,7 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
 
       it('should return 404 error', async () => {
         const response = await components.localFetch.fetch(
-          `/room-participants?pointer=${pointer}&realm_name=${realmName}`
+          `/scene-participants?pointer=${pointer}&realm_name=${realmName}`
         )
 
         expect(response.status).toBe(404)
@@ -138,7 +138,7 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
       })
 
       it('should return list of participant addresses', async () => {
-        const response = await components.localFetch.fetch(`/room-participants?world_name=${worldName}`)
+        const response = await components.localFetch.fetch(`/scene-participants?world_name=${worldName}`)
 
         expect(response.status).toBe(200)
 
@@ -163,7 +163,7 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
       })
 
       it('should return empty addresses array', async () => {
-        const response = await components.localFetch.fetch(`/room-participants?world_name=${worldName}`)
+        const response = await components.localFetch.fetch(`/scene-participants?world_name=${worldName}`)
 
         expect(response.status).toBe(200)
 
@@ -180,7 +180,7 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
 
   describe('when request is missing required parameters', () => {
     it('should return 400 error when no pointer or world_name provided', async () => {
-      const response = await components.localFetch.fetch('/room-participants')
+      const response = await components.localFetch.fetch('/scene-participants')
 
       expect(response.status).toBe(400)
 
@@ -189,7 +189,7 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
     })
 
     it('should return 400 error when only realm_name provided without pointer', async () => {
-      const response = await components.localFetch.fetch('/room-participants?realm_name=main')
+      const response = await components.localFetch.fetch('/scene-participants?realm_name=main')
 
       expect(response.status).toBe(400)
 
@@ -224,7 +224,7 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
     })
 
     it('should use "main" as default realm_name when not provided', async () => {
-      const response = await components.localFetch.fetch(`/room-participants?pointer=${pointer}`)
+      const response = await components.localFetch.fetch(`/scene-participants?pointer=${pointer}`)
 
       expect(response.status).toBe(200)
       expect(spyComponents.contentClient.fetchEntitiesByPointers).toHaveBeenCalledWith([pointer])
@@ -232,4 +232,3 @@ test('GET /room-participants', ({ components, stubComponents, spyComponents }) =
     })
   })
 })
-

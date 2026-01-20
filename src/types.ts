@@ -32,6 +32,7 @@ import { ICastComponent } from './logic/cast'
 import { AnalyticsEventPayload } from './types/analytics'
 import { ILandLeaseComponent } from './types/land-lease.type'
 import { IContentClientComponent } from './types/content-client.type'
+import { ISceneParticipantsComponent } from './adapters/scene-participants'
 import { ISchemaValidatorComponent } from '@dcl/schema-validator-component'
 import { IPublisherComponent } from '@dcl/sns-component'
 
@@ -77,6 +78,7 @@ export type BaseComponents = {
   contentClient: IContentClientComponent
   cast: ICastComponent
   schemaValidator: ISchemaValidatorComponent<GlobalContext>
+  sceneParticipants: ISceneParticipantsComponent
 }
 
 export type AppComponents = BaseComponents & {

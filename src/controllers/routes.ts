@@ -40,7 +40,7 @@ import {
 } from './handlers/community-voice-chat'
 import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-active-community-voice-chats-handler'
 import { commsServerSceneHandler } from './handlers/comms-server-scene-handler'
-import { getRoomParticipantsHandler } from './handlers/room-participants-handler'
+import { getSceneParticipantsHandler } from './handlers/scene-participants-handler'
 import { streamerTokenHandler, watcherTokenHandler, generateStreamLinkHandler } from './handlers/cast'
 import { getStreamInfoHandler } from './handlers/cast/get-stream-info-handler'
 import { AddSceneBanRequestSchema } from './handlers/scene-ban-handlers/schemas'
@@ -81,8 +81,8 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post('/get-scene-adapter', commsSceneHandler)
   router.post('/get-server-scene-adapter', commsServerSceneHandler)
 
-  // Room participants endpoint (public, for places integration)
-  router.get('/room-participants', getRoomParticipantsHandler)
+  // Scene participants endpoint (public, for places integration)
+  router.get('/scene-participants', getSceneParticipantsHandler)
 
   router.post('/mute', muteHandler)
 
