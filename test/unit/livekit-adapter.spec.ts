@@ -804,3 +804,51 @@ describe('when getting webhook event', () => {
     expect(webhookReceiverSpy).toHaveBeenCalledWith(body, authorization)
   })
 })
+
+describe('when listing room participants', () => {
+  const roomName = 'test-room'
+
+  describe('when room has participants', () => {
+    const mockParticipants = [
+      { identity: '0x1234567890abcdef1234567890abcdef12345678', metadata: '{}' },
+      { identity: '0xabcdef1234567890abcdef1234567890abcdef12', metadata: '{}' }
+    ]
+
+    beforeEach(() => {
+      listParticipantsSpy.mockResolvedValue(mockParticipants)
+    })
+
+    it('should return the list of participants', async () => {
+      const result = await livekitComponent.listRoomParticipants(roomName)
+
+      expect(result).toEqual(mockParticipants)
+      expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
+    })
+  })
+
+  describe('when room has no participants', () => {
+    beforeEach(() => {
+      listParticipantsSpy.mockResolvedValue([])
+    })
+
+    it('should return an empty array', async () => {
+      const result = await livekitComponent.listRoomParticipants(roomName)
+
+      expect(result).toEqual([])
+      expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
+    })
+  })
+
+  describe('when an error occurs', () => {
+    beforeEach(() => {
+      listParticipantsSpy.mockRejectedValue(new Error('Failed to list participants'))
+    })
+
+    it('should return an empty array and not throw', async () => {
+      const result = await livekitComponent.listRoomParticipants(roomName)
+
+      expect(result).toEqual([])
+      expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
+    })
+  })
+})

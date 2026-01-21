@@ -5,6 +5,7 @@ export const createContentClientMockedComponent = (
 ): jest.Mocked<IContentClientComponent> => {
   return {
     fetchEntityById: jest.fn(),
+    fetchEntitiesByPointers: jest.fn(),
     ...overrides
   } as jest.Mocked<IContentClientComponent>
 }

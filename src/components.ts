@@ -46,6 +46,7 @@ import { AnalyticsEventPayload } from './types/analytics'
 import { createLandLeaseComponent } from './adapters/land-lease'
 import { createRoomStartedHandler } from './logic/livekit-webhook/event-handlers/room-started-handler'
 import { createContentClientComponent } from './adapters/content-client'
+import { createSceneParticipantsComponent } from './adapters/scene-participants'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -191,6 +192,12 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     config
   })
 
+  const sceneParticipants = await createSceneParticipantsComponent({
+    livekit,
+    contentClient,
+    logs
+  })
+
   // LiveKit webhook event handlers
   const ingressStartedHandler = createIngressStartedHandler({
     sceneStreamAccessManager
@@ -264,6 +271,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     livekitWebhook,
     contentClient,
     schemaValidator,
-    cast
+    cast,
+    sceneParticipants
   }
 }

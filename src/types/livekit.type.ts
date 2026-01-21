@@ -59,6 +59,7 @@ export type ILivekitComponent = IBaseComponent & {
   removeIngress: (ingressId: string) => Promise<IngressInfo>
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
   getParticipantInfo: (roomId: string, participantId: string) => Promise<ParticipantInfo | null>
+  listRoomParticipants: (roomName: string) => Promise<ParticipantInfo[]>
   updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>
   updateParticipantPermissions: (
     roomId: string,
