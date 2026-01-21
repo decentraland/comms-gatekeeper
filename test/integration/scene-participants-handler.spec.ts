@@ -176,49 +176,62 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
       stubComponents.livekit.getWorldRoomName.returns(`world-prod-scene-room-${worldName}`)
     })
 
-    describe('when room exists with participants', () => {
-      beforeEach(() => {
-        stubComponents.livekit.getRoomInfo.resolves({ name: `world-prod-scene-room-${worldName}` } as any)
-        stubComponents.livekit.listRoomParticipants.resolves(mockParticipants)
+    describe('when realm_name ends with .dcl.eth', () => {
+      describe('when room exists with participants', () => {
+        beforeEach(() => {
+          stubComponents.livekit.getRoomInfo.resolves({ name: `world-prod-scene-room-${worldName}` } as any)
+          stubComponents.livekit.listRoomParticipants.resolves(mockParticipants)
+        })
+
+        it('should treat realm_name as world name and return participants', async () => {
+          const response = await components.localFetch.fetch(`/scene-participants?realm_name=${worldName}`)
+
+          expect(response.status).toBe(200)
+
+          const body = await response.json()
+          expect(body).toEqual({
+            ok: true,
+            data: {
+              addresses: [
+                '0x1234567890abcdef1234567890abcdef12345678',
+                '0xabcdef1234567890abcdef1234567890abcdef12'
+              ]
+            }
+          })
+          expect(stubComponents.livekit.getWorldRoomName.calledWith(worldName)).toBe(true)
+          expect(stubComponents.livekit.listRoomParticipants.called).toBe(true)
+        })
       })
 
-      it('should treat realm_name as world name and return participants', async () => {
-        const response = await components.localFetch.fetch(`/scene-participants?realm_name=${worldName}`)
-
-        expect(response.status).toBe(200)
-
-        const body = await response.json()
-        expect(body).toEqual({
-          ok: true,
-          data: {
-            addresses: [
-              '0x1234567890abcdef1234567890abcdef12345678',
-              '0xabcdef1234567890abcdef1234567890abcdef12'
-            ]
-          }
+      describe('when room does not exist', () => {
+        beforeEach(() => {
+          stubComponents.livekit.getRoomInfo.resolves(null)
         })
-        expect(stubComponents.livekit.getWorldRoomName.calledWith(worldName)).toBe(true)
-        expect(stubComponents.livekit.listRoomParticipants.called).toBe(true)
+
+        it('should return empty addresses array', async () => {
+          const response = await components.localFetch.fetch(`/scene-participants?realm_name=${worldName}`)
+
+          expect(response.status).toBe(200)
+
+          const body = await response.json()
+          expect(body).toEqual({
+            ok: true,
+            data: {
+              addresses: []
+            }
+          })
+        })
       })
     })
 
-    describe('when room does not exist', () => {
-      beforeEach(() => {
-        stubComponents.livekit.getRoomInfo.resolves(null)
-      })
+    describe('when realm_name does not end with .dcl.eth', () => {
+      it('should return 400 error', async () => {
+        const response = await components.localFetch.fetch('/scene-participants?realm_name=invalid-world')
 
-      it('should return empty addresses array', async () => {
-        const response = await components.localFetch.fetch(`/scene-participants?realm_name=${worldName}`)
-
-        expect(response.status).toBe(200)
+        expect(response.status).toBe(400)
 
         const body = await response.json()
-        expect(body).toEqual({
-          ok: true,
-          data: {
-            addresses: []
-          }
-        })
+        expect(body.error).toContain('realm_name must end with .dcl.eth')
       })
     })
   })

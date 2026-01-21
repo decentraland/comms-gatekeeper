@@ -210,7 +210,7 @@ paths:
           in: query
           description: |
             When used with pointer: identifies the realm for scene rooms (default: "main").
-            When used alone (without pointer): treated as a world name.
+            When used alone (without pointer): treated as a world name (must end with .dcl.eth).
           required: false
           schema:
             type: string

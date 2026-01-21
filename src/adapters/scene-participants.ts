@@ -1,4 +1,5 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
+import { EthAddress } from '@dcl/schemas'
 import { AppComponents } from '../types'
 import { InvalidRequestError, NotFoundError } from '../types/errors'
 
@@ -36,6 +37,10 @@ export async function createSceneParticipantsComponent(
       roomName = livekit.getSceneRoomName(realmName, sceneId)
     } else if (realmName && !pointer) {
       // Only realm_name provided (no pointer): treat realm_name as a world name
+      // Validate that it ends with .dcl.eth
+      if (!realmName.endsWith('.dcl.eth')) {
+        throw new InvalidRequestError('realm_name must end with .dcl.eth when used as a world name')
+      }
       logger.debug(`Treating realm_name "${realmName}" as world name`)
       roomName = livekit.getWorldRoomName(realmName)
     } else {
@@ -53,9 +58,12 @@ export async function createSceneParticipantsComponent(
     const participants = await livekit.listRoomParticipants(roomName)
 
     // Extract wallet addresses from participant identities (lowercase, first 42 chars)
-    const addresses = participants.map((p) => p.identity.toLowerCase().slice(0, 42))
+    // Filter only valid Ethereum addresses
+    const addresses = participants
+      .map((p) => p.identity.toLowerCase().slice(0, 42))
+      .filter((address) => EthAddress.validate(address))
 
-    logger.debug(`Found ${addresses.length} participants in room ${roomName}`)
+    logger.debug(`Found ${addresses.length} valid participants in room ${roomName}`)
 
     return addresses
   }
