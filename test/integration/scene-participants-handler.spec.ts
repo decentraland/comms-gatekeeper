@@ -124,60 +124,6 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
     })
   })
 
-  describe('when requesting participants for a world room', () => {
-    const worldName = 'myworld.dcl.eth'
-
-    beforeEach(() => {
-      stubComponents.livekit.getWorldRoomName.returns(`world-prod-scene-room-${worldName}`)
-    })
-
-    describe('when room exists with participants', () => {
-      beforeEach(() => {
-        stubComponents.livekit.getRoomInfo.resolves({ name: `world-prod-scene-room-${worldName}` } as any)
-        stubComponents.livekit.listRoomParticipants.resolves(mockParticipants)
-      })
-
-      it('should return list of participant addresses', async () => {
-        const response = await components.localFetch.fetch(`/scene-participants?world_name=${worldName}`)
-
-        expect(response.status).toBe(200)
-
-        const body = await response.json()
-        expect(body).toEqual({
-          ok: true,
-          data: {
-            addresses: [
-              '0x1234567890abcdef1234567890abcdef12345678',
-              '0xabcdef1234567890abcdef1234567890abcdef12'
-            ]
-          }
-        })
-        expect(stubComponents.livekit.getWorldRoomName.calledWith(worldName)).toBe(true)
-        expect(stubComponents.livekit.listRoomParticipants.called).toBe(true)
-      })
-    })
-
-    describe('when room does not exist', () => {
-      beforeEach(() => {
-        stubComponents.livekit.getRoomInfo.resolves(null)
-      })
-
-      it('should return empty addresses array', async () => {
-        const response = await components.localFetch.fetch(`/scene-participants?world_name=${worldName}`)
-
-        expect(response.status).toBe(200)
-
-        const body = await response.json()
-        expect(body).toEqual({
-          ok: true,
-          data: {
-            addresses: []
-          }
-        })
-      })
-    })
-  })
-
   describe('when request is missing required parameters', () => {
     it('should return 400 error when no parameters provided', async () => {
       const response = await components.localFetch.fetch('/scene-participants')
@@ -187,14 +133,39 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
       const body = await response.json()
       expect(body.error).toContain('is required')
     })
+  })
 
-    it('should return 400 error when only pointer provided without realm_name', async () => {
-      const response = await components.localFetch.fetch('/scene-participants?pointer=10,20')
+  describe('when using default realm_name', () => {
+    const pointer = '15,25'
+    const sceneId = 'bafkreidefault123scene'
+    let mockEntity: Entity
 
-      expect(response.status).toBe(400)
+    beforeEach(() => {
+      mockEntity = {
+        version: 'v3',
+        id: sceneId,
+        type: EntityType.SCENE,
+        pointers: [pointer],
+        timestamp: Date.now(),
+        content: []
+      }
 
-      const body = await response.json()
-      expect(body.error).toContain('is required')
+      spyComponents.contentClient.fetchEntitiesByPointers.mockResolvedValue([mockEntity])
+      stubComponents.livekit.getSceneRoomName.returns(`scene-main:${sceneId}`)
+      stubComponents.livekit.getRoomInfo.resolves({ name: `scene-main:${sceneId}` } as any)
+      stubComponents.livekit.listRoomParticipants.resolves([])
+    })
+
+    afterEach(() => {
+      spyComponents.contentClient.fetchEntitiesByPointers.mockReset()
+    })
+
+    it('should use "main" as default realm_name when only pointer is provided', async () => {
+      const response = await components.localFetch.fetch(`/scene-participants?pointer=${pointer}`)
+
+      expect(response.status).toBe(200)
+      expect(spyComponents.contentClient.fetchEntitiesByPointers).toHaveBeenCalledWith([pointer])
+      expect(stubComponents.livekit.getSceneRoomName.calledWith('main', sceneId)).toBe(true)
     })
   })
 

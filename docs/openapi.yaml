@@ -190,9 +190,8 @@ paths:
       description: |
         Retrieves the list of participant wallet addresses connected to a scene or world room.
         
-        **Query Parameters (provide one of):**
-        - `pointer` + `realm_name`: For scene rooms (pointer is the base parcel, e.g., "-7,-2"). The scene ID is resolved from the catalyst.
-        - `world_name`: For world rooms (e.g., "mycoolworld.dcl.eth")
+        **Query Parameters:**
+        - `pointer` + `realm_name`: For scene rooms (pointer is the base parcel, e.g., "-7,-2"). The scene ID is resolved from the catalyst. realm_name defaults to "main".
         - `realm_name` alone: Treated as a world name (e.g., "mycoolworld.dcl.eth")
         
         **Response:**
@@ -202,7 +201,7 @@ paths:
           in: query
           description: |
             Scene base parcel (e.g., "-7,-2"). The scene ID is resolved from the catalyst using this pointer.
-            Must be used together with realm_name for scene rooms.
+            When provided, realm_name defaults to "main" if not specified.
           required: false
           schema:
             type: string
@@ -210,15 +209,8 @@ paths:
         - name: realm_name
           in: query
           description: |
-            When used with pointer: identifies the realm for scene rooms.
+            When used with pointer: identifies the realm for scene rooms (default: "main").
             When used alone (without pointer): treated as a world name.
-          required: false
-          schema:
-            type: string
-        - name: world_name
-          in: query
-          description: |
-            World name for world rooms (e.g., "mycoolworld.dcl.eth").
           required: false
           schema:
             type: string
