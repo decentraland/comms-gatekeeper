@@ -5,7 +5,7 @@ import { InvalidRequestError, NotFoundError } from '../types/errors'
 export type SceneParticipantsParams = {
   pointer?: string | null
   worldName?: string | null
-  realmName: string
+  realmName?: string | null
 }
 
 export interface ISceneParticipantsComponent extends IBaseComponent {
@@ -24,8 +24,10 @@ export async function createSceneParticipantsComponent(
     let roomName: string
 
     if (worldName) {
+      // Explicit world_name parameter takes priority
       roomName = livekit.getWorldRoomName(worldName)
     } else if (pointer && realmName) {
+      // Scene room: pointer + realm_name
       const entities = await contentClient.fetchEntitiesByPointers([pointer])
 
       if (!entities || entities.length === 0) {
@@ -36,8 +38,12 @@ export async function createSceneParticipantsComponent(
       logger.debug(`Resolved pointer ${pointer} to sceneId ${sceneId}`)
 
       roomName = livekit.getSceneRoomName(realmName, sceneId)
+    } else if (realmName && !pointer) {
+      // Only realm_name provided (no pointer): treat realm_name as a world name
+      logger.debug(`Treating realm_name "${realmName}" as world name`)
+      roomName = livekit.getWorldRoomName(realmName)
     } else {
-      throw new InvalidRequestError('Either world_name or (pointer + realm_name) is required')
+      throw new InvalidRequestError('Either world_name, realm_name (as world), or (pointer + realm_name) is required')
     }
 
     logger.debug(`Fetching participants for room: ${roomName}`)
