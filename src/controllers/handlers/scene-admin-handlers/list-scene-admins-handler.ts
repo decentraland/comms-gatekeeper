@@ -14,7 +14,7 @@ export async function listSceneAdminsHandler(
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, sceneManager, places, names, sceneAdmins, landLease },
+    components: { logs, config, sceneManager, places, names, sceneAdmins, landLease },
     url,
     verification
   } = ctx
@@ -43,11 +43,20 @@ export async function listSceneAdminsHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  // Check if request comes from authoritative server
+  const serverPublicKey = await config.getString('AUTHORITATIVE_SERVER_ADDRESS')
+  const isServerIdentity = serverPublicKey && authenticatedAddress.toLowerCase() === serverPublicKey.toLowerCase()
 
-  if (!isOwnerOrAdmin) {
-    logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
-    throw new UnauthorizedError('Only administrators or the owner can list administrators')
+  // Skip admin check if request comes from authoritative server identity
+  if (!isServerIdentity) {
+    const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+
+    if (!isOwnerOrAdmin) {
+      logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
+      throw new UnauthorizedError('Only administrators or the owner can list administrators')
+    }
+  } else {
+    logger.debug(`Authoritative server ${authenticatedAddress} requesting scene admins for place ${place.id}`)
   }
 
   const searchParams = url.searchParams

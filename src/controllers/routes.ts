@@ -69,6 +69,14 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'decentraland-kernel-scene'
   })
 
+  // Auth middleware that accepts both scene requests and authoritative server requests
+  const authSceneOrServer = authVerificationMiddleware({
+    fetcher: components.fetch,
+    optional: false,
+    metadataValidator: (metadata: Record<string, any>) =>
+      metadata.signer === 'decentraland-kernel-scene' || metadata.signer === 'dcl:authoritative-server'
+  })
+
   const authExplorer = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
@@ -87,7 +95,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post('/mute', muteHandler)
 
   // Scene admin routes
-  router.get('/scene-admin', auth, listSceneAdminsHandler)
+  router.get('/scene-admin', authSceneOrServer, listSceneAdminsHandler)
   router.post(
     '/scene-admin',
     auth,
