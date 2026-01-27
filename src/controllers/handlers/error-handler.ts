@@ -70,6 +70,8 @@ export async function errorHandler(
       }
     }
 
+    console.error(error)
+
     return {
       status: 500,
       body: {
