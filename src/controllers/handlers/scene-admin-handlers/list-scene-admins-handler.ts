@@ -34,7 +34,12 @@ export async function listSceneAdminsHandler(
     parcel,
     realm: { hostname, serverName }
   } = await validate(ctx)
-  const isWorld = hostname.includes('worlds-content-server')
+  // Check if request comes from authoritative server
+  const serverPublicKey = await config.getString('AUTHORITATIVE_SERVER_ADDRESS')
+  const isAuthoritativeServerIdentity =
+    serverPublicKey && authenticatedAddress.toLowerCase() === serverPublicKey.toLowerCase()
+  // TODO: currently authoritative server only runs for worlds
+  const isWorld = hostname?.includes('worlds-content-server') || isAuthoritativeServerIdentity
 
   let place: PlaceAttributes
   if (isWorld) {
@@ -43,12 +48,8 @@ export async function listSceneAdminsHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  // Check if request comes from authoritative server
-  const serverPublicKey = await config.getString('AUTHORITATIVE_SERVER_ADDRESS')
-  const isServerIdentity = serverPublicKey && authenticatedAddress.toLowerCase() === serverPublicKey.toLowerCase()
-
   // Skip admin check if request comes from authoritative server identity
-  if (!isServerIdentity) {
+  if (!isAuthoritativeServerIdentity) {
     const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
 
     if (!isOwnerOrAdmin) {
