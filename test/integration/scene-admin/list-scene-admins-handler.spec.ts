@@ -838,7 +838,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       stubComponents.landLease.getAuthorizations.resolves({ authorizations: [] })
     })
 
-    it('returns 200 with scene admins without checking owner/admin permissions', async () => {
+    it('should return 200 with scene admins without checking owner/admin permissions', async () => {
       const { localFetch } = components
 
       const response = await makeRequest(
@@ -861,33 +861,41 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       expect(stubComponents.sceneManager.isSceneOwnerOrAdmin.called).toBe(false)
     })
 
-    it('returns 200 when server identity matches case-insensitively', async () => {
-      const { localFetch } = components
+    describe('and server identity matches case-insensitively', () => {
+      let metadataServerUpper: Metadata
 
-      // Mock config to return uppercase server address
-      stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey.toUpperCase())
+      beforeEach(async () => {
+        // Mock config to return uppercase server address
+        stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey.toUpperCase())
 
-      const metadataServerUpper = {
-        ...metadataServer,
-        identity: serverPublicKey.toLowerCase(),
-        signer: 'dcl:authoritative-server'
-      }
+        metadataServerUpper = {
+          ...metadataServer,
+          identity: serverPublicKey.toLowerCase()
+        }
 
-      jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataServerUpper)
+        jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataServerUpper)
+      })
 
-      const response = await makeRequest(
-        localFetch,
-        '/scene-admin',
-        {
-          method: 'GET',
-          metadata: metadataServerUpper
-        },
-        admin
-      )
+      it('should return 200 and bypass owner/admin permission check', async () => {
+        const { localFetch } = components
 
-      expect(response.status).toBe(200)
-      // Verify isSceneOwnerOrAdmin was NOT called
-      expect(stubComponents.sceneManager.isSceneOwnerOrAdmin.called).toBe(false)
+        const response = await makeRequest(
+          localFetch,
+          '/scene-admin',
+          {
+            method: 'GET',
+            metadata: {
+              ...metadataServerUpper,
+              signer: 'dcl:authoritative-server'
+            } as any
+          },
+          admin
+        )
+
+        expect(response.status).toBe(200)
+        // Verify isSceneOwnerOrAdmin was NOT called
+        expect(stubComponents.sceneManager.isSceneOwnerOrAdmin.called).toBe(false)
+      })
     })
   })
 
@@ -900,7 +908,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey)
     })
 
-    it('returns 401 when user is not authorized even with server public key configured', async () => {
+    it('should return 401 even with server public key configured', async () => {
       const { localFetch } = components
 
       // User is NOT the server and is NOT owner/admin
