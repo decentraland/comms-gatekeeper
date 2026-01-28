@@ -14,7 +14,7 @@ export async function listSceneAdminsHandler(
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, sceneManager, places, names, sceneAdmins, landLease },
+    components: { logs, config, sceneManager, places, names, sceneAdmins, landLease },
     url,
     verification
   } = ctx
@@ -34,6 +34,10 @@ export async function listSceneAdminsHandler(
     parcel,
     realm: { hostname, serverName }
   } = await validate(ctx)
+  const authoritativeServerIdentity = await config.getString('AUTHORITATIVE_SERVER_ADDRESS')
+  const isAuthoritativeServerIdentity =
+    authoritativeServerIdentity && authenticatedAddress.toLowerCase() === authoritativeServerIdentity.toLowerCase()
+
   const isWorld = hostname.includes('worlds-content-server')
 
   let place: PlaceAttributes
@@ -43,11 +47,16 @@ export async function listSceneAdminsHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  // Skip admin check if request comes from authoritative server identity
+  if (!isAuthoritativeServerIdentity) {
+    const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
 
-  if (!isOwnerOrAdmin) {
-    logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
-    throw new UnauthorizedError('Only administrators or the owner can list administrators')
+    if (!isOwnerOrAdmin) {
+      logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
+      throw new UnauthorizedError('Only administrators or the owner can list administrators')
+    }
+  } else {
+    logger.debug(`Authoritative server ${authenticatedAddress} requesting scene admins for place ${place.id}`)
   }
 
   const searchParams = url.searchParams

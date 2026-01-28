@@ -791,4 +791,142 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       expect(body.length).toBeGreaterThan(0)
     })
   })
+
+  describe('when request comes from authoritative server identity', () => {
+    // Use admin identity's address as the server public key (so we can use valid signatures)
+    const serverPublicKey = admin.authChain[0].payload
+    let metadataServer: Metadata
+
+    beforeEach(async () => {
+      metadataServer = {
+        identity: serverPublicKey,
+        realm: {
+          serverName: 'test-realm',
+          hostname: 'https://peer.decentraland.zone',
+          protocol: 'https'
+        },
+        sceneId: 'test-scene',
+        parcel: '10,20',
+        isWorld: false
+      }
+
+      jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataServer)
+
+      // Mock config to return the server public key (admin's address)
+      stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey)
+
+      stubComponents.places.getPlaceByParcel.resolves({
+        id: placeId,
+        positions: ['10,20'],
+        world: false
+      } as PlaceAttributes)
+
+      // Server is NOT owner/admin (this should be bypassed for server identity)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+
+      stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+        admins: new Set(allAdminResults.filter((a) => a.canBeRemoved && 'id' in a && 'place_id' in a)),
+        extraAddresses: new Set(allAdminResults.filter((a) => !a.canBeRemoved).map((a) => a.admin)),
+        addresses: new Set(allAdminResults.map((a) => a.admin))
+      })
+
+      stubComponents.names.getNamesFromAddresses.resolves({
+        [admin.authChain[0].payload]: '',
+        [nonOwner.authChain[0].payload]: 'SirTest'
+      })
+
+      stubComponents.landLease.getAuthorizations.resolves({ authorizations: [] })
+    })
+
+    it('should return 200 with scene admins without checking owner/admin permissions', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-admin',
+        {
+          method: 'GET',
+          metadata: {
+            ...metadataServer,
+            signer: 'dcl:authoritative-server'
+          }
+        },
+        admin // Use admin identity which matches serverPublicKey
+      )
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(Array.isArray(body)).toBe(true)
+      // Verify isSceneOwnerOrAdmin was NOT called since server identity bypasses this check
+      expect(stubComponents.sceneManager.isSceneOwnerOrAdmin.called).toBe(false)
+    })
+
+    describe('and server identity matches case-insensitively', () => {
+      let metadataServerUpper: Metadata
+
+      beforeEach(async () => {
+        // Mock config to return uppercase server address
+        stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey.toUpperCase())
+
+        metadataServerUpper = {
+          ...metadataServer,
+          identity: serverPublicKey.toLowerCase()
+        }
+
+        jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataServerUpper)
+      })
+
+      it('should return 200 and bypass owner/admin permission check', async () => {
+        const { localFetch } = components
+
+        const response = await makeRequest(
+          localFetch,
+          '/scene-admin',
+          {
+            method: 'GET',
+            metadata: {
+              ...metadataServerUpper,
+              signer: 'dcl:authoritative-server'
+            } as any
+          },
+          admin
+        )
+
+        expect(response.status).toBe(200)
+        // Verify isSceneOwnerOrAdmin was NOT called
+        expect(stubComponents.sceneManager.isSceneOwnerOrAdmin.called).toBe(false)
+      })
+    })
+  })
+
+  describe('when request comes from non-server identity', () => {
+    // Use admin's address as server public key (different from nonOwner)
+    const serverPublicKey = admin.authChain[0].payload
+
+    beforeEach(async () => {
+      // Mock config to return the server public key
+      stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey)
+    })
+
+    it('should return 401 even with server public key configured', async () => {
+      const { localFetch } = components
+
+      // User is NOT the server and is NOT owner/admin
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-admin',
+        {
+          method: 'GET',
+          metadata: metadataLand
+        },
+        nonOwner // nonOwner's address doesn't match serverPublicKey
+      )
+
+      expect(response.status).toBe(401)
+      // Verify isSceneOwnerOrAdmin WAS called since this is a regular user
+      expect(stubComponents.sceneManager.isSceneOwnerOrAdmin.called).toBe(true)
+    })
+  })
 })

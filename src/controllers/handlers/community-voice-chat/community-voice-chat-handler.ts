@@ -1,5 +1,4 @@
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError } from '../../../types/errors'
 import { CommunityVoiceChatAction } from '../../../types/community-voice'
 import { CommunityRole } from '../../../types/social.type'
 import { CommunityVoiceChatRequestBody } from './schemas'
