@@ -34,12 +34,11 @@ export async function listSceneAdminsHandler(
     parcel,
     realm: { hostname, serverName }
   } = await validate(ctx)
-  // Check if request comes from authoritative server
-  const serverPublicKey = await config.getString('AUTHORITATIVE_SERVER_ADDRESS')
+  const authoritativeServerIdentity = await config.getString('AUTHORITATIVE_SERVER_ADDRESS')
   const isAuthoritativeServerIdentity =
-    serverPublicKey && authenticatedAddress.toLowerCase() === serverPublicKey.toLowerCase()
-  // TODO: currently authoritative server only runs for worlds
-  const isWorld = hostname?.includes('worlds-content-server') || isAuthoritativeServerIdentity
+    authoritativeServerIdentity && authenticatedAddress.toLowerCase() === authoritativeServerIdentity.toLowerCase()
+
+  const isWorld = hostname.includes('worlds-content-server')
 
   let place: PlaceAttributes
   if (isWorld) {
