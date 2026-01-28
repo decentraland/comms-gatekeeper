@@ -19,7 +19,7 @@ export async function createSceneStreamAccessManagerComponent({
     await database.query(
       SQL`UPDATE scene_stream_access 
           SET active = false 
-          WHERE place_id = ${input.place_id} AND active = true`
+          WHERE (place_id = ${input.place_id} OR ingress_id = ${input.ingress_id}) AND active = true`
     )
 
     const now = Date.now()
