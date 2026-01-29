@@ -3,7 +3,7 @@ import { WebhookEvent } from 'livekit-server-sdk'
 import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
-import { isRoomEventValid, isVoiceChatRoom } from './utils'
+import { isPreviewRealm, isRoomEventValid, isVoiceChatRoom } from './utils'
 
 export function createParticipantLeftHandler(
   components: Pick<AppComponents, 'voice' | 'analytics' | 'logs' | 'livekit' | 'publisher'>
@@ -26,6 +26,13 @@ export function createParticipantLeftHandler(
         logger.warn(`Unknown room type for participant left: ${room.name}`)
         return
       }
+
+      // Do not publish events for preview realms (Creator Hub, local development)
+      if (isPreviewRealm(realmName) || isPreviewRealm(worldName)) {
+        logger.debug(`Skipping UserLeftRoomEvent for preview realm: ${realmName ?? worldName}`)
+        return
+      }
+
       const userAddress = participant.identity.toLowerCase().slice(0, 42)
 
       const event: UserLeftRoomEvent = {

@@ -284,6 +284,50 @@ describe('Participant Left Handler', () => {
         })
       })
 
+      describe('and room is a preview scene room (LocalPreview)', () => {
+        beforeEach(() => {
+          getRoomMetadataFromRoomNameMock.mockReset()
+          webhookEvent.room!.name = 'preview-scene-room'
+          getRoomMetadataFromRoomNameMock.mockReturnValue({
+            sceneId: 'scene-123',
+            worldName: undefined,
+            realmName: 'LocalPreview',
+            roomType: RoomType.SCENE
+          })
+        })
+
+        it('should not publish the user left room event for preview realm', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(publishMessagesMock).not.toHaveBeenCalled()
+        })
+
+        it('should not fire analytics event for preview realm', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(fireEventMock).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and room is a preview scene room (preview lowercase)', () => {
+        beforeEach(() => {
+          getRoomMetadataFromRoomNameMock.mockReset()
+          webhookEvent.room!.name = 'preview-scene-room'
+          getRoomMetadataFromRoomNameMock.mockReturnValue({
+            sceneId: 'scene-456',
+            worldName: undefined,
+            realmName: 'preview',
+            roomType: RoomType.SCENE
+          })
+        })
+
+        it('should not publish the user left room event for preview realm', async () => {
+          await handler.handle(webhookEvent)
+
+          expect(publishMessagesMock).not.toHaveBeenCalled()
+        })
+      })
+
       describe('and publishing the user left room event fails', () => {
         beforeEach(() => {
           publishMessagesMock.mockRejectedValue(new Error('Failed to publish user left room event'))
