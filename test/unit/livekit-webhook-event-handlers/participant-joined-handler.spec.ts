@@ -463,6 +463,63 @@ describe('Participant Joined Handler', () => {
       })
     })
 
+    describe('and room is a preview scene room', () => {
+      let sceneId: string
+
+      beforeEach(() => {
+        sceneId = 'scene-123'
+        webhookEvent.room!.name = 'preview-scene-room'
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId,
+          worldName: undefined,
+          realmName: 'LocalPreview',
+          roomType: RoomType.SCENE
+        })
+      })
+
+      it('should not publish UserJoinedRoomEvent for LocalPreview realm', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(publishMessagesMock).not.toHaveBeenCalled()
+      })
+
+      it('should still fire analytics event', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(fireEventMock).toHaveBeenCalledWith(AnalyticsEvent.PARTICIPANT_JOINED_ROOM, {
+          room: webhookEvent.room!.name,
+          address: userAddress
+        })
+      })
+
+      it('should still call sceneBans.updateRoomMetadataWithBans', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+      })
+    })
+
+    describe('and room is a preview realm with lowercase name', () => {
+      let sceneId: string
+
+      beforeEach(() => {
+        sceneId = 'scene-456'
+        webhookEvent.room!.name = 'preview-scene-room'
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId,
+          worldName: undefined,
+          realmName: 'preview',
+          roomType: RoomType.SCENE
+        })
+      })
+
+      it('should not publish UserJoinedRoomEvent for preview realm', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(publishMessagesMock).not.toHaveBeenCalled()
+      })
+    })
+
     describe('and message publishing fails', () => {
       let publishError: Error
       let sceneId: string

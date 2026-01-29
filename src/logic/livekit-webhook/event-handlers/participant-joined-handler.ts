@@ -2,8 +2,8 @@ import { Room, WebhookEvent } from 'livekit-server-sdk'
 import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
-import { isRoomEventValid, isVoiceChatRoom } from './utils'
 import { Events, RoomType } from '@dcl/schemas'
+import { isPreviewRealm, isRoomEventValid, isVoiceChatRoom } from './utils'
 import { UserJoinedRoomEvent } from '@dcl/schemas'
 
 export function createParticipantJoinedHandler(
@@ -18,6 +18,12 @@ export function createParticipantJoinedHandler(
 
     if (roomType === RoomType.UNKNOWN) {
       logger.warn(`Unknown room type for participant joined: ${room.name}`)
+      return
+    }
+
+    // Do not publish events for preview realms (Creator Hub, local development)
+    if (isPreviewRealm(realmName) || isPreviewRealm(worldName)) {
+      logger.debug(`Skipping UserJoinedRoomEvent for preview realm: ${realmName ?? worldName}`)
       return
     }
 
