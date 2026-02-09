@@ -113,6 +113,7 @@ export function createSceneBansComponent(
 
   /**
    * Adds a ban for a user from a scene with permission validation.
+   * Bans are applied world-wide for worlds, meaning all scenes within a world share the same bans.
    * @param payload - The payload containing the address or name of the user being banned.
    * @param bannedBy - The address of the user performing the ban.
    * @param params - The parameters for the ban.
@@ -131,7 +132,8 @@ export function createSceneBansComponent(
     let place: PlaceAttributes
 
     if (isWorld) {
-      place = await places.getPlaceByWorldName(realmName)
+      // For worlds: use getWorldByName to get the world place (bans are world-wide)
+      place = await places.getWorldByName(realmName)
     } else {
       place = await places.getPlaceByParcel(parcel)
     }
@@ -197,6 +199,7 @@ export function createSceneBansComponent(
 
   /**
    * Removes a ban for a user from a scene with permission validation.
+   * Bans are removed world-wide for worlds, consistent with how they are applied.
    * @param bannedAddress - The address of the user being unbanned.
    * @param unbannedBy - The address of the user performing the unban.
    * @param params - The parameters for the unban.
@@ -219,7 +222,8 @@ export function createSceneBansComponent(
     let place: PlaceAttributes
 
     if (isWorld) {
-      place = await places.getPlaceByWorldName(realmName)
+      // For worlds: use getWorldByName to get the world place (bans are world-wide)
+      place = await places.getWorldByName(realmName)
     } else {
       place = await places.getPlaceByParcel(parcel)
     }
@@ -316,7 +320,8 @@ export function createSceneBansComponent(
     let place: PlaceAttributes
 
     if (isWorld) {
-      place = await places.getPlaceByWorldName(realmName)
+      // For worlds: use getWorldByName to get the world place (bans are world-wide)
+      place = await places.getWorldByName(realmName)
     } else {
       place = await places.getPlaceByParcel(parcel)
     }
@@ -360,7 +365,8 @@ export function createSceneBansComponent(
     let place: PlaceAttributes
 
     if (isWorld) {
-      place = await places.getPlaceByWorldName(realmName)
+      // For worlds: use getWorldByName to check bans (bans are world-wide)
+      place = await places.getWorldByName(realmName)
     } else if (parcel) {
       place = await places.getPlaceByParcel(parcel)
     } else if (sceneId) {
@@ -447,7 +453,8 @@ export function createSceneBansComponent(
       }
 
       if (worldName) {
-        place = await places.getPlaceByWorldName(worldName)
+        // For worlds: use getWorldByName to get the world place for bans
+        place = await places.getWorldByName(worldName)
       } else {
         // TODO: we could retry if fails
         const entity = await contentClient.fetchEntityById(sceneId!)

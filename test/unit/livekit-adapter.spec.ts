@@ -190,10 +190,19 @@ describe('when getting or creating a room', () => {
 })
 
 describe('when getting a world room name', () => {
-  it('should return world room name with prefix', () => {
+  it('should return world room name with prefix and world name', () => {
     const worldName = 'test-world'
     const result = livekitComponent.getWorldRoomName(worldName)
     expect(result).toBe('world-prod-scene-room-test-world')
+  })
+})
+
+describe('when getting a world scene room name', () => {
+  it('should return world scene room name with prefix, world name and scene id', () => {
+    const worldName = 'test-world'
+    const sceneId = 'bafkreiabcdef123'
+    const result = livekitComponent.getWorldSceneRoomName(worldName, sceneId)
+    expect(result).toBe('world-prod-scene-room-test-world-bafkreiabcdef123')
   })
 })
 
@@ -208,26 +217,20 @@ describe('when getting a scene room name', () => {
 
 describe('when getting a room name', () => {
   describe('when isWorld is true', () => {
-    it('should return world room name', () => {
-      const realmName = 'test-realm'
-      const result = livekitComponent.getRoomName(realmName, { isWorld: true })
-      expect(result).toBe('world-prod-scene-room-test-realm')
+    it('should return world scene room name with the scene id', () => {
+      const realmName = 'test-world.dcl.eth'
+      const sceneId = 'bafkreiscene123'
+      const result = livekitComponent.getRoomName(realmName, { isWorld: true, sceneId })
+      expect(result).toBe('world-prod-scene-room-test-world.dcl.eth-bafkreiscene123')
     })
   })
 
   describe('when isWorld is false', () => {
-    it('should return scene room name when sceneId is provided', () => {
+    it('should return scene room name with the realm and scene id', () => {
       const realmName = 'test-realm'
       const sceneId = 'test-scene'
       const result = livekitComponent.getRoomName(realmName, { isWorld: false, sceneId })
       expect(result).toBe('scene-test-realm:test-scene')
-    })
-
-    it('should throw error when sceneId is not provided', () => {
-      const realmName = 'test-realm'
-      expect(() => {
-        livekitComponent.getRoomName(realmName, { isWorld: false })
-      }).toThrow('No sceneId provided for scene room')
     })
   })
 })
@@ -697,13 +700,41 @@ describe('when getting room metadata from room name', () => {
   })
 
   describe('when room name is a world scene room', () => {
-    it('should extract world name and return WORLD room type', () => {
-      const roomName = 'world-prod-scene-room-world-name-123'
-      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+    describe('when room name has the new format with sceneId', () => {
+      it('should extract world name and scene id and return WORLD room type', () => {
+        const roomName = 'world-prod-scene-room-example.dcl.eth-bafkreiabcdef123'
+        const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
 
-      expect(result).toEqual({
-        worldName: 'world-name-123',
-        roomType: 'world'
+        expect(result).toEqual({
+          worldName: 'example.dcl.eth',
+          sceneId: 'bafkreiabcdef123',
+          roomType: 'world'
+        })
+      })
+
+      describe('when world name contains dashes', () => {
+        it('should correctly parse world name and scene id', () => {
+          const roomName = 'world-prod-scene-room-my-world.dcl.eth-bafkreiabcdef123'
+          const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+          expect(result).toEqual({
+            worldName: 'my-world.dcl.eth',
+            sceneId: 'bafkreiabcdef123',
+            roomType: 'world'
+          })
+        })
+      })
+    })
+
+    describe('when room name has the legacy format without sceneId', () => {
+      it('should extract world name and return WORLD room type without sceneId', () => {
+        const roomName = 'world-prod-scene-room-legacyworld'
+        const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+        expect(result).toEqual({
+          worldName: 'legacyworld',
+          roomType: 'world'
+        })
       })
     })
   })

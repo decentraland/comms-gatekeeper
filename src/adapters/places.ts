@@ -12,6 +12,7 @@ export async function createPlacesComponent(
   const placesApiUrl = await config.requireString('PLACES_API_URL')
 
   const fetchFromCache = cachedFetch.cache<PlaceResponse>()
+
   async function getPlaceByParcel(parcel: string): Promise<PlaceAttributes> {
     const response = await fetchFromCache.fetch(`${placesApiUrl}/places?positions=${parcel}`)
 
@@ -23,15 +24,47 @@ export async function createPlacesComponent(
     return response.data[0]
   }
 
-  async function getPlaceByWorldName(worldName: string): Promise<PlaceAttributes> {
-    const response = await fetchFromCache.fetch(`${placesApiUrl}/worlds?names=${worldName}`)
+  /**
+   * Gets a world scene place by world name and position.
+   * Used for scene-specific operations where we need the place for a specific scene within a world.
+   * Queries /places endpoint with positions and names[] parameters.
+   */
+  async function getWorldScenePlace(worldName: string, position: string): Promise<PlaceAttributes> {
+    const lowercasedWorldName = worldName.toLowerCase()
+    const response = await fetchFromCache.fetch(
+      `${placesApiUrl}/places?positions=${position}&names=${lowercasedWorldName}`
+    )
 
-    if (!response?.data || response.data.length === 0) {
+    if (!response?.data?.length) {
+      logger.info(`No world scene place found for world ${worldName} at position ${position}`)
+      throw new PlaceNotFoundError(`No world scene place found for world ${worldName} at position ${position}`)
+    }
+
+    return response.data[0]
+  }
+
+  /**
+   * Gets a world by its name.
+   * Used for world-wide operations like bans where we need the world itself, not a specific scene.
+   * Queries /worlds/:world-id endpoint where world-id is the lowercased world name.
+   */
+  async function getWorldByName(worldName: string): Promise<PlaceAttributes> {
+    const worldId = worldName.toLowerCase()
+    const response = await fetch.fetch(`${placesApiUrl}/worlds/${worldId}`)
+
+    if (!response.ok) {
       logger.info(`No world found with name ${worldName}`)
       throw new PlaceNotFoundError(`No world found with name ${worldName}`)
     }
 
-    return response.data[0]
+    const world = (await response.json()) as { data: PlaceAttributes; ok: boolean }
+
+    if (!world?.data) {
+      logger.info(`No world found with name ${worldName}`)
+      throw new PlaceNotFoundError(`No world found with name ${worldName}`)
+    }
+
+    return world.data
   }
 
   async function getPlaceStatusByIds(
@@ -57,7 +90,8 @@ export async function createPlacesComponent(
 
   return {
     getPlaceByParcel,
-    getPlaceByWorldName,
+    getWorldScenePlace,
+    getWorldByName,
     getPlaceStatusByIds
   }
 }

@@ -34,6 +34,11 @@ export async function commsSceneHandler(
 
   const isWorld = realmName.endsWith('.eth')
 
+  // sceneId is required for all rooms (both worlds and scenes)
+  if (realmName !== PREVIEW && !sceneId) {
+    throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  }
+
   // Check if user is banned from the scene
   if (realmName !== PREVIEW) {
     try {
@@ -79,12 +84,9 @@ export async function commsSceneHandler(
       throw new UnauthorizedError('Access denied, you are not authorized to access this world')
     }
 
-    room = livekit.getWorldRoomName(realmName)
+    room = livekit.getWorldSceneRoomName(realmName, sceneId!)
   } else {
-    if (!sceneId) {
-      throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
-    }
-    room = livekit.getSceneRoomName(realmName, sceneId)
+    room = livekit.getSceneRoomName(realmName, sceneId!)
   }
 
   if (!permissions) {

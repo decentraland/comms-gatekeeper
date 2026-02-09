@@ -15,6 +15,7 @@ export const createLivekitMockedComponent = (
     muteParticipant: jest.fn(),
     removeParticipant: jest.fn(),
     getWorldRoomName: jest.fn(),
+    getWorldSceneRoomName: jest.fn(),
     getSceneRoomName: jest.fn(),
     getPrivateVoiceChatRoomName: jest
       .fn()

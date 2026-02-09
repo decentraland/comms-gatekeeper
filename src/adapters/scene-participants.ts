@@ -12,10 +12,14 @@ export interface ISceneParticipantsComponent extends IBaseComponent {
   getParticipantAddresses(params: SceneParticipantsParams): Promise<string[]>
 }
 
+function isWorldName(name: string): boolean {
+  return name.endsWith('.eth')
+}
+
 export async function createSceneParticipantsComponent(
-  components: Pick<AppComponents, 'livekit' | 'contentClient' | 'logs'>
+  components: Pick<AppComponents, 'livekit' | 'contentClient' | 'worlds' | 'logs'>
 ): Promise<ISceneParticipantsComponent> {
-  const { livekit, contentClient, logs } = components
+  const { livekit, contentClient, worlds, logs } = components
   const logger = logs.getLogger('scene-participants')
 
   async function getParticipantAddresses(params: SceneParticipantsParams): Promise<string[]> {
@@ -23,8 +27,24 @@ export async function createSceneParticipantsComponent(
 
     let roomName: string
 
-    if (pointer && realmName) {
-      // Scene room: pointer + realm_name
+    if (realmName && isWorldName(realmName) && pointer) {
+      // World scene room: fetch the scene ID from the world content server
+      const worldScene = await worlds.fetchWorldSceneByPointer(realmName, pointer)
+
+      if (!worldScene) {
+        throw new NotFoundError(`No scene found for world ${realmName} at pointer: ${pointer}`)
+      }
+
+      const sceneId = worldScene.entityId
+      logger.debug(`Resolved world ${realmName} pointer ${pointer} to sceneId ${sceneId}`)
+
+      roomName = livekit.getWorldSceneRoomName(realmName, sceneId)
+    } else if (realmName && isWorldName(realmName)) {
+      // World room (no pointer): get all participants in the world
+      logger.debug(`Getting participants for world room: ${realmName}`)
+      roomName = livekit.getWorldRoomName(realmName)
+    } else if (pointer && realmName) {
+      // Regular scene room: fetch the scene ID from the catalyst
       const entities = await contentClient.fetchEntitiesByPointers([pointer])
 
       if (!entities || entities.length === 0) {
@@ -35,16 +55,8 @@ export async function createSceneParticipantsComponent(
       logger.debug(`Resolved pointer ${pointer} to sceneId ${sceneId}`)
 
       roomName = livekit.getSceneRoomName(realmName, sceneId)
-    } else if (realmName && !pointer) {
-      // Only realm_name provided (no pointer): treat realm_name as a world name
-      // Validate that it ends with .dcl.eth
-      if (!realmName.endsWith('.dcl.eth')) {
-        throw new InvalidRequestError('realm_name must end with .dcl.eth when used as a world name')
-      }
-      logger.debug(`Treating realm_name "${realmName}" as world name`)
-      roomName = livekit.getWorldRoomName(realmName)
     } else {
-      throw new InvalidRequestError('Either realm_name (as world) or (pointer + realm_name) is required')
+      throw new InvalidRequestError('Either pointer with realm_name or a world realm_name must be provided')
     }
 
     logger.debug(`Fetching participants for room: ${roomName}`)

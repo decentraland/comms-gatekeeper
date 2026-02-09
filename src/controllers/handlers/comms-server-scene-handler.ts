@@ -26,6 +26,11 @@ export async function commsServerSceneHandler(
   const realmName = realm.serverName
   const isWorld = realmName.endsWith('.eth')
 
+  // sceneId is required for all rooms (both worlds and scenes)
+  if (realmName !== 'LocalPreview' && !sceneId) {
+    throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  }
+
   // TODO: when running preview how to handle this case ?
   // Should we have a list of valid public keys ?
   const serverPublicKey = await config.getString('AUTHORITATIVE_SERVER_ADDRESS')
@@ -33,12 +38,11 @@ export async function commsServerSceneHandler(
     throw new UnauthorizedError('Access denied, invalid server public key')
   }
 
-  if (isWorld) {
-    room = livekit.getWorldRoomName(realmName)
+  if (realmName === 'LocalPreview') {
+    room = `preview-${identity}`
+  } else if (isWorld) {
+    room = livekit.getWorldSceneRoomName(realmName, sceneId)
   } else {
-    if (!sceneId) {
-      throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
-    }
     room = livekit.getSceneRoomName(realmName, sceneId)
   }
 

@@ -1,12 +1,12 @@
 import { AppComponents, NamesResponse } from '../types'
 import { ensureSlashAtTheEnd } from '../logic/utils'
-import { IWorldComponent, PermissionsOverWorld, PermissionType } from '../types/worlds.type'
+import { IWorldComponent, PermissionsOverWorld, PermissionType, WorldScene } from '../types/worlds.type'
 import { InvalidRequestError } from '../types/errors'
 
 export async function createWorldsComponent(
-  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
+  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'fetch' | 'logs'>
 ): Promise<IWorldComponent> {
-  const { config, cachedFetch, logs } = components
+  const { config, cachedFetch, fetch, logs } = components
   const logger = logs.getLogger('world-component')
 
   const [worldContentUrl, lambdasUrl] = await Promise.all([
@@ -18,6 +18,33 @@ export async function createWorldsComponent(
     const fetchFromCache = cachedFetch.cache<PermissionsOverWorld>()
     const response = await fetchFromCache.fetch(`${worldContentUrl}/world/${worldName.toLowerCase()}/permissions`)
     return response
+  }
+
+  async function fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined> {
+    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/scenes`
+    logger.debug(`Fetching world scene for ${worldName} at pointer ${pointer}`)
+
+    const response = await fetch.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pointers: [pointer] })
+    })
+
+    if (!response.ok) {
+      logger.warn(`Failed to fetch world scene for ${worldName} at pointer ${pointer}: HTTP ${response.status}`)
+      return undefined
+    }
+
+    const result = (await response.json()) as { scenes: WorldScene[]; total: number }
+
+    if (!result.scenes || result.scenes.length === 0) {
+      logger.debug(`No scene found for world ${worldName} at pointer ${pointer}`)
+      return undefined
+    }
+
+    const scene = result.scenes[0]
+    logger.debug(`Found scene ${scene.entityId} for world ${worldName} at pointer ${pointer}`)
+    return scene
   }
 
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
@@ -76,6 +103,7 @@ export async function createWorldsComponent(
 
   return {
     fetchWorldActionPermissions,
+    fetchWorldSceneByPointer,
     hasWorldOwnerPermission,
     hasWorldStreamingPermission,
     hasWorldDeployPermission,

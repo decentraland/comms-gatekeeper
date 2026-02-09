@@ -535,6 +535,66 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     })
   })
 
+  describe('when world has sceneId', () => {
+    const sceneId = 'bafkreiworldscene123'
+
+    beforeEach(() => {
+      const metadataWorldWithSceneId = {
+        ...metadataWorld,
+        sceneId
+      }
+
+      jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorldWithSceneId)
+      stubComponents.livekit.getWorldSceneRoomName.returns(`world-prod-scene-room-name.dcl.eth-${sceneId}`)
+    })
+
+    it('should get the world scene room with the scene id', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: { ...metadataWorld, sceneId }
+        },
+        owner
+      )
+
+      expect(response.status).toBe(200)
+      expect(stubComponents.livekit.getWorldSceneRoomName.calledWith('name.dcl.eth', sceneId)).toBe(true)
+    })
+  })
+
+  describe('when world does not have sceneId', () => {
+    beforeEach(() => {
+      const metadataWorldWithoutSceneId = {
+        ...metadataWorld,
+        sceneId: undefined
+      }
+
+      jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorldWithoutSceneId)
+      stubComponents.livekit.getWorldRoomName.returns('world-prod-scene-room-name.dcl.eth')
+    })
+
+    it('should get the world scene room without the scene id', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: { ...metadataWorld, sceneId: undefined }
+        },
+        owner
+      )
+
+      expect(response.status).toBe(200)
+      expect(stubComponents.livekit.getWorldRoomName.calledWith('name.dcl.eth')).toBe(true)
+    })
+  })
+
   it('returns 200 with streaming access when is an admin', async () => {
     const { localFetch } = components
 

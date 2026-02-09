@@ -8,7 +8,7 @@ export interface ICastComponent {
 export interface GenerateStreamLinkParams {
   walletAddress: string
   worldName?: string
-  parcel?: string
+  parcel: string
   sceneId: string
   realmName: string
 }
