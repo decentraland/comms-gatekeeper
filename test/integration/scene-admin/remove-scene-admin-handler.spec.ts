@@ -97,7 +97,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       owner: ownerAddress
     } as PlaceAttributes)
 
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldByName.resolves({
       id: placeId,
       positions: [],
       world_name: 'test-world',

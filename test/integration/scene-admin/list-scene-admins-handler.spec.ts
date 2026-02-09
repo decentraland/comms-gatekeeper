@@ -110,7 +110,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       world: false
     } as PlaceAttributes)
 
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldByName.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -158,7 +158,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldByName.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -210,7 +210,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldByName.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -344,7 +344,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldByName.resolves({
       id: placeId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
@@ -387,7 +387,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldByName.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -413,7 +413,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldByName.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -493,7 +493,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const extraAddress2 = '0x2222222222222222222222222222222222222222'
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldByName.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -555,7 +555,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldByName.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true

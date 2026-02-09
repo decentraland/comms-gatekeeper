@@ -75,7 +75,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       positions: ['10,20'],
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldScenePlace.resolves({
       id: placeId,
       world_name: 'name.dcl.eth',
       owner: owner.authChain[0].payload
@@ -137,7 +137,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       sceneId: 'test-scene',
       isWorld: true
     })
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldScenePlace.resolves({
       id: placeWorldId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)

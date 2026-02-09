@@ -78,35 +78,117 @@ describe('PlacesComponent', () => {
     })
   })
 
-  describe('getPlaceByWorldName', () => {
+  describe('getWorldByName', () => {
     it('should return world data when found', async () => {
-      const mockWorldResponse = {
+      const mockWorldData = {
+        id: 'world-id',
+        title: 'Test World',
+        owner: '0xOwnerAddress',
+        description: 'World Description',
+        positions: [],
+        world_name: 'test-world'
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: mockWorldData, ok: true })
+      })
+
+      const result = await placesComponent.getWorldByName('test-world')
+      expect(result).toEqual(mockWorldData)
+      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds/test-world')
+    })
+
+    it('should lowercase the world name in the URL', async () => {
+      const mockWorldData = {
+        id: 'world-id',
+        title: 'Test World',
+        owner: '0xOwnerAddress',
+        description: 'World Description',
+        positions: [],
+        world_name: 'Test-World'
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: mockWorldData, ok: true })
+      })
+
+      const result = await placesComponent.getWorldByName('Test-World')
+      expect(result).toEqual(mockWorldData)
+      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds/test-world')
+    })
+
+    it('should throw PlaceNotFoundError when response is not ok', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: false })
+
+      await expect(placesComponent.getWorldByName('nonexistent-world')).rejects.toThrow(PlaceNotFoundError)
+      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds/nonexistent-world')
+    })
+
+    it('should throw PlaceNotFoundError when world data is missing', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: null, ok: true })
+      })
+
+      await expect(placesComponent.getWorldByName('nonexistent-world')).rejects.toThrow(PlaceNotFoundError)
+    })
+  })
+
+  describe('getWorldScenePlace', () => {
+    it('should return world scene place when found', async () => {
+      const mockPlaceResponse = {
         data: [
           {
-            id: 'world-id',
-            title: 'Test World',
+            id: 'scene-place-id',
+            title: 'World Scene',
             owner: '0xOwnerAddress',
-            description: 'World Description',
-            positions: [],
+            description: 'A scene in a world',
+            positions: ['10,20'],
             world_name: 'test-world'
           }
         ],
         ok: true
       }
 
-      mockFetch.mockResolvedValueOnce(mockWorldResponse)
+      mockFetch.mockResolvedValueOnce(mockPlaceResponse)
 
-      const result = await placesComponent.getPlaceByWorldName('test-world')
-      expect(result).toBe(mockWorldResponse.data[0])
-      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds?names=test-world')
+      const result = await placesComponent.getWorldScenePlace('test-world', '10,20')
+      expect(result).toBe(mockPlaceResponse.data[0])
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://places.decentraland.org/api/places?positions=10,20&names=test-world'
+      )
     })
 
-    it('should throw PlaceNotFoundError when world not found', async () => {
+    it('should lowercase the world name in the URL', async () => {
+      const mockPlaceResponse = {
+        data: [
+          {
+            id: 'scene-place-id',
+            title: 'World Scene',
+            owner: '0xOwnerAddress',
+            positions: ['10,20'],
+            world_name: 'Test-World'
+          }
+        ],
+        ok: true
+      }
+
+      mockFetch.mockResolvedValueOnce(mockPlaceResponse)
+
+      const result = await placesComponent.getWorldScenePlace('Test-World', '10,20')
+      expect(result).toBe(mockPlaceResponse.data[0])
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://places.decentraland.org/api/places?positions=10,20&names=test-world'
+      )
+    })
+
+    it('should throw PlaceNotFoundError when no scene place found', async () => {
       const mockEmptyResponse = { data: [], ok: true }
       mockFetch.mockResolvedValueOnce(mockEmptyResponse)
 
-      await expect(placesComponent.getPlaceByWorldName('nonexistent-world')).rejects.toThrow(PlaceNotFoundError)
-      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/worlds?names=nonexistent-world')
+      await expect(placesComponent.getWorldScenePlace('test-world', '10,20')).rejects.toThrow(PlaceNotFoundError)
     })
   })
 
