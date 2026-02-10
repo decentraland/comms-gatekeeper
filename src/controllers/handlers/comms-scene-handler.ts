@@ -3,9 +3,6 @@ import { HandlerContextWithPath, Permissions } from '../../types'
 import { ForbiddenError, InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
 import { oldValidate } from '../../logic/utils'
 
-// Used to identify the preview realm for testing purposes
-const PREVIEW = 'preview'
-
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
     'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'sceneBans' | 'places' | 'worlds',
@@ -34,12 +31,12 @@ export async function commsSceneHandler(
 
   const isWorld = realmName.endsWith('.eth')
 
-  if (realmName !== PREVIEW && !sceneId) {
+  if (!livekit.isLocalPreview(realmName) && !sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
   // Check if user is banned from the scene
-  if (realmName !== PREVIEW) {
+  if (!livekit.isLocalPreview(realmName)) {
     try {
       const isBanned = await sceneBans.isUserBanned(identity, {
         sceneId,
@@ -72,7 +69,7 @@ export async function commsSceneHandler(
     }
   }
 
-  if (realmName === PREVIEW) {
+  if (livekit.isLocalPreview(realmName)) {
     room = `preview-${identity}`
 
     forPreview = true

@@ -3,7 +3,7 @@ import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
 import { Events, RoomType } from '@dcl/schemas'
-import { isPreviewRealm, isRoomEventValid, isVoiceChatRoom } from './utils'
+import { isRoomEventValid, isVoiceChatRoom } from './utils'
 import { UserJoinedRoomEvent } from '@dcl/schemas'
 
 export function createParticipantJoinedHandler(
@@ -22,7 +22,7 @@ export function createParticipantJoinedHandler(
     }
 
     // Do not publish events for preview realms (Creator Hub, local development)
-    if (isPreviewRealm(realmName) || isPreviewRealm(worldName)) {
+    if (livekit.isLocalPreview(realmName) || livekit.isLocalPreview(worldName)) {
       logger.debug(`Skipping UserJoinedRoomEvent for preview realm: ${realmName ?? worldName}`)
       return
     }

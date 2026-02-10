@@ -191,6 +191,48 @@ describe('when getting or creating a room', () => {
   })
 })
 
+describe('when checking if a realm is a local preview', () => {
+  it('should return true for LocalPreview', () => {
+    expect(livekitComponent.isLocalPreview('LocalPreview')).toBe(true)
+  })
+
+  it('should return true for localpreview (lowercase)', () => {
+    expect(livekitComponent.isLocalPreview('localpreview')).toBe(true)
+  })
+
+  it('should return true for LOCALPREVIEW (uppercase)', () => {
+    expect(livekitComponent.isLocalPreview('LOCALPREVIEW')).toBe(true)
+  })
+
+  it('should return true for preview', () => {
+    expect(livekitComponent.isLocalPreview('preview')).toBe(true)
+  })
+
+  it('should return true for Preview (mixed case)', () => {
+    expect(livekitComponent.isLocalPreview('Preview')).toBe(true)
+  })
+
+  it('should return false for a production realm', () => {
+    expect(livekitComponent.isLocalPreview('hela')).toBe(false)
+  })
+
+  it('should return false for a world name', () => {
+    expect(livekitComponent.isLocalPreview('myworld.eth')).toBe(false)
+  })
+
+  it('should return false for undefined', () => {
+    expect(livekitComponent.isLocalPreview(undefined)).toBe(false)
+  })
+
+  it('should return false for an empty string', () => {
+    expect(livekitComponent.isLocalPreview('')).toBe(false)
+  })
+
+  it('should return false for a string containing preview', () => {
+    expect(livekitComponent.isLocalPreview('preview-something')).toBe(false)
+  })
+})
+
 describe('when getting a world room name', () => {
   it('should return world room name with prefix and world name', () => {
     const worldName = 'test-world'

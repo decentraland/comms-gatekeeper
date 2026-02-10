@@ -102,6 +102,16 @@ export async function createLivekitComponent(
     }
   }
 
+  const LOCAL_PREVIEW_REALM_NAMES = ['localpreview', 'preview']
+
+  /**
+   * Checks if the given realm name indicates a local preview environment.
+   */
+  function isLocalPreview(realmName: string | undefined): boolean {
+    if (!realmName) return false
+    return LOCAL_PREVIEW_REALM_NAMES.includes(realmName.toLowerCase())
+  }
+
   /**
    * Gets the world room name without sceneId.
    * Used for world-wide operations like getting all participants in a world.
@@ -397,6 +407,7 @@ export async function createLivekitComponent(
   return {
     buildConnectionUrl,
     deleteRoom,
+    isLocalPreview,
     updateParticipantMetadata,
     updateParticipantPermissions,
     updateRoomMetadata,

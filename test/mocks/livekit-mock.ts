@@ -9,6 +9,10 @@ export const createLivekitMockedComponent = (
   overrides?: Partial<jest.Mocked<ILivekitComponent>>
 ): jest.Mocked<ILivekitComponent> => {
   return {
+    isLocalPreview: jest.fn().mockImplementation((realmName: string | undefined) => {
+      if (!realmName) return false
+      return ['localpreview', 'preview'].includes(realmName.toLowerCase())
+    }),
     deleteRoom: jest.fn(),
     buildConnectionUrl: jest.fn(),
     generateCredentials: jest.fn(),
