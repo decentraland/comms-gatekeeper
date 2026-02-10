@@ -33,6 +33,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
     // Set up component mocks
     stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(mockServerPublicKey)
     stubComponents.denyList.isDenylisted.resolves(false)
+    stubComponents.livekit.isLocalPreview.returns(false)
     stubComponents.livekit.getSceneRoomName.resolves('scene-room-name')
     stubComponents.livekit.getWorldRoomName.resolves('world-room-name')
     stubComponents.livekit.generateCredentials.resolves({
@@ -158,6 +159,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
       validateResult.identity = 'any-identity'
       validateResult.realm.serverName = 'LocalPreview'
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
+      stubComponents.livekit.isLocalPreview.returns(true)
     })
 
     it('should allow any identity for LocalPreview realm', async () => {
