@@ -169,11 +169,6 @@ export async function createLivekitComponent(
       return { worldName, roomType: RoomType.WORLD }
     }
 
-    // World room: just the domain (e.g., juan.dcl.eth or juan.eth)
-    if (roomName.endsWith('.eth')) {
-      return { worldName: roomName, roomType: RoomType.WORLD }
-    }
-
     // Island room: island-{islandName}
     if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
       const islandName = getIslandNameFromRoomName(roomName)
