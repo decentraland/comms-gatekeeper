@@ -26,7 +26,6 @@ export async function commsServerSceneHandler(
   const realmName = realm.serverName
   const isWorld = realmName.endsWith('.eth')
 
-  // sceneId is required for all rooms (both worlds and scenes)
   if (realmName !== 'LocalPreview' && !sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
