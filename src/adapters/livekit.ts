@@ -35,6 +35,7 @@ export async function createLivekitComponent(
   const logger = logs.getLogger('livekit-adapter')
 
   const [
+    commsRoomPrefix,
     worldRoomPrefix,
     sceneRoomPrefix,
     prodHost,
@@ -45,6 +46,7 @@ export async function createLivekitComponent(
     previewApiKey,
     previewSecret
   ] = await Promise.all([
+    config.requireString('COMMS_ROOM_PREFIX'),
     config.requireString('WORLD_ROOM_PREFIX'),
     config.requireString('SCENE_ROOM_PREFIX'),
     config.requireString('PROD_LIVEKIT_HOST'),
@@ -103,9 +105,10 @@ export async function createLivekitComponent(
   /**
    * Gets the world room name without sceneId.
    * Used for world-wide operations like getting all participants in a world.
+   * Uses the COMMS_ROOM_PREFIX which matches the world content server prefix.
    */
   function getWorldRoomName(worldName: string): string {
-    return `${worldRoomPrefix}${worldName}`
+    return `${commsRoomPrefix}${worldName}`
   }
 
   /**
@@ -158,6 +161,12 @@ export async function createLivekitComponent(
       }
       // Fallback for legacy format without sceneId
       return { worldName: parts, roomType: RoomType.WORLD }
+    }
+
+    // World room (comms prefix): {commsRoomPrefix}{worldName}
+    if (commsRoomPrefix && roomName.startsWith(commsRoomPrefix)) {
+      const worldName = roomName.slice(commsRoomPrefix.length)
+      return { worldName, roomType: RoomType.WORLD }
     }
 
     // World room: just the domain (e.g., juan.dcl.eth or juan.eth)

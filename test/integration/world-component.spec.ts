@@ -39,6 +39,7 @@ describe('WorldComponent', () => {
     worldsComponent = await createWorldsComponent({
       config: mockConfig,
       cachedFetch: mockCachedFetch,
+      fetch: { fetch: mockFetch },
       logs: mockLogs
     })
   })

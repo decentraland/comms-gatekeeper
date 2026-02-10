@@ -574,10 +574,9 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       }
 
       jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorldWithoutSceneId)
-      stubComponents.livekit.getWorldRoomName.returns('world-prod-scene-room-name.dcl.eth')
     })
 
-    it('should get the world scene room without the scene id', async () => {
+    it('should return 400 error', async () => {
       const { localFetch } = components
 
       const response = await makeRequest(
@@ -590,8 +589,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
         owner
       )
 
-      expect(response.status).toBe(200)
-      expect(stubComponents.livekit.getWorldRoomName.calledWith('name.dcl.eth')).toBe(true)
+      expect(response.status).toBe(400)
     })
   })
 

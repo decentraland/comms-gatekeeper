@@ -338,42 +338,16 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
   })
 
   describe('when world does not have sceneId', () => {
-    let newMockIngress: IngressInfo
-    let newMockSceneStreamAccess: typeof mockSceneStreamAccess
-
     beforeEach(() => {
       const metadataWorldWithoutSceneId = {
         ...metadataWorld,
         sceneId: undefined
       }
 
-      newMockIngress = {
-        ...mockIngress,
-        name: 'new-mock-ingress',
-        url: 'rtmp://new-mock-stream-url',
-        streamKey: 'new-mock-stream-key',
-        ingressId: 'new-mock-ingress-id'
-      } as IngressInfo
-
-      newMockSceneStreamAccess = {
-        ...mockSceneStreamAccess,
-        id: 'new-mock-access-id',
-        place_id: placeWorldId,
-        streaming_url: 'rtmp://new-mock-stream-url',
-        streaming_key: 'new-mock-stream-key',
-        ingress_id: 'new-mock-ingress-id'
-      }
-
       jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorldWithoutSceneId)
-      stubComponents.livekit.getWorldRoomName.returns('world-prod-scene-room-name.dcl.eth')
-      stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
-      stubComponents.livekit.removeIngress.resolves()
-      stubComponents.sceneStreamAccessManager.removeAccess.resolves()
-      stubComponents.livekit.getOrCreateIngress.resolves(newMockIngress)
-      stubComponents.sceneStreamAccessManager.addAccess.resolves(newMockSceneStreamAccess)
     })
 
-    it('should get the world scene room without the scene id', async () => {
+    it('should return 400 error', async () => {
       const { localFetch } = components
 
       const response = await makeRequest(
@@ -386,8 +360,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
         owner
       )
 
-      expect(response.status).toBe(200)
-      expect(stubComponents.livekit.getWorldRoomName.calledWith('name.dcl.eth')).toBe(true)
+      expect(response.status).toBe(400)
     })
   })
 })

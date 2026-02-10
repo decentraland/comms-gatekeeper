@@ -32,6 +32,8 @@ beforeEach(async () => {
     config: {
       requireString: jest.fn().mockImplementation((key) => {
         switch (key) {
+          case 'COMMS_ROOM_PREFIX':
+            return Promise.resolve('world-')
           case 'WORLD_ROOM_PREFIX':
             return Promise.resolve('world-prod-scene-room-')
           case 'SCENE_ROOM_PREFIX':
@@ -193,7 +195,7 @@ describe('when getting a world room name', () => {
   it('should return world room name with prefix and world name', () => {
     const worldName = 'test-world'
     const result = livekitComponent.getWorldRoomName(worldName)
-    expect(result).toBe('world-prod-scene-room-test-world')
+    expect(result).toBe('world-test-world')
   })
 })
 
@@ -735,6 +737,28 @@ describe('when getting room metadata from room name', () => {
           worldName: 'legacyworld',
           roomType: 'world'
         })
+      })
+    })
+  })
+
+  describe('when room name is a world room (comms prefix)', () => {
+    it('should extract world name and return WORLD room type', () => {
+      const roomName = 'world-myworld.dcl.eth'
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        worldName: 'myworld.dcl.eth',
+        roomType: 'world'
+      })
+    })
+
+    it('should extract world name for .eth domain', () => {
+      const roomName = 'world-myworld.eth'
+      const result = livekitComponent.getRoomMetadataFromRoomName(roomName)
+
+      expect(result).toEqual({
+        worldName: 'myworld.eth',
+        roomType: 'world'
       })
     })
   })
