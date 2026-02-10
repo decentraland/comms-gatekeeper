@@ -47,7 +47,6 @@ export function createCastComponent(
     // Get place information
     let place: PlaceAttributes
     if (worldName) {
-      // For worlds: query /places with position and world name
       place = await places.getWorldScenePlace(worldName, parcel)
     } else {
       place = await places.getPlaceByParcel(parcel)
