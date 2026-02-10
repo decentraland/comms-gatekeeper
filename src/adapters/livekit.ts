@@ -35,6 +35,7 @@ export async function createLivekitComponent(
   const logger = logs.getLogger('livekit-adapter')
 
   const [
+    commsRoomPrefix,
     worldRoomPrefix,
     sceneRoomPrefix,
     prodHost,
@@ -45,6 +46,7 @@ export async function createLivekitComponent(
     previewApiKey,
     previewSecret
   ] = await Promise.all([
+    config.requireString('COMMS_ROOM_PREFIX'),
     config.requireString('WORLD_ROOM_PREFIX'),
     config.requireString('SCENE_ROOM_PREFIX'),
     config.requireString('PROD_LIVEKIT_HOST'),
@@ -100,8 +102,31 @@ export async function createLivekitComponent(
     }
   }
 
+  const LOCAL_PREVIEW_REALM_NAMES = ['localpreview', 'preview']
+
+  /**
+   * Checks if the given realm name indicates a local preview environment.
+   */
+  function isLocalPreview(realmName: string | undefined): boolean {
+    if (!realmName) return false
+    return LOCAL_PREVIEW_REALM_NAMES.includes(realmName.toLowerCase())
+  }
+
+  /**
+   * Gets the world room name without sceneId.
+   * Used for world-wide operations like getting all participants in a world.
+   * Uses the COMMS_ROOM_PREFIX which matches the world content server prefix.
+   */
   function getWorldRoomName(worldName: string): string {
-    return `${worldRoomPrefix}${worldName}`
+    return `${commsRoomPrefix}${worldName}`
+  }
+
+  /**
+   * Gets the world scene room name with sceneId.
+   * Used for scene-specific operations within a world.
+   */
+  function getWorldSceneRoomName(worldName: string, sceneId: string): string {
+    return `${worldRoomPrefix}${worldName}-${sceneId}`
   }
 
   function getSceneRoomName(realmName: string, sceneId: string): string {
@@ -135,15 +160,23 @@ export async function createLivekitComponent(
       return { realmName, sceneId, roomType: RoomType.SCENE }
     }
 
-    // World scene room: {worldRoomPrefix}{worldName}
+    // World scene room: {worldRoomPrefix}{worldName}-{sceneId}
     if (roomName.startsWith(worldRoomPrefix)) {
-      const worldName = roomName.replace(worldRoomPrefix, '')
-      return { worldName, roomType: RoomType.WORLD }
+      const parts = roomName.replace(worldRoomPrefix, '')
+      const lastDashIndex = parts.lastIndexOf('-')
+      if (lastDashIndex !== -1) {
+        const worldName = parts.substring(0, lastDashIndex)
+        const sceneId = parts.substring(lastDashIndex + 1)
+        return { worldName, sceneId, roomType: RoomType.WORLD }
+      }
+      // Fallback for legacy format without sceneId
+      return { worldName: parts, roomType: RoomType.WORLD }
     }
 
-    // World room: just the domain (e.g., juan.dcl.eth or juan.eth)
-    if (roomName.endsWith('.eth')) {
-      return { worldName: roomName, roomType: RoomType.WORLD }
+    // World room (comms prefix): {commsRoomPrefix}{worldName}
+    if (commsRoomPrefix && roomName.startsWith(commsRoomPrefix)) {
+      const worldName = roomName.slice(commsRoomPrefix.length)
+      return { worldName, roomType: RoomType.WORLD }
     }
 
     // Island room: island-{islandName}
@@ -175,13 +208,10 @@ export async function createLivekitComponent(
 
   function getRoomName(realmName: string, params: GetRoomNameParams): string {
     const { isWorld, sceneId } = params
-    if (isWorld) {
-      return getWorldRoomName(realmName)
-    } else {
-      if (!sceneId) {
-        throw new Error('No sceneId provided for scene room')
-      }
 
+    if (isWorld) {
+      return getWorldSceneRoomName(realmName, sceneId)
+    } else {
       return getSceneRoomName(realmName, sceneId)
     }
   }
@@ -377,6 +407,7 @@ export async function createLivekitComponent(
   return {
     buildConnectionUrl,
     deleteRoom,
+    isLocalPreview,
     updateParticipantMetadata,
     updateParticipantPermissions,
     updateRoomMetadata,
@@ -384,6 +415,7 @@ export async function createLivekitComponent(
     listRoomParticipants,
     generateCredentials,
     getWorldRoomName,
+    getWorldSceneRoomName,
     getSceneRoomName,
     getPrivateVoiceChatRoomName,
     getCallIdFromRoomName,

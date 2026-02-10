@@ -428,7 +428,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           roomType: RoomType.WORLD
         })
         const mockedWorldPlace = createMockedWorldPlace({ id: placeId })
-        spyComponents.places.getPlaceByWorldName.mockResolvedValue(mockedWorldPlace)
+        spyComponents.places.getWorldByName.mockResolvedValue(mockedWorldPlace)
         spyComponents.livekit.updateRoomMetadata.mockResolvedValue(undefined)
 
         // Create actual banned addresses in the database

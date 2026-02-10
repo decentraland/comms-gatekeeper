@@ -2,7 +2,21 @@ import { IBaseComponent } from '@well-known-components/interfaces'
 
 export type IPlacesComponent = IBaseComponent & {
   getPlaceByParcel(parcel: string): Promise<PlaceAttributes>
-  getPlaceByWorldName(worldName: string): Promise<PlaceAttributes>
+  /**
+   * Gets a world scene place by world name and position.
+   * Used for scene-specific operations where we need the place for a specific scene within a world.
+   * Queries /places endpoint with positions and names[] parameters.
+   * @param worldName - The world name (e.g., "myworld.dcl.eth")
+   * @param position - The parcel position (e.g., "10,20")
+   */
+  getWorldScenePlace(worldName: string, position: string): Promise<PlaceAttributes>
+  /**
+   * Gets a world by its name.
+   * Used for world-wide operations like bans where we need the world itself, not a specific scene.
+   * Queries /worlds/:world-id endpoint where world-id is the lowercased world name.
+   * @param worldName - The world name (e.g., "myworld.dcl.eth")
+   */
+  getWorldByName(worldName: string): Promise<PlaceAttributes>
   getPlaceStatusByIds(
     ids: string[]
   ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>[]>

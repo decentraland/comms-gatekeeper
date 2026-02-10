@@ -5,7 +5,8 @@ export const createPlacesMockedComponent = (
 ): jest.Mocked<IPlacesComponent> => {
   return {
     getPlaceByParcel: jest.fn(),
-    getPlaceByWorldName: jest.fn(),
+    getWorldScenePlace: jest.fn(),
+    getWorldByName: jest.fn(),
     getPlaceStatusByIds: jest.fn(),
     ...overrides
   }

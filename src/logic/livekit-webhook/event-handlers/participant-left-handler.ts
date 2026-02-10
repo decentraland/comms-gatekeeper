@@ -3,7 +3,7 @@ import { WebhookEvent } from 'livekit-server-sdk'
 import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
-import { isPreviewRealm, isRoomEventValid, isVoiceChatRoom } from './utils'
+import { isRoomEventValid, isVoiceChatRoom } from './utils'
 
 export function createParticipantLeftHandler(
   components: Pick<AppComponents, 'voice' | 'analytics' | 'logs' | 'livekit' | 'publisher'>
@@ -28,7 +28,7 @@ export function createParticipantLeftHandler(
       }
 
       // Do not publish events for preview realms (Creator Hub, local development)
-      if (isPreviewRealm(realmName) || isPreviewRealm(worldName)) {
+      if (components.livekit.isLocalPreview(realmName) || components.livekit.isLocalPreview(worldName)) {
         logger.debug(`Skipping UserLeftRoomEvent for preview realm: ${realmName ?? worldName}`)
         return
       }

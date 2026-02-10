@@ -84,7 +84,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldScenePlace.resolves({
       id: placeWorldId,
       world_name: 'name.dcl.eth',
       owner: owner.authChain[0].payload
@@ -440,7 +440,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.places.getPlaceByWorldName.resolves({
+    stubComponents.places.getWorldScenePlace.resolves({
       id: placeWorldId,
       world_name: 'name.dcl.eth',
       owner: owner.authChain[0].payload
@@ -532,6 +532,64 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: Number(mockSceneStreamAccess.created_at),
       ends_at: Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
+    })
+  })
+
+  describe('when world has sceneId', () => {
+    const sceneId = 'bafkreiworldscene123'
+
+    beforeEach(() => {
+      const metadataWorldWithSceneId = {
+        ...metadataWorld,
+        sceneId
+      }
+
+      jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorldWithSceneId)
+      stubComponents.livekit.getWorldSceneRoomName.returns(`world-prod-scene-room-name.dcl.eth-${sceneId}`)
+    })
+
+    it('should get the world scene room with the scene id', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: { ...metadataWorld, sceneId }
+        },
+        owner
+      )
+
+      expect(response.status).toBe(200)
+      expect(stubComponents.livekit.getWorldSceneRoomName.calledWith('name.dcl.eth', sceneId)).toBe(true)
+    })
+  })
+
+  describe('when world does not have sceneId', () => {
+    beforeEach(() => {
+      const metadataWorldWithoutSceneId = {
+        ...metadataWorld,
+        sceneId: undefined
+      }
+
+      jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorldWithoutSceneId)
+    })
+
+    it('should return 400 error', async () => {
+      const { localFetch } = components
+
+      const response = await makeRequest(
+        localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: { ...metadataWorld, sceneId: undefined }
+        },
+        owner
+      )
+
+      expect(response.status).toBe(400)
     })
   })
 

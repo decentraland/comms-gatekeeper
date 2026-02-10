@@ -25,7 +25,7 @@ export async function removeSceneStreamAccessHandler(
     verification
   } = ctx
   const logger = logs.getLogger('revoke-scene-stream-access-handler')
-  const { getPlaceByWorldName, getPlaceByParcel } = places
+  const { getWorldScenePlace, getPlaceByParcel } = places
   const { isSceneOwnerOrAdmin } = sceneManager
   if (!verification?.auth) {
     logger.debug('Authentication required')
@@ -40,13 +40,15 @@ export async function removeSceneStreamAccessHandler(
   } = await validate(ctx)
   const isWorld = !!hostname?.includes('worlds-content-server')
 
-  if (!isWorld && !sceneId) {
+  // sceneId is required for all requests
+  if (!sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
   let place: PlaceAttributes
   if (isWorld) {
-    place = await getPlaceByWorldName(serverName)
+    // For worlds: query /places with position and world name
+    place = await getWorldScenePlace(serverName, parcel)
   } else {
     place = await getPlaceByParcel(parcel)
   }

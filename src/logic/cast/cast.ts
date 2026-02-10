@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { AppComponents } from '../../types'
-import { InvalidRequestError, UnauthorizedError } from '../../types/errors'
+import { UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { FOUR_DAYS } from '../time'
 import {
@@ -44,19 +44,12 @@ export function createCastComponent(
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
     const { walletAddress, worldName, parcel, sceneId, realmName } = params
 
-    // Scene ID and realm name are required for chat functionality in Cast2
-    if (!sceneId || !realmName) {
-      throw new InvalidRequestError('sceneId and realmName are required for Cast2 chat functionality')
-    }
-
     // Get place information
     let place: PlaceAttributes
     if (worldName) {
-      place = await places.getPlaceByWorldName(worldName)
-    } else if (parcel) {
-      place = await places.getPlaceByParcel(parcel)
+      place = await places.getWorldScenePlace(worldName, parcel)
     } else {
-      throw new InvalidRequestError('Either worldName or parcel must be provided')
+      place = await places.getPlaceByParcel(parcel)
     }
 
     // Verify the user is a scene admin
@@ -70,7 +63,12 @@ export function createCastComponent(
     }
 
     // Generate the LiveKit room ID for the scene
-    const roomId = worldName ? livekit.getWorldRoomName(worldName) : livekit.getSceneRoomName(realmName, sceneId)
+    let roomId: string
+    if (worldName) {
+      roomId = livekit.getWorldSceneRoomName(worldName, sceneId)
+    } else {
+      roomId = livekit.getSceneRoomName(realmName, sceneId)
+    }
 
     // Try to reuse existing active stream key
     const existingAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(place.id)
@@ -269,11 +267,13 @@ export function createCastComponent(
     location: string,
     identity: string
   ): Promise<GenerateWatcherCredentialsResult> {
-    // Detect if location is a world name (contains .dcl.eth) or parcel coordinates
-    const isWorldName = location.includes('.dcl.eth')
+    // Detect if location is a world name (ends with .eth) or parcel coordinates
+    const isWorldName = location.endsWith('.eth')
 
     // Get place information from location
-    const place = isWorldName ? await places.getPlaceByWorldName(location) : await places.getPlaceByParcel(location)
+    // For worlds: use getWorldByName (world-wide lookup for stream access)
+    // For parcels: use getPlaceByParcel
+    const place = isWorldName ? await places.getWorldByName(location) : await places.getPlaceByParcel(location)
 
     // Get the most recent stream access for this place
     const streamAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(place.id)

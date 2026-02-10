@@ -1,8 +1,4 @@
-import {
-  isPreviewRealm,
-  isRoomEventValid,
-  isVoiceChatRoom
-} from '../../../src/logic/livekit-webhook/event-handlers/utils'
+import { isRoomEventValid, isVoiceChatRoom } from '../../../src/logic/livekit-webhook/event-handlers/utils'
 import { WebhookEvent } from 'livekit-server-sdk'
 
 describe('webhook event handler utils', () => {
@@ -97,77 +93,4 @@ describe('webhook event handler utils', () => {
     })
   })
 
-  describe('when calling isPreviewRealm', () => {
-    describe('and the realm name is preview (lowercase)', () => {
-      it('should return true', () => {
-        expect(isPreviewRealm('preview')).toBe(true)
-      })
-    })
-
-    describe('and the realm name is Preview (mixed case)', () => {
-      it('should return true', () => {
-        expect(isPreviewRealm('Preview')).toBe(true)
-      })
-    })
-
-    describe('and the realm name is PREVIEW (uppercase)', () => {
-      it('should return true', () => {
-        expect(isPreviewRealm('PREVIEW')).toBe(true)
-      })
-    })
-
-    describe('and the realm name is LocalPreview (mixed case)', () => {
-      it('should return true', () => {
-        expect(isPreviewRealm('LocalPreview')).toBe(true)
-      })
-    })
-
-    describe('and the realm name is localpreview (lowercase)', () => {
-      it('should return true', () => {
-        expect(isPreviewRealm('localpreview')).toBe(true)
-      })
-    })
-
-    describe('and the realm name is LOCALPREVIEW (uppercase)', () => {
-      it('should return true', () => {
-        expect(isPreviewRealm('LOCALPREVIEW')).toBe(true)
-      })
-    })
-
-    describe('and the realm name is a production realm', () => {
-      it('should return false for hela', () => {
-        expect(isPreviewRealm('hela')).toBe(false)
-      })
-
-      it('should return false for dg', () => {
-        expect(isPreviewRealm('dg')).toBe(false)
-      })
-
-      it('should return false for a world name', () => {
-        expect(isPreviewRealm('myworld.eth')).toBe(false)
-      })
-    })
-
-    describe('and the realm name is undefined', () => {
-      it('should return false', () => {
-        expect(isPreviewRealm(undefined)).toBe(false)
-      })
-    })
-
-    describe('and the realm name is empty string', () => {
-      it('should return false', () => {
-        expect(isPreviewRealm('')).toBe(false)
-      })
-    })
-
-    describe('and the realm name contains preview but is not exactly preview', () => {
-      it('should return false for preview-something', () => {
-        expect(isPreviewRealm('preview-something')).toBe(false)
-      })
-
-      it('should return false for my-preview', () => {
-        expect(isPreviewRealm('my-preview')).toBe(false)
-      })
-    })
-  })
 })

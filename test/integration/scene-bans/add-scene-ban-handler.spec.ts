@@ -82,7 +82,7 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
     })
 
     stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
-    stubComponents.places.getPlaceByWorldName.resolves(mockedWorldPlace)
+    stubComponents.places.getWorldByName.resolves(mockedWorldPlace)
 
     stubComponents.livekit.removeParticipant.resolves()
     stubComponents.livekit.getRoomName.returns('test-room-name')

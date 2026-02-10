@@ -1,5 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../types'
+import { InvalidRequestError } from '../../types/errors'
 
 export type SceneParticipantsResponse = {
   ok: boolean
@@ -12,15 +13,15 @@ export type SceneParticipantsResponse = {
  * Handler to get the list of participant addresses in a scene or world room.
  *
  * Query parameters:
- * - pointer: Scene pointer/base parcel (e.g., "-7,-2") - used with realm_name for scene rooms.
- *            The scene ID is fetched from the catalyst using this pointer.
- * - realm_name: Realm name (default: "main" when pointer is provided).
- *               When used alone (without pointer), it's treated as a world name.
+ * - pointer: Scene pointer/base parcel (e.g., "-7,-2"). Optional for worlds.
+ * - realm_name: Realm name. Defaults to "main" if pointer is provided without realm_name.
+ *               If it ends with .eth, it's treated as a world name.
  *
  * Usage:
- * - Scene room: ?pointer=-7,-2 (uses realm_name=main by default)
- * - Scene room: ?pointer=-7,-2&realm_name=custom-realm
- * - World room: ?realm_name=mycoolworld.dcl.eth
+ * - Scene room (explicit realm): ?pointer=-7,-2&realm_name=main
+ * - Scene room (default realm): ?pointer=-7,-2 (defaults to realm_name=main)
+ * - World scene room: ?pointer=0,0&realm_name=mycoolworld.dcl.eth
+ * - World room (all participants): ?realm_name=mycoolworld.dcl.eth
  *
  * Returns a list of wallet addresses (lowercase, 42 chars) of connected participants.
  */
@@ -31,7 +32,16 @@ export async function getSceneParticipantsHandler(
   const { url } = context
 
   const pointer = url.searchParams.get('pointer')
-  const realmName = url.searchParams.get('realm_name') || (pointer ? 'main' : null)
+  let realmName = url.searchParams.get('realm_name')
+
+  // Retrocompatibility: if pointer is provided without realm_name, default to "main"
+  if (pointer && !realmName) {
+    realmName = 'main'
+  }
+
+  if (!pointer && !realmName) {
+    throw new InvalidRequestError('Either pointer or realm_name must be provided')
+  }
 
   const addresses = await sceneParticipants.getParticipantAddresses({
     pointer,

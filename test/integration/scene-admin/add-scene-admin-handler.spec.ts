@@ -82,7 +82,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
     stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
-    stubComponents.places.getPlaceByWorldName.resolves(mockedWorldPlace)
+    stubComponents.places.getWorldByName.resolves(mockedWorldPlace)
 
     stubComponents.lands.getLandPermissions.resolves({
       owner: true,

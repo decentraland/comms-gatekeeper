@@ -30,9 +30,10 @@ export type RoomMetadata = {
   roomType: RoomType
 }
 
-export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
+export type GetRoomNameParams = { isWorld: boolean; sceneId: string }
 
 export type ILivekitComponent = IBaseComponent & {
+  isLocalPreview: (realmName: string | undefined) => boolean
   deleteRoom: (roomName: string) => Promise<void>
   buildConnectionUrl: (url: string, token: string) => string
   generateCredentials: (
@@ -45,6 +46,7 @@ export type ILivekitComponent = IBaseComponent & {
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
   removeParticipant: (roomId: string, participantId: string) => Promise<void>
   getWorldRoomName: (worldName: string) => string
+  getWorldSceneRoomName: (worldName: string, sceneId: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
   getPrivateVoiceChatRoomName: (roomId: string) => string
   getCallIdFromRoomName: (roomName: string) => string

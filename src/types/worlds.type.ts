@@ -1,7 +1,16 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
 
+// Shortened version of the WorldScene type from the worlds content server
+export type WorldScene = {
+  worldName: string
+  deployer: string
+  entityId: string
+  parcels: string[]
+}
+
 export type IWorldComponent = IBaseComponent & {
   fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined>
+  fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined>
   hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldDeployPermission(authAddress: string, worldName: string): Promise<boolean>
