@@ -68,7 +68,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       const response = await fetch(`${placesApiUrl}/places`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: batch })
+        body: JSON.stringify(batch)
       })
 
       if (!response.ok) {
