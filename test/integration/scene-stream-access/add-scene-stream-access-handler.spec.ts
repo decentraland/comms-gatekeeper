@@ -728,3 +728,89 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     expect(response.status).toBe(400)
   })
 })
+
+test('POST /scene-stream-access - deactivates previous world ingress entries when reusing the same ingress', ({
+  components,
+  stubComponents
+}) => {
+  const previousPlaceId = `place-id-world-ingress-previous`
+  const newPlaceId = `place-id-world-ingress-new`
+  const worldIngressId = 'world-ingress-id'
+  let cleanup: TestCleanup
+
+  const metadataWorld = {
+    identity: owner.authChain[0].payload,
+    realm: {
+      serverName: 'name.dcl.eth',
+      hostname: 'https://worlds-content-server.decentraland.org/',
+      protocol: 'https'
+    },
+    parcel: '0,0',
+    sceneId: 'test-scene',
+    isWorld: true
+  }
+
+  beforeAll(async () => {
+    cleanup = new TestCleanup(components.database)
+  })
+
+  beforeEach(async () => {
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataWorld)
+
+    stubComponents.places.getPlaceByWorldName.resolves({
+      id: newPlaceId,
+      world_name: metadataWorld.realm.serverName,
+      owner: owner.authChain[0].payload
+    } as PlaceAttributes)
+
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+    stubComponents.livekit.getWorldRoomName.resolves(metadataWorld.realm.serverName)
+    stubComponents.livekit.getOrCreateIngress.resolves({
+      name: 'mock-ingress',
+      url: 'rtmp://mock-stream-url',
+      streamKey: 'mock-stream-key',
+      ingressId: worldIngressId
+    } as IngressInfo)
+  })
+
+  afterEach(async () => {
+    await cleanup.cleanup()
+    jest.restoreAllMocks()
+  })
+
+  it('should deactivate the previously active world access before creating the new one', async () => {
+    const { localFetch, sceneStreamAccessManager } = components
+
+    const previousAccess = await sceneStreamAccessManager.addAccess({
+      place_id: previousPlaceId,
+      streaming_url: 'rtmp://existing-stream-url',
+      streaming_key: 'existing-stream-key',
+      ingress_id: worldIngressId,
+      room_id: metadataWorld.realm.serverName,
+      generated_by: owner.authChain[0].payload
+    })
+    cleanup.trackInsert('scene_stream_access', { id: previousAccess.id })
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-stream-access',
+      {
+        method: 'POST',
+        metadata: metadataWorld
+      },
+      owner
+    )
+
+    expect(response.status).toBe(200)
+
+    await expect(sceneStreamAccessManager.getAccess(previousPlaceId)).rejects.toBeInstanceOf(
+      StreamingAccessNotFoundError
+    )
+
+    const newAccess = await sceneStreamAccessManager.getAccess(newPlaceId)
+    expect(newAccess.ingress_id).toBe(worldIngressId)
+    expect(newAccess.active).toBe(true)
+
+    cleanup.trackInsert('scene_stream_access', { id: newAccess.id })
+  })
+})
