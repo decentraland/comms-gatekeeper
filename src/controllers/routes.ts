@@ -40,6 +40,7 @@ import {
 } from './handlers/community-voice-chat'
 import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-active-community-voice-chats-handler'
 import { commsServerSceneHandler } from './handlers/comms-server-scene-handler'
+import { worldBanCheckHandler } from './handlers/world-ban-check-handler'
 import { getSceneParticipantsHandler } from './handlers/scene-participants-handler'
 import { streamerTokenHandler, watcherTokenHandler, generateStreamLinkHandler } from './handlers/cast'
 import { getStreamInfoHandler } from './handlers/cast/get-stream-info-handler'
@@ -107,6 +108,9 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   // Scene ban routes
   router.get('/scene-bans', auth, listSceneBansHandler)
   router.get('/scene-bans/addresses', auth, listSceneBansAddressesHandler)
+
+  // World ban check endpoint (service-to-service, used by worlds-content-server)
+  router.get('/worlds/:worldName/users/:address/ban-status', tokenAuthMiddleware, worldBanCheckHandler)
   router.post(
     '/scene-bans',
     auth,
