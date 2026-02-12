@@ -43,7 +43,7 @@
     "@dcl/platform-crypto-middleware": "^1.1.0",
     "@dcl/schema-validator-component": "^0.2.0",
     "@dcl/schemas": "^21.0.0",
-    "@dcl/sns-component": "^3.0.0",
+    "@dcl/sns-component": "^3.0.2",
     "@well-known-components/env-config-provider": "^1.1.1",
     "@well-known-components/fetch-component": "^3.0.0",
     "@well-known-components/http-requests-logger-component": "^2.1.0",
