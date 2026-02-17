@@ -101,21 +101,45 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     return
   }
 
-  // Update scene_bans and scene_admin directly for each mapping
+  // Update scene_bans and scene_admin directly for each mapping.
+  // Before updating, remove records that would conflict with already-existing world-name records
+  // (e.g., an admin was already added with the world name as place_id, and we're trying to update
+  // a duplicate record that still uses the old UUID as place_id).
   for (const mapping of mappings) {
     const escapedOldPlaceId = mapping.oldPlaceId.replace(/'/g, "''")
     const escapedWorldName = mapping.worldName.replace(/'/g, "''")
 
+    // Update scene_bans, skipping rows that would conflict with existing world-name records
     pgm.sql(`
       UPDATE scene_bans
       SET place_id = '${escapedWorldName}'
       WHERE place_id = '${escapedOldPlaceId}'
+        AND banned_address NOT IN (
+          SELECT banned_address FROM scene_bans WHERE place_id = '${escapedWorldName}'
+        )
     `)
 
+    // Remove leftover stale UUID records that already exist under the world name
+    pgm.sql(`
+      DELETE FROM scene_bans WHERE place_id = '${escapedOldPlaceId}'
+    `)
+
+    // Update scene_admin, skipping active rows that would conflict with existing world-name records
     pgm.sql(`
       UPDATE scene_admin
       SET place_id = '${escapedWorldName}'
       WHERE place_id = '${escapedOldPlaceId}'
+        AND NOT (
+          active = true
+          AND admin IN (
+            SELECT admin FROM scene_admin WHERE place_id = '${escapedWorldName}' AND active = true
+          )
+        )
+    `)
+
+    // Remove leftover stale UUID records that already exist under the world name
+    pgm.sql(`
+      DELETE FROM scene_admin WHERE place_id = '${escapedOldPlaceId}'
     `)
   }
 }
