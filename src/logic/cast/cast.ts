@@ -45,15 +45,20 @@ export function createCastComponent(
     const { walletAddress, worldName, parcel, sceneId, realmName } = params
 
     // Get place information
+    // For worlds: use the world scene place for streaming key generation (scene-specific),
+    // but the world place for permission checks (world-wide admin/owner).
     let place: PlaceAttributes
+    let permissionPlace: PlaceAttributes
     if (worldName) {
       place = await places.getWorldScenePlace(worldName, parcel)
+      permissionPlace = await places.getWorldByName(worldName)
     } else {
       place = await places.getPlaceByParcel(parcel)
+      permissionPlace = place
     }
 
-    // Verify the user is a scene admin
-    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
+    // Verify the user is a scene admin (using world place for worlds)
+    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(permissionPlace, walletAddress)
 
     if (!isAdmin) {
       logger.warn(
