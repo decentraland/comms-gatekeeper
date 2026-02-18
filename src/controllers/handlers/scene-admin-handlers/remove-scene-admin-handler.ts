@@ -19,7 +19,7 @@ export async function removeSceneAdminHandler(
     verification
   } = ctx
 
-  const { getWorldByName, getPlaceByParcel } = places
+  const { getWorldScenePlace, getPlaceByParcel } = places
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
   const logger = logs.getLogger('remove-scene-admin-handler')
 
@@ -49,8 +49,7 @@ export async function removeSceneAdminHandler(
 
   let place: PlaceAttributes
   if (isWorld) {
-    // For worlds: use getWorldByName (world-wide admin management)
-    place = await getWorldByName(serverName)
+    place = await getWorldScenePlace(serverName, parcel)
   } else {
     place = await getPlaceByParcel(parcel)
   }

@@ -413,7 +413,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
       })
     })
 
-    describe('and the room is a world room', () => {
+    describe('and the room is a world room (legacy: worldName only)', () => {
       let placeId: string
       let bannedAddresses: string[]
 
@@ -446,6 +446,57 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         for (const address of bannedAddresses) {
           await components.sceneBanManager.removeBan(placeId, address)
         }
+      })
+
+      it('should respond with a 200 and update room metadata with banned addresses', async () => {
+        const response = await makeRequest(components.localFetch, '/livekit-webhook', {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer aToken',
+            'Content-Type': 'application/json'
+          },
+          body: 'aBody'
+        })
+
+        expect(response.status).toBe(200)
+        expect(spyComponents.sceneBans.updateRoomMetadataWithBans).toHaveBeenCalledWith(webhookEvent.room)
+      })
+    })
+
+    describe('and the room is a world room with sceneId', () => {
+      let placeId: string
+      let bannedAddresses: string[]
+      const sceneId = 'scene-id-world-456'
+
+      beforeEach(async () => {
+        webhookEvent.room.name = 'world-world-name-456-scene'
+        placeId = 'test-world-scene-place-id'
+        bannedAddresses = ['0xdef', '0xghi']
+
+        spyComponents.livekit.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId,
+          worldName: 'world-name-456',
+          roomType: RoomType.WORLD
+        })
+        const mockedWorldPlace = createMockedWorldPlace({ id: placeId })
+        spyComponents.places.getWorldScenePlaceByEntityId.mockResolvedValue(mockedWorldPlace)
+        spyComponents.livekit.updateRoomMetadata.mockResolvedValue(undefined)
+
+        // Create actual banned addresses in the database
+        await Promise.all(
+          bannedAddresses.map((address) =>
+            components.sceneBanManager.addBan({
+              placeId,
+              bannedAddress: address,
+              bannedBy: 'test-admin'
+            })
+          )
+        )
+      })
+
+      afterEach(async () => {
+        // Clean up banned addresses
+        await Promise.all(bannedAddresses.map((address) => components.sceneBanManager.removeBan(placeId, address)))
       })
 
       it('should respond with a 200 and update room metadata with banned addresses', async () => {

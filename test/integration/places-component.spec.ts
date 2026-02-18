@@ -5,6 +5,7 @@ import { PlaceAttributes, PlaceResponse } from '../../src/types/places.type'
 describe('PlacesComponent', () => {
   let placesComponent: Awaited<ReturnType<typeof createPlacesComponent>>
   let mockFetch: jest.Mock
+  let mockWorlds: any
 
   beforeEach(async () => {
     jest.clearAllMocks()
@@ -29,7 +30,8 @@ describe('PlacesComponent', () => {
         log: jest.fn(),
         warn: jest.fn(),
         info: jest.fn(),
-        error: jest.fn()
+        error: jest.fn(),
+        debug: jest.fn()
       })
     }
 
@@ -39,11 +41,16 @@ describe('PlacesComponent', () => {
       }))
     }
 
+    mockWorlds = {
+      fetchWorldSceneEntityMetadataById: jest.fn()
+    }
+
     placesComponent = await createPlacesComponent({
       config: mockConfig,
       cachedFetch: mockCachedFetch,
       logs: mockLogs,
-      fetch: mockFetchComponent
+      fetch: mockFetchComponent,
+      worlds: mockWorlds
     })
   })
 
@@ -189,6 +196,85 @@ describe('PlacesComponent', () => {
       mockFetch.mockResolvedValueOnce(mockEmptyResponse)
 
       await expect(placesComponent.getWorldScenePlace('test-world', '10,20')).rejects.toThrow(PlaceNotFoundError)
+    })
+  })
+
+  describe('when getting a world scene place by entity id', () => {
+    const worldName = 'test-world'
+    const entityId = 'bafkrei123'
+
+    describe('and the worlds content server returns valid scene entity metadata', () => {
+      let result: PlaceAttributes
+      let mockPlaceResponse: PlaceResponse
+
+      beforeEach(async () => {
+        mockWorlds.fetchWorldSceneEntityMetadataById.mockResolvedValue({
+          scene: {
+            base: '10,20',
+            parcels: ['10,20', '10,21']
+          }
+        })
+
+        mockPlaceResponse = {
+          data: [
+            {
+              id: 'scene-place-id',
+              title: 'World Scene',
+              owner: '0xOwnerAddress',
+              positions: ['10,20', '10,21'],
+              world_name: worldName
+            } as PlaceAttributes
+          ],
+          ok: true,
+          total: 1
+        }
+        mockFetch.mockResolvedValueOnce(mockPlaceResponse)
+
+        result = await placesComponent.getWorldScenePlaceByEntityId(worldName, entityId)
+      })
+
+      it('should fetch the scene entity metadata from the worlds content server', () => {
+        expect(mockWorlds.fetchWorldSceneEntityMetadataById).toHaveBeenCalledWith(entityId)
+      })
+
+      it('should query the places API with the base parcel and world name', () => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          'https://places.decentraland.org/api/places?positions=10,20&names=test-world'
+        )
+      })
+
+      it('should return the place', () => {
+        expect(result).toBe(mockPlaceResponse.data[0])
+      })
+    })
+
+    describe('and the worlds content server returns no scene entity metadata', () => {
+      beforeEach(() => {
+        mockWorlds.fetchWorldSceneEntityMetadataById.mockResolvedValue(undefined)
+      })
+
+      it('should throw PlaceNotFoundError', async () => {
+        await expect(placesComponent.getWorldScenePlaceByEntityId(worldName, entityId)).rejects.toThrow(
+          PlaceNotFoundError
+        )
+      })
+
+      it('should not query the places API', async () => {
+        await expect(placesComponent.getWorldScenePlaceByEntityId(worldName, entityId)).rejects.toThrow()
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the scene entity metadata has no base parcel', () => {
+      beforeEach(() => {
+        mockWorlds.fetchWorldSceneEntityMetadataById.mockResolvedValue({ scene: {} })
+      })
+
+      it('should throw PlaceNotFoundError', async () => {
+        await expect(placesComponent.getWorldScenePlaceByEntityId(worldName, entityId)).rejects.toThrow(
+          PlaceNotFoundError
+        )
+      })
     })
   })
 

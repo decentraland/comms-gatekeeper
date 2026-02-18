@@ -71,6 +71,8 @@ describe('SceneBanComponent', () => {
     mockWorldPlace = createMockedWorldPlace()
 
     placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
+    placesMockedComponent.getWorldScenePlace.mockResolvedValue(mockWorldPlace)
+    placesMockedComponent.getWorldScenePlaceByEntityId.mockResolvedValue(mockWorldPlace)
     placesMockedComponent.getWorldByName.mockResolvedValue(mockWorldPlace)
 
     jest.useFakeTimers()
@@ -971,7 +973,7 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(placesMockedComponent.getWorldByName).toHaveBeenCalledWith('test-world.dcl.eth')
+        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', undefined)
       })
 
       it('should call the scene ban manager to list bans with pagination', async () => {
@@ -1152,7 +1154,7 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(placesMockedComponent.getWorldByName).toHaveBeenCalledWith('test-world.dcl.eth')
+        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', undefined)
       })
 
       it('should call the scene ban manager to list banned addresses with pagination', async () => {
@@ -1343,7 +1345,7 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(placesMockedComponent.getWorldByName).toHaveBeenCalledWith('test-world.dcl.eth')
+        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', undefined)
       })
 
       it('should call the scene ban manager to list bans with pagination', async () => {
@@ -1524,7 +1526,7 @@ describe('SceneBanComponent', () => {
           limit: 20
         })
 
-        expect(placesMockedComponent.getWorldByName).toHaveBeenCalledWith('test-world.dcl.eth')
+        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', undefined)
       })
 
       it('should call the scene ban manager to list banned addresses with pagination', async () => {
@@ -1682,8 +1684,8 @@ describe('SceneBanComponent', () => {
       beforeEach(() => {
         params = {
           sceneId: undefined,
-          realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          realmName: 'world-realm',
+          parcel: '0,0',
           isWorld: true
         }
         sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
@@ -1691,7 +1693,7 @@ describe('SceneBanComponent', () => {
 
       describe('and the world place lookup fails', () => {
         beforeEach(() => {
-          placesMockedComponent.getWorldByName.mockRejectedValue(new Error('World not found'))
+          placesMockedComponent.getWorldScenePlace.mockRejectedValue(new Error('World not found'))
         })
 
         it('should propagate the error', async () => {
@@ -1701,7 +1703,7 @@ describe('SceneBanComponent', () => {
 
       describe('and the world place lookup succeeds', () => {
         beforeEach(() => {
-          placesMockedComponent.getWorldByName.mockResolvedValue(mockWorldPlace)
+          placesMockedComponent.getWorldScenePlace.mockResolvedValue(mockWorldPlace)
         })
 
         describe('and the user is banned', () => {
@@ -1709,10 +1711,67 @@ describe('SceneBanComponent', () => {
             sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
           })
 
-          it('should get place by world name, check ban status, and return true', async () => {
+          it('should get place by world name and parcel, check ban status, and return true', async () => {
             const result = await sceneBanComponent.isUserBanned(testAddress, params)
 
-            expect(placesMockedComponent.getWorldByName).toHaveBeenCalledWith('test-world.dcl.eth')
+            expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('world-realm', '0,0')
+            expect(sceneBanManagerMockedComponent.isBanned).toHaveBeenCalledWith('test-place-id', testAddress)
+            expect(result).toBe(true)
+          })
+        })
+
+        describe('and the user is not banned', () => {
+          beforeEach(() => {
+            sceneBanManagerMockedComponent.isBanned.mockResolvedValue(false)
+          })
+
+          it('should return false', async () => {
+            const result = await sceneBanComponent.isUserBanned(testAddress, params)
+            expect(result).toBe(false)
+          })
+        })
+      })
+    })
+
+    describe('for a world with sceneId (no parcel)', () => {
+      beforeEach(() => {
+        params = {
+          sceneId: 'world-scene-entity-id',
+          realmName: 'world-realm',
+          parcel: undefined,
+          isWorld: true
+        }
+        sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
+      })
+
+      describe('and the place lookup by entity ID fails', () => {
+        beforeEach(() => {
+          placesMockedComponent.getWorldScenePlaceByEntityId.mockRejectedValue(new Error('World scene not found'))
+        })
+
+        it('should propagate the error', async () => {
+          await expect(sceneBanComponent.isUserBanned(testAddress, params)).rejects.toThrow('World scene not found')
+        })
+      })
+
+      describe('and the place lookup by entity ID succeeds', () => {
+        beforeEach(() => {
+          placesMockedComponent.getWorldScenePlaceByEntityId.mockResolvedValue(mockWorldPlace)
+        })
+
+        describe('and the user is banned', () => {
+          beforeEach(() => {
+            sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
+          })
+
+          it('should get place by entity ID, check ban status, and return true', async () => {
+            const result = await sceneBanComponent.isUserBanned(testAddress, params)
+
+            expect(placesMockedComponent.getWorldScenePlaceByEntityId).toHaveBeenCalledWith(
+              'world-realm',
+              'world-scene-entity-id'
+            )
+            expect(contentClientMockedComponent.fetchEntityById).not.toHaveBeenCalled()
             expect(sceneBanManagerMockedComponent.isBanned).toHaveBeenCalledWith('test-place-id', testAddress)
             expect(result).toBe(true)
           })
@@ -1735,11 +1794,11 @@ describe('SceneBanComponent', () => {
       beforeEach(() => {
         params = {
           sceneId: undefined,
-          realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          realmName: 'world-realm',
+          parcel: '0,0',
           isWorld: true
         }
-        placesMockedComponent.getWorldByName.mockResolvedValue(mockWorldPlace)
+        placesMockedComponent.getWorldScenePlace.mockResolvedValue(mockWorldPlace)
         sceneBanManagerMockedComponent.isBanned.mockRejectedValue(new Error('Database error'))
       })
 
@@ -1909,114 +1968,215 @@ describe('SceneBanComponent', () => {
     beforeEach(() => {
       mockRoom = { name: 'test-room-name' }
       mockPlace = createMockedPlace({ id: 'test-place-id' })
-
-      livekitMockedComponent.getRoomMetadataFromRoomName.mockReturnValue({
-        sceneId: 'test-scene-id',
-        worldName: undefined,
-        realmName: 'test-realm',
-        roomType: RoomType.SCENE
-      })
-      contentClientMockedComponent.fetchEntityById.mockResolvedValue({
-        id: 'test-scene-id',
-        type: 'scene' as any,
-        timestamp: 1234567890,
-        version: 'v3',
-        pointers: ['-10,-10'],
-        content: [],
-        metadata: {
-          scene: {
-            base: '-10,-10',
-            parcels: ['-10,-10']
-          }
-        }
-      })
-      placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
       sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue(['0x123', '0x456'])
       livekitMockedComponent.updateRoomMetadata.mockResolvedValue(undefined)
     })
 
-    it('should retrieve banned addresses and update room metadata for scene room', async () => {
-      await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
+    describe('when the room is a scene room', () => {
+      beforeEach(async () => {
+        livekitMockedComponent.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: 'test-scene-id',
+          worldName: undefined,
+          realmName: 'test-realm',
+          roomType: RoomType.SCENE
+        })
+        contentClientMockedComponent.fetchEntityById.mockResolvedValue({
+          id: 'test-scene-id',
+          type: 'scene' as any,
+          timestamp: 1234567890,
+          version: 'v3',
+          pointers: ['-10,-10'],
+          content: [],
+          metadata: {
+            scene: {
+              base: '-10,-10',
+              parcels: ['-10,-10']
+            }
+          }
+        })
+        placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
 
-      expect(livekitMockedComponent.getRoomMetadataFromRoomName).toHaveBeenCalledWith('test-room-name')
-      expect(contentClientMockedComponent.fetchEntityById).toHaveBeenCalledWith('test-scene-id')
-      expect(placesMockedComponent.getPlaceByParcel).toHaveBeenCalledWith('-10,-10')
-      expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
-      expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
-        'test-room-name',
-        {
-          bannedAddresses: ['0x123', '0x456']
-        },
-        mockRoom
-      )
-    })
-
-    it('should handle world room correctly', async () => {
-      livekitMockedComponent.getRoomMetadataFromRoomName.mockReturnValue({
-        sceneId: undefined,
-        worldName: 'test-world',
-        realmName: 'test-realm',
-        roomType: RoomType.WORLD
-      })
-      placesMockedComponent.getWorldByName.mockResolvedValue(mockPlace)
-
-      await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
-
-      expect(livekitMockedComponent.getRoomMetadataFromRoomName).toHaveBeenCalledWith('test-room-name')
-      expect(placesMockedComponent.getWorldByName).toHaveBeenCalledWith('test-world')
-      expect(placesMockedComponent.getPlaceByParcel).not.toHaveBeenCalled()
-      expect(contentClientMockedComponent.fetchEntityById).not.toHaveBeenCalled()
-      expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
-      expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
-        'test-room-name',
-        {
-          bannedAddresses: ['0x123', '0x456']
-        },
-        mockRoom
-      )
-    })
-
-    it('should return early if no sceneId or worldName', async () => {
-      livekitMockedComponent.getRoomMetadataFromRoomName.mockReturnValue({
-        sceneId: undefined,
-        worldName: undefined,
-        realmName: 'test-realm',
-        roomType: RoomType.UNKNOWN
+        await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
       })
 
-      await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
+      it('should fetch the entity by scene ID from the content client', () => {
+        expect(contentClientMockedComponent.fetchEntityById).toHaveBeenCalledWith('test-scene-id')
+      })
 
-      expect(livekitMockedComponent.getRoomMetadataFromRoomName).toHaveBeenCalledWith('test-room-name')
-      expect(placesMockedComponent.getWorldByName).not.toHaveBeenCalled()
-      expect(placesMockedComponent.getPlaceByParcel).not.toHaveBeenCalled()
-      expect(contentClientMockedComponent.fetchEntityById).not.toHaveBeenCalled()
-      expect(sceneBanManagerMockedComponent.listBannedAddresses).not.toHaveBeenCalled()
-      expect(livekitMockedComponent.updateRoomMetadata).not.toHaveBeenCalled()
+      it('should get the place by base parcel', () => {
+        expect(placesMockedComponent.getPlaceByParcel).toHaveBeenCalledWith('-10,-10')
+      })
+
+      it('should list banned addresses for the place', () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
+      })
+
+      it('should update room metadata with the banned addresses', () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
+          'test-room-name',
+          { bannedAddresses: ['0x123', '0x456'] },
+          mockRoom
+        )
+      })
     })
 
-    it('should handle empty banned addresses array', async () => {
-      sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+    describe('when the room is a world room with sceneId', () => {
+      beforeEach(async () => {
+        livekitMockedComponent.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: 'test-scene-id',
+          worldName: 'test-world',
+          realmName: 'test-realm',
+          roomType: RoomType.WORLD
+        })
+        placesMockedComponent.getWorldScenePlaceByEntityId.mockResolvedValue(mockPlace)
 
-      await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
+        await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
+      })
 
-      expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
-        'test-room-name',
-        {
-          bannedAddresses: []
-        },
-        mockRoom
-      )
+      it('should get the place by world name and entity ID', () => {
+        expect(placesMockedComponent.getWorldScenePlaceByEntityId).toHaveBeenCalledWith('test-world', 'test-scene-id')
+      })
+
+      it('should not fetch from the content client', () => {
+        expect(contentClientMockedComponent.fetchEntityById).not.toHaveBeenCalled()
+      })
+
+      it('should not fall back to getWorldByName', () => {
+        expect(placesMockedComponent.getWorldByName).not.toHaveBeenCalled()
+      })
+
+      it('should update room metadata with the banned addresses', () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
+          'test-room-name',
+          { bannedAddresses: ['0x123', '0x456'] },
+          mockRoom
+        )
+      })
     })
 
-    it('should handle errors gracefully', async () => {
-      placesMockedComponent.getPlaceByParcel.mockRejectedValue(new Error('Place not found'))
+    describe('when the room is a legacy world room without sceneId', () => {
+      beforeEach(async () => {
+        livekitMockedComponent.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: undefined,
+          worldName: 'test-world',
+          realmName: 'test-realm',
+          roomType: RoomType.WORLD
+        })
+        placesMockedComponent.getWorldByName.mockResolvedValue(mockPlace)
 
-      await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
+        await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
+      })
 
-      expect(livekitMockedComponent.getRoomMetadataFromRoomName).toHaveBeenCalledWith('test-room-name')
-      expect(placesMockedComponent.getPlaceByParcel).toHaveBeenCalledWith('-10,-10')
-      expect(sceneBanManagerMockedComponent.listBannedAddresses).not.toHaveBeenCalled()
-      expect(livekitMockedComponent.updateRoomMetadata).not.toHaveBeenCalled()
+      it('should fall back to getWorldByName', () => {
+        expect(placesMockedComponent.getWorldByName).toHaveBeenCalledWith('test-world')
+      })
+
+      it('should not fetch from the content client', () => {
+        expect(contentClientMockedComponent.fetchEntityById).not.toHaveBeenCalled()
+      })
+
+      it('should not use getPlaceByParcel', () => {
+        expect(placesMockedComponent.getPlaceByParcel).not.toHaveBeenCalled()
+      })
+
+      it('should update room metadata with the banned addresses', () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
+          'test-room-name',
+          { bannedAddresses: ['0x123', '0x456'] },
+          mockRoom
+        )
+      })
+    })
+
+    describe('when the room type is neither scene nor world', () => {
+      beforeEach(async () => {
+        livekitMockedComponent.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: 'test-realm',
+          roomType: RoomType.UNKNOWN
+        })
+
+        await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
+      })
+
+      it('should not look up any place', () => {
+        expect(placesMockedComponent.getWorldScenePlace).not.toHaveBeenCalled()
+        expect(placesMockedComponent.getWorldByName).not.toHaveBeenCalled()
+        expect(placesMockedComponent.getPlaceByParcel).not.toHaveBeenCalled()
+        expect(contentClientMockedComponent.fetchEntityById).not.toHaveBeenCalled()
+      })
+
+      it('should not list banned addresses', () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).not.toHaveBeenCalled()
+      })
+
+      it('should not update room metadata', () => {
+        expect(livekitMockedComponent.updateRoomMetadata).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('when there are no banned addresses', () => {
+      beforeEach(async () => {
+        livekitMockedComponent.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: 'test-scene-id',
+          worldName: undefined,
+          realmName: 'test-realm',
+          roomType: RoomType.SCENE
+        })
+        contentClientMockedComponent.fetchEntityById.mockResolvedValue({
+          id: 'test-scene-id',
+          type: 'scene' as any,
+          timestamp: 1234567890,
+          version: 'v3',
+          pointers: ['-10,-10'],
+          content: [],
+          metadata: { scene: { base: '-10,-10', parcels: ['-10,-10'] } }
+        })
+        placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
+        sceneBanManagerMockedComponent.listBannedAddresses.mockResolvedValue([])
+
+        await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
+      })
+
+      it('should update room metadata with an empty banned addresses array', () => {
+        expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
+          'test-room-name',
+          { bannedAddresses: [] },
+          mockRoom
+        )
+      })
+    })
+
+    describe('when the place lookup fails', () => {
+      beforeEach(async () => {
+        livekitMockedComponent.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: 'test-scene-id',
+          worldName: undefined,
+          realmName: 'test-realm',
+          roomType: RoomType.SCENE
+        })
+        contentClientMockedComponent.fetchEntityById.mockResolvedValue({
+          id: 'test-scene-id',
+          type: 'scene' as any,
+          timestamp: 1234567890,
+          version: 'v3',
+          pointers: ['-10,-10'],
+          content: [],
+          metadata: { scene: { base: '-10,-10', parcels: ['-10,-10'] } }
+        })
+        placesMockedComponent.getPlaceByParcel.mockRejectedValue(new Error('Place not found'))
+
+        await sceneBanComponent.updateRoomMetadataWithBans(mockRoom)
+      })
+
+      it('should not list banned addresses', () => {
+        expect(sceneBanManagerMockedComponent.listBannedAddresses).not.toHaveBeenCalled()
+      })
+
+      it('should not update room metadata', () => {
+        expect(livekitMockedComponent.updateRoomMetadata).not.toHaveBeenCalled()
+      })
     })
   })
 
@@ -2038,8 +2198,8 @@ describe('SceneBanComponent', () => {
       beforeEach(() => {
         sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1', 'place2'])
         placesMockedComponent.getPlaceStatusByIds.mockResolvedValue([
-          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
-          { id: 'place2', disabled: false, world: false, world_name: '', base_position: '0,0' }
+          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
+          { id: 'place2', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] }
         ])
       })
 
@@ -2056,9 +2216,9 @@ describe('SceneBanComponent', () => {
       beforeEach(() => {
         sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1', 'place2', 'place3'])
         placesMockedComponent.getPlaceStatusByIds.mockResolvedValue([
-          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
-          { id: 'place2', disabled: true, world: false, world_name: '', base_position: '0,0' },
-          { id: 'place3', disabled: true, world: false, world_name: '', base_position: '0,0' }
+          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
+          { id: 'place2', disabled: true, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
+          { id: 'place3', disabled: true, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] }
         ])
         sceneBanManagerMockedComponent.removeBansByPlaceIds.mockResolvedValue(undefined)
       })
@@ -2080,10 +2240,11 @@ describe('SceneBanComponent', () => {
         // Mock places with some disabled
         const placeStatuses = placeIds.map((placeId, index) => ({
           id: placeId,
-          disabled: index % 3 === 0, // Every third place is disabled
+          disabled: index % 3 === 0,
           world: false,
           world_name: '',
-          base_position: '0,0'
+          base_position: '0,0',
+          positions: ['0,0'] as string[]
         }))
 
         placesMockedComponent.getPlaceStatusByIds

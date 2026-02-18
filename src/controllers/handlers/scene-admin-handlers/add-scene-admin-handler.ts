@@ -19,7 +19,7 @@ export async function addSceneAdminHandler(
     verification
   } = ctx
 
-  const { getWorldByName, getPlaceByParcel } = places
+  const { getWorldScenePlace, getPlaceByParcel } = places
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
@@ -41,7 +41,7 @@ export async function addSceneAdminHandler(
   let place: PlaceAttributes
 
   if (isWorld) {
-    place = await getWorldByName(serverName)
+    place = await getWorldScenePlace(serverName, parcel)
   } else {
     place = await getPlaceByParcel(parcel)
   }

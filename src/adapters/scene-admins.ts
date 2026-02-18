@@ -9,7 +9,7 @@ export async function createSceneAdminsComponent(
   components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager'>
 ): Promise<ISceneAdmins> {
   async function getAdminsAndExtraAddresses(
-    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position'>,
+    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position' | 'positions'>,
     admin?: string
   ): Promise<{
     admins: Set<SceneAdmin>
@@ -18,7 +18,7 @@ export async function createSceneAdminsComponent(
   }> {
     const { worlds, lands, sceneAdminManager } = components
 
-    const { fetchWorldActionPermissions } = worlds
+    const { fetchWorldActionPermissions, getWorldParcelPermissions } = worlds
     const { getLandOperators } = lands
 
     const sceneAdminFilters = {
@@ -50,20 +50,32 @@ export async function createSceneAdminsComponent(
       landActionPermissions.approvedForAll.forEach((operator) => extraAddresses.add(operator.toLowerCase()))
     }
 
-    if (worldActionPermissions?.permissions.deployment.type === PermissionType.AllowList) {
-      worldActionPermissions.permissions.deployment.wallets.forEach((wallet) =>
-        extraAddresses.add(wallet.toLowerCase())
-      )
-    }
+    if (worldActionPermissions) {
+      const sceneParcels = new Set(place.positions)
 
-    if (worldActionPermissions?.permissions.streaming.type === PermissionType.AllowList) {
-      worldActionPermissions.permissions.streaming.wallets.forEach((wallet) => extraAddresses.add(wallet.toLowerCase()))
-    }
+      if (worldActionPermissions.permissions.deployment.type === PermissionType.AllowList) {
+        for (const wallet of worldActionPermissions.permissions.deployment.wallets) {
+          const parcels = await getWorldParcelPermissions(wallet, place.world_name!, 'deployment')
+          // World-wide permission (empty parcels) or scene-specific permission (parcels overlap)
+          if (parcels.length === 0 || parcels.some((p) => sceneParcels.has(p))) {
+            extraAddresses.add(wallet.toLowerCase())
+          }
+        }
+      }
 
-    const ownerAddress = worldActionPermissions?.owner
+      if (worldActionPermissions.permissions.streaming.type === PermissionType.AllowList) {
+        for (const wallet of worldActionPermissions.permissions.streaming.wallets) {
+          const parcels = await getWorldParcelPermissions(wallet, place.world_name!, 'streaming')
+          if (parcels.length === 0 || parcels.some((p) => sceneParcels.has(p))) {
+            extraAddresses.add(wallet.toLowerCase())
+          }
+        }
+      }
 
-    if (ownerAddress) {
-      extraAddresses.add(ownerAddress.toLowerCase())
+      const ownerAddress = worldActionPermissions.owner
+      if (ownerAddress) {
+        extraAddresses.add(ownerAddress.toLowerCase())
+      }
     }
 
     return {

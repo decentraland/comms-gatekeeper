@@ -31,7 +31,7 @@ export async function createNotificationsComponent({
 
   async function sendNotificationType(
     type: NotificationStreamingType,
-    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position'>
+    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position' | 'positions'>
   ): Promise<void> {
     const { getAdminsAndExtraAddresses } = sceneAdmins
 

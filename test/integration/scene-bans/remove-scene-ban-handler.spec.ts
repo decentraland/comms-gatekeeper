@@ -74,7 +74,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
     })
 
     stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
-    stubComponents.places.getWorldByName.resolves(mockedWorldPlace)
+    stubComponents.places.getWorldScenePlace.resolves(mockedWorldPlace)
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
     stubComponents.sceneBanManager.removeBan.resolves()
     stubComponents.livekit.getRoomName.returns('test-room-name')

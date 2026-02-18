@@ -14,8 +14,7 @@ export async function watcherTokenHandler(
 
   const body: WatcherTokenRequestBody = await request.json()
 
-  // Call cast component to generate watcher credentials using location (parcel or world)
-  const credentials = await cast.generateWatcherCredentialsByLocation(body.location, body.identity)
+  const credentials = await cast.generateWatcherCredentialsByLocation(body.location, body.identity, body.parcel)
 
   logger.info(`Watcher credentials generated for location ${body.location}`)
 

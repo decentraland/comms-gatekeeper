@@ -1,6 +1,12 @@
 import { AppComponents, NamesResponse } from '../types'
 import { ensureSlashAtTheEnd } from '../logic/utils'
-import { IWorldComponent, PermissionsOverWorld, PermissionType, WorldScene } from '../types/worlds.type'
+import {
+  IWorldComponent,
+  PermissionsOverWorld,
+  PermissionType,
+  WorldScene,
+  WorldSceneEntityMetadata
+} from '../types/worlds.type'
 import { InvalidRequestError } from '../types/errors'
 
 export async function createWorldsComponent(
@@ -47,6 +53,22 @@ export async function createWorldsComponent(
     return scene
   }
 
+  async function fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined> {
+    const url = `${worldContentUrl}/contents/${entityId}`
+    logger.debug(`Fetching world scene entity metadata for ${entityId}`)
+
+    const fetchFromCache = cachedFetch.cache<{ metadata: WorldSceneEntityMetadata }>()
+    const result = await fetchFromCache.fetch(url)
+
+    if (!result?.metadata?.scene) {
+      logger.debug(`No scene entity metadata found for entity ID ${entityId}`)
+      return undefined
+    }
+
+    logger.debug(`Found scene entity ${entityId} with base parcel ${result.metadata.scene.base}`)
+    return result.metadata
+  }
+
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
     let nameToValidate = worldName.toLowerCase()
 
@@ -89,6 +111,16 @@ export async function createWorldsComponent(
     )
   }
 
+  async function getWorldParcelPermissions(
+    address: string,
+    worldName: string,
+    permissionName: string
+  ): Promise<string[]> {
+    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/permissions/${permissionName}/address/${address.toLowerCase()}/parcels`
+    const response = await cachedFetch.cache<{ total: number; parcels: string[] }>().fetch(url)
+    return response?.parcels ?? []
+  }
+
   async function hasWorldAccessPermission(authAddress: string, worldName: string): Promise<boolean> {
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
     const { permissions, owner } = permissionsOverWorld ?? {}
@@ -104,9 +136,11 @@ export async function createWorldsComponent(
   return {
     fetchWorldActionPermissions,
     fetchWorldSceneByPointer,
+    fetchWorldSceneEntityMetadataById,
     hasWorldOwnerPermission,
     hasWorldStreamingPermission,
     hasWorldDeployPermission,
-    hasWorldAccessPermission
+    hasWorldAccessPermission,
+    getWorldParcelPermissions
   }
 }

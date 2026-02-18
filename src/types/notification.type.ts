@@ -31,6 +31,6 @@ export type Notification = {
 export type INotifications = {
   sendNotificationType(
     type: NotificationStreamingType,
-    place: Pick<PlaceAttributes, 'world' | 'world_name' | 'base_position'>
+    place: Pick<PlaceAttributes, 'world' | 'world_name' | 'base_position' | 'positions'>
   ): Promise<void>
 }

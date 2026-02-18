@@ -9,7 +9,8 @@ describe('SceneAdmins', () => {
   beforeEach(async () => {
     mockedComponents = {
       worlds: {
-        fetchWorldActionPermissions: jest.fn()
+        fetchWorldActionPermissions: jest.fn(),
+        getWorldParcelPermissions: jest.fn().mockResolvedValue([])
       },
       lands: {
         getLandOperators: jest.fn()
@@ -28,7 +29,8 @@ describe('SceneAdmins', () => {
         id: 'test-place',
         world: true,
         world_name: 'test-world',
-        base_position: '0,0'
+        base_position: '0,0',
+        positions: ['0,0']
       }
 
       const mockAdmin: SceneAdmin = {
@@ -82,7 +84,8 @@ describe('SceneAdmins', () => {
         id: 'test-place',
         world: false,
         world_name: undefined,
-        base_position: '0,0'
+        base_position: '0,0',
+        positions: ['0,0']
       }
 
       const mockAdmin: SceneAdmin = {
@@ -124,7 +127,8 @@ describe('SceneAdmins', () => {
         id: 'test-place',
         world: false,
         world_name: undefined,
-        base_position: '0,0'
+        base_position: '0,0',
+        positions: ['0,0']
       }
 
       const specificAdmin = '0xspecificadmin'
@@ -162,7 +166,8 @@ describe('SceneAdmins', () => {
         id: 'test-place',
         world: true,
         world_name: 'test-world',
-        base_position: '0,0'
+        base_position: '0,0',
+        positions: ['0,0']
       }
 
       const error = new Error('Test error')
@@ -176,7 +181,8 @@ describe('SceneAdmins', () => {
         id: 'test-place',
         world: false,
         world_name: undefined,
-        base_position: '0,0'
+        base_position: '0,0',
+        positions: ['0,0']
       }
 
       const error = new Error('Test error')

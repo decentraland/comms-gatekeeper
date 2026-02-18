@@ -7,7 +7,8 @@ export async function createSceneManagerComponent(
 ): Promise<ISceneManager> {
   const { worlds, lands, sceneAdminManager, landLease } = components
 
-  const { hasWorldOwnerPermission, hasWorldStreamingPermission, hasWorldDeployPermission } = worlds
+  const { hasWorldOwnerPermission, hasWorldStreamingPermission, hasWorldDeployPermission, getWorldParcelPermissions } =
+    worlds
   const { getLandPermissions } = lands
 
   async function isSceneOwner(place: PlaceAttributes, address: string): Promise<boolean> {
@@ -26,11 +27,24 @@ export async function createSceneManagerComponent(
     let hasLandLease = false
 
     if (!isAdmin && place.world) {
-      const [hasStreamingPermission, hasDeployPermission] = await Promise.all([
+      const [hasWorldStreaming, hasWorldDeploy, streamingParcels, deployParcels] = await Promise.all([
         hasWorldStreamingPermission(address, place.world_name!),
-        hasWorldDeployPermission(address, place.world_name!)
+        hasWorldDeployPermission(address, place.world_name!),
+        getWorldParcelPermissions(address, place.world_name!, 'streaming'),
+        getWorldParcelPermissions(address, place.world_name!, 'deployment')
       ])
-      hasExtendedPermissions = hasStreamingPermission || hasDeployPermission
+
+      const sceneParcels = new Set(place.positions)
+
+      // World-wide permission: in allow list + no specific parcels = applies to all scenes
+      const hasWorldWideStreaming = hasWorldStreaming && streamingParcels.length === 0
+      const hasWorldWideDeploy = hasWorldDeploy && deployParcels.length === 0
+
+      // Parcel-specific permission: parcels overlap with this scene's positions
+      const hasParcelStreaming = streamingParcels.some((p) => sceneParcels.has(p))
+      const hasParcelDeploy = deployParcels.some((p) => sceneParcels.has(p))
+
+      hasExtendedPermissions = hasWorldWideStreaming || hasWorldWideDeploy || hasParcelStreaming || hasParcelDeploy
     } else if (!isAdmin && !place.world) {
       const landParcelPermission = await getLandPermissions(address, place.positions)
       hasExtendedPermissions =

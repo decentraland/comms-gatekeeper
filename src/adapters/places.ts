@@ -3,9 +3,9 @@ import { PlaceNotFoundError } from '../types/errors'
 import { IPlacesComponent, PlaceAttributes, PlaceResponse } from '../types/places.type'
 
 export async function createPlacesComponent(
-  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs' | 'fetch'>
+  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs' | 'fetch' | 'worlds'>
 ): Promise<IPlacesComponent> {
-  const { config, cachedFetch, logs, fetch } = components
+  const { config, cachedFetch, logs, fetch, worlds } = components
 
   const logger = logs.getLogger('places-component')
 
@@ -44,9 +44,8 @@ export async function createPlacesComponent(
   }
 
   /**
-   * Gets a world by its name.
-   * Used for world-wide operations like bans where we need the world itself, not a specific scene.
-   * Queries /worlds/:world-id endpoint where world-id is the lowercased world name.
+   * @deprecated Use getWorldScenePlace instead. Kept only for backwards compatibility
+   * with legacy rooms that lack a sceneId.
    */
   async function getWorldByName(worldName: string): Promise<PlaceAttributes> {
     const worldId = worldName.toLowerCase()
@@ -69,7 +68,7 @@ export async function createPlacesComponent(
 
   async function getPlaceStatusByIds(
     ids: string[]
-  ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>[]> {
+  ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position' | 'positions'>[]> {
     const response = await fetch.fetch(`${placesApiUrl}/places/status`, {
       method: 'POST',
       headers: {
@@ -88,9 +87,25 @@ export async function createPlacesComponent(
     return places.data
   }
 
+  /**
+   * Gets a world scene place by resolving the entity ID through the worlds content server
+   * to obtain the base parcel, then querying the Places API.
+   */
+  async function getWorldScenePlaceByEntityId(worldName: string, entityId: string): Promise<PlaceAttributes> {
+    const metadata = await worlds.fetchWorldSceneEntityMetadataById(entityId)
+
+    if (!metadata?.scene?.base) {
+      logger.info(`No scene entity found for entity ID ${entityId} in world ${worldName}`)
+      throw new PlaceNotFoundError(`No scene entity found for entity ID ${entityId} in world ${worldName}`)
+    }
+
+    return getWorldScenePlace(worldName, metadata.scene.base)
+  }
+
   return {
     getPlaceByParcel,
     getWorldScenePlace,
+    getWorldScenePlaceByEntityId,
     getWorldByName,
     getPlaceStatusByIds
   }
