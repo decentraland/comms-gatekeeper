@@ -56,7 +56,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
 
       if (!response.ok) {
         console.warn(`[Migration] Failed to fetch places for world ${worldName}: HTTP ${response.status}`)
-        continue
+        throw new Error(`Failed to fetch places for world ${worldName}: HTTP ${response.status}`)
       }
 
       const result = (await response.json()) as PlacesResponse
@@ -67,7 +67,8 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     }
 
     if (places.length === 0) {
-      throw new Error(`No valid scene places found for world ${worldName}`)
+      console.warn(`[Migration] No valid scene places found for world ${worldName}, cleaning up world-name records`)
+      continue
     }
 
     console.log(`[Migration] Found ${places.length} scene places for world ${worldName}`)
