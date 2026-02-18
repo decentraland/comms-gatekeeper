@@ -121,6 +121,34 @@ export async function createWorldsComponent(
     return response?.parcels ?? []
   }
 
+  /**
+   * Fetches all addresses that have the given permission over the specified parcels in a world.
+   * Uses `POST /world/:world_name/permissions/:permission_name/parcels` with `{ parcels }`.
+   */
+  async function getWorldParcelPermissionAddresses(
+    worldName: string,
+    permissionName: string,
+    parcels: string[]
+  ): Promise<string[]> {
+    if (parcels.length === 0) {
+      return []
+    }
+
+    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/permissions/${permissionName}/parcels`
+    const response = await fetch.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parcels })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch parcel permission addresses: HTTP ${response.status}`)
+    }
+
+    const result = (await response.json()) as { total: number; addresses: string[] }
+    return result.addresses ?? []
+  }
+
   async function hasWorldAccessPermission(authAddress: string, worldName: string): Promise<boolean> {
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
     const { permissions, owner } = permissionsOverWorld ?? {}
@@ -141,6 +169,7 @@ export async function createWorldsComponent(
     hasWorldStreamingPermission,
     hasWorldDeployPermission,
     hasWorldAccessPermission,
-    getWorldParcelPermissions
+    getWorldParcelPermissions,
+    getWorldParcelPermissionAddresses
   }
 }

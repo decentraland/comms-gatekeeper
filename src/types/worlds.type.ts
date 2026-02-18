@@ -25,6 +25,7 @@ export type IWorldComponent = IBaseComponent & {
   hasWorldDeployPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldAccessPermission(authAddress: string, worldName: string): Promise<boolean>
   getWorldParcelPermissions(address: string, worldName: string, permissionName: string): Promise<string[]>
+  getWorldParcelPermissionAddresses(worldName: string, permissionName: string, parcels: string[]): Promise<string[]>
 }
 
 export enum PermissionType {

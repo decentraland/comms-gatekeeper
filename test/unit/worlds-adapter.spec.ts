@@ -167,4 +167,106 @@ describe('worlds adapter', () => {
       })
     })
   })
+
+  describe('when fetching parcel permission addresses', () => {
+    const worldName = 'myworld.dcl.eth'
+    const permissionName = 'deployment'
+    const parcels = ['0,0', '0,1']
+
+    describe('and no parcels are provided', () => {
+      let result: string[]
+
+      beforeEach(async () => {
+        result = await worldsComponent.getWorldParcelPermissionAddresses(worldName, permissionName, [])
+      })
+
+      it('should return an empty array without making a request', () => {
+        expect(result).toEqual([])
+        expect(mockFetch.fetch).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the request is successful', () => {
+      let result: string[]
+
+      beforeEach(async () => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            total: 2,
+            addresses: ['0xaddr1', '0xaddr2']
+          })
+        })
+
+        result = await worldsComponent.getWorldParcelPermissionAddresses(worldName, permissionName, parcels)
+      })
+
+      it('should call the correct URL with a POST request and the parcels in the body', () => {
+        expect(mockFetch.fetch).toHaveBeenCalledWith(
+          `${worldContentUrl}/world/${worldName}/permissions/${permissionName}/parcels`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parcels })
+          }
+        )
+      })
+
+      it('should return the addresses from the response', () => {
+        expect(result).toEqual(['0xaddr1', '0xaddr2'])
+      })
+    })
+
+    describe('and the response has no addresses field', () => {
+      let result: string[]
+
+      beforeEach(async () => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ total: 0 })
+        })
+
+        result = await worldsComponent.getWorldParcelPermissionAddresses(worldName, permissionName, parcels)
+      })
+
+      it('should return an empty array', () => {
+        expect(result).toEqual([])
+      })
+    })
+
+    describe('and the request fails', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: false,
+          status: 500
+        })
+      })
+
+      it('should throw an error with the HTTP status', async () => {
+        await expect(
+          worldsComponent.getWorldParcelPermissionAddresses(worldName, permissionName, parcels)
+        ).rejects.toThrow('Failed to fetch parcel permission addresses: HTTP 500')
+      })
+    })
+
+    describe('and the world name has uppercase letters', () => {
+      const uppercaseWorldName = 'MyWorld.DCL.ETH'
+
+      beforeEach(async () => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ total: 0, addresses: [] })
+        })
+
+        await worldsComponent.getWorldParcelPermissionAddresses(uppercaseWorldName, permissionName, parcels)
+      })
+
+      it('should lowercase the world name in the URL', () => {
+        expect(mockFetch.fetch).toHaveBeenCalledWith(
+          `${worldContentUrl}/world/${uppercaseWorldName.toLowerCase()}/permissions/${permissionName}/parcels`,
+          expect.any(Object)
+        )
+      })
+    })
+  })
 })
