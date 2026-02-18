@@ -67,11 +67,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     }
 
     if (places.length === 0) {
-      console.warn(`[Migration] No valid scene places found for world ${worldName}, cleaning up world-name records`)
-      const escapedWorldName = worldName.replace(/'/g, "''")
-      pgm.sql(`DELETE FROM scene_bans WHERE place_id = '${escapedWorldName}'`)
-      pgm.sql(`DELETE FROM scene_admin WHERE place_id = '${escapedWorldName}'`)
-      continue
+      throw new Error(`No valid scene places found for world ${worldName}`)
     }
 
     console.log(`[Migration] Found ${places.length} scene places for world ${worldName}`)
