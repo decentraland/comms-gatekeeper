@@ -4,17 +4,6 @@ import { MigrationBuilder, ColumnDefinitions } from 'node-pg-migrate'
 export const shorthands: ColumnDefinitions | undefined = undefined
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const BATCH_SIZE = 100
-
-interface WorldScene {
-  entityId: string
-  parcels: string[]
-}
-
-interface WorldScenesResponse {
-  scenes: WorldScene[]
-  total: number
-}
 
 interface Place {
   id: string
@@ -34,15 +23,13 @@ interface PlacesResponse {
  * Background:
  * - Migration 1770669236898 changed world bans/admins place_id from scene UUIDs to the
  *   lowercased world name (e.g., "myworld.dcl.eth"), making them world-wide.
- * - This migration reverts that: for each world name used as a place_id, it looks up all scenes
- *   in that world, resolves each scene's place UUID, and creates per-scene records.
+ * - This migration reverts that: for each world name used as a place_id, it queries the Places API
+ *   to get all scene places for that world, then creates per-scene records.
  * - Existing world-name records are deleted after the scene-level records are created.
  */
 export async function up(pgm: MigrationBuilder): Promise<void> {
   const placesApiUrl = process.env.PLACES_API_URL || 'https://places.decentraland.org/api'
-  const worldContentUrl = process.env.WORLD_CONTENT_URL || 'https://worlds-content-server.decentraland.org'
 
-  // Find all non-UUID place_ids (world names) in scene_bans and scene_admin
   const bansResult = await pgm.db.query(
     "SELECT DISTINCT place_id FROM scene_bans WHERE place_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'"
   )
@@ -64,118 +51,66 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
   for (const worldName of worldNames) {
     console.log(`[Migration] Processing world: ${worldName}`)
 
-    let scenes: WorldScene[]
+    let places: Place[]
     try {
-      const response = await fetch(`${worldContentUrl}/world/${worldName}/scenes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pointers: [] })
-      })
+      const response = await fetch(`${placesApiUrl}/places?names=${encodeURIComponent(worldName.toLowerCase())}`)
 
       if (!response.ok) {
-        console.warn(`[Migration] Failed to fetch scenes for world ${worldName}: HTTP ${response.status}`)
+        console.warn(`[Migration] Failed to fetch places for world ${worldName}: HTTP ${response.status}`)
         continue
       }
 
-      const result = (await response.json()) as WorldScenesResponse
-      scenes = result.scenes || []
+      const result = (await response.json()) as PlacesResponse
+      places = (result.data || []).filter((p) => UUID_REGEX.test(p.id))
     } catch (error) {
-      console.error(`[Migration] Error fetching scenes for world ${worldName}:`, error)
+      console.error(`[Migration] Error fetching places for world ${worldName}:`, error)
       continue
     }
 
-    if (scenes.length === 0) {
-      console.log(`[Migration] No scenes found for world ${worldName}, skipping`)
-      continue
-    }
-
-    console.log(`[Migration] Found ${scenes.length} scenes for world ${worldName}`)
-
-    // For each scene, resolve its place UUID via the Places API
-    const scenePlaceIds: string[] = []
-
-    for (const scene of scenes) {
-      if (!scene.parcels || scene.parcels.length === 0) {
-        console.warn(`[Migration] Scene ${scene.entityId} has no parcels, skipping`)
-        continue
-      }
-
-      const baseParcel = scene.parcels[0]
-      try {
-        const response = await fetch(
-          `${placesApiUrl}/places?positions=${encodeURIComponent(baseParcel)}&names=${encodeURIComponent(worldName)}`
-        )
-
-        if (!response.ok) {
-          console.warn(
-            `[Migration] Failed to fetch place for scene at ${baseParcel} in ${worldName}: HTTP ${response.status}`
-          )
-          continue
-        }
-
-        const result = (await response.json()) as PlacesResponse
-
-        if (!result.data || result.data.length === 0) {
-          console.warn(`[Migration] No place found for scene at ${baseParcel} in ${worldName}`)
-          continue
-        }
-
-        const place = result.data[0]
-        if (UUID_REGEX.test(place.id)) {
-          scenePlaceIds.push(place.id)
-          console.log(`[Migration] Scene at ${baseParcel} -> place UUID ${place.id}`)
-        } else {
-          console.warn(`[Migration] Place ID ${place.id} for scene at ${baseParcel} is not a UUID, skipping`)
-        }
-      } catch (error) {
-        console.error(`[Migration] Error fetching place for scene at ${baseParcel} in ${worldName}:`, error)
-        continue
-      }
-    }
-
-    if (scenePlaceIds.length === 0) {
-      console.warn(`[Migration] No valid scene place IDs found for world ${worldName}, cleaning up world-name records`)
+    if (places.length === 0) {
+      console.warn(`[Migration] No valid scene places found for world ${worldName}, cleaning up world-name records`)
       const escapedWorldName = worldName.replace(/'/g, "''")
       pgm.sql(`DELETE FROM scene_bans WHERE place_id = '${escapedWorldName}'`)
       pgm.sql(`DELETE FROM scene_admin WHERE place_id = '${escapedWorldName}'`)
       continue
     }
 
+    console.log(`[Migration] Found ${places.length} scene places for world ${worldName}`)
+
     const escapedWorldName = worldName.replace(/'/g, "''")
 
-    // Duplicate each ban record to every scene in the world
-    for (const scenePlaceId of scenePlaceIds) {
-      const escapedScenePlaceId = scenePlaceId.replace(/'/g, "''")
+    for (const place of places) {
+      const escapedPlaceId = place.id.replace(/'/g, "''")
+      console.log(`[Migration] Scene at ${place.base_position} -> place UUID ${place.id}`)
 
       pgm.sql(`
         INSERT INTO scene_bans (id, place_id, banned_address, banned_by, banned_at)
-        SELECT gen_random_uuid(), '${escapedScenePlaceId}', banned_address, banned_by, banned_at
+        SELECT gen_random_uuid(), '${escapedPlaceId}', banned_address, banned_by, banned_at
         FROM scene_bans
         WHERE place_id = '${escapedWorldName}'
           AND banned_address NOT IN (
-            SELECT banned_address FROM scene_bans WHERE place_id = '${escapedScenePlaceId}'
+            SELECT banned_address FROM scene_bans WHERE place_id = '${escapedPlaceId}'
           )
       `)
 
       pgm.sql(`
         INSERT INTO scene_admin (id, place_id, admin, added_by, created_at, active)
-        SELECT gen_random_uuid(), '${escapedScenePlaceId}', admin, added_by, created_at, active
+        SELECT gen_random_uuid(), '${escapedPlaceId}', admin, added_by, created_at, active
         FROM scene_admin
         WHERE place_id = '${escapedWorldName}'
           AND NOT (
             active = true
             AND admin IN (
-              SELECT admin FROM scene_admin WHERE place_id = '${escapedScenePlaceId}' AND active = true
+              SELECT admin FROM scene_admin WHERE place_id = '${escapedPlaceId}' AND active = true
             )
           )
       `)
     }
 
-    // Delete the original world-name records
     pgm.sql(`DELETE FROM scene_bans WHERE place_id = '${escapedWorldName}'`)
     pgm.sql(`DELETE FROM scene_admin WHERE place_id = '${escapedWorldName}'`)
 
-    console.log(`[Migration] Completed migration for world ${worldName} -> ${scenePlaceIds.length} scenes`)
+    console.log(`[Migration] Completed migration for world ${worldName} -> ${places.length} scenes`)
   }
 }
 
