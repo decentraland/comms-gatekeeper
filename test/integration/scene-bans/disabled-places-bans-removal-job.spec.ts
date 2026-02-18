@@ -19,10 +19,10 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
 
     // Mock only the places component to simulate disabled places
     spyComponents.places.getPlaceStatusByIds.mockResolvedValue([
-      { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
-      { id: 'place2', disabled: true, world: false, world_name: '', base_position: '0,0' },
-      { id: 'place3', disabled: true, world: false, world_name: '', base_position: '0,0' },
-      { id: 'place4', disabled: false, world: false, world_name: '', base_position: '0,0' }
+      { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
+      { id: 'place2', disabled: true, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
+      { id: 'place3', disabled: true, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
+      { id: 'place4', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] }
     ])
 
     // Create some test bans in the database and track them for cleanup
@@ -71,10 +71,10 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
   describe('when there are places with bans but none are disabled', () => {
     beforeEach(() => {
       spyComponents.places.getPlaceStatusByIds.mockResolvedValue([
-        { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
-        { id: 'place2', disabled: false, world: false, world_name: '', base_position: '0,0' },
-        { id: 'place3', disabled: false, world: false, world_name: '', base_position: '0,0' },
-        { id: 'place4', disabled: false, world: false, world_name: '', base_position: '0,0' }
+        { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
+        { id: 'place2', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
+        { id: 'place3', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
+        { id: 'place4', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] }
       ])
     })
 
@@ -171,7 +171,8 @@ test('Disabled places bans removal job', ({ components, spyComponents }) => {
         disabled: index % 3 === 0, // Every third place is disabled
         world: false,
         world_name: '',
-        base_position: '0,0'
+        base_position: '0,0',
+        positions: ['0,0'] as string[]
       }))
 
       spyComponents.places.getPlaceStatusByIds

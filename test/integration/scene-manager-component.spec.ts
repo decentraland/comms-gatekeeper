@@ -15,6 +15,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
     stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
     stubComponents.worlds.hasWorldDeployPermission.resolves(false)
+    stubComponents.worlds.getWorldParcelPermissions.resolves([])
     stubComponents.lands.getLandPermissions.resolves({
       owner: false,
       operator: false,
@@ -41,7 +42,8 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     worldPlace = {
       id: testPlaceId,
       world: true,
-      world_name: 'test-world'
+      world_name: 'test-world',
+      positions: [testParcel]
     } as PlaceAttributes
   })
 

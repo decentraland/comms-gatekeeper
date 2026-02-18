@@ -8,6 +8,31 @@ import { LandsParcelOperatorsResponse } from '../types/lands.type'
 export async function createSceneAdminsComponent(
   components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager'>
 ): Promise<ISceneAdmins> {
+  const { worlds, lands, sceneAdminManager } = components
+  const { fetchWorldActionPermissions, getWorldParcelPermissions } = worlds
+  const { getLandOperators } = lands
+
+  /**
+   * Resolves which wallets have permission over a scene's parcels within a world.
+   * A wallet qualifies if it has world-wide permission (empty parcels from the endpoint)
+   * or scene-specific permission (returned parcels overlap with the scene's positions).
+   */
+  async function resolveWalletsWithPermission(
+    wallets: string[],
+    worldName: string,
+    permissionName: string,
+    sceneParcels: Set<string>
+  ): Promise<string[]> {
+    const results = await Promise.all(
+      wallets.map(async (wallet) => {
+        const parcels = await getWorldParcelPermissions(wallet, worldName, permissionName)
+        const hasPermission = parcels.length === 0 || parcels.some((p) => sceneParcels.has(p))
+        return hasPermission ? wallet.toLowerCase() : null
+      })
+    )
+    return results.filter((w): w is string => w !== null)
+  }
+
   async function getAdminsAndExtraAddresses(
     place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position' | 'positions'>,
     admin?: string
@@ -16,11 +41,6 @@ export async function createSceneAdminsComponent(
     extraAddresses: Set<string>
     addresses: Set<string>
   }> {
-    const { worlds, lands, sceneAdminManager } = components
-
-    const { fetchWorldActionPermissions, getWorldParcelPermissions } = worlds
-    const { getLandOperators } = lands
-
     const sceneAdminFilters = {
       place_id: place.id,
       admin: admin
@@ -53,24 +73,22 @@ export async function createSceneAdminsComponent(
     if (worldActionPermissions) {
       const sceneParcels = new Set(place.positions)
 
-      if (worldActionPermissions.permissions.deployment.type === PermissionType.AllowList) {
-        for (const wallet of worldActionPermissions.permissions.deployment.wallets) {
-          const parcels = await getWorldParcelPermissions(wallet, place.world_name!, 'deployment')
-          // World-wide permission (empty parcels) or scene-specific permission (parcels overlap)
-          if (parcels.length === 0 || parcels.some((p) => sceneParcels.has(p))) {
-            extraAddresses.add(wallet.toLowerCase())
-          }
-        }
-      }
+      const deploymentWallets =
+        worldActionPermissions.permissions.deployment.type === PermissionType.AllowList
+          ? worldActionPermissions.permissions.deployment.wallets
+          : []
+      const streamingWallets =
+        worldActionPermissions.permissions.streaming.type === PermissionType.AllowList
+          ? worldActionPermissions.permissions.streaming.wallets
+          : []
 
-      if (worldActionPermissions.permissions.streaming.type === PermissionType.AllowList) {
-        for (const wallet of worldActionPermissions.permissions.streaming.wallets) {
-          const parcels = await getWorldParcelPermissions(wallet, place.world_name!, 'streaming')
-          if (parcels.length === 0 || parcels.some((p) => sceneParcels.has(p))) {
-            extraAddresses.add(wallet.toLowerCase())
-          }
-        }
-      }
+      const [deploymentAddresses, streamingAddresses] = await Promise.all([
+        resolveWalletsWithPermission(deploymentWallets, place.world_name!, 'deployment', sceneParcels),
+        resolveWalletsWithPermission(streamingWallets, place.world_name!, 'streaming', sceneParcels)
+      ])
+
+      for (const addr of deploymentAddresses) extraAddresses.add(addr)
+      for (const addr of streamingAddresses) extraAddresses.add(addr)
 
       const ownerAddress = worldActionPermissions.owner
       if (ownerAddress) {
