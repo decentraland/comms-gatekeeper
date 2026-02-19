@@ -4,7 +4,10 @@ import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../typ
 import { validate } from '../../logic/utils'
 
 export async function commsServerSceneHandler(
-  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'worlds', '/get-server-scene-adapter'>
+  context: HandlerContextWithPath<
+    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'worlds',
+    '/get-server-scene-adapter'
+  >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
     components: { livekit, logs, denyList, config, worlds }
