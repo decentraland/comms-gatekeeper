@@ -1,6 +1,12 @@
 import { AppComponents, NamesResponse } from '../types'
 import { ensureSlashAtTheEnd } from '../logic/utils'
-import { IWorldComponent, PermissionsOverWorld, PermissionType, WorldScene } from '../types/worlds.type'
+import {
+  IWorldComponent,
+  PermissionsOverWorld,
+  PermissionType,
+  WorldScene,
+  WorldSceneEntityMetadata
+} from '../types/worlds.type'
 import { InvalidRequestError } from '../types/errors'
 
 export async function createWorldsComponent(
@@ -47,6 +53,22 @@ export async function createWorldsComponent(
     return scene
   }
 
+  async function fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined> {
+    const url = `${worldContentUrl}/contents/${entityId}`
+    logger.debug(`Fetching world scene entity metadata for ${entityId}`)
+
+    const fetchFromCache = cachedFetch.cache<{ metadata: WorldSceneEntityMetadata }>()
+    const result = await fetchFromCache.fetch(url)
+
+    if (!result?.metadata?.scene) {
+      logger.debug(`No scene entity metadata found for entity ID ${entityId}`)
+      return undefined
+    }
+
+    logger.debug(`Found scene entity ${entityId} with base parcel ${result.metadata.scene.base}`)
+    return result.metadata
+  }
+
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
     let nameToValidate = worldName.toLowerCase()
 
@@ -87,6 +109,44 @@ export async function createWorldsComponent(
       permissionsOverWorld?.permissions?.deployment.type === PermissionType.AllowList &&
       permissionsOverWorld.permissions.deployment.wallets.includes(authAddress)
     )
+  }
+
+  async function getWorldParcelPermissions(
+    address: string,
+    worldName: string,
+    permissionName: string
+  ): Promise<string[]> {
+    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/permissions/${permissionName}/address/${address.toLowerCase()}/parcels`
+    const response = await cachedFetch.cache<{ total: number; parcels: string[] }>().fetch(url)
+    return response?.parcels ?? []
+  }
+
+  /**
+   * Fetches all addresses that have the given permission over the specified parcels in a world.
+   * Uses `POST /world/:world_name/permissions/:permission_name/parcels` with `{ parcels }`.
+   */
+  async function getWorldParcelPermissionAddresses(
+    worldName: string,
+    permissionName: string,
+    parcels: string[]
+  ): Promise<string[]> {
+    if (parcels.length === 0) {
+      return []
+    }
+
+    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/permissions/${permissionName}/parcels`
+    const response = await fetch.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parcels })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch parcel permission addresses: HTTP ${response.status}`)
+    }
+
+    const result = (await response.json()) as { total: number; addresses: string[] }
+    return result.addresses ?? []
   }
 
   /**
@@ -134,10 +194,13 @@ export async function createWorldsComponent(
   return {
     fetchWorldActionPermissions,
     fetchWorldSceneByPointer,
+    fetchWorldSceneEntityMetadataById,
     fetchWorldSceneId,
     hasWorldOwnerPermission,
     hasWorldStreamingPermission,
     hasWorldDeployPermission,
-    hasWorldAccessPermission
+    hasWorldAccessPermission,
+    getWorldParcelPermissions,
+    getWorldParcelPermissionAddresses
   }
 }

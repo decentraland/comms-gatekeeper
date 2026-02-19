@@ -4,10 +4,11 @@ import { TestCleanup } from '../db-cleanup'
 import { createMockedWorldPlace } from '../mocks/places-mock'
 import { AddSceneBanInput } from '../../src/types'
 
-test('GET /worlds/:worldName/users/:address/ban-status', ({ components, stubComponents }) => {
+test('GET /worlds/:worldName/parcels/:baseParcel/users/:address/ban-status', ({ components, stubComponents }) => {
   const address = '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd'
   const worldName = 'my-world.eth'
-  const endpoint = `/worlds/${worldName}/users/${address}/ban-status`
+  const baseParcel = '0,0'
+  const endpoint = `/worlds/${worldName}/parcels/${baseParcel}/users/${address}/ban-status`
 
   let cleanup: TestCleanup
 
@@ -51,7 +52,7 @@ test('GET /worlds/:worldName/users/:address/ban-status', ({ components, stubComp
       token = 'aToken'
       worldPlaceId = worldName
 
-      stubComponents.places.getWorldByName.resolves(
+      stubComponents.places.getWorldScenePlace.resolves(
         createMockedWorldPlace({
           id: worldPlaceId,
           world_name: worldName,
@@ -113,7 +114,7 @@ test('GET /worlds/:worldName/users/:address/ban-status', ({ components, stubComp
 
     describe('and the places component throws an error', () => {
       beforeEach(() => {
-        stubComponents.places.getWorldByName.rejects(new Error('Database error'))
+        stubComponents.places.getWorldScenePlace.rejects(new Error('Database error'))
       })
 
       it('should respond with a 200 and isBanned as false (fail open)', async () => {

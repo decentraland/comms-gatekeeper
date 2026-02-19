@@ -17,13 +17,15 @@ export const StreamerTokenRequestSchema: Schema = {
 export type WatcherTokenRequestBody = {
   location: string
   identity: string
+  parcel?: string
 }
 
 export const WatcherTokenRequestSchema: Schema = {
   type: 'object',
   properties: {
     location: { type: 'string', pattern: '^\\S+.*$' },
-    identity: { type: 'string', pattern: '^\\S+.*$' }
+    identity: { type: 'string', pattern: '^\\S+.*$' },
+    parcel: { type: 'string', pattern: '^\\S+.*$' }
   },
   required: ['location', 'identity']
 }

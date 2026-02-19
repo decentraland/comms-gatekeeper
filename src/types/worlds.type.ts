@@ -8,14 +8,25 @@ export type WorldScene = {
   parcels: string[]
 }
 
+// Metadata structure returned by the worlds content server /contents/:entityId endpoint
+export type WorldSceneEntityMetadata = {
+  scene: {
+    base: string
+    parcels: string[]
+  }
+}
+
 export type IWorldComponent = IBaseComponent & {
   fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined>
   fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined>
+  fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined>
   fetchWorldSceneId(worldName: string): Promise<string>
   hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldDeployPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldAccessPermission(authAddress: string, worldName: string): Promise<boolean>
+  getWorldParcelPermissions(address: string, worldName: string, permissionName: string): Promise<string[]>
+  getWorldParcelPermissionAddresses(worldName: string, permissionName: string, parcels: string[]): Promise<string[]>
 }
 
 export enum PermissionType {

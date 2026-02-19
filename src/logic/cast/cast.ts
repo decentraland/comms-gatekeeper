@@ -266,19 +266,25 @@ export function createCastComponent(
    * Looks up the most recent active stream for the given location and validates it hasn't expired.
    * @param location - Either parcel coordinates (e.g., "20,-4") or world name (e.g., "goerliplaza.dcl.eth")
    * @param identity - Display name for the watcher (required, provided by frontend)
+   * @param parcel - Optional parcel to resolve a specific scene within a world
    * @returns LiveKit credentials with place name
    */
   async function generateWatcherCredentialsByLocation(
     location: string,
-    identity: string
+    identity: string,
+    parcel?: string
   ): Promise<GenerateWatcherCredentialsResult> {
-    // Detect if location is a world name (ends with .eth) or parcel coordinates
     const isWorldName = location.endsWith('.eth')
 
-    // Get place information from location
-    // For worlds: use getWorldByName (world-wide lookup for stream access)
-    // For parcels: use getPlaceByParcel
-    const place = isWorldName ? await places.getWorldByName(location) : await places.getPlaceByParcel(location)
+    let place: PlaceAttributes
+    if (isWorldName && parcel) {
+      place = await places.getWorldScenePlace(location, parcel)
+    } else if (isWorldName) {
+      // Backwards compatibility: fall back to world-level lookup when no parcel is provided
+      place = await places.getWorldByName(location)
+    } else {
+      place = await places.getPlaceByParcel(location)
+    }
 
     // Get the most recent stream access for this place
     const streamAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(place.id)

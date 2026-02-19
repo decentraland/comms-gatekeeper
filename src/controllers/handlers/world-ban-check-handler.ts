@@ -2,7 +2,7 @@ import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../types'
 
 /**
- * Handler for checking if a user is banned from a world.
+ * Handler for checking if a user is banned from a specific scene within a world.
  *
  * This endpoint is authenticated via bearer token (COMMS_GATEKEEPER_AUTH_TOKEN)
  * and is intended for service-to-service communication (e.g. worlds-content-server).
@@ -11,7 +11,10 @@ import { HandlerContextWithPath } from '../../types'
  * @returns A response with { isBanned: boolean }.
  */
 export async function worldBanCheckHandler(
-  context: HandlerContextWithPath<'sceneBans' | 'logs', '/worlds/:worldName/users/:address/ban-status'>
+  context: HandlerContextWithPath<
+    'sceneBans' | 'logs',
+    '/worlds/:worldName/parcels/:baseParcel/users/:address/ban-status'
+  >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
     components: { sceneBans, logs }
@@ -19,16 +22,18 @@ export async function worldBanCheckHandler(
 
   const logger = logs.getLogger('world-ban-check-handler')
 
-  const { worldName, address } = context.params
+  const { worldName, baseParcel, address } = context.params
 
   try {
     const isBanned = await sceneBans.isUserBanned(address, {
       realmName: worldName,
       isWorld: true,
-      parcel: ''
+      parcel: baseParcel
     })
 
-    logger.debug(`Ban check for ${address} in world ${worldName}: ${isBanned ? 'banned' : 'not banned'}`)
+    logger.debug(
+      `Ban check for ${address} in world ${worldName} parcel ${baseParcel}: ${isBanned ? 'banned' : 'not banned'}`
+    )
 
     return {
       status: 200,
@@ -37,7 +42,7 @@ export async function worldBanCheckHandler(
       }
     }
   } catch (error) {
-    logger.warn(`Error checking ban status for ${address} in world ${worldName}: ${error}`)
+    logger.warn(`Error checking ban status for ${address} in world ${worldName} parcel ${baseParcel}: ${error}`)
 
     return {
       status: 200,

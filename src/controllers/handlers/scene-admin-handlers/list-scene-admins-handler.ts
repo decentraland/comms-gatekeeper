@@ -20,7 +20,7 @@ export async function listSceneAdminsHandler(
   } = ctx
 
   const logger = logs.getLogger('list-scene-admins-handler')
-  const { getWorldByName, getPlaceByParcel } = places
+  const { getWorldScenePlace, getPlaceByParcel } = places
   const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification || verification?.auth === undefined) {
@@ -42,8 +42,7 @@ export async function listSceneAdminsHandler(
 
   let place: PlaceAttributes
   if (isWorld) {
-    // For worlds: use getWorldByName (world-wide admin listing)
-    place = await getWorldByName(serverName)
+    place = await getWorldScenePlace(serverName, parcel)
   } else {
     place = await getPlaceByParcel(parcel)
   }

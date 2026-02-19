@@ -110,7 +110,11 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.get('/scene-bans/addresses', auth, listSceneBansAddressesHandler)
 
   // World ban check endpoint (service-to-service, used by worlds-content-server)
-  router.get('/worlds/:worldName/users/:address/ban-status', tokenAuthMiddleware, worldBanCheckHandler)
+  router.get(
+    '/worlds/:worldName/parcels/:baseParcel/users/:address/ban-status',
+    tokenAuthMiddleware,
+    worldBanCheckHandler
+  )
   router.post(
     '/scene-bans',
     auth,

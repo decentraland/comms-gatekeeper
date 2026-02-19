@@ -46,7 +46,11 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(body.roomId).toBeDefined()
       expect(body.identity).toBeDefined()
       expect(body.placeName).toBeDefined()
-      expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(validLocation, identity)
+      expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(
+        validLocation,
+        identity,
+        undefined
+      )
     })
 
     it('should generate watcher token for valid world name', async () => {
@@ -66,7 +70,11 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(body.roomId).toBeDefined()
       expect(body.identity).toBeDefined()
       expect(body.placeName).toBe('Goerli Plaza')
-      expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(validWorldName, identity)
+      expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(
+        validWorldName,
+        identity,
+        undefined
+      )
     })
   })
 
@@ -92,7 +100,8 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(response.status).toBe(200)
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(
         validLocation,
-        customIdentity
+        customIdentity,
+        undefined
       )
     })
   })

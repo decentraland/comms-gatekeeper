@@ -4,7 +4,7 @@ import { SceneAdmin } from '../types'
 
 export type ISceneAdmins = IBaseComponent & {
   getAdminsAndExtraAddresses: (
-    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position'>,
+    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position' | 'positions'>,
     admin?: string
   ) => Promise<{
     admins: Set<SceneAdmin>

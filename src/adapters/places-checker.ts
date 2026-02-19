@@ -27,7 +27,7 @@ export async function createPlaceChecker(
           }
 
           let placesFromIds: Array<
-            Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>
+            Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position' | 'positions'>
           > = []
           const batchSize = 100
 

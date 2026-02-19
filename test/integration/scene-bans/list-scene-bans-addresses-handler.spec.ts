@@ -66,7 +66,7 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
     }
 
     stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
-    stubComponents.places.getWorldByName.resolves(mockedWorldPlace)
+    stubComponents.places.getWorldScenePlace.resolves(mockedWorldPlace)
   })
 
   afterEach(async () => {

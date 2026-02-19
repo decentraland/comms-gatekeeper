@@ -11,15 +11,23 @@ export type IPlacesComponent = IBaseComponent & {
    */
   getWorldScenePlace(worldName: string, position: string): Promise<PlaceAttributes>
   /**
+   * Gets a world scene place by resolving the entity ID through the worlds content server,
+   * then querying the Places API with the resulting base parcel.
+   * @param worldName - The world name (e.g., "myworld.dcl.eth")
+   * @param entityId - The scene entity ID from the worlds content server
+   */
+  getWorldScenePlaceByEntityId(worldName: string, entityId: string): Promise<PlaceAttributes>
+  /**
+   * @deprecated Use getWorldScenePlace instead. Kept only for backwards compatibility
+   * with legacy rooms that lack a sceneId.
    * Gets a world by its name.
-   * Used for world-wide operations like bans where we need the world itself, not a specific scene.
    * Queries /worlds/:world-id endpoint where world-id is the lowercased world name.
    * @param worldName - The world name (e.g., "myworld.dcl.eth")
    */
   getWorldByName(worldName: string): Promise<PlaceAttributes>
   getPlaceStatusByIds(
     ids: string[]
-  ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>[]>
+  ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position' | 'positions'>[]>
 }
 
 export type PlaceAttributes = {

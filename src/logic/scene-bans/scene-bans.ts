@@ -113,8 +113,8 @@ export function createSceneBansComponent(
 
   /**
    * Adds a ban for a user from a scene with permission validation.
-   * Bans are applied world-wide for worlds, meaning all scenes within a world share the same bans.
-   * @param payload - The payload containing the address or name of the user being banned.
+   * Bans are applied per-scene, including for worlds where each scene has its own ban list.
+   * @param bannedAddress - The address of the user being banned.
    * @param bannedBy - The address of the user performing the ban.
    * @param params - The parameters for the ban.
    */
@@ -132,8 +132,7 @@ export function createSceneBansComponent(
     let place: PlaceAttributes
 
     if (isWorld) {
-      // For worlds: use getWorldByName to get the world place (bans are world-wide)
-      place = await places.getWorldByName(realmName)
+      place = await places.getWorldScenePlace(realmName, parcel)
     } else {
       place = await places.getPlaceByParcel(parcel)
     }
@@ -199,7 +198,7 @@ export function createSceneBansComponent(
 
   /**
    * Removes a ban for a user from a scene with permission validation.
-   * Bans are removed world-wide for worlds, consistent with how they are applied.
+   * Bans are removed per-scene, consistent with how they are applied.
    * @param bannedAddress - The address of the user being unbanned.
    * @param unbannedBy - The address of the user performing the unban.
    * @param params - The parameters for the unban.
@@ -222,8 +221,7 @@ export function createSceneBansComponent(
     let place: PlaceAttributes
 
     if (isWorld) {
-      // For worlds: use getWorldByName to get the world place (bans are world-wide)
-      place = await places.getWorldByName(realmName)
+      place = await places.getWorldScenePlace(realmName, parcel)
     } else {
       place = await places.getPlaceByParcel(parcel)
     }
@@ -320,8 +318,7 @@ export function createSceneBansComponent(
     let place: PlaceAttributes
 
     if (isWorld) {
-      // For worlds: use getWorldByName to get the world place (bans are world-wide)
-      place = await places.getWorldByName(realmName)
+      place = await places.getWorldScenePlace(realmName, parcel)
     } else {
       place = await places.getPlaceByParcel(parcel)
     }
@@ -364,9 +361,10 @@ export function createSceneBansComponent(
 
     let place: PlaceAttributes
 
-    if (isWorld) {
-      // For worlds: use getWorldByName to check bans (bans are world-wide)
-      place = await places.getWorldByName(realmName)
+    if (isWorld && parcel) {
+      place = await places.getWorldScenePlace(realmName, parcel)
+    } else if (isWorld && sceneId) {
+      place = await places.getWorldScenePlaceByEntityId(realmName, sceneId)
     } else if (parcel) {
       place = await places.getPlaceByParcel(parcel)
     } else if (sceneId) {
@@ -452,11 +450,12 @@ export function createSceneBansComponent(
         return
       }
 
-      if (worldName) {
-        // For worlds: use getWorldByName to get the world place for bans
+      if (worldName && sceneId) {
+        place = await places.getWorldScenePlaceByEntityId(worldName, sceneId)
+      } else if (worldName) {
+        // Legacy rooms without sceneId: fall back to world-level lookup
         place = await places.getWorldByName(worldName)
       } else {
-        // TODO: we could retry if fails
         const entity = await contentClient.fetchEntityById(sceneId!)
         place = await places.getPlaceByParcel(entity.metadata.scene.base)
       }
