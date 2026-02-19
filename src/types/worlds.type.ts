@@ -25,7 +25,7 @@ export type IWorldComponent = IBaseComponent & {
   hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldDeployPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldAccessPermission(authAddress: string, worldName: string): Promise<boolean>
-  getWorldParcelPermissions(address: string, worldName: string, permissionName: string): Promise<string[]>
+  getWorldParcelPermissions(address: string, worldName: string, permissionName: string): Promise<string[] | undefined>
   getWorldParcelPermissionAddresses(worldName: string, permissionName: string, parcels: string[]): Promise<string[]>
 }
 
