@@ -204,5 +204,105 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         })
       })
     })
+
+    describe('when client sends world name as sceneId', () => {
+      let worldNameAsSceneIdMetadata: Metadata
+
+      beforeEach(() => {
+        worldNameAsSceneIdMetadata = {
+          identity: owner.authChain[0].payload,
+          realmName: 'test-world.eth',
+          parcel: '10,20',
+          sceneId: 'test-world.eth'
+        }
+
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+      })
+
+      describe('and the world about endpoint returns the scene ID', () => {
+        beforeEach(() => {
+          stubComponents.worlds.fetchWorldSceneId.resolves('bafkreiabcdef123')
+          stubComponents.livekit.getWorldSceneRoomName.returns(
+            'world-prd-scene-room-test-world.eth-bafkreiabcdef123'
+          )
+        })
+
+        it('should fetch the real sceneId and use it for the room name', async () => {
+          const response = await makeRequest(
+            components.localFetch,
+            '/get-scene-adapter',
+            {
+              method: 'POST',
+              metadata: worldNameAsSceneIdMetadata
+            },
+            owner
+          )
+
+          expect(response.status).toBe(200)
+          expect(stubComponents.worlds.fetchWorldSceneId.calledWith('test-world.eth')).toBe(true)
+          expect(stubComponents.livekit.getWorldSceneRoomName.calledWith('test-world.eth', 'bafkreiabcdef123')).toBe(
+            true
+          )
+        })
+      })
+
+      describe('and the world about endpoint fails', () => {
+        beforeEach(() => {
+          stubComponents.worlds.fetchWorldSceneId.rejects(new Error('HTTP 404'))
+        })
+
+        it('should return 400', async () => {
+          const response = await makeRequest(
+            components.localFetch,
+            '/get-scene-adapter',
+            {
+              method: 'POST',
+              metadata: worldNameAsSceneIdMetadata
+            },
+            owner
+          )
+
+          expect(response.status).toBe(400)
+          const body = await response.json()
+          expect(body).toEqual({
+            error: 'Failed to resolve scene ID for world test-world.eth'
+          })
+        })
+      })
+    })
+
+    describe('when client sends a content hash as sceneId', () => {
+      let contentHashMetadata: Metadata
+
+      beforeEach(() => {
+        contentHashMetadata = {
+          identity: owner.authChain[0].payload,
+          realmName: 'test-world.eth',
+          parcel: '10,20',
+          sceneId: 'bafkreiabcdef123'
+        }
+
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+        stubComponents.livekit.getWorldSceneRoomName.returns(
+          'world-prd-scene-room-test-world.eth-bafkreiabcdef123'
+        )
+      })
+
+      it('should use the sceneId as-is without fetching from the about endpoint', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: contentHashMetadata
+          },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+        expect(stubComponents.worlds.fetchWorldSceneId.called).toBe(false)
+        expect(stubComponents.livekit.getWorldSceneRoomName.calledWith('test-world.eth', 'bafkreiabcdef123')).toBe(true)
+      })
+    })
   })
 })
