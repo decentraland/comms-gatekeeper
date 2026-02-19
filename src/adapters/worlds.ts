@@ -89,6 +89,36 @@ export async function createWorldsComponent(
     )
   }
 
+  /**
+   * Fetches the scene entity ID for a world from its about endpoint.
+   * Parses the first entry in configurations.scenesUrn to extract the content hash.
+   * @throws InvalidRequestError if the request fails, no scenes exist, or the URN format is invalid.
+   */
+  async function fetchWorldSceneId(worldName: string): Promise<string> {
+    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/about`
+    const response = await fetch.fetch(url)
+
+    if (!response.ok) {
+      throw new InvalidRequestError(`Failed to fetch world about for ${worldName}: HTTP ${response.status}`)
+    }
+
+    const about = (await response.json()) as {
+      configurations?: { scenesUrn?: string[] }
+    }
+
+    const scenesUrn = about.configurations?.scenesUrn
+    if (!scenesUrn || scenesUrn.length === 0) {
+      throw new InvalidRequestError(`No scenes found for world ${worldName}`)
+    }
+
+    const urnMatch = scenesUrn[0].match(/^urn:decentraland:entity:([^?]+)/)
+    if (!urnMatch) {
+      throw new InvalidRequestError(`Invalid scene URN format for world ${worldName}: ${scenesUrn[0]}`)
+    }
+
+    return urnMatch[1]
+  }
+
   async function hasWorldAccessPermission(authAddress: string, worldName: string): Promise<boolean> {
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
     const { permissions, owner } = permissionsOverWorld ?? {}
@@ -104,6 +134,7 @@ export async function createWorldsComponent(
   return {
     fetchWorldActionPermissions,
     fetchWorldSceneByPointer,
+    fetchWorldSceneId,
     hasWorldOwnerPermission,
     hasWorldStreamingPermission,
     hasWorldDeployPermission,

@@ -80,7 +80,20 @@ export async function commsSceneHandler(
       throw new UnauthorizedError('Access denied, you are not authorized to access this world')
     }
 
-    room = livekit.getWorldSceneRoomName(realmName, sceneId!)
+    // The client may send the world name as the sceneId instead of the actual content hash.
+    // When that happens, the room name won't match the one used by ban/stream/cast operations
+    // (which use the real content hash). Fetch the real sceneId from the world's about endpoint
+    // to ensure all operations target the same LiveKit room.
+    let worldSceneId = sceneId!
+    if (sceneId!.endsWith('.eth')) {
+      try {
+        worldSceneId = await worlds.fetchWorldSceneId(realmName)
+      } catch (error) {
+        logger.error(`Failed to fetch scene ID for world ${realmName}: ${error}`)
+        throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
+      }
+    }
+    room = livekit.getWorldSceneRoomName(realmName, worldSceneId)
   } else {
     room = livekit.getSceneRoomName(realmName, sceneId!)
   }
