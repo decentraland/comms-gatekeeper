@@ -168,6 +168,119 @@ describe('worlds adapter', () => {
     })
   })
 
+  describe('when fetching world parcel permissions for an address', () => {
+    const worldName = 'myworld.dcl.eth'
+    const address = '0xabc123'
+    const permissionName = 'streaming'
+
+    describe('and the request is successful', () => {
+      describe('and the response includes parcels', () => {
+        let result: string[] | undefined
+
+        beforeEach(async () => {
+          mockFetch.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: jest.fn().mockResolvedValue({
+              total: 2,
+              parcels: ['0,0', '0,1']
+            })
+          })
+          result = await worldsComponent.getWorldParcelPermissions(address, worldName, permissionName)
+        })
+
+        it('should return the parcels from the response', () => {
+          expect(mockFetch.fetch).toHaveBeenCalledWith(
+            `${worldContentUrl}/world/${worldName}/permissions/${permissionName}/address/${address.toLowerCase()}/parcels`
+          )
+          expect(result).toEqual(['0,0', '0,1'])
+        })
+      })
+
+      describe('and the response has no parcels', () => {
+        let result: string[] | undefined
+
+        beforeEach(async () => {
+          mockFetch.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ total: 0, parcels: [] })
+          })
+          result = await worldsComponent.getWorldParcelPermissions(address, worldName, permissionName)
+        })
+
+        it('should return an empty array', () => {
+          expect(result).toEqual([])
+        })
+      })
+
+      describe('and the response parcels is undefined', () => {
+        let result: string[] | undefined
+
+        beforeEach(async () => {
+          mockFetch.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ total: 0 })
+          })
+          result = await worldsComponent.getWorldParcelPermissions(address, worldName, permissionName)
+        })
+
+        it('should return an empty array', () => {
+          expect(result).toEqual([])
+        })
+      })
+    })
+
+    describe('and the request returns 404 (no permissions set for user)', () => {
+      let result: string[] | undefined
+
+      beforeEach(async () => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404
+        })
+        result = await worldsComponent.getWorldParcelPermissions(address, worldName, permissionName)
+      })
+
+      it('should return undefined', () => {
+        expect(result).toBeUndefined()
+      })
+    })
+
+    describe('and the request fails with a non-404 status', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: false,
+          status: 500
+        })
+      })
+
+      it('should throw an error with the HTTP status', async () => {
+        await expect(worldsComponent.getWorldParcelPermissions(address, worldName, permissionName)).rejects.toThrow(
+          'Error getting '
+        )
+      })
+    })
+
+    describe('and the world name and address have uppercase letters', () => {
+      const uppercaseWorldName = 'MyWorld.DCL.ETH'
+      const uppercaseAddress = '0xABC123'
+
+      beforeEach(async () => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ total: 0, parcels: [] })
+        })
+
+        await worldsComponent.getWorldParcelPermissions(uppercaseAddress, uppercaseWorldName, permissionName)
+      })
+
+      it('should lowercase world name and address in the URL', () => {
+        expect(mockFetch.fetch).toHaveBeenCalledWith(
+          `${worldContentUrl}/world/${uppercaseWorldName.toLowerCase()}/permissions/${permissionName}/address/${uppercaseAddress.toLowerCase()}/parcels`
+        )
+      })
+    })
+  })
+
   describe('when fetching parcel permission addresses', () => {
     const worldName = 'myworld.dcl.eth'
     const permissionName = 'deployment'

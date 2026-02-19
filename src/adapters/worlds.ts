@@ -115,10 +115,17 @@ export async function createWorldsComponent(
     address: string,
     worldName: string,
     permissionName: string
-  ): Promise<string[]> {
+  ): Promise<string[] | undefined> {
     const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/permissions/${permissionName}/address/${address.toLowerCase()}/parcels`
-    const response = await cachedFetch.cache<{ total: number; parcels: string[] }>().fetch(url)
-    return response?.parcels ?? []
+    const response = await fetch.fetch(url)
+    if (!response.ok) {
+      if (response.status === 404) {
+        return undefined
+      }
+      throw new Error(`Error getting ${url}, status: ${response.status}`)
+    }
+    const result = (await response.json()) as { total: number; parcels: string[] }
+    return result?.parcels ?? []
   }
 
   /**

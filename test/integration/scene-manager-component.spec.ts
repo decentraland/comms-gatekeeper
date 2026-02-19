@@ -216,6 +216,17 @@ test('SceneManagerComponent', ({ stubComponents }) => {
         hasLandLease: false
       })
     })
+
+    it('should return all false when getWorldParcelPermissions returns undefined (no permissions set, e.g. 404)', async () => {
+      stubComponents.worlds.getWorldParcelPermissions.resolves(undefined)
+      const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
+      expect(result).toEqual({
+        owner: false,
+        admin: false,
+        hasExtendedPermissions: false,
+        hasLandLease: false
+      })
+    })
   })
 
   describe('isSceneOwnerOrAdmin', () => {
