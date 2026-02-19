@@ -19,6 +19,7 @@ describe('when generating a stream link', () => {
   let mockConfig: ReturnType<typeof createConfigMockedComponent>
   let mockPlace: PlaceAttributes
   let mockWorldPlace: PlaceAttributes
+  let mockWorldScenePlace: PlaceAttributes
 
   beforeEach(() => {
     mockPlace = createMockedPlace({
@@ -31,6 +32,13 @@ describe('when generating a stream link', () => {
     mockWorldPlace = createMockedWorldPlace({
       id: 'world-place-123',
       title: 'Test World Place',
+      owner: '0xowner123',
+      world_name: 'test-world.dcl.eth'
+    })
+
+    mockWorldScenePlace = createMockedWorldPlace({
+      id: 'world-scene-place-456',
+      title: 'Test World Scene Place',
       owner: '0xowner123',
       world_name: 'test-world.dcl.eth'
     })
@@ -69,7 +77,7 @@ describe('when generating a stream link', () => {
     })
 
     mockPlaces = createPlacesMockedComponent({
-      getWorldScenePlace: jest.fn().mockResolvedValue(mockWorldPlace),
+      getWorldScenePlace: jest.fn().mockResolvedValue(mockWorldScenePlace),
       getWorldByName: jest.fn().mockResolvedValue(mockWorldPlace),
       getPlaceByParcel: jest.fn().mockResolvedValue(mockPlace)
     })
@@ -137,7 +145,8 @@ describe('when generating a stream link', () => {
   describe('and the request is for a world', () => {
     beforeEach(() => {
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
-      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldPlace)
+      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldScenePlace)
+      mockPlaces.getWorldByName.mockResolvedValue(mockWorldPlace)
     })
 
     it('should get the world scene room with the scene id', async () => {
@@ -164,7 +173,20 @@ describe('when generating a stream link', () => {
       expect(mockPlaces.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', '0,0')
     })
 
-    it('should return the world place id', async () => {
+    it('should check admin permissions using the world place, not the world scene place', async () => {
+      await castComponent.generateStreamLink({
+        walletAddress: '0xowner123',
+        worldName: 'test-world.dcl.eth',
+        parcel: '0,0',
+        sceneId: 'bafkreiscene123',
+        realmName: 'test-world.dcl.eth'
+      })
+
+      expect(mockPlaces.getWorldByName).toHaveBeenCalledWith('test-world.dcl.eth')
+      expect(mockSceneManager.isSceneOwnerOrAdmin).toHaveBeenCalledWith(mockWorldPlace, '0xowner123')
+    })
+
+    it('should return the world scene place id', async () => {
       const result = await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
@@ -173,14 +195,15 @@ describe('when generating a stream link', () => {
         realmName: 'test-world.dcl.eth'
       })
 
-      expect(result.placeId).toBe('world-place-123')
+      expect(result.placeId).toBe('world-scene-place-456')
     })
   })
 
   describe('and the user is not an admin', () => {
     beforeEach(() => {
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
-      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldPlace)
+      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldScenePlace)
+      mockPlaces.getWorldByName.mockResolvedValue(mockWorldPlace)
     })
 
     it('should throw an UnauthorizedError', async () => {
@@ -201,7 +224,7 @@ describe('when generating a stream link', () => {
       beforeEach(() => {
         const existingAccess = {
           id: 'access-123',
-          place_id: 'world-place-123',
+          place_id: 'world-scene-place-456',
           streaming_url: 'rtmp://test-url',
           ingress_id: 'test-ingress-id',
           created_at: Date.now(),
@@ -235,7 +258,7 @@ describe('when generating a stream link', () => {
       beforeEach(() => {
         const expiredAccess = {
           id: 'access-123',
-          place_id: 'world-place-123',
+          place_id: 'world-scene-place-456',
           streaming_url: 'rtmp://test-url',
           ingress_id: 'test-ingress-id',
           created_at: Date.now(),
@@ -269,7 +292,7 @@ describe('when generating a stream link', () => {
       beforeEach(() => {
         const differentRoomAccess = {
           id: 'access-123',
-          place_id: 'world-place-123',
+          place_id: 'world-scene-place-456',
           streaming_url: 'rtmp://test-url',
           ingress_id: 'test-ingress-id',
           created_at: Date.now(),
@@ -302,7 +325,8 @@ describe('when generating a stream link', () => {
   describe('and the stream link is successfully generated', () => {
     beforeEach(() => {
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
-      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldPlace)
+      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldScenePlace)
+      mockPlaces.getWorldByName.mockResolvedValue(mockWorldPlace)
     })
 
     it('should return the stream link details with place name and expiration information', async () => {
@@ -316,7 +340,7 @@ describe('when generating a stream link', () => {
 
       expect(result.streamLink).toBe('https://cast2.decentraland.org/s/test-stream-key')
       expect(result.watcherLink).toBe('https://cast2.decentraland.org/w/test-world.dcl.eth')
-      expect(result.placeName).toBe('Test World Place')
+      expect(result.placeName).toBe('Test World Scene Place')
       expect(result.expiresAt).toBeDefined()
       expect(result.expiresInDays).toBeGreaterThan(0)
     })

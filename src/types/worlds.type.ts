@@ -20,6 +20,7 @@ export type IWorldComponent = IBaseComponent & {
   fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined>
   fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined>
   fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined>
+  fetchWorldSceneId(worldName: string): Promise<string>
   hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldDeployPermission(authAddress: string, worldName: string): Promise<boolean>

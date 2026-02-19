@@ -269,4 +269,131 @@ describe('worlds adapter', () => {
       })
     })
   })
+
+  describe('when fetching the scene ID for a world', () => {
+    const worldName = 'myworld.dcl.eth'
+    const sceneHash = 'bafkreihxhz7kn2fkptfnvj2wmrzxmchhnq4r3ahnhlpy7r7ds4azr4z4zu'
+
+    describe('and the about endpoint returns a valid response with scenesUrn', () => {
+      let result: string
+
+      beforeEach(async () => {
+        mockFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            configurations: {
+              scenesUrn: [
+                `urn:decentraland:entity:${sceneHash}?=&baseUrl=https://worlds-content-server.decentraland.org/contents/`
+              ]
+            }
+          })
+        })
+
+        result = await worldsComponent.fetchWorldSceneId(worldName)
+      })
+
+      it('should call the about endpoint with the lowercased world name', () => {
+        expect(mockFetch.fetch).toHaveBeenCalledWith(`${worldContentUrl}/world/${worldName.toLowerCase()}/about`)
+      })
+
+      it('should return the extracted scene entity ID', () => {
+        expect(result).toBe(sceneHash)
+      })
+    })
+
+    describe('and the about endpoint returns a non-200 status', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValue({
+          ok: false,
+          status: 404
+        })
+      })
+
+      it('should throw an InvalidRequestError', async () => {
+        await expect(worldsComponent.fetchWorldSceneId(worldName)).rejects.toThrow(
+          `Failed to fetch world about for ${worldName}: HTTP 404`
+        )
+      })
+    })
+
+    describe('and the response has no scenesUrn', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            configurations: {}
+          })
+        })
+      })
+
+      it('should throw an InvalidRequestError', async () => {
+        await expect(worldsComponent.fetchWorldSceneId(worldName)).rejects.toThrow(
+          `No scenes found for world ${worldName}`
+        )
+      })
+    })
+
+    describe('and the scenesUrn array is empty', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            configurations: {
+              scenesUrn: []
+            }
+          })
+        })
+      })
+
+      it('should throw an InvalidRequestError', async () => {
+        await expect(worldsComponent.fetchWorldSceneId(worldName)).rejects.toThrow(
+          `No scenes found for world ${worldName}`
+        )
+      })
+    })
+
+    describe('and the scenesUrn has an invalid format', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            configurations: {
+              scenesUrn: ['not-a-valid-urn']
+            }
+          })
+        })
+      })
+
+      it('should throw an InvalidRequestError', async () => {
+        await expect(worldsComponent.fetchWorldSceneId(worldName)).rejects.toThrow(
+          `Invalid scene URN format for world ${worldName}: not-a-valid-urn`
+        )
+      })
+    })
+
+    describe('and the world name has uppercase letters', () => {
+      const uppercaseWorldName = 'MyWorld.DCL.ETH'
+
+      beforeEach(async () => {
+        mockFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            configurations: {
+              scenesUrn: [
+                `urn:decentraland:entity:${sceneHash}?=&baseUrl=https://worlds-content-server.decentraland.org/contents/`
+              ]
+            }
+          })
+        })
+
+        await worldsComponent.fetchWorldSceneId(uppercaseWorldName)
+      })
+
+      it('should lowercase the world name in the URL', () => {
+        expect(mockFetch.fetch).toHaveBeenCalledWith(
+          `${worldContentUrl}/world/${uppercaseWorldName.toLowerCase()}/about`
+        )
+      })
+    })
+  })
 })

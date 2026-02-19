@@ -4,10 +4,13 @@ import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../typ
 import { validate } from '../../logic/utils'
 
 export async function commsServerSceneHandler(
-  context: HandlerContextWithPath<'fetch' | 'config' | 'livekit' | 'logs' | 'denyList', '/get-server-scene-adapter'>
+  context: HandlerContextWithPath<
+    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'worlds',
+    '/get-server-scene-adapter'
+  >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, denyList, config }
+    components: { livekit, logs, denyList, config, worlds }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -40,7 +43,19 @@ export async function commsServerSceneHandler(
   if (livekit.isLocalPreview(realmName)) {
     room = `preview-${identity}`
   } else if (isWorld) {
-    room = livekit.getWorldSceneRoomName(realmName, sceneId)
+    // The caller may send the world name as the sceneId instead of the content hash.
+    // Resolve the real sceneId from the world's about endpoint to ensure the room name
+    // matches the one used by ban/stream/cast operations.
+    let worldSceneId = sceneId
+    if (sceneId.endsWith('.eth')) {
+      try {
+        worldSceneId = await worlds.fetchWorldSceneId(realmName)
+      } catch (error) {
+        logger.error(`Failed to fetch scene ID for world ${realmName}: ${error}`)
+        throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
+      }
+    }
+    room = livekit.getWorldSceneRoomName(realmName, worldSceneId)
   } else {
     room = livekit.getSceneRoomName(realmName, sceneId)
   }

@@ -90,6 +90,12 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
+    stubComponents.places.getWorldByName.resolves({
+      id: 'world-place-id',
+      world_name: 'name.dcl.eth',
+      owner: owner.authChain[0].payload
+    } as PlaceAttributes)
+
     stubComponents.lands.getLandPermissions.resolves({
       owner: true,
       operator: false,
@@ -442,6 +448,12 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
 
     stubComponents.places.getWorldScenePlace.resolves({
       id: placeWorldId,
+      world_name: 'name.dcl.eth',
+      owner: owner.authChain[0].payload
+    } as PlaceAttributes)
+
+    stubComponents.places.getWorldByName.resolves({
+      id: 'world-place-id',
       world_name: 'name.dcl.eth',
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
