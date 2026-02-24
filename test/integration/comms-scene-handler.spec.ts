@@ -227,7 +227,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           )
         })
 
-        it('should fetch the real sceneId and use it for the room name', async () => {
+        it('should fetch the real sceneId and use it for both the ban check and room name', async () => {
           const response = await makeRequest(
             components.localFetch,
             '/get-scene-adapter',
@@ -240,6 +240,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
           expect(response.status).toBe(200)
           expect(stubComponents.worlds.fetchWorldSceneId.calledWith('test-world.eth')).toBe(true)
+          expect(stubComponents.sceneBans.isUserBanned.firstCall.args[1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.livekit.getWorldSceneRoomName.calledWith('test-world.eth', 'bafkreiabcdef123')).toBe(
             true
           )
@@ -251,7 +252,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           stubComponents.worlds.fetchWorldSceneId.rejects(new Error('HTTP 404'))
         })
 
-        it('should return 400', async () => {
+        it('should return 400 without reaching the ban check', async () => {
           const response = await makeRequest(
             components.localFetch,
             '/get-scene-adapter',
@@ -267,6 +268,35 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(body).toEqual({
             error: 'Failed to resolve scene ID for world test-world.eth'
           })
+          expect(stubComponents.sceneBans.isUserBanned.called).toBe(false)
+        })
+      })
+
+      describe('and the user is banned from the resolved world scene', () => {
+        beforeEach(() => {
+          stubComponents.worlds.fetchWorldSceneId.resolves('bafkreiabcdef123')
+          stubComponents.sceneBans.isUserBanned.resolves(true)
+        })
+
+        it('should resolve the sceneId, detect the ban, and reject with 403', async () => {
+          const response = await makeRequest(
+            components.localFetch,
+            '/get-scene-adapter',
+            {
+              method: 'POST',
+              metadata: worldNameAsSceneIdMetadata
+            },
+            owner
+          )
+
+          expect(response.status).toBe(403)
+          const body = await response.json()
+          expect(body).toEqual({
+            error: 'User is banned from this scene'
+          })
+          expect(stubComponents.worlds.fetchWorldSceneId.calledWith('test-world.eth')).toBe(true)
+          expect(stubComponents.sceneBans.isUserBanned.firstCall.args[1].sceneId).toBe('bafkreiabcdef123')
+          expect(stubComponents.worlds.hasWorldAccessPermission.called).toBe(false)
         })
       })
     })
@@ -301,6 +331,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
         expect(response.status).toBe(200)
         expect(stubComponents.worlds.fetchWorldSceneId.called).toBe(false)
+        expect(stubComponents.sceneBans.isUserBanned.firstCall.args[1].sceneId).toBe('bafkreiabcdef123')
         expect(stubComponents.livekit.getWorldSceneRoomName.calledWith('test-world.eth', 'bafkreiabcdef123')).toBe(true)
       })
     })

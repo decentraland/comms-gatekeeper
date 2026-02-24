@@ -35,11 +35,23 @@ export async function commsSceneHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
+  // The client may send the world name as the sceneId instead of the actual content hash.
+  // Resolve the real sceneId once so both the ban check and room name use the same value.
+  let resolvedSceneId = sceneId
+  if (isWorld && sceneId?.endsWith('.eth')) {
+    try {
+      resolvedSceneId = await worlds.fetchWorldSceneId(realmName)
+    } catch (error) {
+      logger.error(`Failed to fetch scene ID for world ${realmName}: ${error}`)
+      throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
+    }
+  }
+
   // Check if user is banned from the scene
   if (!livekit.isLocalPreview(realmName)) {
     try {
       const isBanned = await sceneBans.isUserBanned(identity, {
-        sceneId,
+        sceneId: resolvedSceneId,
         realmName,
         parcel,
         isWorld
@@ -47,7 +59,7 @@ export async function commsSceneHandler(
 
       if (isBanned) {
         logger.warn(`Rejected connection from banned user: ${identity}`, {
-          sceneId: sceneId || '',
+          sceneId: resolvedSceneId || '',
           realmName,
           parcel,
           isWorld: String(isWorld)
@@ -61,7 +73,7 @@ export async function commsSceneHandler(
 
       // Ignore other errors
       logger.warn(`Error checking if user ${identity} is banned from scene: ${error}`, {
-        sceneId: sceneId || '',
+        sceneId: resolvedSceneId || '',
         realmName,
         parcel,
         isWorld: String(isWorld)
@@ -80,22 +92,9 @@ export async function commsSceneHandler(
       throw new UnauthorizedError('Access denied, you are not authorized to access this world')
     }
 
-    // The client may send the world name as the sceneId instead of the actual content hash.
-    // When that happens, the room name won't match the one used by ban/stream/cast operations
-    // (which use the real content hash). Fetch the real sceneId from the world's about endpoint
-    // to ensure all operations target the same LiveKit room.
-    let worldSceneId = sceneId!
-    if (sceneId!.endsWith('.eth')) {
-      try {
-        worldSceneId = await worlds.fetchWorldSceneId(realmName)
-      } catch (error) {
-        logger.error(`Failed to fetch scene ID for world ${realmName}: ${error}`)
-        throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
-      }
-    }
-    room = livekit.getWorldSceneRoomName(realmName, worldSceneId)
+    room = livekit.getWorldSceneRoomName(realmName, resolvedSceneId)
   } else {
-    room = livekit.getSceneRoomName(realmName, sceneId!)
+    room = livekit.getSceneRoomName(realmName, sceneId)
   }
 
   if (!permissions) {
