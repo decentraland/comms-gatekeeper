@@ -99,12 +99,6 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.places.getWorldByName.resolves({
-      id: 'world-place-id',
-      world_name: 'name.dcl.eth',
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
-
     stubComponents.lands.getLandPermissions.resolves({
       owner: true,
       operator: false,

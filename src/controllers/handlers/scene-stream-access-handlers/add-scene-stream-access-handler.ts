@@ -20,7 +20,7 @@ export async function addSceneStreamAccessHandler(
     verification
   } = ctx
   const logger = logs.getLogger('add-scene-stream-access-handler')
-  const { getWorldScenePlace, getWorldByName, getPlaceByParcel } = places
+  const { getWorldScenePlace, getPlaceByParcel } = places
   const { isSceneOwnerOrAdmin } = sceneManager
   if (!verification?.auth) {
     logger.debug('Authentication required')
@@ -40,19 +40,14 @@ export async function addSceneStreamAccessHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  // For worlds: use the world scene place for streaming key operations (scene-specific),
-  // but the world place for permission checks (world-wide admin/owner).
   let place: PlaceAttributes
-  let permissionPlace: PlaceAttributes
   if (isWorld) {
     place = await getWorldScenePlace(serverName, parcel)
-    permissionPlace = await getWorldByName(serverName)
   } else {
     place = await getPlaceByParcel(parcel)
-    permissionPlace = place
   }
 
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(permissionPlace, authenticatedAddress)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
   if (!isOwnerOrAdmin) {
     logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')

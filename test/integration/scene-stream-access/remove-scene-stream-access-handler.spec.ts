@@ -88,12 +88,6 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.places.getWorldByName.resolves({
-      id: 'world-place-id',
-      world_name: 'name.dcl.eth',
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
-
     stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
     stubComponents.sceneStreamAccessManager.removeAccess.resolves()
     stubComponents.sceneManager.getUserScenePermissions.resolves({
