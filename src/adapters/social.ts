@@ -31,7 +31,7 @@ export async function createSocialComponent(
       }
 
       const body: PlayerBanResponse = await response.json()
-      return body.isBanned === true
+      return body.data.isBanned === true
     } catch (error) {
       logger.warn(`Error checking ban status for ${address}: ${error}`)
       return false

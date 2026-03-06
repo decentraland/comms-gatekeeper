@@ -13,7 +13,9 @@ export type PrivacySettings = {
 }
 
 export type PlayerBanResponse = {
-  isBanned: boolean
+  data: {
+    isBanned: boolean
+  }
 }
 
 export enum CommunityRole {
