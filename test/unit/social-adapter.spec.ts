@@ -36,7 +36,7 @@ describe('when checking if a player is banned', () => {
     beforeEach(() => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ isBanned: true })
+        json: async () => ({ data: { isBanned: true } })
       } as Response)
     })
 
@@ -50,7 +50,7 @@ describe('when checking if a player is banned', () => {
     beforeEach(() => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ isBanned: false })
+        json: async () => ({ data: { isBanned: false } })
       } as Response)
     })
 
