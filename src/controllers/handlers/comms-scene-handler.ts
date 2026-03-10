@@ -5,12 +5,12 @@ import { oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'sceneBans' | 'places' | 'worlds',
+    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'sceneBans' | 'places' | 'worlds' | 'social',
     '/get-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, denyList, sceneBans, worlds }
+    components: { livekit, logs, denyList, sceneBans, worlds, social }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -21,6 +21,12 @@ export async function commsSceneHandler(
   const permissions: Permissions = {
     cast: [],
     mute: []
+  }
+
+  const isPlatformBanned = await social.isPlayerBanned(identity)
+  if (isPlatformBanned) {
+    logger.warn(`Rejected connection from platform-banned user: ${identity}`)
+    throw new ForbiddenError('Access denied, platform-banned user')
   }
 
   const isDenylisted = await denyList.isDenylisted(identity)

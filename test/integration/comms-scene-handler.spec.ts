@@ -28,7 +28,33 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
     } as PlaceAttributes)
 
     stubComponents.denyList.isDenylisted.resolves(false)
+    stubComponents.social.isPlayerBanned.resolves(false)
     stubComponents.livekit.getSceneRoomName.returns(`test-realm:test-scene`)
+  })
+
+  describe('when user is platform-banned', () => {
+    beforeEach(() => {
+      stubComponents.social.isPlayerBanned.resolves(true)
+    })
+
+    it('should reject access returning 403', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/get-scene-adapter',
+        {
+          method: 'POST',
+          metadata
+        },
+        nonOwner
+      )
+
+      expect(response.status).toBe(403)
+
+      const body = await response.json()
+      expect(body).toEqual({
+        error: 'Access denied, platform-banned user'
+      })
+    })
   })
 
   describe('when user is banned', () => {

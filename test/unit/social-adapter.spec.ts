@@ -31,6 +31,58 @@ beforeEach(async () => {
   social = await createSocialComponent({ config, logs, fetch })
 })
 
+describe('when checking if a player is banned', () => {
+  describe('and the user is banned', () => {
+    beforeEach(() => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { isBanned: true } })
+      } as Response)
+    })
+
+    it('should return true', async () => {
+      const result = await social.isPlayerBanned('0x123')
+      expect(result).toBe(true)
+    })
+  })
+
+  describe('and the user is not banned', () => {
+    beforeEach(() => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { isBanned: false } })
+      } as Response)
+    })
+
+    it('should return false', async () => {
+      const result = await social.isPlayerBanned('0x123')
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('and the request fails with HTTP 500', () => {
+    beforeEach(() => {
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 500 } as Response)
+    })
+
+    it('should fail open and return false', async () => {
+      const result = await social.isPlayerBanned('0x123')
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('and the request fails due to a network error', () => {
+    beforeEach(() => {
+      fetchMock.mockRejectedValueOnce(new Error('Network error'))
+    })
+
+    it('should fail open and return false', async () => {
+      const result = await social.isPlayerBanned('0x123')
+      expect(result).toBe(false)
+    })
+  })
+})
+
 describe('when getting the privacy settings for a user', () => {
   describe('and the request fails due to a network error', () => {
     beforeEach(() => {

@@ -1,6 +1,5 @@
 import { AppComponents } from '../types'
-import { PrivacySettings } from '../types/social.type'
-import { ISocialComponent } from '../types/social.type'
+import { ISocialComponent, PlayerBanResponse, PrivacySettings } from '../types/social.type'
 
 export async function createSocialComponent(
   components: Pick<AppComponents, 'config' | 'logs' | 'fetch'>
@@ -23,7 +22,24 @@ export async function createSocialComponent(
     return response.json()
   }
 
+  async function isPlayerBanned(address: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${socialServiceUrl}/v1/moderation/users/${address}/bans`)
+      if (!response.ok) {
+        logger.warn(`Failed to fetch ban status for ${address}. Status: ${response.status}`)
+        return false
+      }
+
+      const body: PlayerBanResponse = await response.json()
+      return body.data.isBanned === true
+    } catch (error) {
+      logger.warn(`Error checking ban status for ${address}: ${error}`)
+      return false
+    }
+  }
+
   return {
-    getUserPrivacySettings
+    getUserPrivacySettings,
+    isPlayerBanned
   }
 }
