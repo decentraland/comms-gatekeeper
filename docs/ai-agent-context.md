@@ -38,12 +38,20 @@
 - **LiveKit Rooms**: Each scene/world gets a dedicated LiveKit room identified by a room name (e.g., `scene:realm:sceneId`)
 - **Scene Administration**: Scene admins can manage access, ban users, and control streaming access
 - **Streaming Access**: Content creators can request RTMP streaming URLs and keys for broadcasting to scenes
-- **Voice Chat Types**: 
+- **Voice Chat Types**:
   - Private voice chat: Direct communication between users
   - Community voice chat: Moderated group communication with speaker management
 - **Request-to-Speak**: Users can request permission to speak in community voice chats
 - **Streaming TTL**: Streaming access has time-to-live and expiration mechanisms
 - **Scene Bans**: Users can be banned from specific scenes by scene admins
+
+**Role in Genesis City Comms Access:**
+
+The Comms Gatekeeper is the access authority for player-to-player interaction in Genesis City. Specifically:
+
+- **Scene rooms and island rooms**: The Comms Gatekeeper controls access to both scene-specific LiveKit rooms (tied to a particular scene/parcel) and island rooms (the dynamic clustering rooms managed by Archipelago). A player who wants to interact with other players in Genesis City — seeing their positions, hearing their voice, exchanging messages — must obtain a token from the Comms Gatekeeper.
+- **The gatekeeper for Genesis City interaction**: Without a valid token issued by comms-gatekeeper, a client cannot join a LiveKit room and therefore cannot interact with other connected players. It is the enforcement point for who may participate in real-time social space in Genesis City.
+- **Scoped to Genesis City**: The Comms Gatekeeper's role applies to Genesis City scenes and islands. For Worlds, the access control gatekeeper role is fulfilled by the Worlds Content Server, which may use a separate LiveKit account/cluster.
 
 **Database Schema:**
 
