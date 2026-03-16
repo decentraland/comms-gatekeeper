@@ -11,6 +11,7 @@ import {
   LivekitIngressNotFoundError,
   ForbiddenError
 } from '../../types/errors'
+import { PlayerAlreadyBannedError, BanNotFoundError } from '../../logic/user-moderation/errors'
 
 export async function errorHandler(
   _ctx: IHttpServerComponent.DefaultContext<object>,
@@ -66,6 +67,26 @@ export async function errorHandler(
         status: 403,
         body: {
           error: error.message
+        }
+      }
+    }
+
+    if (error instanceof PlayerAlreadyBannedError) {
+      return {
+        status: 409,
+        body: {
+          error: 'Conflict',
+          message: error.message
+        }
+      }
+    }
+
+    if (error instanceof BanNotFoundError) {
+      return {
+        status: 404,
+        body: {
+          error: 'Not Found',
+          message: error.message
         }
       }
     }

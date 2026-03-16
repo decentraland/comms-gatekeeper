@@ -53,10 +53,19 @@ import {
   MuteSpeakerRequestSchema
 } from './handlers/community-voice-chat/schemas'
 import { StreamerTokenRequestSchema, WatcherTokenRequestSchema } from './handlers/cast/schemas'
+import {
+  banPlayerHandler,
+  liftBanHandler,
+  banStatusHandler,
+  warnPlayerHandler,
+  getWarningsHandler,
+  listBansHandler
+} from './handlers/user-moderation'
+import { BanPlayerSchema, WarnPlayerSchema } from './handlers/user-moderation/schemas'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
-  const { config, schemaValidator } = components
+  const { config, schemaValidator, moderator } = components
 
   const socialServiceInteractionsToken = await config.requireString('COMMS_GATEKEEPER_AUTH_TOKEN')
   const tokenAuthMiddleware = bearerTokenMiddleware(socialServiceInteractionsToken)
@@ -204,5 +213,45 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   )
   router.get('/cast/generate-stream-link', auth, generateStreamLinkHandler)
   router.get('/cast/stream-info/:streamingKey', getStreamInfoHandler)
+
+  // User moderation routes
+  const signedFetch = authVerificationMiddleware({
+    fetcher: components.fetch,
+    optional: false
+  })
+  const signedFetchOptional = authVerificationMiddleware({
+    fetcher: components.fetch,
+    optional: true
+  })
+
+  router.post(
+    '/moderation/users/:address/bans',
+    signedFetch,
+    moderator.moderatorAuthMiddleware,
+    schemaValidator.withSchemaValidatorMiddleware(BanPlayerSchema),
+    banPlayerHandler
+  )
+  router.delete(
+    '/moderation/users/:address/bans',
+    signedFetch,
+    moderator.moderatorAuthMiddleware,
+    liftBanHandler
+  )
+  router.get('/moderation/users/:address/bans', signedFetchOptional, banStatusHandler)
+  router.post(
+    '/moderation/users/:address/warnings',
+    signedFetch,
+    moderator.moderatorAuthMiddleware,
+    schemaValidator.withSchemaValidatorMiddleware(WarnPlayerSchema),
+    warnPlayerHandler
+  )
+  router.get(
+    '/moderation/users/:address/warnings',
+    signedFetch,
+    moderator.moderatorAuthMiddleware,
+    getWarningsHandler
+  )
+  router.get('/moderation/bans', signedFetch, moderator.moderatorAuthMiddleware, listBansHandler)
+
   return router
 }

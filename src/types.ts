@@ -35,6 +35,8 @@ import { IContentClientComponent } from './types/content-client.type'
 import { ISceneParticipantsComponent } from './adapters/scene-participants'
 import { ISchemaValidatorComponent } from '@dcl/schema-validator-component'
 import { IPublisherComponent } from '@dcl/sns-component'
+import { IUserModerationComponent, IUserModerationDatabaseComponent } from './logic/user-moderation/types'
+import { IModeratorComponent } from './logic/moderator'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -79,6 +81,9 @@ export type BaseComponents = {
   cast: ICastComponent
   schemaValidator: ISchemaValidatorComponent<GlobalContext>
   sceneParticipants: ISceneParticipantsComponent
+  userModerationDb: IUserModerationDatabaseComponent
+  userModeration: IUserModerationComponent
+  moderator: IModeratorComponent
 }
 
 export type AppComponents = BaseComponents & {

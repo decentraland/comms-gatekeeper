@@ -6,6 +6,9 @@ import { main } from '../src/service'
 import { TestComponents } from '../src/types'
 import { initComponents as originalInitComponents } from '../src/components'
 import { createDotEnvConfigComponent } from '@well-known-components/env-config-provider'
+import { createUnsafeIdentity } from '@dcl/crypto/dist/crypto'
+
+export const TEST_MODERATOR_ACCOUNT = createUnsafeIdentity()
 
 /**
  * Behaves like Jest "describe" function, used to describe a test for a
@@ -20,6 +23,9 @@ export const test = createRunner<TestComponents>({
 })
 
 async function initComponents(): Promise<TestComponents> {
+  // Set the moderator allowlist env var before initializing components
+  process.env.MODERATORS_ALLOWLIST = TEST_MODERATOR_ACCOUNT.address
+
   const components = await originalInitComponents(false)
 
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })

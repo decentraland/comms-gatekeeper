@@ -47,6 +47,9 @@ import { createLandLeaseComponent } from './adapters/land-lease'
 import { createRoomStartedHandler } from './logic/livekit-webhook/event-handlers/room-started-handler'
 import { createContentClientComponent } from './adapters/content-client'
 import { createSceneParticipantsComponent } from './adapters/scene-participants'
+import { createUserModerationDBComponent } from './adapters/user-moderation-db'
+import { createUserModerationComponent } from './logic/user-moderation'
+import { createModeratorComponent } from './logic/moderator'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -113,6 +116,10 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
   const denyList = await createDenyListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
   const schemaValidator = await createSchemaValidatorComponent({ ensureJsonContentType: false })
+
+  const userModerationDb = createUserModerationDBComponent({ database, logs })
+  const userModeration = createUserModerationComponent({ userModerationDb, logs })
+  const moderator = await createModeratorComponent({ config, logs })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
@@ -273,6 +280,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     contentClient,
     schemaValidator,
     cast,
-    sceneParticipants
+    sceneParticipants,
+    userModerationDb,
+    userModeration,
+    moderator
   }
 }
