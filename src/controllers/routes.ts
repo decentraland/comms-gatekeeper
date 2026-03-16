@@ -231,12 +231,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     schemaValidator.withSchemaValidatorMiddleware(BanPlayerSchema),
     banPlayerHandler
   )
-  router.delete(
-    '/moderation/users/:address/bans',
-    signedFetch,
-    moderator.moderatorAuthMiddleware,
-    liftBanHandler
-  )
+  router.delete('/moderation/users/:address/bans', signedFetch, moderator.moderatorAuthMiddleware, liftBanHandler)
   router.get('/moderation/users/:address/bans', signedFetchOptional, banStatusHandler)
   router.post(
     '/moderation/users/:address/warnings',
@@ -245,12 +240,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     schemaValidator.withSchemaValidatorMiddleware(WarnPlayerSchema),
     warnPlayerHandler
   )
-  router.get(
-    '/moderation/users/:address/warnings',
-    signedFetch,
-    moderator.moderatorAuthMiddleware,
-    getWarningsHandler
-  )
+  router.get('/moderation/users/:address/warnings', signedFetch, moderator.moderatorAuthMiddleware, getWarningsHandler)
   router.get('/moderation/bans', signedFetch, moderator.moderatorAuthMiddleware, listBansHandler)
 
   return router

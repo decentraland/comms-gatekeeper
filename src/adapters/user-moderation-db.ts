@@ -2,7 +2,14 @@ import SQL from 'sql-template-strings'
 import { randomUUID } from 'node:crypto'
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { IPgComponent } from '@well-known-components/pg-component'
-import { IUserModerationDatabaseComponent, UserBan, UserWarning, BanStatus, CreateBanInput, CreateWarningInput } from '../logic/user-moderation/types'
+import {
+  IUserModerationDatabaseComponent,
+  UserBan,
+  UserWarning,
+  BanStatus,
+  CreateBanInput,
+  CreateWarningInput
+} from '../logic/user-moderation/types'
 
 const BAN_SELECT_FIELDS = `id, banned_address as "bannedAddress", banned_by as "bannedBy", reason,
                custom_message as "customMessage", banned_at as "bannedAt", expires_at as "expiresAt",
@@ -15,9 +22,10 @@ function activeBanFilter(now: Date = new Date()) {
 const WARNING_SELECT_FIELDS = `id, warned_address as "warnedAddress", warned_by as "warnedBy", reason,
                warned_at as "warnedAt", created_at as "createdAt"`
 
-export function createUserModerationDBComponent(
-  components: { database: IPgComponent; logs: ILoggerComponent }
-): IUserModerationDatabaseComponent {
+export function createUserModerationDBComponent(components: {
+  database: IPgComponent
+  logs: ILoggerComponent
+}): IUserModerationDatabaseComponent {
   const { database } = components
 
   return {
