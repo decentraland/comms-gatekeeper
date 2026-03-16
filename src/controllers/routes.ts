@@ -219,10 +219,6 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     fetcher: components.fetch,
     optional: false
   })
-  const signedFetchOptional = authVerificationMiddleware({
-    fetcher: components.fetch,
-    optional: true
-  })
 
   router.post(
     '/moderation/users/:address/bans',
@@ -232,7 +228,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     banPlayerHandler
   )
   router.delete('/moderation/users/:address/bans', signedFetch, moderator.moderatorAuthMiddleware, liftBanHandler)
-  router.get('/moderation/users/:address/bans', signedFetchOptional, banStatusHandler)
+  router.get('/moderation/users/:address/bans', banStatusHandler)
   router.post(
     '/moderation/users/:address/warnings',
     signedFetch,
