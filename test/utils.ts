@@ -153,3 +153,13 @@ export async function getIdentity(): Promise<AuthIdentity> {
 
   return authChain
 }
+
+export async function getIdentityForAccount(
+  account: ReturnType<typeof createUnsafeIdentity>
+): Promise<AuthIdentity> {
+  const ephemeralIdentity = createUnsafeIdentity()
+
+  return Authenticator.initializeAuthChain(account.address, ephemeralIdentity, 10, async (message) =>
+    Authenticator.createSignature(account, message)
+  )
+}

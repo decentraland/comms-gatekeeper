@@ -6,6 +6,11 @@ import { main } from '../src/service'
 import { TestComponents } from '../src/types'
 import { initComponents as originalInitComponents } from '../src/components'
 import { createDotEnvConfigComponent } from '@well-known-components/env-config-provider'
+import { createUnsafeIdentity } from '@dcl/crypto/dist/crypto'
+import { FeatureFlag, IFeatureFlagsAdapter } from '../src/adapters/feature-flags'
+import { createModeratorComponent } from '../src/logic/moderator'
+
+export const TEST_MODERATOR_ACCOUNT = createUnsafeIdentity()
 
 /**
  * Behaves like Jest "describe" function, used to describe a test for a
@@ -24,9 +29,22 @@ async function initComponents(): Promise<TestComponents> {
 
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
 
+  // Override feature flags to return the test moderator account address
+  const moderatorFeatureFlags: IFeatureFlagsAdapter = {
+    ...components.featureFlags,
+    getVariants: async <T>(feature: FeatureFlag): Promise<T | undefined> => {
+      if (feature === FeatureFlag.PLATFORM_USER_MODERATORS) {
+        return [TEST_MODERATOR_ACCOUNT.address] as T
+      }
+      return components.featureFlags.getVariants<T>(feature)
+    }
+  }
+  const moderator = await createModeratorComponent({ featureFlags: moderatorFeatureFlags, logs: components.logs })
+
   return {
     ...components,
     config,
+    moderator,
     localFetch: await createLocalFetchCompoment(config)
   }
 }

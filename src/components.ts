@@ -47,6 +47,11 @@ import { createLandLeaseComponent } from './adapters/land-lease'
 import { createRoomStartedHandler } from './logic/livekit-webhook/event-handlers/room-started-handler'
 import { createContentClientComponent } from './adapters/content-client'
 import { createSceneParticipantsComponent } from './adapters/scene-participants'
+import { createFeaturesComponent } from '@well-known-components/features-component'
+import { createUserModerationDBComponent } from './adapters/user-moderation-db'
+import { createUserModerationComponent } from './logic/user-moderation'
+import { createModeratorComponent } from './logic/moderator'
+import { createFeatureFlagsAdapter } from './adapters/feature-flags'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -60,7 +65,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     { config, logs },
     {
       cors: {
-        maxAge: 36000
+        maxAge: 36000,
+        methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS']
       }
     }
   )
@@ -113,6 +119,14 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
   const denyList = await createDenyListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
   const schemaValidator = await createSchemaValidatorComponent({ ensureJsonContentType: false })
+
+  const serviceBaseUrl = await config.requireString('SERVICE_BASE_URL')
+  const features = await createFeaturesComponent({ config, logs, fetch: tracedFetch }, serviceBaseUrl)
+  const featureFlags = await createFeatureFlagsAdapter({ config, logs, features })
+
+  const userModerationDb = createUserModerationDBComponent({ database, logs })
+  const userModeration = createUserModerationComponent({ userModerationDb, logs })
+  const moderator = await createModeratorComponent({ featureFlags, logs })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
@@ -273,6 +287,11 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     contentClient,
     schemaValidator,
     cast,
-    sceneParticipants
+    sceneParticipants,
+    userModerationDb,
+    userModeration,
+    moderator,
+    features,
+    featureFlags
   }
 }
