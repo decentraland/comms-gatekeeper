@@ -63,7 +63,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     { config, logs },
     {
       cors: {
-        maxAge: 36000
+        maxAge: 36000,
+        methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS']
       }
     }
   )
