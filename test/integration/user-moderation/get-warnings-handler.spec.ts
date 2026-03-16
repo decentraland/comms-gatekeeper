@@ -1,9 +1,8 @@
 import { test, TEST_MODERATOR_ACCOUNT } from '../../components'
-import { createTestIdentity, createTestIdentityFromAccount, Identity, makeAuthenticatedRequest } from './helpers'
+import { makeRequest, getIdentity, getIdentityForAccount } from '../../utils'
+import { AuthIdentity } from '@dcl/crypto'
 
 test('GET /moderation/users/:address/warnings', ({ components }) => {
-  const makeRequest = makeAuthenticatedRequest(components)
-
   afterEach(async () => {
     await components.database.query('DELETE FROM user_warnings')
     await components.database.query('DELETE FROM user_bans')
@@ -27,16 +26,18 @@ test('GET /moderation/users/:address/warnings', ({ components }) => {
 
     describe('and the request is signed', () => {
       describe('and the caller is not a moderator', () => {
-        let nonModeratorIdentity: Identity
+        let nonModeratorIdentity: AuthIdentity
 
         beforeEach(async () => {
-          nonModeratorIdentity = await createTestIdentity()
+          nonModeratorIdentity = await getIdentity()
         })
 
         it('should respond with a 401 and the unauthorized error', async () => {
           const response = await makeRequest(
-            nonModeratorIdentity,
-            `/moderation/users/${targetAddress}/warnings`
+            components.localFetch,
+            `/moderation/users/${targetAddress}/warnings`,
+            { method: 'GET' },
+            nonModeratorIdentity
           )
           expect(response.status).toBe(401)
           const body = await response.json()
@@ -45,24 +46,41 @@ test('GET /moderation/users/:address/warnings', ({ components }) => {
       })
 
       describe('and the caller is a moderator', () => {
-        let moderatorIdentity: Identity
+        let moderatorIdentity: AuthIdentity
 
         beforeEach(async () => {
-          moderatorIdentity = await createTestIdentityFromAccount(TEST_MODERATOR_ACCOUNT)
+          moderatorIdentity = await getIdentityForAccount(TEST_MODERATOR_ACCOUNT)
         })
 
         describe('and the player has multiple warnings', () => {
           beforeEach(async () => {
-            await makeRequest(moderatorIdentity, `/moderation/users/${targetAddress}/warnings`, 'POST', {
-              reason: 'Warning 1'
-            })
-            await makeRequest(moderatorIdentity, `/moderation/users/${targetAddress}/warnings`, 'POST', {
-              reason: 'Warning 2'
-            })
+            await makeRequest(
+              components.localFetch,
+              `/moderation/users/${targetAddress}/warnings`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Warning 1' })
+              },
+              moderatorIdentity
+            )
+            await makeRequest(
+              components.localFetch,
+              `/moderation/users/${targetAddress}/warnings`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Warning 2' })
+              },
+              moderatorIdentity
+            )
           })
 
           it('should respond with a 200 and all warnings', async () => {
-            const response = await makeRequest(moderatorIdentity, `/moderation/users/${targetAddress}/warnings`)
+            const response = await makeRequest(
+              components.localFetch,
+              `/moderation/users/${targetAddress}/warnings`,
+              { method: 'GET' },
+              moderatorIdentity
+            )
             expect(response.status).toBe(200)
             const body = await response.json()
             expect(body.data).toHaveLength(2)
@@ -72,8 +90,10 @@ test('GET /moderation/users/:address/warnings', ({ components }) => {
         describe('and the player has no warnings', () => {
           it('should respond with a 200 and an empty array', async () => {
             const response = await makeRequest(
-              moderatorIdentity,
-              `/moderation/users/0x0000000000000000000000000000000000000099/warnings`
+              components.localFetch,
+              `/moderation/users/0x0000000000000000000000000000000000000099/warnings`,
+              { method: 'GET' },
+              moderatorIdentity
             )
             expect(response.status).toBe(200)
             const body = await response.json()

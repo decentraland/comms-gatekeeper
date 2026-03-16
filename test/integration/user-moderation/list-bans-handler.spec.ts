@@ -1,9 +1,8 @@
 import { test, TEST_MODERATOR_ACCOUNT } from '../../components'
-import { createTestIdentity, createTestIdentityFromAccount, Identity, makeAuthenticatedRequest } from './helpers'
+import { makeRequest, getIdentity, getIdentityForAccount } from '../../utils'
+import { AuthIdentity } from '@dcl/crypto'
 
 test('GET /moderation/bans', ({ components }) => {
-  const makeRequest = makeAuthenticatedRequest(components)
-
   afterEach(async () => {
     await components.database.query('DELETE FROM user_warnings')
     await components.database.query('DELETE FROM user_bans')
@@ -21,14 +20,19 @@ test('GET /moderation/bans', ({ components }) => {
 
     describe('and the request is signed', () => {
       describe('and the caller is not a moderator', () => {
-        let nonModeratorIdentity: Identity
+        let nonModeratorIdentity: AuthIdentity
 
         beforeEach(async () => {
-          nonModeratorIdentity = await createTestIdentity()
+          nonModeratorIdentity = await getIdentity()
         })
 
         it('should respond with a 401 and the unauthorized error', async () => {
-          const response = await makeRequest(nonModeratorIdentity, '/moderation/bans')
+          const response = await makeRequest(
+            components.localFetch,
+            '/moderation/bans',
+            { method: 'GET' },
+            nonModeratorIdentity
+          )
           expect(response.status).toBe(401)
           const body = await response.json()
           expect(body.error).toBe('You are not authorized to access this resource')
@@ -36,15 +40,20 @@ test('GET /moderation/bans', ({ components }) => {
       })
 
       describe('and the caller is a moderator', () => {
-        let moderatorIdentity: Identity
+        let moderatorIdentity: AuthIdentity
 
         beforeEach(async () => {
-          moderatorIdentity = await createTestIdentityFromAccount(TEST_MODERATOR_ACCOUNT)
+          moderatorIdentity = await getIdentityForAccount(TEST_MODERATOR_ACCOUNT)
         })
 
         describe('and there are no active bans', () => {
           it('should respond with a 200 and an empty array', async () => {
-            const response = await makeRequest(moderatorIdentity, '/moderation/bans')
+            const response = await makeRequest(
+              components.localFetch,
+              '/moderation/bans',
+              { method: 'GET' },
+              moderatorIdentity
+            )
             expect(response.status).toBe(200)
             const body = await response.json()
             expect(body.data).toEqual([])
@@ -54,21 +63,32 @@ test('GET /moderation/bans', ({ components }) => {
         describe('and there are active bans', () => {
           beforeEach(async () => {
             await makeRequest(
-              moderatorIdentity,
+              components.localFetch,
               '/moderation/users/0x0000000000000000000000000000000000000001/bans',
-              'POST',
-              { reason: 'Ban 1' }
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Ban 1' })
+              },
+              moderatorIdentity
             )
             await makeRequest(
-              moderatorIdentity,
+              components.localFetch,
               '/moderation/users/0x0000000000000000000000000000000000000002/bans',
-              'POST',
-              { reason: 'Ban 2' }
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Ban 2' })
+              },
+              moderatorIdentity
             )
           })
 
           it('should respond with a 200 and all active bans', async () => {
-            const response = await makeRequest(moderatorIdentity, '/moderation/bans')
+            const response = await makeRequest(
+              components.localFetch,
+              '/moderation/bans',
+              { method: 'GET' },
+              moderatorIdentity
+            )
             expect(response.status).toBe(200)
             const body = await response.json()
             expect(body.data).toHaveLength(2)

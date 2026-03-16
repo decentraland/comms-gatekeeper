@@ -1,9 +1,8 @@
 import { test, TEST_MODERATOR_ACCOUNT } from '../../components'
-import { createTestIdentity, createTestIdentityFromAccount, Identity, makeAuthenticatedRequest } from './helpers'
+import { makeRequest, getIdentity, getIdentityForAccount } from '../../utils'
+import { AuthIdentity } from '@dcl/crypto'
 
 test('POST /moderation/users/:address/bans', ({ components }) => {
-  const makeRequest = makeAuthenticatedRequest(components)
-
   afterEach(async () => {
     await components.database.query('DELETE FROM user_warnings')
     await components.database.query('DELETE FROM user_bans')
@@ -29,18 +28,21 @@ test('POST /moderation/users/:address/bans', ({ components }) => {
 
     describe('and the request is signed', () => {
       describe('and the caller is not a moderator', () => {
-        let nonModeratorIdentity: Identity
+        let nonModeratorIdentity: AuthIdentity
 
         beforeEach(async () => {
-          nonModeratorIdentity = await createTestIdentity()
+          nonModeratorIdentity = await getIdentity()
         })
 
         it('should respond with a 401 and the unauthorized error', async () => {
           const response = await makeRequest(
-            nonModeratorIdentity,
+            components.localFetch,
             `/moderation/users/${targetAddress}/bans`,
-            'POST',
-            { reason: 'test' }
+            {
+              method: 'POST',
+              body: JSON.stringify({ reason: 'test' })
+            },
+            nonModeratorIdentity
           )
           expect(response.status).toBe(401)
           const body = await response.json()
@@ -49,19 +51,22 @@ test('POST /moderation/users/:address/bans', ({ components }) => {
       })
 
       describe('and the caller is a moderator', () => {
-        let moderatorIdentity: Identity
+        let moderatorIdentity: AuthIdentity
 
         beforeEach(async () => {
-          moderatorIdentity = await createTestIdentityFromAccount(TEST_MODERATOR_ACCOUNT)
+          moderatorIdentity = await getIdentityForAccount(TEST_MODERATOR_ACCOUNT)
         })
 
         describe('and a permanent ban is created with a valid reason', () => {
           it('should respond with a 201 and the ban data and the player should be reported as banned', async () => {
             const response = await makeRequest(
-              moderatorIdentity,
+              components.localFetch,
               `/moderation/users/${targetAddress}/bans`,
-              'POST',
-              { reason: 'Spamming' }
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Spamming' })
+              },
+              moderatorIdentity
             )
             expect(response.status).toBe(201)
             const body = await response.json()
@@ -87,10 +92,13 @@ test('POST /moderation/users/:address/bans', ({ components }) => {
         describe('and a timed ban is created with duration and custom message', () => {
           it('should respond with a 201 and include expiresAt and customMessage', async () => {
             const response = await makeRequest(
-              moderatorIdentity,
+              components.localFetch,
               `/moderation/users/${targetAddress}/bans`,
-              'POST',
-              { reason: 'Temporary ban', duration: 3600000, customMessage: 'You have been temporarily banned' }
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Temporary ban', duration: 3600000, customMessage: 'You have been temporarily banned' })
+              },
+              moderatorIdentity
             )
             expect(response.status).toBe(201)
             const body = await response.json()
@@ -105,17 +113,26 @@ test('POST /moderation/users/:address/bans', ({ components }) => {
 
         describe('and the player is already banned', () => {
           beforeEach(async () => {
-            await makeRequest(moderatorIdentity, `/moderation/users/${targetAddress}/bans`, 'POST', {
-              reason: 'First ban'
-            })
+            await makeRequest(
+              components.localFetch,
+              `/moderation/users/${targetAddress}/bans`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'First ban' })
+              },
+              moderatorIdentity
+            )
           })
 
           it('should respond with a 409 and a conflict error', async () => {
             const response = await makeRequest(
-              moderatorIdentity,
+              components.localFetch,
               `/moderation/users/${targetAddress}/bans`,
-              'POST',
-              { reason: 'Second ban' }
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Second ban' })
+              },
+              moderatorIdentity
             )
             expect(response.status).toBe(409)
             const body = await response.json()
@@ -126,10 +143,13 @@ test('POST /moderation/users/:address/bans', ({ components }) => {
         describe('and the reason is missing from the body', () => {
           it('should respond with a 400 status code', async () => {
             const response = await makeRequest(
-              moderatorIdentity,
+              components.localFetch,
               `/moderation/users/${targetAddress}/bans`,
-              'POST',
-              {}
+              {
+                method: 'POST',
+                body: JSON.stringify({})
+              },
+              moderatorIdentity
             )
             expect(response.status).toBe(400)
           })

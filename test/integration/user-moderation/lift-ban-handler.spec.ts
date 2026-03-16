@@ -1,9 +1,8 @@
 import { test, TEST_MODERATOR_ACCOUNT } from '../../components'
-import { createTestIdentity, createTestIdentityFromAccount, Identity, makeAuthenticatedRequest } from './helpers'
+import { makeRequest, getIdentity, getIdentityForAccount } from '../../utils'
+import { AuthIdentity } from '@dcl/crypto'
 
 test('DELETE /moderation/users/:address/bans', ({ components }) => {
-  const makeRequest = makeAuthenticatedRequest(components)
-
   afterEach(async () => {
     await components.database.query('DELETE FROM user_warnings')
     await components.database.query('DELETE FROM user_bans')
@@ -27,17 +26,18 @@ test('DELETE /moderation/users/:address/bans', ({ components }) => {
 
     describe('and the request is signed', () => {
       describe('and the caller is not a moderator', () => {
-        let nonModeratorIdentity: Identity
+        let nonModeratorIdentity: AuthIdentity
 
         beforeEach(async () => {
-          nonModeratorIdentity = await createTestIdentity()
+          nonModeratorIdentity = await getIdentity()
         })
 
         it('should respond with a 401 and the unauthorized error', async () => {
           const response = await makeRequest(
-            nonModeratorIdentity,
+            components.localFetch,
             `/moderation/users/${targetAddress}/bans`,
-            'DELETE'
+            { method: 'DELETE' },
+            nonModeratorIdentity
           )
           expect(response.status).toBe(401)
           const body = await response.json()
@@ -46,24 +46,31 @@ test('DELETE /moderation/users/:address/bans', ({ components }) => {
       })
 
       describe('and the caller is a moderator', () => {
-        let moderatorIdentity: Identity
+        let moderatorIdentity: AuthIdentity
 
         beforeEach(async () => {
-          moderatorIdentity = await createTestIdentityFromAccount(TEST_MODERATOR_ACCOUNT)
+          moderatorIdentity = await getIdentityForAccount(TEST_MODERATOR_ACCOUNT)
         })
 
         describe('and the player has an active ban', () => {
           beforeEach(async () => {
-            await makeRequest(moderatorIdentity, `/moderation/users/${targetAddress}/bans`, 'POST', {
-              reason: 'Spamming'
-            })
+            await makeRequest(
+              components.localFetch,
+              `/moderation/users/${targetAddress}/bans`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Spamming' })
+              },
+              moderatorIdentity
+            )
           })
 
           it('should respond with a 204 status code and the ban should no longer be active', async () => {
             const response = await makeRequest(
-              moderatorIdentity,
+              components.localFetch,
               `/moderation/users/${targetAddress}/bans`,
-              'DELETE'
+              { method: 'DELETE' },
+              moderatorIdentity
             )
             expect(response.status).toBe(204)
 
@@ -80,9 +87,10 @@ test('DELETE /moderation/users/:address/bans', ({ components }) => {
         describe('and no active ban exists for the player', () => {
           it('should respond with a 404 and a not found error', async () => {
             const response = await makeRequest(
-              moderatorIdentity,
+              components.localFetch,
               `/moderation/users/${targetAddress}/bans`,
-              'DELETE'
+              { method: 'DELETE' },
+              moderatorIdentity
             )
             expect(response.status).toBe(404)
             const body = await response.json()
