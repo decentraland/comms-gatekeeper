@@ -1,32 +1,28 @@
 import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { EthAddress } from '@dcl/schemas'
-import { IHttpServerComponent, IConfigComponent, ILoggerComponent } from '@well-known-components/interfaces'
+import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { FeatureFlag } from '../../adapters/feature-flags'
 import { IModeratorComponent } from './types'
+import { AppComponents } from '../../types'
 
 export async function createModeratorComponent({
-  config,
+  featureFlags,
   logs
-}: {
-  config: IConfigComponent
-  logs: ILoggerComponent
-}): Promise<IModeratorComponent> {
+}: Pick<AppComponents, 'featureFlags' | 'logs'>): Promise<IModeratorComponent> {
   const logger = logs.getLogger('moderator-component')
 
   async function getModeratorAddresses(): Promise<string[]> {
-    const allowlist = (await config.getString('MODERATORS_ALLOWLIST')) || ''
+    const addresses = (await featureFlags.getVariants<string[]>(FeatureFlag.PLATFORM_USER_MODERATORS)) || []
 
-    const addresses = allowlist
-      .split(',')
-      .map((address) => address.trim().toLowerCase())
-      .filter((address) => address.length > 0)
+    const trimmedAddresses = addresses.map((address) => address.trim().toLowerCase())
 
-    for (const address of addresses) {
-      if (!EthAddress.validate(address)) {
+    for (const address of trimmedAddresses) {
+      if (address.length > 0 && !EthAddress.validate(address)) {
         logger.warn(`Filtering out invalid moderator address: ${address}`)
       }
     }
 
-    return addresses.filter(EthAddress.validate)
+    return trimmedAddresses.filter(EthAddress.validate)
   }
 
   async function moderatorAuthMiddleware(

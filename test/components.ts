@@ -23,8 +23,8 @@ export const test = createRunner<TestComponents>({
 })
 
 async function initComponents(): Promise<TestComponents> {
-  // Set the moderator allowlist env var before initializing components
-  process.env.MODERATORS_ALLOWLIST = TEST_MODERATOR_ACCOUNT.address
+  // Set the moderator allowlist via feature flag env var before initializing components
+  process.env.FF_DAPPS_PLATFORM_USER_MODERATORS = TEST_MODERATOR_ACCOUNT.address
 
   const components = await originalInitComponents(false)
 
