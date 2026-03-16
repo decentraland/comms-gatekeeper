@@ -120,7 +120,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const denyList = await createDenyListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
   const schemaValidator = await createSchemaValidatorComponent({ ensureJsonContentType: false })
 
-  const serviceBaseUrl = (await config.requireString('SERVICE_BASE_URL'))
+  const serviceBaseUrl = await config.requireString('SERVICE_BASE_URL')
   const features = await createFeaturesComponent({ config, logs, fetch: tracedFetch }, serviceBaseUrl)
   const featureFlags = await createFeatureFlagsAdapter({ config, logs, features })
 
