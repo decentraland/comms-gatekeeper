@@ -42,7 +42,7 @@
     "@dcl/http-server": "^1.0.0",
     "@dcl/platform-crypto-middleware": "^1.1.0",
     "@dcl/schema-validator-component": "^0.2.0",
-    "@dcl/schemas": "^25.0.0",
+    "@dcl/schemas": "https://sdk-team-cdn.decentraland.org/@dcl/schemas/branch/feat/moderation-events/dcl-schemas-25.0.1-23062351829.commit-0121346.tgz",
     "@dcl/sns-component": "^3.0.0",
     "@well-known-components/env-config-provider": "^1.1.1",
     "@well-known-components/features-component": "2.1.0",

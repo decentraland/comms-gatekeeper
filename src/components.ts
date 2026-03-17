@@ -125,7 +125,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const featureFlags = await createFeatureFlagsAdapter({ config, logs, features })
 
   const userModerationDb = createUserModerationDBComponent({ database, logs })
-  const userModeration = createUserModerationComponent({ userModerationDb, logs })
   const moderator = await createModeratorComponent({ featureFlags, logs })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
@@ -159,6 +158,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   })
 
   const publisher = await createSnsComponent({ config })
+
+  const userModeration = createUserModerationComponent({ userModerationDb, logs, publisher })
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
