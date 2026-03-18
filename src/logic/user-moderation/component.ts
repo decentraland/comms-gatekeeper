@@ -1,7 +1,8 @@
-import { IUserModerationComponent, UserBan, UserWarning, BanStatus } from './types'
+import { IUserModerationComponent, UserBan, UserWarning, BanStatus, UserModerationEvent } from './types'
 import { PlayerAlreadyBannedError, BanNotFoundError } from './errors'
-import { createBanEvent, createBanLiftedEvent, createWarningEvent, publishModerationEvent } from './events'
+import { createBanEvent, createBanLiftedEvent, createWarningEvent } from './events'
 import { AppComponents } from '../../types'
+import { retry } from '../../utils/retrier'
 
 function normalizeAddress(address: string): string {
   return address.toLowerCase()
@@ -12,6 +13,20 @@ export function createUserModerationComponent(
 ): IUserModerationComponent {
   const { userModerationDb, logs, publisher } = components
   const logger = logs.getLogger('user-moderation')
+
+  async function publishModerationEvent(event: UserModerationEvent): Promise<void> {
+    try {
+      await retry(async () => {
+        await publisher.publishMessage(event)
+      })
+    } catch (error: any) {
+      logger.error('Failed to publish moderation event', {
+        error: error.message,
+        subType: event.subType,
+        key: event.key
+      })
+    }
+  }
 
   return {
     async banPlayer(
@@ -41,7 +56,7 @@ export function createUserModerationComponent(
         expiresAt
       })
 
-      void publishModerationEvent(publisher, createBanEvent(ban), logger)
+      void publishModerationEvent(createBanEvent(ban))
 
       return ban
     },
@@ -57,7 +72,7 @@ export function createUserModerationComponent(
         throw new BanNotFoundError(normalizedAddress)
       }
 
-      void publishModerationEvent(publisher, createBanLiftedEvent(ban), logger)
+      void publishModerationEvent(createBanLiftedEvent(ban))
     },
 
     async warnPlayer(address: string, reason: string, warnedBy: string): Promise<UserWarning> {
@@ -72,7 +87,7 @@ export function createUserModerationComponent(
         reason
       })
 
-      void publishModerationEvent(publisher, createWarningEvent(warning), logger)
+      void publishModerationEvent(createWarningEvent(warning))
 
       return warning
     },

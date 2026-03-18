@@ -1,8 +1,5 @@
 import { Events, UserBanCreatedEvent, UserBanLiftedEvent, UserWarningCreatedEvent } from '@dcl/schemas'
-import { IPublisherComponent } from '@dcl/sns-component'
-import { ILoggerComponent } from '@well-known-components/interfaces'
 import { UserBan, UserWarning } from './types'
-import { retry } from '../../utils/retrier'
 
 export function createBanEvent(ban: UserBan): UserBanCreatedEvent {
   return {
@@ -54,23 +51,5 @@ export function createWarningEvent(warning: UserWarning): UserWarningCreatedEven
       reason: warning.reason,
       warnedAt: warning.warnedAt.getTime()
     }
-  }
-}
-
-export async function publishModerationEvent(
-  publisher: IPublisherComponent,
-  event: UserBanCreatedEvent | UserBanLiftedEvent | UserWarningCreatedEvent,
-  logger: ILoggerComponent.ILogger
-): Promise<void> {
-  try {
-    await retry(async () => {
-      await publisher.publishMessage(event)
-    })
-  } catch (error: any) {
-    logger.error('Failed to publish moderation event', {
-      error: error.message,
-      subType: event.subType,
-      key: event.key
-    })
   }
 }

@@ -1,3 +1,5 @@
+import { UserBanCreatedEvent, UserBanLiftedEvent, UserWarningCreatedEvent } from '@dcl/schemas'
+
 export interface UserBan {
   id: string
   bannedAddress: string
@@ -60,3 +62,5 @@ export interface IUserModerationDatabaseComponent {
   getPlayerWarnings(address: string): Promise<UserWarning[]>
   getBanHistory(address: string): Promise<UserBan[]>
 }
+
+export type UserModerationEvent = UserBanCreatedEvent | UserBanLiftedEvent | UserWarningCreatedEvent
