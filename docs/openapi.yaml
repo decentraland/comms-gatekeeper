@@ -32,6 +32,13 @@ info:
     - Privacy settings management
     - User ban management per scene
     - Scene access control
+
+    **Platform Moderation**
+    - Platform-level (global) user bans enforced at token issuance time
+    - Timed or permanent bans with optional custom player-facing messages
+    - Moderator-only ban listing and lift operations
+    - User warnings system for graduated enforcement
+    - World-scoped ban status check for service-to-service use
     
     ### Authentication
     
@@ -90,6 +97,72 @@ components:
       scheme: bearer
       description: |
         Bearer token authentication for service-to-service communication.
+  schemas:
+    UserBan:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique ban record identifier
+        bannedAddress:
+          type: string
+          description: Ethereum address of the banned user
+        bannedBy:
+          type: string
+          description: Ethereum address of the moderator who issued the ban
+        reason:
+          type: string
+          description: Internal reason for the ban
+        customMessage:
+          type: string
+          nullable: true
+          description: Optional message shown to the player on rejection
+        bannedAt:
+          type: string
+          format: date-time
+          description: When the ban was issued
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the ban expires. Null for permanent bans.
+        liftedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the ban was manually lifted, if applicable
+        liftedBy:
+          type: string
+          nullable: true
+          description: Ethereum address of the moderator who lifted the ban
+        createdAt:
+          type: string
+          format: date-time
+          description: Record creation timestamp
+
+    UserWarning:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique warning record identifier
+        warnedAddress:
+          type: string
+          description: Ethereum address of the warned user
+        warnedBy:
+          type: string
+          description: Ethereum address of the moderator who issued the warning
+        reason:
+          type: string
+          description: Reason for the warning
+        warnedAt:
+          type: string
+          format: date-time
+          description: When the warning was issued
+        createdAt:
+          type: string
+          format: date-time
+          description: Record creation timestamp
 
 paths:
   /status:
@@ -1609,3 +1682,399 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Cast 2.0
+
+  /moderation/users/{address}/bans:
+    post:
+      operationId: banPlayer
+      summary: Ban a player (platform-wide)
+      description: |
+        Issues a platform-level ban for the specified user address. A platform-banned
+        user will be rejected at token issuance time and cannot enter any Genesis City
+        scene or island room until the ban expires or is lifted.
+
+        Requires Signed Fetch authentication plus a valid moderator role, verified
+        server-side via `moderatorAuthMiddleware`.
+
+        The ban can be permanent (no `duration`) or timed. An optional `customMessage`
+        is surfaced to the player at rejection time.
+      security:
+        - SignedFetch: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Ethereum address of the user to ban
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  description: Reason for the ban (internal, logged)
+                duration:
+                  type: number
+                  minimum: 0
+                  exclusiveMinimum: true
+                  description: Ban duration in seconds. Must be positive. Omit for a permanent ban.
+                customMessage:
+                  type: string
+                  description: Optional message shown to the player on rejection
+      responses:
+        '201':
+          description: Ban created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserBan'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — invalid Signed Fetch or missing moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — caller does not have the moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Platform Moderation
+
+    delete:
+      operationId: liftBan
+      summary: Lift a platform-wide ban
+      description: |
+        Removes the active platform-level ban for the specified user address. The user
+        will be able to obtain LiveKit tokens again on their next connection attempt.
+
+        Requires Signed Fetch authentication plus a valid moderator role.
+      security:
+        - SignedFetch: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Ethereum address of the user whose ban to lift
+      responses:
+        '204':
+          description: Ban lifted successfully
+        '401':
+          description: Unauthorized — invalid Signed Fetch or missing moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — caller does not have the moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: No active ban found for this address
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Platform Moderation
+
+    get:
+      operationId: getBanStatus
+      summary: Get ban status for a user
+      description: |
+        Returns whether the specified user address currently has an active platform-level
+        ban. If banned, the full ban record is included in the response.
+
+        This endpoint is **public** — no authentication required. It is intended for
+        clients to check their own ban status before attempting to connect.
+      security: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Ethereum address to check
+      responses:
+        '200':
+          description: Ban status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      isBanned:
+                        type: boolean
+                      ban:
+                        $ref: '#/components/schemas/UserBan'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Platform Moderation
+
+  /moderation/users/{address}/warnings:
+    post:
+      operationId: warnPlayer
+      summary: Issue a warning to a player
+      description: |
+        Records a formal warning for the specified user. Warnings are part of a
+        graduated moderation system and can inform future ban decisions.
+
+        Requires Signed Fetch authentication plus a valid moderator role.
+      security:
+        - SignedFetch: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Ethereum address of the user to warn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  description: Reason for the warning
+      responses:
+        '201':
+          description: Warning issued successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserWarning'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — invalid Signed Fetch or missing moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — caller does not have the moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Platform Moderation
+
+    get:
+      operationId: getWarnings
+      summary: Get warnings for a user
+      description: |
+        Returns all warnings on record for the specified user address.
+
+        Requires Signed Fetch authentication plus a valid moderator role.
+      security:
+        - SignedFetch: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Ethereum address to look up
+      responses:
+        '200':
+          description: Warnings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserWarning'
+        '401':
+          description: Unauthorized — invalid Signed Fetch or missing moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — caller does not have the moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Platform Moderation
+
+  /moderation/bans:
+    get:
+      operationId: listBans
+      summary: List all active platform bans
+      description: |
+        Returns a list of all currently active platform-level bans.
+
+        Requires Signed Fetch authentication plus a valid moderator role. Not paginated —
+        intended for moderator tooling that needs a full snapshot.
+      security:
+        - SignedFetch: []
+      responses:
+        '200':
+          description: Bans retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserBan'
+        '401':
+          description: Unauthorized — invalid Signed Fetch or missing moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden — caller does not have the moderator role
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Platform Moderation
+
+  /worlds/{worldName}/parcels/{baseParcel}/users/{address}/ban-status:
+    get:
+      operationId: getWorldBanStatus
+      summary: Check if a user is banned from a world parcel
+      description: |
+        Service-to-service endpoint used by Worlds Content Server to verify whether
+        a user is banned from a specific world parcel before issuing a LiveKit token.
+
+        Requires Bearer token authentication (`COMMS_GATEKEEPER_AUTH_TOKEN`). Not
+        intended for direct client use.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: worldName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: World identifier
+        - name: baseParcel
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Base parcel position (e.g. "0,0")
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Ethereum address of the user to check
+      responses:
+        '200':
+          description: Ban status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - isBanned
+                properties:
+                  isBanned:
+                    type: boolean
+                    description: true if the user is banned from this world parcel
+        '401':
+          description: Unauthorized — invalid or missing Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Platform Moderation
+
