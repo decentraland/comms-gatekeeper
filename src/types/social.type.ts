@@ -1,5 +1,6 @@
 export type ISocialComponent = {
   getUserPrivacySettings: (identity: string) => Promise<PrivacySettings>
+  isPlayerBanned: (address: string) => Promise<boolean>
 }
 
 export enum PrivateMessagesPrivacy {
@@ -9,6 +10,12 @@ export enum PrivateMessagesPrivacy {
 
 export type PrivacySettings = {
   private_messages_privacy: PrivateMessagesPrivacy
+}
+
+export type PlayerBanResponse = {
+  data: {
+    isBanned: boolean
+  }
 }
 
 export enum CommunityRole {
