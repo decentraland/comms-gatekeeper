@@ -65,7 +65,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         url: 'wss://test-livekit-url',
         token: 'test-token'
       })
-      stubComponents.livekit.buildConnectionUrl.restore()
+      stubComponents.livekit.buildConnectionUrl.returns('livekit:wss://test-livekit-url?access_token=test-token')
     })
 
     it('should allow access (fail-open) returning 200', async () => {
@@ -123,7 +123,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         successfulMessageIds: ['test-message-id'],
         failedEvents: []
       })
-      stubComponents.livekit.buildConnectionUrl.restore()
+      stubComponents.livekit.buildConnectionUrl.returns('livekit:wss://test-livekit-url?access_token=test-token')
     })
 
     it('should return the livekit adapter', async () => {
@@ -162,6 +162,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         url: 'wss://test-livekit-url',
         token: 'test-token'
       })
+      stubComponents.livekit.buildConnectionUrl.returns('livekit:wss://test-livekit-url?access_token=test-token')
     })
 
     describe('when user does not have world access permission', () => {
