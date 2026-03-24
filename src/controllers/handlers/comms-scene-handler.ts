@@ -23,12 +23,6 @@ export async function commsSceneHandler(
     mute: []
   }
 
-  const isDenylisted = await denyList.isDenylisted(identity)
-  if (isDenylisted) {
-    logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
-    throw new UnauthorizedError('Access denied, deny-listed wallet')
-  }
-
   try {
     const { isBanned: isPlatformBanned } = await userModeration.isPlayerBanned(identity)
     if (isPlatformBanned) {
@@ -40,6 +34,12 @@ export async function commsSceneHandler(
       throw error
     }
     logger.warn(`Error checking platform ban status for ${identity}: ${error}`)
+  }
+
+  const isDenylisted = await denyList.isDenylisted(identity)
+  if (isDenylisted) {
+    logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
+    throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
 
   const isWorld = realmName.endsWith('.eth')
