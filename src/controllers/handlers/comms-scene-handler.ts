@@ -5,12 +5,12 @@ import { oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'sceneBans' | 'places' | 'worlds',
+    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'sceneBans' | 'places' | 'worlds' | 'userModeration',
     '/get-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, denyList, sceneBans, worlds }
+    components: { livekit, logs, denyList, sceneBans, worlds, userModeration }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -27,6 +27,19 @@ export async function commsSceneHandler(
   if (isDenylisted) {
     logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
     throw new UnauthorizedError('Access denied, deny-listed wallet')
+  }
+
+  try {
+    const { isBanned: isPlatformBanned } = await userModeration.isPlayerBanned(identity)
+    if (isPlatformBanned) {
+      logger.warn(`Rejected connection from platform-banned user: ${identity}`)
+      throw new ForbiddenError('Access denied, platform-banned user')
+    }
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      throw error
+    }
+    logger.warn(`Error checking platform ban status for ${identity}: ${error}`)
   }
 
   const isWorld = realmName.endsWith('.eth')
