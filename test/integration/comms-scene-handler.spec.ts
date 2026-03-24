@@ -57,6 +57,36 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
     })
   })
 
+  describe('when the platform ban check fails', () => {
+    beforeEach(() => {
+      stubComponents.userModeration.isPlayerBanned.rejects(new Error('moderation service unavailable'))
+      stubComponents.sceneBans.isUserBanned.resolves(false)
+      stubComponents.livekit.generateCredentials.resolves({
+        url: 'wss://test-livekit-url',
+        token: 'test-token'
+      })
+      stubComponents.livekit.buildConnectionUrl.restore()
+    })
+
+    it('should allow access (fail-open) returning 200', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/get-scene-adapter',
+        {
+          method: 'POST',
+          metadata
+        },
+        owner
+      )
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body).toEqual({
+        adapter: 'livekit:wss://test-livekit-url?access_token=test-token'
+      })
+    })
+  })
+
   describe('when user is banned', () => {
     beforeEach(() => {
       stubComponents.sceneBans.isUserBanned.resolves(true)
