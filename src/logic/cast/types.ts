@@ -7,6 +7,7 @@ export interface ICastComponent {
     identity: string,
     parcel?: string
   ): Promise<GenerateWatcherCredentialsResult>
+  generatePresentationBotToken(streamingKey: string): Promise<PresentationBotTokenResult>
 }
 
 export interface GenerateStreamLinkParams {
@@ -15,6 +16,7 @@ export interface GenerateStreamLinkParams {
   parcel: string
   sceneId: string
   realmName: string
+  skipAdminCheck?: boolean
 }
 
 export interface GenerateStreamLinkResult {
@@ -40,4 +42,10 @@ export interface GenerateWatcherCredentialsResult {
   roomId: string
   identity: string
   placeName?: string
+}
+
+export interface PresentationBotTokenResult {
+  url: string
+  token: string
+  roomId: string
 }

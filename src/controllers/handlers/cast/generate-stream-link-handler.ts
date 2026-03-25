@@ -5,10 +5,10 @@ import { validate } from '../../../logic/utils'
 import { GenerateStreamLinkResult } from '../../../logic/cast/types'
 
 export async function generateStreamLinkHandler(
-  context: HandlerContextWithPath<'cast' | 'fetch' | 'config' | 'logs', '/cast/generate-stream-link'>
+  context: HandlerContextWithPath<'cast' | 'fetch' | 'config' | 'logs' | 'livekit', '/cast/generate-stream-link'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { cast, logs }
+    components: { cast, config, logs, livekit }
   } = context
 
   const logger = logs.getLogger('generate-stream-link-handler')
@@ -17,6 +17,8 @@ export async function generateStreamLinkHandler(
   const { identity, sceneId, realm, parcel, isWorld } = await validate(context)
 
   const realmName = realm.serverName
+  const allowLocalPreview = (await config.getString('ALLOW_LOCAL_PREVIEW')) === 'true'
+  const isPreview = allowLocalPreview && livekit.isLocalPreview(realmName)
 
   // Validate required fields for Cast2 chat functionality
   if (!sceneId) {
@@ -31,7 +33,8 @@ export async function generateStreamLinkHandler(
       worldName: isWorld ? realm.serverName : undefined,
       parcel,
       sceneId,
-      realmName
+      realmName,
+      skipAdminCheck: isPreview
     })
   } catch (error) {
     if (error instanceof UnauthorizedError) {

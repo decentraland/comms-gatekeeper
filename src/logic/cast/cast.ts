@@ -8,7 +8,8 @@ import {
   GenerateStreamLinkParams,
   GenerateStreamLinkResult,
   ValidateStreamerTokenResult,
-  GenerateWatcherCredentialsResult
+  GenerateWatcherCredentialsResult,
+  PresentationBotTokenResult
 } from './types'
 
 /**
@@ -42,23 +43,7 @@ export function createCastComponent(
    * @returns Stream link details
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, parcel, sceneId, realmName } = params
-
-    let place: PlaceAttributes
-    if (worldName) {
-      place = await places.getWorldScenePlace(worldName, parcel)
-    } else {
-      place = await places.getPlaceByParcel(parcel)
-    }
-
-    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
-
-    if (!isAdmin) {
-      logger.warn(
-        `User ${walletAddress} attempted to generate stream link without admin permissions for place ${place.id}`
-      )
-      throw new UnauthorizedError('Only scene administrators can generate stream links')
-    }
+    const { walletAddress, worldName, parcel, sceneId, realmName, skipAdminCheck } = params
 
     // Generate the LiveKit room ID for the scene
     let roomId: string
@@ -66,6 +51,31 @@ export function createCastComponent(
       roomId = livekit.getWorldSceneRoomName(worldName, sceneId)
     } else {
       roomId = livekit.getSceneRoomName(realmName, sceneId)
+    }
+
+    let place: PlaceAttributes
+    if (skipAdminCheck) {
+      // Local preview — use roomId as place_id for consistency
+      place = {
+        id: roomId,
+        title: 'Local Preview'
+      } as PlaceAttributes
+      logger.info(`Using synthetic place for local preview`, { placeId: roomId, roomId })
+    } else if (worldName) {
+      place = await places.getWorldScenePlace(worldName, parcel)
+    } else {
+      place = await places.getPlaceByParcel(parcel)
+    }
+
+    if (!skipAdminCheck) {
+      const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
+
+      if (!isAdmin) {
+        logger.warn(
+          `User ${walletAddress} attempted to generate stream link without admin permissions for place ${place.id}`
+        )
+        throw new UnauthorizedError('Only scene administrators can generate stream links')
+      }
     }
 
     // Try to reuse existing active stream key
@@ -324,10 +334,60 @@ export function createCastComponent(
     }
   }
 
+  /**
+   * Generates a LiveKit token for the presentation bot participant.
+   * The bot joins the room with publish-only permissions to stream presentation slides.
+   * @param streamingKey - The streaming key used by the streamer
+   * @returns LiveKit connection details for the presentation bot
+   */
+  async function generatePresentationBotToken(streamingKey: string): Promise<PresentationBotTokenResult> {
+    const streamAccess = await sceneStreamAccessManager.getAccessByStreamingKey(streamingKey)
+
+    if (!streamAccess) {
+      logger.warn(`Invalid streaming key for presentation bot: ${streamingKey.substring(0, 8)}...`)
+      throw new UnauthorizedError('Invalid or expired streaming token')
+    }
+
+    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
+      logger.warn(`Expired streaming key for presentation bot: ${streamingKey.substring(0, 8)}...`)
+      throw new UnauthorizedError('Streaming token has expired')
+    }
+
+    const roomId = streamAccess.room_id!
+    const botIdentity = `presentation-bot:${roomId}:${Date.now()}`
+
+    const credentials = await livekit.generateCredentials(
+      botIdentity,
+      roomId,
+      {
+        canPublish: true,
+        canSubscribe: true,
+        cast: [botIdentity]
+      },
+      false,
+      {
+        role: 'presentation'
+      }
+    )
+
+    logger.info(`Presentation bot token generated for room ${roomId}`, {
+      botIdentity,
+      roomId,
+      placeId: streamAccess.place_id
+    })
+
+    return {
+      url: credentials.url,
+      token: credentials.token,
+      roomId
+    }
+  }
+
   return {
     generateStreamLink,
     validateStreamerToken,
     generateWatcherCredentials,
-    generateWatcherCredentialsByLocation
+    generateWatcherCredentialsByLocation,
+    generatePresentationBotToken
   }
 }

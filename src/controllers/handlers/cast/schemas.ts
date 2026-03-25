@@ -29,3 +29,15 @@ export const WatcherTokenRequestSchema: Schema = {
   },
   required: ['location', 'identity']
 }
+
+export type PresentationBotTokenRequestBody = {
+  streamingKey: string
+}
+
+export const PresentationBotTokenRequestSchema: Schema = {
+  type: 'object',
+  properties: {
+    streamingKey: { type: 'string', pattern: '^\\S+.*$' }
+  },
+  required: ['streamingKey']
+}

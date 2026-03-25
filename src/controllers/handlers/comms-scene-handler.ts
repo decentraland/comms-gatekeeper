@@ -5,16 +5,40 @@ import { oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'config' | 'livekit' | 'logs' | 'denyList' | 'sceneBans' | 'places' | 'worlds' | 'userModeration',
+    | 'fetch'
+    | 'config'
+    | 'livekit'
+    | 'logs'
+    | 'denyList'
+    | 'sceneBans'
+    | 'places'
+    | 'worlds'
+    | 'userModeration'
+    | 'sceneManager'
+    | 'sceneStreamAccessManager',
     '/get-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { livekit, logs, denyList, sceneBans, worlds, userModeration }
+    components: {
+      config,
+      livekit,
+      logs,
+      denyList,
+      sceneBans,
+      worlds,
+      userModeration,
+      sceneManager,
+      places,
+      sceneStreamAccessManager
+    }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
   const { sceneId, identity, parcel, realmName } = await oldValidate(context)
+
+  const allowLocalPreview = (await config.getString('ALLOW_LOCAL_PREVIEW')) === 'true'
+  const isLocalPreview = allowLocalPreview && livekit.isLocalPreview(realmName)
 
   let forPreview = false
   let room: string
@@ -44,7 +68,7 @@ export async function commsSceneHandler(
 
   const isWorld = realmName.endsWith('.eth')
 
-  if (!livekit.isLocalPreview(realmName) && !sceneId) {
+  if (!isLocalPreview && !sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
@@ -60,8 +84,8 @@ export async function commsSceneHandler(
     }
   }
 
-  // Check if user is banned from the scene
-  if (!livekit.isLocalPreview(realmName)) {
+  // Check if user is banned from the scene (skip for local preview)
+  if (!isLocalPreview) {
     try {
       const isBanned = await sceneBans.isUserBanned(identity, {
         sceneId: resolvedSceneId,
@@ -94,10 +118,14 @@ export async function commsSceneHandler(
     }
   }
 
-  if (livekit.isLocalPreview(realmName)) {
-    room = `preview-${sceneId}`
-
-    forPreview = true
+  if (isLocalPreview) {
+    if (resolvedSceneId) {
+      room = livekit.getSceneRoomName(realmName, resolvedSceneId)
+      forPreview = false
+    } else {
+      room = `preview-${identity}`
+      forPreview = true
+    }
   } else if (isWorld) {
     const hasAccess = await worlds.hasWorldAccessPermission(identity, realmName)
 
@@ -114,7 +142,37 @@ export async function commsSceneHandler(
     throw new NotFoundError('Realm or scene not found')
   }
 
-  const credentials = await livekit.generateCredentials(identity, room, permissions, forPreview)
+  // Check if user is a scene admin — admins get 'presenter' role
+  // which allows them to control presentations via data channel
+  let metadata: Record<string, unknown> | undefined
+  try {
+    if (isLocalPreview) {
+      // Local preview — all users are admins for testing
+      metadata = { role: 'presenter' }
+      logger.info(`Local preview: ${identity} granted presenter role`)
+    } else {
+      const hasActivePresentation = await sceneStreamAccessManager.getAccessByRoomId(room)
+      if (hasActivePresentation) {
+        const place = isWorld ? await places.getWorldByName(realmName) : await places.getPlaceByParcel(parcel)
+        const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, identity)
+        if (isAdmin) {
+          metadata = { role: 'presenter' }
+          logger.info(`Admin ${identity} granted presenter role for room ${room}`)
+        }
+      }
+    }
+  } catch (err) {
+    // Non-critical — if admin check fails, user just won't have presenter role
+    logger.warn(`Failed to check admin status for ${identity}: ${err}`)
+  }
+
+  let credentials
+  try {
+    credentials = await livekit.generateCredentials(identity, room, permissions, forPreview, metadata)
+  } catch (err) {
+    logger.error(`Failed to generate credentials for ${identity} in room ${room}: ${err}`)
+    throw err
+  }
   logger.debug(`Token generated for ${identity} to join room ${room}`)
 
   return {
