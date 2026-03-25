@@ -2,7 +2,7 @@ import { test, TEST_MODERATOR_ACCOUNT } from '../../components'
 import { makeRequest, getIdentity, getIdentityForAccount } from '../../utils'
 import { AuthIdentity } from '@dcl/crypto'
 
-test('GET /moderation/bans', ({ components }) => {
+test('GET /bans', ({ components }) => {
   afterEach(async () => {
     await components.database.query('DELETE FROM user_warnings')
     await components.database.query('DELETE FROM user_bans')
@@ -11,7 +11,7 @@ test('GET /moderation/bans', ({ components }) => {
   describe('when listing active bans', () => {
     describe('and the request is not signed', () => {
       it('should respond with a 400 status code', async () => {
-        const response = await components.localFetch.fetch('/moderation/bans', {
+        const response = await components.localFetch.fetch('/bans', {
           method: 'GET'
         })
         expect(response.status).toBe(400)
@@ -29,7 +29,7 @@ test('GET /moderation/bans', ({ components }) => {
         it('should respond with a 401 and the unauthorized error', async () => {
           const response = await makeRequest(
             components.localFetch,
-            '/moderation/bans',
+            '/bans',
             { method: 'GET' },
             nonModeratorIdentity
           )
@@ -50,7 +50,7 @@ test('GET /moderation/bans', ({ components }) => {
           it('should respond with a 200 and an empty array', async () => {
             const response = await makeRequest(
               components.localFetch,
-              '/moderation/bans',
+              '/bans',
               { method: 'GET' },
               moderatorIdentity
             )
@@ -64,7 +64,7 @@ test('GET /moderation/bans', ({ components }) => {
           beforeEach(async () => {
             await makeRequest(
               components.localFetch,
-              '/moderation/users/0x0000000000000000000000000000000000000001/bans',
+              '/users/0x0000000000000000000000000000000000000001/bans',
               {
                 method: 'POST',
                 body: JSON.stringify({ reason: 'Ban 1' })
@@ -73,7 +73,7 @@ test('GET /moderation/bans', ({ components }) => {
             )
             await makeRequest(
               components.localFetch,
-              '/moderation/users/0x0000000000000000000000000000000000000002/bans',
+              '/users/0x0000000000000000000000000000000000000002/bans',
               {
                 method: 'POST',
                 body: JSON.stringify({ reason: 'Ban 2' })
@@ -85,7 +85,7 @@ test('GET /moderation/bans', ({ components }) => {
           it('should respond with a 200 and all active bans', async () => {
             const response = await makeRequest(
               components.localFetch,
-              '/moderation/bans',
+              '/bans',
               { method: 'GET' },
               moderatorIdentity
             )

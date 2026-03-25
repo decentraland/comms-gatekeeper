@@ -3,7 +3,7 @@ import { HandlerContextWithPath } from '../../../types'
 
 export async function liftBanHandler(
   context: Pick<
-    HandlerContextWithPath<'userModeration' | 'logs', '/moderation/users/:address/bans'>,
+    HandlerContextWithPath<'userModeration' | 'logs', '/users/:address/bans'>,
     'components' | 'params' | 'verification'
   >
 ): Promise<IHttpServerComponent.IResponse> {

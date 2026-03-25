@@ -2,7 +2,7 @@ import { test, TEST_MODERATOR_ACCOUNT } from '../../components'
 import { makeRequest, getIdentity, getIdentityForAccount } from '../../utils'
 import { AuthIdentity } from '@dcl/crypto'
 
-test('DELETE /moderation/users/:address/bans', ({ components }) => {
+test('DELETE /users/:address/bans', ({ components }) => {
   afterEach(async () => {
     await components.database.query('DELETE FROM user_warnings')
     await components.database.query('DELETE FROM user_bans')
@@ -17,7 +17,7 @@ test('DELETE /moderation/users/:address/bans', ({ components }) => {
 
     describe('and the request is not signed', () => {
       it('should respond with a 400 status code', async () => {
-        const response = await components.localFetch.fetch(`/moderation/users/${targetAddress}/bans`, {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
           method: 'DELETE'
         })
         expect(response.status).toBe(400)
@@ -35,7 +35,7 @@ test('DELETE /moderation/users/:address/bans', ({ components }) => {
         it('should respond with a 401 and the unauthorized error', async () => {
           const response = await makeRequest(
             components.localFetch,
-            `/moderation/users/${targetAddress}/bans`,
+            `/users/${targetAddress}/bans`,
             { method: 'DELETE' },
             nonModeratorIdentity
           )
@@ -56,7 +56,7 @@ test('DELETE /moderation/users/:address/bans', ({ components }) => {
           beforeEach(async () => {
             await makeRequest(
               components.localFetch,
-              `/moderation/users/${targetAddress}/bans`,
+              `/users/${targetAddress}/bans`,
               {
                 method: 'POST',
                 body: JSON.stringify({ reason: 'Spamming' })
@@ -68,14 +68,14 @@ test('DELETE /moderation/users/:address/bans', ({ components }) => {
           it('should respond with a 204 status code and the ban should no longer be active', async () => {
             const response = await makeRequest(
               components.localFetch,
-              `/moderation/users/${targetAddress}/bans`,
+              `/users/${targetAddress}/bans`,
               { method: 'DELETE' },
               moderatorIdentity
             )
             expect(response.status).toBe(204)
 
             const statusResponse = await components.localFetch.fetch(
-              `/moderation/users/${targetAddress}/bans`,
+              `/users/${targetAddress}/bans`,
               { method: 'GET' }
             )
             expect(statusResponse.status).toBe(200)
@@ -88,7 +88,7 @@ test('DELETE /moderation/users/:address/bans', ({ components }) => {
           it('should respond with a 404 and a not found error', async () => {
             const response = await makeRequest(
               components.localFetch,
-              `/moderation/users/${targetAddress}/bans`,
+              `/users/${targetAddress}/bans`,
               { method: 'DELETE' },
               moderatorIdentity
             )

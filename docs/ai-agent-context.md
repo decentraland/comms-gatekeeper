@@ -67,7 +67,7 @@ The Comms Gatekeeper is the access authority for player-to-player interaction in
 
 - **Token issuance** (`/scene-adapter`, `/island-adapter`): generate LiveKit tokens for scene and island rooms — the primary entry point to the platform
 - **Scene administration** (`/scene-admin`): add/remove scene admins
-- **Moderation** (`/scene-bans`, `/moderation/users/{address}/bans`, `/moderation/users/{address}/warnings`, `/moderation/bans`): ban/unban/warn users at scene scope or platform scope; platform moderation endpoints require the moderator role via Signed Fetch
+- **Moderation** (`/scene-bans`, `/users/{address}/bans`, `/users/{address}/warnings`, `/bans`): ban/unban/warn users at scene scope or platform scope; platform moderation endpoints require the moderator role via Signed Fetch
 - **Streaming** (`/scene-stream-access`): RTMP URL and key lifecycle for content creators
 - **Voice chat** (`/private-voice-chat`, `/community-voice-chat`): session creation, speaker management, request-to-speak
 - **Webhooks** (`/livekit-webhook`): receive LiveKit server events (room created/destroyed, participant joined/left)

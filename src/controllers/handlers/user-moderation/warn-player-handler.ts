@@ -4,7 +4,7 @@ import { WarnPlayerRequestBody } from './schemas'
 
 export async function warnPlayerHandler(
   context: Pick<
-    HandlerContextWithPath<'userModeration' | 'logs', '/moderation/users/:address/warnings'>,
+    HandlerContextWithPath<'userModeration' | 'logs', '/users/:address/warnings'>,
     'components' | 'params' | 'verification' | 'request'
   >
 ): Promise<IHttpServerComponent.IResponse> {
