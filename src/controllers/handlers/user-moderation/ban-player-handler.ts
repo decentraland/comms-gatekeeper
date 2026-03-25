@@ -4,7 +4,7 @@ import { BanPlayerRequestBody } from './schemas'
 
 export async function banPlayerHandler(
   context: Pick<
-    HandlerContextWithPath<'userModeration' | 'logs', '/moderation/users/:address/bans'>,
+    HandlerContextWithPath<'userModeration' | 'logs', '/users/:address/bans'>,
     'components' | 'params' | 'verification' | 'request'
   >
 ): Promise<IHttpServerComponent.IResponse> {

@@ -2,7 +2,7 @@ import { test, TEST_MODERATOR_ACCOUNT } from '../../components'
 import { makeRequest, getIdentity, getIdentityForAccount } from '../../utils'
 import { AuthIdentity } from '@dcl/crypto'
 
-test('GET /moderation/users/:address/warnings', ({ components }) => {
+test('GET /users/:address/warnings', ({ components }) => {
   afterEach(async () => {
     await components.database.query('DELETE FROM user_warnings')
     await components.database.query('DELETE FROM user_bans')
@@ -17,7 +17,7 @@ test('GET /moderation/users/:address/warnings', ({ components }) => {
 
     describe('and the request is not signed', () => {
       it('should respond with a 400 status code', async () => {
-        const response = await components.localFetch.fetch(`/moderation/users/${targetAddress}/warnings`, {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/warnings`, {
           method: 'GET'
         })
         expect(response.status).toBe(400)
@@ -35,7 +35,7 @@ test('GET /moderation/users/:address/warnings', ({ components }) => {
         it('should respond with a 401 and the unauthorized error', async () => {
           const response = await makeRequest(
             components.localFetch,
-            `/moderation/users/${targetAddress}/warnings`,
+            `/users/${targetAddress}/warnings`,
             { method: 'GET' },
             nonModeratorIdentity
           )
@@ -56,7 +56,7 @@ test('GET /moderation/users/:address/warnings', ({ components }) => {
           beforeEach(async () => {
             await makeRequest(
               components.localFetch,
-              `/moderation/users/${targetAddress}/warnings`,
+              `/users/${targetAddress}/warnings`,
               {
                 method: 'POST',
                 body: JSON.stringify({ reason: 'Warning 1' })
@@ -65,7 +65,7 @@ test('GET /moderation/users/:address/warnings', ({ components }) => {
             )
             await makeRequest(
               components.localFetch,
-              `/moderation/users/${targetAddress}/warnings`,
+              `/users/${targetAddress}/warnings`,
               {
                 method: 'POST',
                 body: JSON.stringify({ reason: 'Warning 2' })
@@ -77,7 +77,7 @@ test('GET /moderation/users/:address/warnings', ({ components }) => {
           it('should respond with a 200 and all warnings', async () => {
             const response = await makeRequest(
               components.localFetch,
-              `/moderation/users/${targetAddress}/warnings`,
+              `/users/${targetAddress}/warnings`,
               { method: 'GET' },
               moderatorIdentity
             )
@@ -91,7 +91,7 @@ test('GET /moderation/users/:address/warnings', ({ components }) => {
           it('should respond with a 200 and an empty array', async () => {
             const response = await makeRequest(
               components.localFetch,
-              `/moderation/users/0x0000000000000000000000000000000000000099/warnings`,
+              `/users/0x0000000000000000000000000000000000000099/warnings`,
               { method: 'GET' },
               moderatorIdentity
             )

@@ -2,10 +2,7 @@ import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../../types'
 
 export async function getWarningsHandler(
-  context: Pick<
-    HandlerContextWithPath<'userModeration' | 'logs', '/moderation/users/:address/warnings'>,
-    'components' | 'params'
-  >
+  context: Pick<HandlerContextWithPath<'userModeration' | 'logs', '/users/:address/warnings'>, 'components' | 'params'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
     components: { userModeration, logs },

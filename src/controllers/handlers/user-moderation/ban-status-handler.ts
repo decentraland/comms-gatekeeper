@@ -2,10 +2,7 @@ import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath } from '../../../types'
 
 export async function banStatusHandler(
-  context: Pick<
-    HandlerContextWithPath<'userModeration' | 'logs', '/moderation/users/:address/bans'>,
-    'components' | 'params'
-  >
+  context: Pick<HandlerContextWithPath<'userModeration' | 'logs', '/users/:address/bans'>, 'components' | 'params'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
     components: { userModeration, logs },

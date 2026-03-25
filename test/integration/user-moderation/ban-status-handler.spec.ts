@@ -1,6 +1,6 @@
 import { test } from '../../components'
 
-test('GET /moderation/users/:address/bans', ({ components }) => {
+test('GET /users/:address/bans', ({ components }) => {
   afterEach(async () => {
     await components.database.query('DELETE FROM user_warnings')
     await components.database.query('DELETE FROM user_bans')
@@ -23,7 +23,7 @@ test('GET /moderation/users/:address/bans', ({ components }) => {
       })
 
       it('should respond with a 200 and isBanned true with ban details', async () => {
-        const response = await components.localFetch.fetch(`/moderation/users/${targetAddress}/bans`, {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
           method: 'GET'
         })
         expect(response.status).toBe(200)
@@ -35,7 +35,7 @@ test('GET /moderation/users/:address/bans', ({ components }) => {
 
     describe('and the player is not banned', () => {
       it('should respond with a 200 and isBanned false', async () => {
-        const response = await components.localFetch.fetch(`/moderation/users/${targetAddress}/bans`, {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
           method: 'GET'
         })
         expect(response.status).toBe(200)
@@ -55,7 +55,7 @@ test('GET /moderation/users/:address/bans', ({ components }) => {
       })
 
       it('should respond with a 200 and isBanned false', async () => {
-        const response = await components.localFetch.fetch(`/moderation/users/${targetAddress}/bans`, {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
           method: 'GET'
         })
         expect(response.status).toBe(200)

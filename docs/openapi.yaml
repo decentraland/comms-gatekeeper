@@ -1683,7 +1683,7 @@ paths:
       tags:
         - Cast 2.0
 
-  /moderation/users/{address}/bans:
+  /users/{address}/bans:
     post:
       operationId: banPlayer
       summary: Ban a player (platform-wide)
@@ -1855,7 +1855,7 @@ paths:
       tags:
         - Platform Moderation
 
-  /moderation/users/{address}/warnings:
+  /users/{address}/warnings:
     post:
       operationId: warnPlayer
       summary: Issue a warning to a player
@@ -1974,7 +1974,7 @@ paths:
       tags:
         - Platform Moderation
 
-  /moderation/bans:
+  /bans:
     get:
       operationId: listBans
       summary: List all active platform bans
