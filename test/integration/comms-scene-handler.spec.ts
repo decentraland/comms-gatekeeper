@@ -28,7 +28,63 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
     } as PlaceAttributes)
 
     stubComponents.denyList.isDenylisted.resolves(false)
+    stubComponents.userModeration.isPlayerBanned.resolves({ isBanned: false })
     stubComponents.livekit.getSceneRoomName.returns(`test-realm:test-scene`)
+  })
+
+  describe('when user is platform-banned', () => {
+    beforeEach(() => {
+      stubComponents.userModeration.isPlayerBanned.resolves({ isBanned: true })
+    })
+
+    it('should reject access returning 403', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/get-scene-adapter',
+        {
+          method: 'POST',
+          metadata
+        },
+        nonOwner
+      )
+
+      expect(response.status).toBe(403)
+
+      const body = await response.json()
+      expect(body).toEqual({
+        error: 'Access denied, platform-banned user'
+      })
+    })
+  })
+
+  describe('when the platform ban check fails', () => {
+    beforeEach(() => {
+      stubComponents.userModeration.isPlayerBanned.rejects(new Error('moderation service unavailable'))
+      stubComponents.sceneBans.isUserBanned.resolves(false)
+      stubComponents.livekit.generateCredentials.resolves({
+        url: 'wss://test-livekit-url',
+        token: 'test-token'
+      })
+      stubComponents.livekit.buildConnectionUrl.returns('livekit:wss://test-livekit-url?access_token=test-token')
+    })
+
+    it('should allow access (fail-open) returning 200', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/get-scene-adapter',
+        {
+          method: 'POST',
+          metadata
+        },
+        owner
+      )
+
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body).toEqual({
+        adapter: 'livekit:wss://test-livekit-url?access_token=test-token'
+      })
+    })
   })
 
   describe('when user is banned', () => {
