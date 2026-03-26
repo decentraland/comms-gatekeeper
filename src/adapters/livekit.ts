@@ -226,6 +226,20 @@ export async function createLivekitComponent(
     await roomClient.removeParticipant(roomId, participantId)
   }
 
+  async function removeParticipantFromAllRooms(participantIdentity: string): Promise<void> {
+    const rooms = await roomClient.listRooms()
+    await Promise.allSettled(
+      rooms.map(async (room) => {
+        try {
+          await roomClient.removeParticipant(room.name, participantIdentity)
+          logger.info(`Removed ${participantIdentity} from room ${room.name}`)
+        } catch (error) {
+          // Participant not in this room - ignore
+        }
+      })
+    )
+  }
+
   async function deleteRoom(roomName: string): Promise<void> {
     logger.info(`Deleting room ${roomName}`)
     try {
@@ -426,6 +440,7 @@ export async function createLivekitComponent(
     getRoomName,
     muteParticipant,
     removeParticipant,
+    removeParticipantFromAllRooms,
     getRoom,
     getRoomInfo,
     getOrCreateIngress,

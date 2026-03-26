@@ -6,6 +6,7 @@ import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createUserModerationComponent } from '../../../src/logic/user-moderation/component'
 import { IUserModerationComponent, IUserModerationDatabaseComponent, UserBan, UserWarning } from '../../../src/logic/user-moderation/types'
 import { PlayerAlreadyBannedError, BanNotFoundError } from '../../../src/logic/user-moderation/errors'
+import { ILivekitComponent } from '../../../src/types/livekit.type'
 import { makeBan, makeWarning } from './utils'
 
 const flushPromises = () => new Promise(setImmediate)
@@ -14,6 +15,7 @@ describe('user-moderation-component', () => {
   let mockUserModerationDb: jest.Mocked<IUserModerationDatabaseComponent>
   let mockPublisher: jest.Mocked<IPublisherComponent>
   let mockLogs: jest.Mocked<ILoggerComponent>
+  let mockLivekit: jest.Mocked<Pick<ILivekitComponent, 'removeParticipantFromAllRooms'>>
   let component: IUserModerationComponent
 
   beforeEach(() => {
@@ -31,10 +33,15 @@ describe('user-moderation-component', () => {
 
     mockLogs = createLoggerMockedComponent({})
 
+    mockLivekit = {
+      removeParticipantFromAllRooms: jest.fn().mockResolvedValue(undefined)
+    }
+
     component = createUserModerationComponent({
       userModerationDb: mockUserModerationDb,
       logs: mockLogs,
-      publisher: mockPublisher
+      publisher: mockPublisher,
+      livekit: mockLivekit
     } as any)
   })
 
@@ -86,6 +93,12 @@ describe('user-moderation-component', () => {
             })
           })
         )
+      })
+
+      it('should kick the banned player from all rooms', async () => {
+        await component.banPlayer('0xABC', '0xADMIN', 'Violation')
+
+        expect(mockLivekit.removeParticipantFromAllRooms).toHaveBeenCalledWith('0xabc')
       })
     })
 
@@ -160,6 +173,23 @@ describe('user-moderation-component', () => {
       })
     })
 
+    describe('and removing participant from rooms fails', () => {
+      let ban: UserBan
+
+      beforeEach(() => {
+        ban = makeBan()
+        mockUserModerationDb.isPlayerBanned.mockResolvedValueOnce({ isBanned: false })
+        mockUserModerationDb.createBan.mockResolvedValueOnce(ban)
+        mockLivekit.removeParticipantFromAllRooms.mockRejectedValueOnce(new Error('LiveKit error'))
+      })
+
+      it('should not fail the ban operation', async () => {
+        const result = await component.banPlayer('0xABC', '0xADMIN', 'Violation')
+
+        expect(result).toEqual(ban)
+      })
+    })
+
     describe('and the player is already banned', () => {
       let existingBan: UserBan
 
@@ -182,6 +212,12 @@ describe('user-moderation-component', () => {
         await expect(component.banPlayer('0xABC', '0xADMIN', 'Violation')).rejects.toThrow(PlayerAlreadyBannedError)
 
         expect(mockPublisher.publishMessage).not.toHaveBeenCalled()
+      })
+
+      it('should not attempt to kick the player from rooms', async () => {
+        await expect(component.banPlayer('0xABC', '0xADMIN', 'Violation')).rejects.toThrow()
+
+        expect(mockLivekit.removeParticipantFromAllRooms).not.toHaveBeenCalled()
       })
     })
 

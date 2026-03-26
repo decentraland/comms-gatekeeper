@@ -6,6 +6,7 @@ let livekitComponent: ILivekitComponent
 let deleteRoomSpy: jest.SpyInstance<Promise<void>, [roomName: string]>
 let listRoomsSpy: jest.SpyInstance<Promise<Room[]>, [names?: string[]]>
 let createRoomSpy: jest.SpyInstance<Promise<Room>, [options: any]>
+let removeParticipantSpy: jest.SpyInstance
 let updateParticipantMetadataSpy: jest.SpyInstance
 let updateParticipantSpy: jest.SpyInstance
 let updateRoomMetadataSpy: jest.SpyInstance
@@ -19,6 +20,7 @@ beforeEach(async () => {
   deleteRoomSpy = jest.spyOn(RoomServiceClient.prototype, 'deleteRoom')
   listRoomsSpy = jest.spyOn(RoomServiceClient.prototype, 'listRooms')
   createRoomSpy = jest.spyOn(RoomServiceClient.prototype, 'createRoom')
+  removeParticipantSpy = jest.spyOn(RoomServiceClient.prototype, 'removeParticipant')
   updateParticipantMetadataSpy = jest.spyOn(RoomServiceClient.prototype, 'updateParticipant')
   updateParticipantSpy = jest.spyOn(RoomServiceClient.prototype, 'updateParticipant')
   updateRoomMetadataSpy = jest.spyOn(RoomServiceClient.prototype, 'updateRoomMetadata')
@@ -924,6 +926,91 @@ describe('when listing room participants', () => {
 
       expect(result).toEqual([])
       expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
+    })
+  })
+})
+
+describe('when removing a participant from all rooms', () => {
+  const participantIdentity = '0xabc'
+
+  beforeEach(() => {
+    removeParticipantSpy.mockReset()
+    listRoomsSpy.mockReset()
+  })
+
+  describe('when the participant is in multiple rooms', () => {
+    const mockRooms = [
+      { name: 'scene-realm1:scene1' } as Room,
+      { name: 'voice-chat-private-call1' } as Room,
+      { name: 'island-island1' } as Room
+    ]
+
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue(mockRooms)
+      removeParticipantSpy.mockResolvedValue(undefined)
+    })
+
+    it('should attempt to remove the participant from all rooms', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(listRoomsSpy).toHaveBeenCalledWith()
+      expect(removeParticipantSpy).toHaveBeenCalledTimes(3)
+      expect(removeParticipantSpy).toHaveBeenCalledWith('scene-realm1:scene1', participantIdentity)
+      expect(removeParticipantSpy).toHaveBeenCalledWith('voice-chat-private-call1', participantIdentity)
+      expect(removeParticipantSpy).toHaveBeenCalledWith('island-island1', participantIdentity)
+    })
+  })
+
+  describe('when the participant is not in any room', () => {
+    const mockRooms = [
+      { name: 'scene-realm1:scene1' } as Room,
+      { name: 'voice-chat-private-call1' } as Room
+    ]
+
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue(mockRooms)
+      removeParticipantSpy.mockRejectedValue(new Error('participant not found'))
+    })
+
+    it('should not throw and silently ignore errors', async () => {
+      await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
+
+      expect(removeParticipantSpy).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('when there are no rooms', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([])
+    })
+
+    it('should not attempt to remove any participant', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(listRoomsSpy).toHaveBeenCalledWith()
+      expect(removeParticipantSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when removal fails for some rooms but succeeds for others', () => {
+    const mockRooms = [
+      { name: 'room-1' } as Room,
+      { name: 'room-2' } as Room,
+      { name: 'room-3' } as Room
+    ]
+
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue(mockRooms)
+      removeParticipantSpy
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('participant not found'))
+        .mockResolvedValueOnce(undefined)
+    })
+
+    it('should not throw and continue processing all rooms', async () => {
+      await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
+
+      expect(removeParticipantSpy).toHaveBeenCalledTimes(3)
     })
   })
 })
