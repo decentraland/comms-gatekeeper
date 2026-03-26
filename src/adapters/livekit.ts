@@ -228,19 +228,21 @@ export async function createLivekitComponent(
 
   async function removeParticipantFromAllRooms(participantIdentity: string): Promise<void> {
     const rooms = await roomClient.listRooms()
-    const results = await Promise.allSettled(
-      rooms.map((room) => roomClient.removeParticipant(room.name, participantIdentity))
+    await Promise.all(
+      rooms.map(async (room) => {
+        try {
+          await roomClient.removeParticipant(room.name, participantIdentity)
+          logger.info(`Removed ${participantIdentity} from room ${room.name}`)
+        } catch (error: any) {
+          // LiveKit throws a TwirpError with code 'not_found' when the participant is not in the room
+          if (error?.code !== 'not_found') {
+            logger.warn(`Failed to remove ${participantIdentity} from room ${room.name}`, {
+              error: isErrorWithMessage(error) ? error.message : 'Unknown error'
+            })
+          }
+        }
+      })
     )
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        logger.info(`Removed ${participantIdentity} from room ${rooms[index].name}`)
-      } else {
-        logger.warn(
-          `Failed to remove ${participantIdentity} from room ${rooms[index].name}`,
-          { error: isErrorWithMessage(result.reason) ? result.reason.message : 'Unknown error' }
-        )
-      }
-    })
   }
 
   async function deleteRoom(roomName: string): Promise<void> {

@@ -981,7 +981,7 @@ describe('when removing a participant from all rooms', () => {
     })
   })
 
-  describe('when removeParticipant throws for all rooms', () => {
+  describe('when removeParticipant throws not_found for all rooms', () => {
     let mockRooms: Room[]
 
     beforeEach(() => {
@@ -990,20 +990,42 @@ describe('when removing a participant from all rooms', () => {
         { name: 'voice-chat-private-call1' } as Room
       ]
       listRoomsSpy.mockResolvedValue(mockRooms)
-      removeParticipantSpy.mockRejectedValue(new Error('participant not found'))
+      const notFoundError = Object.assign(new Error('participant not found'), { code: 'not_found' })
+      removeParticipantSpy.mockRejectedValue(notFoundError)
     })
 
     it('should resolve without throwing', async () => {
       await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
     })
 
-    it('should log a warning for each failure', async () => {
+    it('should not log any warning', async () => {
       await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
 
-      expect(loggerWarnSpy).toHaveBeenCalledTimes(2)
+      expect(loggerWarnSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when removeParticipant throws an unexpected error', () => {
+    let mockRooms: Room[]
+
+    beforeEach(() => {
+      mockRooms = [
+        { name: 'scene-realm1:scene1' } as Room
+      ]
+      listRoomsSpy.mockResolvedValue(mockRooms)
+      removeParticipantSpy.mockRejectedValue(new Error('network timeout'))
+    })
+
+    it('should resolve without throwing', async () => {
+      await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
+    })
+
+    it('should log a warning with the error message', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
       expect(loggerWarnSpy).toHaveBeenCalledWith(
         `Failed to remove ${participantIdentity} from room scene-realm1:scene1`,
-        { error: 'participant not found' }
+        { error: 'network timeout' }
       )
     })
   })
@@ -1030,9 +1052,10 @@ describe('when removing a participant from all rooms', () => {
         { name: 'room-3' } as Room
       ]
       listRoomsSpy.mockResolvedValue(mockRooms)
+      const notFoundError = Object.assign(new Error('participant not found'), { code: 'not_found' })
       removeParticipantSpy
         .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('network error'))
+        .mockRejectedValueOnce(notFoundError)
         .mockResolvedValueOnce(undefined)
     })
 
@@ -1046,14 +1069,10 @@ describe('when removing a participant from all rooms', () => {
       expect(removeParticipantSpy).toHaveBeenCalledTimes(3)
     })
 
-    it('should log a warning only for the failed room', async () => {
+    it('should not log a warning for the not_found error', async () => {
       await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
 
-      expect(loggerWarnSpy).toHaveBeenCalledTimes(1)
-      expect(loggerWarnSpy).toHaveBeenCalledWith(
-        `Failed to remove ${participantIdentity} from room room-2`,
-        { error: 'network error' }
-      )
+      expect(loggerWarnSpy).not.toHaveBeenCalled()
     })
   })
 })
