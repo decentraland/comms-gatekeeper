@@ -931,29 +931,39 @@ describe('when listing room participants', () => {
 })
 
 describe('when removing a participant from all rooms', () => {
-  const participantIdentity = '0xabc'
+  let participantIdentity: string
 
   beforeEach(() => {
+    participantIdentity = '0xabc'
+  })
+
+  afterEach(() => {
     removeParticipantSpy.mockReset()
     listRoomsSpy.mockReset()
   })
 
   describe('when the participant is in multiple rooms', () => {
-    const mockRooms = [
-      { name: 'scene-realm1:scene1' } as Room,
-      { name: 'voice-chat-private-call1' } as Room,
-      { name: 'island-island1' } as Room
-    ]
+    let mockRooms: Room[]
 
     beforeEach(() => {
+      mockRooms = [
+        { name: 'scene-realm1:scene1' } as Room,
+        { name: 'voice-chat-private-call1' } as Room,
+        { name: 'island-island1' } as Room
+      ]
       listRoomsSpy.mockResolvedValue(mockRooms)
       removeParticipantSpy.mockResolvedValue(undefined)
     })
 
-    it('should attempt to remove the participant from all rooms', async () => {
+    it('should list all rooms', async () => {
       await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
 
       expect(listRoomsSpy).toHaveBeenCalledWith()
+    })
+
+    it('should call removeParticipant for each room', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
       expect(removeParticipantSpy).toHaveBeenCalledTimes(3)
       expect(removeParticipantSpy).toHaveBeenCalledWith('scene-realm1:scene1', participantIdentity)
       expect(removeParticipantSpy).toHaveBeenCalledWith('voice-chat-private-call1', participantIdentity)
@@ -961,21 +971,20 @@ describe('when removing a participant from all rooms', () => {
     })
   })
 
-  describe('when the participant is not in any room', () => {
-    const mockRooms = [
-      { name: 'scene-realm1:scene1' } as Room,
-      { name: 'voice-chat-private-call1' } as Room
-    ]
+  describe('when removeParticipant throws for all rooms', () => {
+    let mockRooms: Room[]
 
     beforeEach(() => {
+      mockRooms = [
+        { name: 'scene-realm1:scene1' } as Room,
+        { name: 'voice-chat-private-call1' } as Room
+      ]
       listRoomsSpy.mockResolvedValue(mockRooms)
       removeParticipantSpy.mockRejectedValue(new Error('participant not found'))
     })
 
-    it('should not throw and silently ignore errors', async () => {
+    it('should resolve without throwing', async () => {
       await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
-
-      expect(removeParticipantSpy).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -984,22 +993,22 @@ describe('when removing a participant from all rooms', () => {
       listRoomsSpy.mockResolvedValue([])
     })
 
-    it('should not attempt to remove any participant', async () => {
+    it('should not call removeParticipant', async () => {
       await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
 
-      expect(listRoomsSpy).toHaveBeenCalledWith()
       expect(removeParticipantSpy).not.toHaveBeenCalled()
     })
   })
 
   describe('when removal fails for some rooms but succeeds for others', () => {
-    const mockRooms = [
-      { name: 'room-1' } as Room,
-      { name: 'room-2' } as Room,
-      { name: 'room-3' } as Room
-    ]
+    let mockRooms: Room[]
 
     beforeEach(() => {
+      mockRooms = [
+        { name: 'room-1' } as Room,
+        { name: 'room-2' } as Room,
+        { name: 'room-3' } as Room
+      ]
       listRoomsSpy.mockResolvedValue(mockRooms)
       removeParticipantSpy
         .mockResolvedValueOnce(undefined)
@@ -1007,8 +1016,12 @@ describe('when removing a participant from all rooms', () => {
         .mockResolvedValueOnce(undefined)
     })
 
-    it('should not throw and continue processing all rooms', async () => {
+    it('should resolve without throwing', async () => {
       await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
+    })
+
+    it('should attempt removal for all rooms', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
 
       expect(removeParticipantSpy).toHaveBeenCalledTimes(3)
     })

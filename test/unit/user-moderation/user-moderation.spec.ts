@@ -98,6 +98,8 @@ describe('user-moderation-component', () => {
       it('should kick the banned player from all rooms', async () => {
         await component.banPlayer('0xABC', '0xADMIN', 'Violation')
 
+        await flushPromises()
+
         expect(mockLivekit.removeParticipantFromAllRooms).toHaveBeenCalledWith('0xabc')
       })
     })
