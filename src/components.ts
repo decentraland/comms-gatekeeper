@@ -159,7 +159,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const publisher = await createSnsComponent({ config })
 
-  const userModeration = createUserModerationComponent({ userModerationDb, logs, publisher })
+  const userModeration = createUserModerationComponent({ userModerationDb, logs, publisher, livekit })
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })

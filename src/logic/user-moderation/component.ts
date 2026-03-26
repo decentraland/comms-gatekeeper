@@ -9,10 +9,21 @@ function normalizeAddress(address: string): string {
 }
 
 export function createUserModerationComponent(
-  components: Pick<AppComponents, 'userModerationDb' | 'logs' | 'publisher'>
+  components: Pick<AppComponents, 'userModerationDb' | 'logs' | 'publisher' | 'livekit'>
 ): IUserModerationComponent {
-  const { userModerationDb, logs, publisher } = components
+  const { userModerationDb, logs, publisher, livekit } = components
   const logger = logs.getLogger('user-moderation')
+
+  async function removeParticipantFromAllRooms(address: string): Promise<void> {
+    try {
+      await livekit.removeParticipantFromAllRooms(address)
+    } catch (error: any) {
+      logger.error('Failed to remove participant from all rooms', {
+        error: error.message,
+        address
+      })
+    }
+  }
 
   async function publishModerationEvent(event: UserModerationEvent): Promise<void> {
     try {
@@ -57,6 +68,7 @@ export function createUserModerationComponent(
       })
 
       void publishModerationEvent(createBanEvent(ban))
+      void removeParticipantFromAllRooms(normalizedAddress)
 
       return ban
     },

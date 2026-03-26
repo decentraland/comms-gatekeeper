@@ -6,6 +6,7 @@ let livekitComponent: ILivekitComponent
 let deleteRoomSpy: jest.SpyInstance<Promise<void>, [roomName: string]>
 let listRoomsSpy: jest.SpyInstance<Promise<Room[]>, [names?: string[]]>
 let createRoomSpy: jest.SpyInstance<Promise<Room>, [options: any]>
+let removeParticipantSpy: jest.SpyInstance
 let updateParticipantMetadataSpy: jest.SpyInstance
 let updateParticipantSpy: jest.SpyInstance
 let updateRoomMetadataSpy: jest.SpyInstance
@@ -14,11 +15,14 @@ let accessTokenToJwtSpy: jest.SpyInstance
 let listIngressSpy: jest.SpyInstance
 let createIngressSpy: jest.SpyInstance
 let webhookReceiverSpy: jest.SpyInstance
+let loggerInfoSpy: jest.Mock
+let loggerWarnSpy: jest.Mock
 
 beforeEach(async () => {
   deleteRoomSpy = jest.spyOn(RoomServiceClient.prototype, 'deleteRoom')
   listRoomsSpy = jest.spyOn(RoomServiceClient.prototype, 'listRooms')
   createRoomSpy = jest.spyOn(RoomServiceClient.prototype, 'createRoom')
+  removeParticipantSpy = jest.spyOn(RoomServiceClient.prototype, 'removeParticipant')
   updateParticipantMetadataSpy = jest.spyOn(RoomServiceClient.prototype, 'updateParticipant')
   updateParticipantSpy = jest.spyOn(RoomServiceClient.prototype, 'updateParticipant')
   updateRoomMetadataSpy = jest.spyOn(RoomServiceClient.prototype, 'updateRoomMetadata')
@@ -27,6 +31,8 @@ beforeEach(async () => {
   listIngressSpy = jest.spyOn(IngressClient.prototype, 'listIngress')
   createIngressSpy = jest.spyOn(IngressClient.prototype, 'createIngress')
   webhookReceiverSpy = jest.spyOn(WebhookReceiver.prototype, 'receive')
+  loggerInfoSpy = jest.fn()
+  loggerWarnSpy = jest.fn()
 
   livekitComponent = await createLivekitComponent({
     config: {
@@ -62,8 +68,8 @@ beforeEach(async () => {
     },
     logs: {
       getLogger: jest.fn().mockReturnValue({
-        info: jest.fn(),
-        warn: jest.fn(),
+        info: loggerInfoSpy,
+        warn: loggerWarnSpy,
         error: jest.fn()
       })
     }
@@ -924,6 +930,149 @@ describe('when listing room participants', () => {
 
       expect(result).toEqual([])
       expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
+    })
+  })
+})
+
+describe('when removing a participant from all rooms', () => {
+  let participantIdentity: string
+
+  beforeEach(() => {
+    participantIdentity = '0xabc'
+  })
+
+  afterEach(() => {
+    removeParticipantSpy.mockReset()
+    listRoomsSpy.mockReset()
+  })
+
+  describe('when the participant is in multiple rooms', () => {
+    let mockRooms: Room[]
+
+    beforeEach(() => {
+      mockRooms = [
+        { name: 'scene-realm1:scene1' } as Room,
+        { name: 'voice-chat-private-call1' } as Room,
+        { name: 'island-island1' } as Room
+      ]
+      listRoomsSpy.mockResolvedValue(mockRooms)
+      removeParticipantSpy.mockResolvedValue(undefined)
+    })
+
+    it('should list all rooms', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(listRoomsSpy).toHaveBeenCalledWith()
+    })
+
+    it('should call removeParticipant for each room', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(removeParticipantSpy).toHaveBeenCalledTimes(3)
+      expect(removeParticipantSpy).toHaveBeenCalledWith('scene-realm1:scene1', participantIdentity)
+      expect(removeParticipantSpy).toHaveBeenCalledWith('voice-chat-private-call1', participantIdentity)
+      expect(removeParticipantSpy).toHaveBeenCalledWith('island-island1', participantIdentity)
+    })
+
+    it('should log info for each successful removal', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(loggerInfoSpy).toHaveBeenCalledTimes(3)
+    })
+  })
+
+  describe('when removeParticipant throws not_found for all rooms', () => {
+    let mockRooms: Room[]
+
+    beforeEach(() => {
+      mockRooms = [
+        { name: 'scene-realm1:scene1' } as Room,
+        { name: 'voice-chat-private-call1' } as Room
+      ]
+      listRoomsSpy.mockResolvedValue(mockRooms)
+      const notFoundError = Object.assign(new Error('participant not found'), { code: 'not_found' })
+      removeParticipantSpy.mockRejectedValue(notFoundError)
+    })
+
+    it('should resolve without throwing', async () => {
+      await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
+    })
+
+    it('should not log any warning', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(loggerWarnSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when removeParticipant throws an unexpected error', () => {
+    let mockRooms: Room[]
+
+    beforeEach(() => {
+      mockRooms = [
+        { name: 'scene-realm1:scene1' } as Room
+      ]
+      listRoomsSpy.mockResolvedValue(mockRooms)
+      removeParticipantSpy.mockRejectedValue(new Error('network timeout'))
+    })
+
+    it('should resolve without throwing', async () => {
+      await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
+    })
+
+    it('should log a warning with the error message', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        `Failed to remove ${participantIdentity} from room scene-realm1:scene1`,
+        { error: 'network timeout' }
+      )
+    })
+  })
+
+  describe('when there are no rooms', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([])
+    })
+
+    it('should not call removeParticipant', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(removeParticipantSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when removal fails for some rooms but succeeds for others', () => {
+    let mockRooms: Room[]
+
+    beforeEach(() => {
+      mockRooms = [
+        { name: 'room-1' } as Room,
+        { name: 'room-2' } as Room,
+        { name: 'room-3' } as Room
+      ]
+      listRoomsSpy.mockResolvedValue(mockRooms)
+      const notFoundError = Object.assign(new Error('participant not found'), { code: 'not_found' })
+      removeParticipantSpy
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(notFoundError)
+        .mockResolvedValueOnce(undefined)
+    })
+
+    it('should resolve without throwing', async () => {
+      await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
+    })
+
+    it('should attempt removal for all rooms', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(removeParticipantSpy).toHaveBeenCalledTimes(3)
+    })
+
+    it('should not log a warning for the not_found error', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(loggerWarnSpy).not.toHaveBeenCalled()
     })
   })
 })
