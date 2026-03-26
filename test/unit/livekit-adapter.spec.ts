@@ -15,6 +15,8 @@ let accessTokenToJwtSpy: jest.SpyInstance
 let listIngressSpy: jest.SpyInstance
 let createIngressSpy: jest.SpyInstance
 let webhookReceiverSpy: jest.SpyInstance
+let loggerInfoSpy: jest.Mock
+let loggerWarnSpy: jest.Mock
 
 beforeEach(async () => {
   deleteRoomSpy = jest.spyOn(RoomServiceClient.prototype, 'deleteRoom')
@@ -29,6 +31,8 @@ beforeEach(async () => {
   listIngressSpy = jest.spyOn(IngressClient.prototype, 'listIngress')
   createIngressSpy = jest.spyOn(IngressClient.prototype, 'createIngress')
   webhookReceiverSpy = jest.spyOn(WebhookReceiver.prototype, 'receive')
+  loggerInfoSpy = jest.fn()
+  loggerWarnSpy = jest.fn()
 
   livekitComponent = await createLivekitComponent({
     config: {
@@ -64,8 +68,8 @@ beforeEach(async () => {
     },
     logs: {
       getLogger: jest.fn().mockReturnValue({
-        info: jest.fn(),
-        warn: jest.fn(),
+        info: loggerInfoSpy,
+        warn: loggerWarnSpy,
         error: jest.fn()
       })
     }
@@ -969,6 +973,12 @@ describe('when removing a participant from all rooms', () => {
       expect(removeParticipantSpy).toHaveBeenCalledWith('voice-chat-private-call1', participantIdentity)
       expect(removeParticipantSpy).toHaveBeenCalledWith('island-island1', participantIdentity)
     })
+
+    it('should log info for each successful removal', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(loggerInfoSpy).toHaveBeenCalledTimes(3)
+    })
   })
 
   describe('when removeParticipant throws for all rooms', () => {
@@ -985,6 +995,16 @@ describe('when removing a participant from all rooms', () => {
 
     it('should resolve without throwing', async () => {
       await expect(livekitComponent.removeParticipantFromAllRooms(participantIdentity)).resolves.toBeUndefined()
+    })
+
+    it('should log a warning for each failure', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(loggerWarnSpy).toHaveBeenCalledTimes(2)
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        `Failed to remove ${participantIdentity} from room scene-realm1:scene1`,
+        { error: 'participant not found' }
+      )
     })
   })
 
@@ -1012,7 +1032,7 @@ describe('when removing a participant from all rooms', () => {
       listRoomsSpy.mockResolvedValue(mockRooms)
       removeParticipantSpy
         .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('participant not found'))
+        .mockRejectedValueOnce(new Error('network error'))
         .mockResolvedValueOnce(undefined)
     })
 
@@ -1024,6 +1044,16 @@ describe('when removing a participant from all rooms', () => {
       await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
 
       expect(removeParticipantSpy).toHaveBeenCalledTimes(3)
+    })
+
+    it('should log a warning only for the failed room', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(loggerWarnSpy).toHaveBeenCalledTimes(1)
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        `Failed to remove ${participantIdentity} from room room-2`,
+        { error: 'network error' }
+      )
     })
   })
 })

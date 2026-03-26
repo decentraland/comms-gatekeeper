@@ -228,16 +228,19 @@ export async function createLivekitComponent(
 
   async function removeParticipantFromAllRooms(participantIdentity: string): Promise<void> {
     const rooms = await roomClient.listRooms()
-    await Promise.allSettled(
-      rooms.map(async (room) => {
-        try {
-          await roomClient.removeParticipant(room.name, participantIdentity)
-          logger.info(`Removed ${participantIdentity} from room ${room.name}`)
-        } catch (error) {
-          // Participant not in this room - ignore
-        }
-      })
+    const results = await Promise.allSettled(
+      rooms.map((room) => roomClient.removeParticipant(room.name, participantIdentity))
     )
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        logger.info(`Removed ${participantIdentity} from room ${rooms[index].name}`)
+      } else {
+        logger.warn(
+          `Failed to remove ${participantIdentity} from room ${rooms[index].name}`,
+          { error: isErrorWithMessage(result.reason) ? result.reason.message : 'Unknown error' }
+        )
+      }
+    })
   }
 
   async function deleteRoom(roomName: string): Promise<void> {
