@@ -39,7 +39,7 @@ async function initComponents(): Promise<TestComponents> {
       return components.featureFlags.getVariants<T>(feature)
     }
   }
-  const moderator = await createModeratorComponent({ featureFlags: moderatorFeatureFlags, logs: components.logs })
+  const moderator = await createModeratorComponent({ featureFlags: moderatorFeatureFlags, logs: components.logs, config })
 
   return {
     ...components,
