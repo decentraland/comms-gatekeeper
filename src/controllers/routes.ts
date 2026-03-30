@@ -217,7 +217,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   // User moderation routes
   const signedFetch = authVerificationMiddleware({
     fetcher: components.fetch,
-    optional: false
+    optional: true
   })
 
   router.post(

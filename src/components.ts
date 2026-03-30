@@ -125,7 +125,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const featureFlags = await createFeatureFlagsAdapter({ config, logs, features })
 
   const userModerationDb = createUserModerationDBComponent({ database, logs })
-  const moderator = await createModeratorComponent({ featureFlags, logs })
+  const moderator = await createModeratorComponent({ featureFlags, logs, config })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 

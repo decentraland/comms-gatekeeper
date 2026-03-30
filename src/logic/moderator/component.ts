@@ -1,4 +1,3 @@
-import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { EthAddress } from '@dcl/schemas'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { FeatureFlag } from '../../adapters/feature-flags'
@@ -7,9 +6,11 @@ import { AppComponents } from '../../types'
 
 export async function createModeratorComponent({
   featureFlags,
-  logs
-}: Pick<AppComponents, 'featureFlags' | 'logs'>): Promise<IModeratorComponent> {
+  logs,
+  config
+}: Pick<AppComponents, 'featureFlags' | 'logs' | 'config'>): Promise<IModeratorComponent> {
   const logger = logs.getLogger('moderator-component')
+  const moderatorToken = await config.getString('MODERATOR_TOKEN')
 
   async function getModeratorAddresses(): Promise<string[]> {
     const addresses = (await featureFlags.getVariants<string[]>(FeatureFlag.PLATFORM_USER_MODERATORS)) || []
@@ -26,9 +27,30 @@ export async function createModeratorComponent({
   }
 
   async function moderatorAuthMiddleware(
-    context: IHttpServerComponent.DefaultContext<object> & DecentralandSignatureContext<any>,
+    context: IHttpServerComponent.DefaultContext<object> & {
+      verification?: { auth?: string }
+      url: URL
+    },
     next: () => Promise<IHttpServerComponent.IResponse>
   ): Promise<IHttpServerComponent.IResponse> {
+    // Token-based auth: check Bearer token against MODERATOR_TOKEN
+    if (moderatorToken) {
+      const authorization = context.request.headers.get('authorization')
+      if (authorization === `Bearer ${moderatorToken}`) {
+        const moderatorName = context.url.searchParams.get('moderator')
+        if (!moderatorName) {
+          return {
+            status: 400,
+            body: { error: 'Missing moderator query parameter' }
+          }
+        }
+
+        context.verification = { auth: moderatorName }
+        return next()
+      }
+    }
+
+    // Wallet-based auth: check verification.auth against moderator allowlist
     const { verification } = context
     const address = verification?.auth?.toLowerCase()
 
