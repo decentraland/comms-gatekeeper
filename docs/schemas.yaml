@@ -572,6 +572,61 @@ components:
           type: integer
           description: 'Number of days until expiration'
 
+    PresentationBotTokenRequest:
+      type: object
+      required:
+        - streamingKey
+      properties:
+        streamingKey:
+          type: string
+          description: 'Streaming key to generate presentation bot token for'
+
+    PresentationBotTokenResponse:
+      type: object
+      required:
+        - token
+        - roomId
+      properties:
+        token:
+          type: string
+          description: 'LiveKit JWT token for the presentation bot'
+        roomId:
+          type: string
+          description: 'LiveKit room ID the bot can join'
+
+    PresenterActionRequest:
+      type: object
+      required:
+        - roomId
+        - participantIdentity
+      properties:
+        roomId:
+          type: string
+          description: 'LiveKit room ID'
+        participantIdentity:
+          type: string
+          description: 'Identity of the participant to promote/demote'
+
+    PresenterActionResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: 'Success message'
+
+    GetPresentersResponse:
+      type: object
+      required:
+        - presenters
+      properties:
+        presenters:
+          type: array
+          items:
+            type: string
+          description: 'List of participant identities with presenter role'
+
     StreamInfoResponse:
       type: object
       required:

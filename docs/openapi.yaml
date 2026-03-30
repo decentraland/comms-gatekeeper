@@ -2078,3 +2078,163 @@ paths:
       tags:
         - Platform Moderation
 
+
+  /cast/presentation-bot-token:
+    post:
+      operationId: generatePresentationBotToken
+      summary: Generate presentation bot token
+      description: |
+        Generates a LiveKit token for a presentation bot to join a cast room.
+        The bot uses this token to connect to the room and manage presentations.
+        No authentication required - uses streaming key for validation.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas.yaml#/components/schemas/PresentationBotTokenRequest'
+      responses:
+        '200':
+          description: Presentation bot token generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/PresentationBotTokenResponse'
+        '400':
+          description: Invalid request - Missing or invalid streaming key
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid or expired streaming key
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Cast 2.0
+
+  /cast/presenter:
+    get:
+      operationId: getPresenters
+      summary: List presenters in a room
+      description: |
+        Returns the list of participants with the presenter role in a cast room.
+        Only scene administrators can list presenters.
+        Requires Signed Fetch authentication.
+      security:
+        - SignedFetch: []
+      parameters:
+        - name: roomId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 'LiveKit room ID to list presenters for'
+      responses:
+        '200':
+          description: Presenters listed successfully
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/GetPresentersResponse'
+        '400':
+          description: Invalid request - Missing roomId parameter
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Not a scene administrator
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Cast 2.0
+    post:
+      operationId: promotePresenter
+      summary: Promote participant to presenter
+      description: |
+        Promotes a participant in a cast room to the presenter role, allowing them
+        to share content. Only scene administrators can promote presenters.
+        Requires Signed Fetch authentication.
+      security:
+        - SignedFetch: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas.yaml#/components/schemas/PresenterActionRequest'
+      responses:
+        '200':
+          description: Participant promoted to presenter
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
+        '401':
+          description: Unauthorized - Not a scene administrator or no active stream
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Cast 2.0
+    delete:
+      operationId: demotePresenter
+      summary: Demote presenter to watcher
+      description: |
+        Demotes a presenter back to the watcher role, revoking their ability to
+        share content. Only scene administrators can demote presenters.
+        Requires Signed Fetch authentication.
+      security:
+        - SignedFetch: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas.yaml#/components/schemas/PresenterActionRequest'
+      responses:
+        '200':
+          description: Participant demoted from presenter
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
+        '401':
+          description: Unauthorized - Not a scene administrator or no active stream
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Cast 2.0
