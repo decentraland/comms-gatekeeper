@@ -1,7 +1,7 @@
 import { EthAddress } from '@dcl/schemas'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { FeatureFlag } from '../../adapters/feature-flags'
-import { IModeratorComponent } from './types'
+import { IModeratorComponent, ModeratorAuthOptions } from './types'
 import { AppComponents } from '../../types'
 
 export async function createModeratorComponent({
@@ -26,44 +26,48 @@ export async function createModeratorComponent({
     return trimmedAddresses.filter(EthAddress.validate)
   }
 
-  async function moderatorAuthMiddleware(
-    context: IHttpServerComponent.DefaultContext<object> & {
-      verification?: { auth?: string }
-      url: URL
-    },
-    next: () => Promise<IHttpServerComponent.IResponse>
-  ): Promise<IHttpServerComponent.IResponse> {
-    // Token-based auth: check Bearer token against MODERATOR_TOKEN
-    if (moderatorToken) {
-      const authorization = context.request.headers.get('authorization')
-      if (authorization === `Bearer ${moderatorToken}`) {
-        const moderatorName = context.url.searchParams.get('moderator')
-        if (!moderatorName) {
-          return {
-            status: 400,
-            body: { error: 'Missing moderator query parameter' }
+  function moderatorAuthMiddleware({ moderatorRequired }: ModeratorAuthOptions) {
+    return async (
+      context: IHttpServerComponent.DefaultContext<object> & {
+        verification?: { auth?: string }
+        url: URL
+      },
+      next: () => Promise<IHttpServerComponent.IResponse>
+    ): Promise<IHttpServerComponent.IResponse> => {
+      // Token-based auth: check Bearer token against MODERATOR_TOKEN
+      if (moderatorToken) {
+        const authorization = context.request.headers.get('authorization')
+        if (authorization === `Bearer ${moderatorToken}`) {
+          if (moderatorRequired) {
+            const moderatorName = context.url.searchParams.get('moderator')
+            if (!moderatorName) {
+              return {
+                status: 400,
+                body: { error: 'Missing moderator query parameter' }
+              }
+            }
+            context.verification = { auth: moderatorName }
           }
+
+          return next()
         }
-
-        context.verification = { auth: moderatorName }
-        return next()
       }
-    }
 
-    // Wallet-based auth: check verification.auth against moderator allowlist
-    const { verification } = context
-    const address = verification?.auth?.toLowerCase()
+      // Wallet-based auth: check verification.auth against moderator allowlist
+      const { verification } = context
+      const address = verification?.auth?.toLowerCase()
 
-    const moderatorAddresses = await getModeratorAddresses()
+      const moderatorAddresses = await getModeratorAddresses()
 
-    if (!EthAddress.validate(address) || !moderatorAddresses.includes(address)) {
-      return {
-        status: 401,
-        body: { error: 'You are not authorized to access this resource' }
+      if (!EthAddress.validate(address) || !moderatorAddresses.includes(address)) {
+        return {
+          status: 401,
+          body: { error: 'You are not authorized to access this resource' }
+        }
       }
-    }
 
-    return next()
+      return next()
+    }
   }
 
   return { moderatorAuthMiddleware }
