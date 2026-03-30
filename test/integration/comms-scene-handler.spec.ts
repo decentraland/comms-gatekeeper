@@ -357,6 +357,135 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       })
     })
 
+    describe('when there is an active presentation and user is a scene admin', () => {
+      let adminWorldMetadata: Metadata
+
+      beforeEach(() => {
+        adminWorldMetadata = {
+          identity: owner.authChain[0].payload,
+          realmName: 'test-world.eth',
+          parcel: '10,20',
+          sceneId: 'bafytest123'
+        }
+
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+        stubComponents.livekit.getWorldSceneRoomName.returns('world-prd-scene-room-test-world.eth-bafytest123')
+        stubComponents.sceneStreamAccessManager.getAccessByRoomId.resolves({ place_id: 'place-123' } as any)
+        stubComponents.places.getWorldByName.resolves({
+          id: 'place-123',
+          title: 'Test World',
+          owner: owner.authChain[0].payload
+        } as PlaceAttributes)
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+        stubComponents.livekit.generateCredentials.resolves({
+          url: 'wss://test-livekit-url',
+          token: 'test-token'
+        })
+      })
+
+      it('should pass presenter metadata when generating credentials', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: adminWorldMetadata
+          },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+        const credentialsCall = stubComponents.livekit.generateCredentials.firstCall
+        expect(credentialsCall.args[0]).toBe(owner.authChain[0].payload)
+        expect(credentialsCall.args[1]).toBe('world-prd-scene-room-test-world.eth-bafytest123')
+        expect(credentialsCall.args[4]).toEqual({ role: 'presenter' })
+      })
+    })
+
+    describe('when there is an active presentation and user is NOT an admin', () => {
+      let nonAdminWorldMetadata: Metadata
+
+      beforeEach(() => {
+        nonAdminWorldMetadata = {
+          identity: nonOwner.authChain[0].payload,
+          realmName: 'test-world.eth',
+          parcel: '10,20',
+          sceneId: 'bafytest123'
+        }
+
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+        stubComponents.livekit.getWorldSceneRoomName.returns('world-prd-scene-room-test-world.eth-bafytest123')
+        stubComponents.sceneStreamAccessManager.getAccessByRoomId.resolves({ place_id: 'place-123' } as any)
+        stubComponents.places.getWorldByName.resolves({
+          id: 'place-123',
+          title: 'Test World',
+          owner: owner.authChain[0].payload
+        } as PlaceAttributes)
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+        stubComponents.livekit.generateCredentials.resolves({
+          url: 'wss://test-livekit-url',
+          token: 'test-token'
+        })
+      })
+
+      it('should not pass presenter metadata when generating credentials', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: nonAdminWorldMetadata
+          },
+          nonOwner
+        )
+
+        expect(response.status).toBe(200)
+        const credentialsCall = stubComponents.livekit.generateCredentials.firstCall
+        expect(credentialsCall.args[0]).toBe(nonOwner.authChain[0].payload)
+        expect(credentialsCall.args[1]).toBe('world-prd-scene-room-test-world.eth-bafytest123')
+        expect(credentialsCall.args[4]).toBeUndefined()
+      })
+    })
+
+    describe('when the admin check fails', () => {
+      let failingMetadata: Metadata
+
+      beforeEach(() => {
+        failingMetadata = {
+          identity: owner.authChain[0].payload,
+          realmName: 'test-world.eth',
+          parcel: '10,20',
+          sceneId: 'bafytest123'
+        }
+
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+        stubComponents.livekit.getWorldSceneRoomName.returns('world-prd-scene-room-test-world.eth-bafytest123')
+        stubComponents.sceneStreamAccessManager.getAccessByRoomId.rejects(new Error('DB connection lost'))
+        stubComponents.livekit.generateCredentials.resolves({
+          url: 'wss://test-livekit-url',
+          token: 'test-token'
+        })
+      })
+
+      it('should still return 200 without presenter role (fail-open)', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: failingMetadata
+          },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+        const credentialsCall = stubComponents.livekit.generateCredentials.firstCall
+        expect(credentialsCall.args[0]).toBe(owner.authChain[0].payload)
+        expect(credentialsCall.args[1]).toBe('world-prd-scene-room-test-world.eth-bafytest123')
+        expect(credentialsCall.args[4]).toBeUndefined()
+      })
+    })
+
     describe('when client sends a content hash as sceneId', () => {
       let contentHashMetadata: Metadata
 

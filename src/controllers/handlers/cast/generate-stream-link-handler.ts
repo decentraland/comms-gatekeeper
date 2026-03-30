@@ -34,7 +34,7 @@ export async function generateStreamLinkHandler(
       parcel,
       sceneId,
       realmName,
-      skipAdminCheck: isPreview
+      ...(isPreview && { skipAdminCheck: true })
     })
   } catch (error) {
     if (error instanceof UnauthorizedError) {
