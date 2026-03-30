@@ -217,27 +217,30 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   // User moderation routes
   const signedFetch = authVerificationMiddleware({
     fetcher: components.fetch,
-    optional: false
+    optional: true
   })
+
+  const moderatorWrite = moderator.moderatorAuthMiddleware({ moderatorRequired: true })
+  const moderatorRead = moderator.moderatorAuthMiddleware({ moderatorRequired: false })
 
   router.post(
     '/users/:address/bans',
     signedFetch,
-    moderator.moderatorAuthMiddleware,
+    moderatorWrite,
     schemaValidator.withSchemaValidatorMiddleware(BanPlayerSchema),
     banPlayerHandler
   )
-  router.delete('/users/:address/bans', signedFetch, moderator.moderatorAuthMiddleware, liftBanHandler)
+  router.delete('/users/:address/bans', signedFetch, moderatorWrite, liftBanHandler)
   router.get('/users/:address/bans', banStatusHandler)
   router.post(
     '/users/:address/warnings',
     signedFetch,
-    moderator.moderatorAuthMiddleware,
+    moderatorWrite,
     schemaValidator.withSchemaValidatorMiddleware(WarnPlayerSchema),
     warnPlayerHandler
   )
-  router.get('/users/:address/warnings', signedFetch, moderator.moderatorAuthMiddleware, getWarningsHandler)
-  router.get('/bans', signedFetch, moderator.moderatorAuthMiddleware, listBansHandler)
+  router.get('/users/:address/warnings', signedFetch, moderatorRead, getWarningsHandler)
+  router.get('/bans', signedFetch, moderatorRead, listBansHandler)
 
   return router
 }

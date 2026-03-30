@@ -16,11 +16,11 @@ test('DELETE /users/:address/bans', ({ components }) => {
     })
 
     describe('and the request is not signed', () => {
-      it('should respond with a 400 status code', async () => {
+      it('should respond with a 401 status code', async () => {
         const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
           method: 'DELETE'
         })
-        expect(response.status).toBe(400)
+        expect(response.status).toBe(401)
       })
     })
 

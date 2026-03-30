@@ -1,15 +1,17 @@
-import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
 import { EthAddress } from '@dcl/schemas'
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { FeatureFlag } from '../../adapters/feature-flags'
-import { IModeratorComponent } from './types'
+import { IModeratorComponent, ModeratorAuthOptions } from './types'
 import { AppComponents } from '../../types'
+import { timingSafeCompare, sanitizeModeratorName } from './utils'
 
 export async function createModeratorComponent({
   featureFlags,
-  logs
-}: Pick<AppComponents, 'featureFlags' | 'logs'>): Promise<IModeratorComponent> {
+  logs,
+  config
+}: Pick<AppComponents, 'featureFlags' | 'logs' | 'config'>): Promise<IModeratorComponent> {
   const logger = logs.getLogger('moderator-component')
+  const moderatorToken = await config.getString('MODERATOR_TOKEN')
 
   async function getModeratorAddresses(): Promise<string[]> {
     const addresses = (await featureFlags.getVariants<string[]>(FeatureFlag.PLATFORM_USER_MODERATORS)) || []
@@ -25,23 +27,69 @@ export async function createModeratorComponent({
     return trimmedAddresses.filter(EthAddress.validate)
   }
 
-  async function moderatorAuthMiddleware(
-    context: IHttpServerComponent.DefaultContext<object> & DecentralandSignatureContext<any>,
-    next: () => Promise<IHttpServerComponent.IResponse>
-  ): Promise<IHttpServerComponent.IResponse> {
-    const { verification } = context
-    const address = verification?.auth?.toLowerCase()
+  function moderatorAuthMiddleware({ moderatorRequired }: ModeratorAuthOptions) {
+    return async (
+      context: IHttpServerComponent.DefaultContext<object> & {
+        verification?: { auth?: string }
+        url: URL
+      },
+      next: () => Promise<IHttpServerComponent.IResponse>
+    ): Promise<IHttpServerComponent.IResponse> => {
+      // Token-based auth: check Bearer token against MODERATOR_TOKEN
+      if (moderatorToken) {
+        const authorization = context.request.headers.get('authorization')
+        const bearerToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined
 
-    const moderatorAddresses = await getModeratorAddresses()
+        if (bearerToken && timingSafeCompare(bearerToken, moderatorToken)) {
+          if (moderatorRequired) {
+            const rawModeratorName = context.url.searchParams.get('moderator')
+            if (!rawModeratorName) {
+              return {
+                status: 400,
+                body: { error: 'Missing moderator query parameter' }
+              }
+            }
 
-    if (!EthAddress.validate(address) || !moderatorAddresses.includes(address)) {
-      return {
-        status: 401,
-        body: { error: 'You are not authorized to access this resource' }
+            const moderatorName = sanitizeModeratorName(rawModeratorName)
+            if (!moderatorName) {
+              return {
+                status: 400,
+                body: {
+                  error:
+                    'Invalid moderator query parameter. Must be alphanumeric (spaces, hyphens, underscores, and dots allowed) and at most 100 characters'
+                }
+              }
+            }
+
+            context.verification = { auth: moderatorName }
+          }
+
+          logger.info('Token-based moderator auth succeeded', {
+            moderator: moderatorRequired ? context.verification?.auth : 'N/A'
+          })
+          return next()
+        }
+
+        if (bearerToken) {
+          logger.warn('Token-based moderator auth failed: invalid token')
+        }
       }
-    }
 
-    return next()
+      // Wallet-based auth: check verification.auth against moderator allowlist
+      const { verification } = context
+      const address = verification?.auth?.toLowerCase()
+
+      const moderatorAddresses = await getModeratorAddresses()
+
+      if (!EthAddress.validate(address) || !moderatorAddresses.includes(address)) {
+        return {
+          status: 401,
+          body: { error: 'You are not authorized to access this resource' }
+        }
+      }
+
+      return next()
+    }
   }
 
   return { moderatorAuthMiddleware }
