@@ -3,6 +3,7 @@ import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { FeatureFlag } from '../../adapters/feature-flags'
 import { IModeratorComponent, ModeratorAuthOptions } from './types'
 import { AppComponents } from '../../types'
+import { timingSafeCompare, sanitizeModeratorName } from './utils'
 
 export async function createModeratorComponent({
   featureFlags,
@@ -37,19 +38,40 @@ export async function createModeratorComponent({
       // Token-based auth: check Bearer token against MODERATOR_TOKEN
       if (moderatorToken) {
         const authorization = context.request.headers.get('authorization')
-        if (authorization === `Bearer ${moderatorToken}`) {
+        const bearerToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined
+
+        if (bearerToken && timingSafeCompare(bearerToken, moderatorToken)) {
           if (moderatorRequired) {
-            const moderatorName = context.url.searchParams.get('moderator')
-            if (!moderatorName) {
+            const rawModeratorName = context.url.searchParams.get('moderator')
+            if (!rawModeratorName) {
               return {
                 status: 400,
                 body: { error: 'Missing moderator query parameter' }
               }
             }
+
+            const moderatorName = sanitizeModeratorName(rawModeratorName)
+            if (!moderatorName) {
+              return {
+                status: 400,
+                body: {
+                  error:
+                    'Invalid moderator query parameter. Must be alphanumeric (spaces, hyphens, underscores, and dots allowed) and at most 100 characters'
+                }
+              }
+            }
+
             context.verification = { auth: moderatorName }
           }
 
+          logger.info('Token-based moderator auth succeeded', {
+            moderator: moderatorRequired ? context.verification?.auth : 'N/A'
+          })
           return next()
+        }
+
+        if (bearerToken) {
+          logger.warn('Token-based moderator auth failed: invalid token')
         }
       }
 

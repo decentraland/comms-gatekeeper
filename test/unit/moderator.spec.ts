@@ -329,6 +329,47 @@ describe('moderator-component', () => {
         })
       })
 
+      describe('and a valid token with an invalid moderator name is provided', () => {
+        let component: IModeratorComponent
+        let next: jest.Mock
+
+        beforeEach(async () => {
+          mockConfig.getString.mockResolvedValue(moderatorToken)
+          component = await createModeratorComponent({
+            featureFlags: createMockFeatureFlags([]),
+            logs: mockLogs,
+            config: mockConfig
+          })
+          next = jest.fn()
+        })
+
+        it('should respond with a 400 error for names with special characters', async () => {
+          const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
+          const context = createMockContext(
+            undefined,
+            { authorization: `Bearer ${moderatorToken}` },
+            { moderator: '<script>alert("xss")</script>' }
+          )
+          const result = await middleware(context, next)
+
+          expect(next).not.toHaveBeenCalled()
+          expect(result.status).toBe(400)
+        })
+
+        it('should respond with a 400 error for names exceeding max length', async () => {
+          const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
+          const context = createMockContext(
+            undefined,
+            { authorization: `Bearer ${moderatorToken}` },
+            { moderator: 'a'.repeat(101) }
+          )
+          const result = await middleware(context, next)
+
+          expect(next).not.toHaveBeenCalled()
+          expect(result.status).toBe(400)
+        })
+      })
+
       describe('and a valid token without moderator query param is provided', () => {
         let component: IModeratorComponent
         let next: jest.Mock
