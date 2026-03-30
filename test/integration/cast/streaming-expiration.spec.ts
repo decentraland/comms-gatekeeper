@@ -6,12 +6,16 @@ test('Cast: Streaming Expiration', function ({ components }) {
 
   beforeEach(async () => {
     // Clean up any existing test data
-    await components.database.query(SQL`DELETE FROM scene_stream_access WHERE place_id LIKE 'test-expiration-%'`)
+    await components.database.query(
+      SQL`DELETE FROM scene_stream_access WHERE place_id LIKE 'test-expiration-%' OR place_id LIKE 'test-reset-%'`
+    )
   })
 
   afterEach(async () => {
     // Clean up test data
-    await components.database.query(SQL`DELETE FROM scene_stream_access WHERE place_id LIKE 'test-expiration-%'`)
+    await components.database.query(
+      SQL`DELETE FROM scene_stream_access WHERE place_id LIKE 'test-expiration-%' OR place_id LIKE 'test-reset-%'`
+    )
   })
 
   describe('when checking for expired streaming keys', () => {
@@ -50,20 +54,40 @@ test('Cast: Streaming Expiration', function ({ components }) {
       expect(expiredKeys.some((k) => k.place_id === 'test-expiration-future')).toBe(false)
     })
 
-    it('should NOT return keys with null expiration_time', async () => {
-      const now = Date.now()
+    describe('when expiration_time is null', () => {
+      describe('and created_at is older than four days', () => {
+        it('should return the key', async () => {
+          const fiveDaysAgo = Date.now() - 5 * 24 * 60 * 60 * 1000
 
-      // Insert a stream access without expiration_time (legacy behavior)
-      await components.database.query(
-        SQL`INSERT INTO scene_stream_access 
-          (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, expiration_time) 
-          VALUES 
-          (gen_random_uuid(), 'test-expiration-null', 'key-null', 'url', 'ingress-null', ${now}, true, false, null)`
-      )
+          await components.database.query(
+            SQL`INSERT INTO scene_stream_access
+              (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, expiration_time)
+              VALUES
+              (gen_random_uuid(), 'test-expiration-null-old', 'key-null-old', 'url', 'ingress-null-old', ${fiveDaysAgo}, true, false, null)`
+          )
 
-      const expiredKeys = await components.sceneStreamAccessManager.getExpiredStreamingKeys()
+          const expiredKeys = await components.sceneStreamAccessManager.getExpiredStreamingKeys()
 
-      expect(expiredKeys.some((k) => k.place_id === 'test-expiration-null')).toBe(false)
+          expect(expiredKeys.some((k) => k.place_id === 'test-expiration-null-old')).toBe(true)
+        })
+      })
+
+      describe('and created_at is within four days', () => {
+        it('should not return the key', async () => {
+          const now = Date.now()
+
+          await components.database.query(
+            SQL`INSERT INTO scene_stream_access
+              (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, expiration_time)
+              VALUES
+              (gen_random_uuid(), 'test-expiration-null-recent', 'key-null-recent', 'url', 'ingress-null-recent', ${now}, true, false, null)`
+          )
+
+          const expiredKeys = await components.sceneStreamAccessManager.getExpiredStreamingKeys()
+
+          expect(expiredKeys.some((k) => k.place_id === 'test-expiration-null-recent')).toBe(false)
+        })
+      })
     })
 
     it('should NOT return keys that are currently streaming', async () => {

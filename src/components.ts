@@ -125,7 +125,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneAdminManager,
     sceneStreamAccessManager,
     places,
-    notifications
+    notifications,
+    livekit
   })
 
   const streamingTTLChecker = await createStreamingTTLChecker({

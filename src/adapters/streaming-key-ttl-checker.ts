@@ -47,9 +47,16 @@ export async function createStreamingKeyTTLChecker(
           for (const expiredStreamKey of expiredStreamingKeys) {
             const { ingress_id: ingressId, place_id: placeId } = expiredStreamKey
             const place = placesById[placeId]
-            await livekit.removeIngress(ingressId)
-            await sceneStreamAccessManager.removeAccess(placeId)
-            await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_EXPIRED, place)
+            try {
+              await livekit.removeIngress(ingressId)
+              await sceneStreamAccessManager.removeAccess(placeId)
+              await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_EXPIRED, place)
+              logger.info(`Ingress ${ingressId} removed and streaming key expired for place ${placeId}`)
+            } catch (error) {
+              logger.error(
+                `Error revoking ingress ${ingressId} or removing access for place ${placeId}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
+              )
+            }
           }
         } catch (error) {
           logger.error(

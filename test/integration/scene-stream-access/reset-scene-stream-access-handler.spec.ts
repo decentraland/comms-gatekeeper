@@ -167,6 +167,49 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     expect(stubComponents.sceneStreamAccessManager.addAccess.called).toBe(true)
   })
 
+  it('should call addAccess with expiration_time set', async () => {
+    const { localFetch } = components
+
+    const newMockIngress = {
+      ...mockIngress,
+      name: 'new-mock-ingress',
+      url: 'rtmp://new-mock-stream-url',
+      streamKey: 'new-mock-stream-key',
+      ingressId: 'new-mock-ingress-id'
+    } as IngressInfo
+
+    const newMockSceneStreamAccess = {
+      ...mockSceneStreamAccess,
+      streaming_url: 'rtmp://new-mock-stream-url',
+      streaming_key: 'new-mock-stream-key',
+      ingress_id: 'new-mock-ingress-id'
+    } as SceneStreamAccess
+
+    stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
+    stubComponents.livekit.removeIngress.resolves()
+    stubComponents.sceneStreamAccessManager.removeAccess.resolves()
+    stubComponents.livekit.getOrCreateIngress.resolves(newMockIngress)
+    stubComponents.sceneStreamAccessManager.addAccess.resolves(newMockSceneStreamAccess)
+
+    const beforeRequest = Date.now()
+
+    await makeRequest(
+      localFetch,
+      '/scene-stream-access',
+      {
+        method: 'PUT',
+        metadata: metadataLand
+      },
+      owner
+    )
+
+    const addAccessCall = stubComponents.sceneStreamAccessManager.addAccess.getCall(0)
+    const addAccessArg = addAccessCall.args[0]
+
+    expect(addAccessArg.expiration_time).toBeDefined()
+    expect(addAccessArg.expiration_time).toBeGreaterThanOrEqual(beforeRequest + FOUR_DAYS)
+  })
+
   it('returns 200 with new streaming access when user is owner of a world', async () => {
     const { localFetch } = components
 
