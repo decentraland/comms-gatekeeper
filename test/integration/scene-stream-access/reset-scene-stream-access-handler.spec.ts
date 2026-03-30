@@ -41,13 +41,15 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       ingressId: 'mock-ingress-id'
     } as IngressInfo
 
+    const now = Date.now()
     mockSceneStreamAccess = {
       id: 'mock-access-id',
       place_id: placeId,
       streaming_url: 'rtmp://mock-stream-url',
       streaming_key: 'mock-stream-key',
       ingress_id: 'mock-ingress-id',
-      created_at: Date.now(),
+      created_at: now,
+      expiration_time: now + FOUR_DAYS,
       active: true
     }
 
@@ -157,7 +159,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       streaming_url: newMockSceneStreamAccess.streaming_url,
       streaming_key: newMockSceneStreamAccess.streaming_key,
       created_at: newMockSceneStreamAccess.created_at,
-      ends_at: newMockSceneStreamAccess.created_at + FOUR_DAYS
+      ends_at: Number(newMockSceneStreamAccess.expiration_time)
     })
 
     expect(stubComponents.sceneStreamAccessManager.getAccess.calledWith(placeId)).toBe(true)
@@ -264,7 +266,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       streaming_url: newMockSceneStreamAccess.streaming_url,
       streaming_key: newMockSceneStreamAccess.streaming_key,
       created_at: newMockSceneStreamAccess.created_at,
-      ends_at: newMockSceneStreamAccess.created_at + FOUR_DAYS
+      ends_at: Number(newMockSceneStreamAccess.expiration_time)
     })
 
     expect(stubComponents.sceneStreamAccessManager.getAccess.calledWith(placeWorldId)).toBe(true)
