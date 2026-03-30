@@ -8,6 +8,9 @@ export interface ICastComponent {
     parcel?: string
   ): Promise<GenerateWatcherCredentialsResult>
   generatePresentationBotToken(streamingKey: string): Promise<PresentationBotTokenResult>
+  promotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void>
+  demotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void>
+  getPresenters(roomId: string, callerAddress: string): Promise<GetPresentersResult>
 }
 
 export interface GenerateStreamLinkParams {
@@ -48,4 +51,8 @@ export interface PresentationBotTokenResult {
   url: string
   token: string
   roomId: string
+}
+
+export interface GetPresentersResult {
+  presenters: string[]
 }

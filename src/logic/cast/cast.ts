@@ -9,7 +9,8 @@ import {
   GenerateStreamLinkResult,
   ValidateStreamerTokenResult,
   GenerateWatcherCredentialsResult,
-  PresentationBotTokenResult
+  PresentationBotTokenResult,
+  GetPresentersResult
 } from './types'
 
 /**
@@ -31,10 +32,10 @@ export function buildStreamLinks(
 export function createCastComponent(
   components: Pick<
     AppComponents,
-    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config'
+    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config' | 'sceneAdminManager'
   >
 ): ICastComponent {
-  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config } = components
+  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, sceneAdminManager } = components
   const logger = logs.getLogger('cast')
 
   /**
@@ -239,6 +240,7 @@ export function createCastComponent(
       {
         canPublish: false, // Watchers cannot publish video/audio
         canSubscribe: true, // Can watch streams and see chat
+        canUpdateOwnMetadata: false, // Watchers cannot impersonate other participants
         cast: [] // No casting permissions
       },
       false, // Use production LiveKit
@@ -383,11 +385,52 @@ export function createCastComponent(
     }
   }
 
+  async function validatePresenterAdmin(roomId: string, callerAddress: string): Promise<void> {
+    const streamAccess = await sceneStreamAccessManager.getAccessByRoomId(roomId)
+    if (!streamAccess) {
+      throw new UnauthorizedError('No active stream found for this room')
+    }
+    const isAdmin = await sceneAdminManager.isAdmin(streamAccess.place_id, callerAddress)
+    if (!isAdmin) {
+      throw new UnauthorizedError('Only scene administrators can manage presenters')
+    }
+  }
+
+  async function promotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
+    await validatePresenterAdmin(roomId, callerAddress)
+    await livekit.updateParticipantMetadata(roomId, participantIdentity, { role: 'presenter' })
+    logger.info(`Participant ${participantIdentity} promoted to presenter in room ${roomId}`)
+  }
+
+  async function demotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
+    await validatePresenterAdmin(roomId, callerAddress)
+    await livekit.updateParticipantMetadata(roomId, participantIdentity, { role: 'watcher' })
+    logger.info(`Participant ${participantIdentity} demoted from presenter in room ${roomId}`)
+  }
+
+  async function getPresenters(roomId: string, callerAddress: string): Promise<GetPresentersResult> {
+    await validatePresenterAdmin(roomId, callerAddress)
+    const participants = await livekit.listRoomParticipants(roomId)
+    const presenters = participants
+      .filter((p) => {
+        try {
+          return JSON.parse(p.metadata ?? '{}').role === 'presenter'
+        } catch {
+          return false
+        }
+      })
+      .map((p) => p.identity)
+    return { presenters }
+  }
+
   return {
     generateStreamLink,
     validateStreamerToken,
     generateWatcherCredentials,
     generateWatcherCredentialsByLocation,
-    generatePresentationBotToken
+    generatePresentationBotToken,
+    promotePresenter,
+    demotePresenter,
+    getPresenters
   }
 }

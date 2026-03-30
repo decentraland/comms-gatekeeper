@@ -205,7 +205,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneStreamAccessManager,
     sceneManager,
     places,
-    config
+    config,
+    sceneAdminManager
   })
 
   const sceneParticipants = await createSceneParticipantsComponent({

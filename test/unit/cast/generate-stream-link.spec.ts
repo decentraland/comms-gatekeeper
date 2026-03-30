@@ -8,6 +8,7 @@ import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
+import { createSceneAdminManagerMockedComponent } from '../../mocks/scene-admin-manager-mock'
 
 describe('when generating a stream link', () => {
   let castComponent: ICastComponent
@@ -83,7 +84,8 @@ describe('when generating a stream link', () => {
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: mockSceneManager,
       places: mockPlaces,
-      config: mockConfig
+      config: mockConfig,
+      sceneAdminManager: createSceneAdminManagerMockedComponent()
     })
   })
 

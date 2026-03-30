@@ -41,3 +41,17 @@ export const PresentationBotTokenRequestSchema: Schema = {
   },
   required: ['streamingKey']
 }
+
+export type PresenterActionRequestBody = {
+  roomId: string
+  participantIdentity: string
+}
+
+export const PresenterActionRequestSchema: Schema = {
+  type: 'object',
+  properties: {
+    roomId: { type: 'string', pattern: '^\\S+.*$' },
+    participantIdentity: { type: 'string', pattern: '^\\S+.*$' }
+  },
+  required: ['roomId', 'participantIdentity']
+}

@@ -46,7 +46,8 @@ import {
   streamerTokenHandler,
   watcherTokenHandler,
   generateStreamLinkHandler,
-  presentationBotTokenHandler
+  presentationBotTokenHandler,
+  presenterHandler
 } from './handlers/cast'
 import { getStreamInfoHandler } from './handlers/cast/get-stream-info-handler'
 import { AddSceneBanRequestSchema } from './handlers/scene-ban-handlers/schemas'
@@ -257,5 +258,8 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     schemaValidator.withSchemaValidatorMiddleware(PresentationBotTokenRequestSchema),
     presentationBotTokenHandler
   )
+  router.get('/cast/presenter', auth, presenterHandler)
+  router.post('/cast/presenter', auth, presenterHandler)
+  router.delete('/cast/presenter', auth, presenterHandler)
   return router
 }
