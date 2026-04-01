@@ -49,7 +49,11 @@ describe('PlaceChecker', () => {
         removeAllAdminsByPlaceIds: jest.fn()
       },
       sceneStreamAccessManager: {
-        removeAccessByPlaceIds: jest.fn()
+        removeAccessByPlaceIds: jest.fn(),
+        getActiveIngressIds: jest.fn().mockResolvedValue([])
+      },
+      livekit: {
+        removeIngress: jest.fn()
       },
       places: {
         getPlaceStatusByIds: jest.fn()

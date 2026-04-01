@@ -88,11 +88,13 @@ export async function resetSceneStreamAccessHandler(
     const participantIdentity = randomUUID()
     const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
     logger.info(`Created ingress ${ingress.ingressId}`)
+    const expirationTime = Date.now() + FOUR_DAYS
     const access = await sceneStreamAccessManager.addAccess({
       place_id: place.id,
       streaming_url: ingress.url!,
       streaming_key: ingress.streamKey!,
-      ingress_id: ingress.ingressId!
+      ingress_id: ingress.ingressId!,
+      expiration_time: expirationTime
     })
     logger.info(`Created access ${access.id}`)
     await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_RESET, place)
@@ -103,7 +105,7 @@ export async function resetSceneStreamAccessHandler(
         streaming_url: access.streaming_url,
         streaming_key: access.streaming_key,
         created_at: Number(access.created_at),
-        ends_at: Number(access.created_at) + FOUR_DAYS
+        ends_at: access.expiration_time ? Number(access.expiration_time) : Number(access.created_at) + FOUR_DAYS
       }
     }
   } catch (error) {

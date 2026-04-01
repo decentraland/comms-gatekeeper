@@ -7,10 +7,10 @@ import { PlaceAttributes } from '../types/places.type'
 export async function createPlaceChecker(
   components: Pick<
     AppComponents,
-    'logs' | 'sceneAdminManager' | 'sceneStreamAccessManager' | 'places' | 'notifications'
+    'logs' | 'sceneAdminManager' | 'sceneStreamAccessManager' | 'places' | 'notifications' | 'livekit'
   >
 ): Promise<IPlaceChecker> {
-  const { logs, sceneAdminManager, sceneStreamAccessManager, places, notifications } = components
+  const { logs, sceneAdminManager, sceneStreamAccessManager, places, notifications, livekit } = components
   const logger = logs.getLogger(`mission-checker`)
   let job: CronJob
   async function start(): Promise<void> {
@@ -44,14 +44,41 @@ export async function createPlaceChecker(
           logger.info(`Places disabled found: ${placesDisabled.map((place) => place.id).join(', ')}`)
 
           const disabledPlaceIds = placesDisabled.map((place) => place.id)
-          await Promise.all([
-            sceneAdminManager.removeAllAdminsByPlaceIds(disabledPlaceIds),
-            sceneStreamAccessManager.removeAccessByPlaceIds(disabledPlaceIds)
-          ])
 
-          logger.info(`All admins and stream access removed for places: ${disabledPlaceIds.join(', ')}`)
+          // Clean up ingresses from LiveKit before deactivating DB records
+          const placesWithFailedIngress = new Set<string>()
+          for (const placeId of disabledPlaceIds) {
+            const ingressIds = await sceneStreamAccessManager.getActiveIngressIds(placeId)
+            for (const ingressId of ingressIds) {
+              try {
+                await livekit.removeIngress(ingressId)
+                logger.info(`Removed ingress ${ingressId} for disabled place ${placeId}`)
+              } catch (error) {
+                logger.warn(`Failed to remove ingress ${ingressId} for disabled place ${placeId}: ${error}`)
+                placesWithFailedIngress.add(placeId)
+              }
+            }
+          }
 
-          for (const place of placesDisabled) {
+          const placeIdsToClean = disabledPlaceIds.filter((id) => !placesWithFailedIngress.has(id))
+          const placeIdsSkipped = disabledPlaceIds.filter((id) => placesWithFailedIngress.has(id))
+
+          if (placeIdsSkipped.length > 0) {
+            logger.warn(
+              `Skipping stream access removal for places with failed ingress cleanup: ${placeIdsSkipped.join(', ')}`
+            )
+          }
+
+          if (placeIdsToClean.length > 0) {
+            await Promise.all([
+              sceneAdminManager.removeAllAdminsByPlaceIds(placeIdsToClean),
+              sceneStreamAccessManager.removeAccessByPlaceIds(placeIdsToClean)
+            ])
+            logger.info(`All admins and stream access removed for places: ${placeIdsToClean.join(', ')}`)
+          }
+
+          const cleanedPlaces = placesDisabled.filter((place) => !placesWithFailedIngress.has(place.id))
+          for (const place of cleanedPlaces) {
             try {
               await notifications.sendNotificationType(NotificationStreamingType.STREAMING_PLACE_UPDATED, place)
             } catch (error) {

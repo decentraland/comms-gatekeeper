@@ -1,4 +1,4 @@
-import { FOUR_HOURS } from '../logic/time'
+import { FOUR_DAYS, FOUR_HOURS } from '../logic/time'
 import { AppComponents, AddSceneStreamAccessInput, ISceneStreamAccessManager, SceneStreamAccess } from '../types'
 import { StreamingAccessNotFoundError } from '../types/errors'
 import SQL from 'sql-template-strings'
@@ -9,6 +9,13 @@ export async function createSceneStreamAccessManagerComponent({
 }: Pick<AppComponents, 'database' | 'logs'>): Promise<ISceneStreamAccessManager> {
   const logger = logs.getLogger('scene-stream-access-manager')
 
+  async function getActiveIngressIds(placeId: string): Promise<string[]> {
+    const result = await database.query<Pick<SceneStreamAccess, 'ingress_id'>>(
+      SQL`SELECT ingress_id FROM scene_stream_access WHERE place_id = ${placeId} AND active = true AND ingress_id IS NOT NULL AND ingress_id != ''`
+    )
+    return result.rows.map((row) => row.ingress_id)
+  }
+
   async function addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess> {
     logger.debug('Adding stream access', {
       place_id: input.place_id,
@@ -16,23 +23,35 @@ export async function createSceneStreamAccessManagerComponent({
       generated_by: input.generated_by || 'none'
     })
 
-    await database.query(
-      SQL`UPDATE scene_stream_access 
-          SET active = false 
-          WHERE place_id = ${input.place_id} AND active = true`
-    )
+    const pool = database.getPool()
+    const client = await pool.connect()
+    await client.query('BEGIN')
 
-    const now = Date.now()
+    try {
+      await client.query(
+        SQL`UPDATE scene_stream_access
+            SET active = false
+            WHERE place_id = ${input.place_id} AND active = true`
+      )
 
-    const result = await database.query<SceneStreamAccess>(
-      SQL`INSERT INTO scene_stream_access 
-          (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, room_id, generated_by)
-          VALUES 
-          (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true, ${input.expiration_time || null}, ${input.room_id || null}, ${input.generated_by || null})
-          RETURNING *`
-    )
+      const now = Date.now()
 
-    return result.rows[0]
+      const result = await client.query<SceneStreamAccess>(
+        SQL`INSERT INTO scene_stream_access
+            (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, room_id, generated_by)
+            VALUES
+            (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true, ${input.expiration_time || null}, ${input.room_id || null}, ${input.generated_by || null})
+            RETURNING *`
+      )
+
+      await client.query('COMMIT')
+      return result.rows[0]
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
   }
 
   async function removeAccess(placeId: string): Promise<void> {
@@ -130,14 +149,17 @@ export async function createSceneStreamAccessManagerComponent({
   }
 
   async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]> {
-    const now = Date.now().toString()
+    const now = Date.now()
+    const fourDaysAgo = Date.now() - FOUR_DAYS
     const result = await database.query<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>>(
-      SQL`SELECT ingress_id, place_id 
-        FROM scene_stream_access 
-        WHERE active = true 
-          AND streaming = false 
-          AND expiration_time IS NOT NULL 
-          AND expiration_time < ${now}
+      SQL`SELECT ingress_id, place_id
+        FROM scene_stream_access
+        WHERE active = true
+          AND streaming = false
+          AND (
+            (expiration_time IS NOT NULL AND expiration_time < ${now})
+            OR (expiration_time IS NULL AND created_at < ${fourDaysAgo})
+          )
         LIMIT 100`
     )
     return result.rows
@@ -201,6 +223,7 @@ export async function createSceneStreamAccessManagerComponent({
     getAccessByStreamingKey,
     getAccessByRoomId,
     getLatestAccessByPlaceId,
+    getActiveIngressIds,
     getExpiredStreamingKeys,
     startStreaming,
     stopStreaming,

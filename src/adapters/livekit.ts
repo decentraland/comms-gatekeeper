@@ -12,7 +12,6 @@ import {
 } from 'livekit-server-sdk'
 import { RoomType } from '@dcl/schemas'
 import { AppComponents, Permissions } from '../types'
-import { LivekitIngressNotFoundError } from '../types/errors'
 import {
   GetRoomNameParams,
   ILivekitComponent,
@@ -303,12 +302,16 @@ export async function createLivekitComponent(
     return ingress
   }
 
-  async function removeIngress(ingressId: string): Promise<IngressInfo> {
+  async function removeIngress(ingressId: string): Promise<IngressInfo | undefined> {
     try {
-      return ingressClient.deleteIngress(ingressId)
-    } catch (error) {
-      logger.debug(`Error removing ingress ${ingressId}:`, { error: JSON.stringify(error) })
-      throw new LivekitIngressNotFoundError(`No ingress found`)
+      return await ingressClient.deleteIngress(ingressId)
+    } catch (error: any) {
+      if (error?.code === 'not_found' || error?.status === 404) {
+        logger.warn(`Ingress ${ingressId} not found in LiveKit, it may have already been deleted`)
+        return undefined
+      }
+      logger.error(`Error removing ingress ${ingressId}:`, { error: JSON.stringify(error) })
+      throw error
     }
   }
 
