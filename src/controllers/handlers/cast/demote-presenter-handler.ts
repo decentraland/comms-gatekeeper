@@ -5,6 +5,14 @@ import { validate } from '../../../logic/utils'
 
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
 
+/**
+ * Demotes a presenter back to watcher role in a cast room.
+ * The room is derived from the Signed Fetch auth metadata (sceneId + realm).
+ * The participantIdentity URL param must be a valid Ethereum address.
+ *
+ * @param context - HTTP request context with authentication, components, and URL params
+ * @returns 200 on success, 400 for invalid address, or 401 for unauthorized
+ */
 export async function demotePresenterHandler(
   context: HandlerContextWithPath<
     'logs' | 'cast' | 'fetch' | 'config' | 'livekit',

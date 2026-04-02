@@ -35,6 +35,17 @@ export function buildStreamLinks(
   }
 }
 
+/**
+ * Creates the Cast component for managing streaming and presenter roles.
+ *
+ * Orchestrates:
+ * 1. Stream link generation with admin validation and ingress creation
+ * 2. Streamer/watcher/bot token generation with LiveKit credentials
+ * 3. Presenter role management (promote/demote) with scene admin checks
+ *
+ * @param components - Required dependencies
+ * @returns ICastComponent implementation
+ */
 export function createCastComponent(
   components: Pick<
     AppComponents,
@@ -125,8 +136,10 @@ export function createCastComponent(
 
   /**
    * Generates a unique stream link for a scene. Requires admin permissions.
+   *
    * @param params - Parameters for generating the stream link
-   * @returns Stream link details
+   * @returns Stream link details including streaming key and expiration
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
     const { walletAddress, worldName, parcel, sceneId, realmName } = params
@@ -360,8 +373,11 @@ export function createCastComponent(
   /**
    * Generates a LiveKit token for the presentation bot participant.
    * The bot joins the room with publish-only permissions to stream presentation slides.
+   *
    * @param streamingKey - The streaming key used by the streamer
    * @returns LiveKit connection details for the presentation bot
+   * @throws {InvalidStreamingKeyError} If the streaming key is not found
+   * @throws {ExpiredStreamingKeyError} If the streaming key has expired
    */
   async function generatePresentationBotToken(streamingKey: string): Promise<PresentationBotTokenResult> {
     const streamAccess = await sceneStreamAccessManager.getAccessByStreamingKey(streamingKey)
@@ -407,6 +423,15 @@ export function createCastComponent(
     }
   }
 
+  /**
+   * Validates that the caller is an admin for the scene associated with the given room.
+   * Skips validation for local preview rooms.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param callerAddress - Ethereum address of the caller
+   * @throws {NoActiveStreamError} If no active stream exists for the room
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
+   */
   async function validatePresenterAdmin(roomId: string, callerAddress: string): Promise<void> {
     const streamAccess = await sceneStreamAccessManager.getAccessByRoomId(roomId)
     if (!streamAccess) {
@@ -429,18 +454,46 @@ export function createCastComponent(
     }
   }
 
+  /**
+   * Promotes a participant to the presenter role within a cast room.
+   * Validates that the caller is a scene admin before updating metadata.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param participantIdentity - Ethereum address of the participant to promote
+   * @param callerAddress - Ethereum address of the caller
+   * @throws {NoActiveStreamError} If the room has no active stream
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
+   */
   async function promotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
     await validatePresenterAdmin(roomId, callerAddress)
     await livekit.updateParticipantMetadata(roomId, participantIdentity, { role: 'presenter' })
     logger.info(`Participant ${participantIdentity} promoted to presenter in room ${roomId}`)
   }
 
+  /**
+   * Demotes a presenter back to watcher role within a cast room.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param participantIdentity - Ethereum address of the participant to demote
+   * @param callerAddress - Ethereum address of the caller
+   * @throws {NoActiveStreamError} If the room has no active stream
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
+   */
   async function demotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
     await validatePresenterAdmin(roomId, callerAddress)
     await livekit.updateParticipantMetadata(roomId, participantIdentity, { role: 'watcher' })
     logger.info(`Participant ${participantIdentity} demoted from presenter in room ${roomId}`)
   }
 
+  /**
+   * Returns the list of participants with the presenter role in a cast room.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param callerAddress - Ethereum address of the caller
+   * @returns Object containing an array of presenter identities
+   * @throws {NoActiveStreamError} If the room has no active stream
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
+   */
   async function getPresenters(roomId: string, callerAddress: string): Promise<GetPresentersResult> {
     await validatePresenterAdmin(roomId, callerAddress)
     const participants = await livekit.listRoomParticipants(roomId)

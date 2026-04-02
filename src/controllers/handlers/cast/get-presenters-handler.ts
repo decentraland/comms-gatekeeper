@@ -3,6 +3,13 @@ import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
 import { validate } from '../../../logic/utils'
 
+/**
+ * Retrieves the list of presenters in a cast room.
+ * The room is derived from the Signed Fetch auth metadata (sceneId + realm).
+ *
+ * @param context - HTTP request context with authentication and components
+ * @returns 200 with presenter list, or error status
+ */
 export async function getPresentersHandler(
   context: HandlerContextWithPath<'cast' | 'fetch' | 'config' | 'livekit', '/cast/presenters'>
 ): Promise<IHttpServerComponent.IResponse> {
