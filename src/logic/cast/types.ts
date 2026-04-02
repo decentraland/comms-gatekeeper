@@ -1,5 +1,10 @@
 export interface ICastComponent {
   generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult>
+  generatePreviewStreamLink(params: {
+    sceneId: string
+    realmName: string
+    walletAddress: string
+  }): Promise<GenerateStreamLinkResult>
   validateStreamerToken(streamingKey: string, identity: string): Promise<ValidateStreamerTokenResult>
   generateWatcherCredentials(roomId: string, identity: string): Promise<GenerateWatcherCredentialsResult>
   generateWatcherCredentialsByLocation(
@@ -19,7 +24,6 @@ export interface GenerateStreamLinkParams {
   parcel: string
   sceneId: string
   realmName: string
-  skipAdminCheck?: boolean
 }
 
 export interface GenerateStreamLinkResult {
