@@ -2122,23 +2122,17 @@ paths:
       tags:
         - Cast 2.0
 
-  /cast/presenter:
+  /cast/presenters:
     get:
       operationId: getPresenters
       summary: List presenters in a room
       description: |
         Returns the list of participants with the presenter role in a cast room.
+        The roomId is derived server-side from the Signed Fetch auth metadata (sceneId + realm).
         Only scene administrators can list presenters.
         Requires Signed Fetch authentication.
       security:
         - SignedFetch: []
-      parameters:
-        - name: roomId
-          in: query
-          required: true
-          schema:
-            type: string
-          description: 'LiveKit room ID to list presenters for'
       responses:
         '200':
           description: Presenters listed successfully
@@ -2146,12 +2140,6 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/GetPresentersResponse'
-        '400':
-          description: Invalid request - Missing roomId parameter
-          content:
-            application/json:
-              schema:
-                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Not a scene administrator
           content:
@@ -2166,21 +2154,26 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
       tags:
         - Cast 2.0
-    post:
+
+  /cast/presenters/{participantIdentity}:
+    put:
       operationId: promotePresenter
       summary: Promote participant to presenter
       description: |
         Promotes a participant in a cast room to the presenter role, allowing them
-        to share content. Only scene administrators can promote presenters.
+        to share content. The roomId is derived server-side from the Signed Fetch
+        auth metadata (sceneId + realm). Only scene administrators can promote presenters.
         Requires Signed Fetch authentication.
       security:
         - SignedFetch: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: './schemas.yaml#/components/schemas/PresenterActionRequest'
+      parameters:
+        - name: participantIdentity
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[0-9a-fA-F]{40}$'
+          description: 'Ethereum address of the participant to promote (0x + 40 hex characters)'
       responses:
         '200':
           description: Participant promoted to presenter
@@ -2188,6 +2181,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
+        '400':
+          description: Invalid participantIdentity format
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Not a scene administrator or no active stream
           content:
@@ -2207,16 +2206,19 @@ paths:
       summary: Demote presenter to watcher
       description: |
         Demotes a presenter back to the watcher role, revoking their ability to
-        share content. Only scene administrators can demote presenters.
+        share content. The roomId is derived server-side from the Signed Fetch
+        auth metadata (sceneId + realm). Only scene administrators can demote presenters.
         Requires Signed Fetch authentication.
       security:
         - SignedFetch: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: './schemas.yaml#/components/schemas/PresenterActionRequest'
+      parameters:
+        - name: participantIdentity
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[0-9a-fA-F]{40}$'
+          description: 'Ethereum address of the participant to demote (0x + 40 hex characters)'
       responses:
         '200':
           description: Participant demoted from presenter
@@ -2224,6 +2226,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
+        '400':
+          description: Invalid participantIdentity format
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Not a scene administrator or no active stream
           content:

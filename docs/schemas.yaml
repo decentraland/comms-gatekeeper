@@ -594,19 +594,6 @@ components:
           type: string
           description: 'LiveKit room ID the bot can join'
 
-    PresenterActionRequest:
-      type: object
-      required:
-        - roomId
-        - participantIdentity
-      properties:
-        roomId:
-          type: string
-          description: 'LiveKit room ID'
-        participantIdentity:
-          type: string
-          description: 'Identity of the participant to promote/demote'
-
     PresenterActionResponse:
       type: object
       required:
