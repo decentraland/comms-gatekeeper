@@ -37,7 +37,7 @@ export const createLivekitMockedComponent = (
       .fn()
       .mockImplementation((roomName: string) => roomName.replace(ISLAND_ROOM_PREFIX, '')),
     getRoomName: jest.fn(),
-    getRoomMetadataFromRoomName: jest.fn(),
+    getRoomMetadataFromRoomName: jest.fn().mockReturnValue({ realmName: undefined }),
     getRoom: jest.fn(),
     getRoomInfo: jest.fn(),
     getOrCreateIngress: jest.fn(),

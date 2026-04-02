@@ -1,14 +1,13 @@
 import { ParticipantInfo } from 'livekit-server-sdk'
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
-import { UnauthorizedError } from '../../../src/types/errors'
+import { NotSceneAdminError, NoActiveStreamError } from '../../../src/logic/cast/errors'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene-stream-access-manager-mock'
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
-import { createPlacesMockedComponent } from '../../mocks/places-mock'
+import { createPlacesMockedComponent, createMockedPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
-import { createSceneAdminManagerMockedComponent } from '../../mocks/scene-admin-manager-mock'
 
 const ROOM_ID = 'scene-test-realm:bafkreiscene123'
 const PLACE_ID = 'place-123'
@@ -20,7 +19,10 @@ describe('when managing presenters', () => {
   let castComponent: ICastComponent
   let mockLivekit: ReturnType<typeof createLivekitMockedComponent>
   let mockSceneStreamAccessManager: ReturnType<typeof createSceneStreamAccessManagerMockedComponent>
-  let mockSceneAdminManager: ReturnType<typeof createSceneAdminManagerMockedComponent>
+  let mockSceneManager: ReturnType<typeof createSceneManagerMockedComponent>
+  let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
+
+  const mockPlace = createMockedPlace({ id: PLACE_ID, title: 'Test Place', owner: '0xowner123' })
 
   const validStreamAccess = {
     id: 'access-123',
@@ -50,20 +52,23 @@ describe('when managing presenters', () => {
       getAccessByRoomId: jest.fn().mockResolvedValue(validStreamAccess)
     })
 
-    mockSceneAdminManager = createSceneAdminManagerMockedComponent({
-      isAdmin: jest.fn().mockImplementation((_placeId, address) =>
+    mockSceneManager = createSceneManagerMockedComponent({
+      isSceneOwnerOrAdmin: jest.fn().mockImplementation((_place, address) =>
         Promise.resolve(address.toLowerCase() === ADMIN_ADDRESS)
       )
+    })
+
+    mockPlaces = createPlacesMockedComponent({
+      getPlaceStatusByIds: jest.fn().mockResolvedValue([mockPlace])
     })
 
     castComponent = createCastComponent({
       livekit: mockLivekit,
       logs: createLoggerMockedComponent(),
       sceneStreamAccessManager: mockSceneStreamAccessManager,
-      sceneManager: createSceneManagerMockedComponent(),
-      places: createPlacesMockedComponent(),
-      config: createConfigMockedComponent(),
-      sceneAdminManager: mockSceneAdminManager
+      sceneManager: mockSceneManager,
+      places: mockPlaces,
+      config: createConfigMockedComponent()
     })
   })
 
@@ -78,18 +83,18 @@ describe('when managing presenters', () => {
       )
     })
 
-    it('should throw UnauthorizedError when called by a non-admin', async () => {
+    it('should throw NotSceneAdminError when called by a non-admin', async () => {
       await expect(
         castComponent.promotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, NON_ADMIN_ADDRESS)
-      ).rejects.toThrow(UnauthorizedError)
+      ).rejects.toThrow(NotSceneAdminError)
     })
 
-    it('should throw UnauthorizedError when room does not exist', async () => {
+    it('should throw NoActiveStreamError when room does not exist', async () => {
       mockSceneStreamAccessManager.getAccessByRoomId.mockResolvedValue(null)
 
       await expect(
         castComponent.promotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, ADMIN_ADDRESS)
-      ).rejects.toThrow(UnauthorizedError)
+      ).rejects.toThrow(NoActiveStreamError)
     })
   })
 
@@ -104,10 +109,10 @@ describe('when managing presenters', () => {
       )
     })
 
-    it('should throw UnauthorizedError when called by a non-admin', async () => {
+    it('should throw NotSceneAdminError when called by a non-admin', async () => {
       await expect(
         castComponent.demotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, NON_ADMIN_ADDRESS)
-      ).rejects.toThrow(UnauthorizedError)
+      ).rejects.toThrow(NotSceneAdminError)
     })
   })
 
@@ -128,8 +133,8 @@ describe('when managing presenters', () => {
       expect(result.presenters).toEqual([])
     })
 
-    it('should throw UnauthorizedError when called by a non-admin', async () => {
-      await expect(castComponent.getPresenters(ROOM_ID, NON_ADMIN_ADDRESS)).rejects.toThrow(UnauthorizedError)
+    it('should throw NotSceneAdminError when called by a non-admin', async () => {
+      await expect(castComponent.getPresenters(ROOM_ID, NON_ADMIN_ADDRESS)).rejects.toThrow(NotSceneAdminError)
     })
   })
 })

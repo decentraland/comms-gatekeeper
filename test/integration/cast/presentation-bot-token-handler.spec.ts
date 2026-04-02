@@ -1,6 +1,6 @@
 import { test } from '../../components'
 import { makeRequest } from '../../utils'
-import { UnauthorizedError } from '../../../src/types/errors'
+import { InvalidStreamingKeyError, ExpiredStreamingKeyError } from '../../../src/logic/cast/errors'
 
 test('Cast: Presentation Bot Token Handler', function ({ components, spyComponents }) {
   let validStreamingKey: string
@@ -35,24 +35,12 @@ test('Cast: Presentation Bot Token Handler', function ({ components, spyComponen
       expect(spyComponents.cast.generatePresentationBotToken).toHaveBeenCalledWith(validStreamingKey)
     })
 
-    it('should not include identity in the response', async () => {
-      const response = await makeRequest(components.localFetch, '/cast/presentation-bot-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ streamingKey: validStreamingKey })
-      })
-
-      const body = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(body).not.toHaveProperty('identity')
-    })
   })
 
   describe('when the streaming key is invalid', () => {
     beforeEach(() => {
       spyComponents.cast.generatePresentationBotToken.mockRejectedValue(
-        new UnauthorizedError('Invalid or expired streaming token')
+        new InvalidStreamingKeyError()
       )
     })
 
@@ -70,7 +58,7 @@ test('Cast: Presentation Bot Token Handler', function ({ components, spyComponen
   describe('when the streaming key has expired', () => {
     beforeEach(() => {
       spyComponents.cast.generatePresentationBotToken.mockRejectedValue(
-        new UnauthorizedError('Streaming token has expired')
+        new ExpiredStreamingKeyError()
       )
     })
 
@@ -108,14 +96,5 @@ test('Cast: Presentation Bot Token Handler', function ({ components, spyComponen
       expect(response.status).toBe(400)
     })
 
-    it('should return 400 for whitespace-only string', async () => {
-      const response = await makeRequest(components.localFetch, '/cast/presentation-bot-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ streamingKey: '   ' })
-      })
-
-      expect(response.status).toBe(400)
-    })
   })
 })

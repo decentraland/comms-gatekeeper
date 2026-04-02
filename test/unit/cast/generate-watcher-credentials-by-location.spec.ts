@@ -1,13 +1,12 @@
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
-import { UnauthorizedError } from '../../../src/types/errors'
+import { NoActiveStreamError, ExpiredStreamAccessError } from '../../../src/logic/cast/errors'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene-stream-access-manager-mock'
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
-import { createSceneAdminManagerMockedComponent } from '../../mocks/scene-admin-manager-mock'
 import { PlaceAttributes } from '../../../src/types/places.type'
 
 describe('when generating watcher credentials by location', () => {
@@ -90,8 +89,7 @@ describe('when generating watcher credentials by location', () => {
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: mockSceneManager,
       places: mockPlaces,
-      config: mockConfig,
-      sceneAdminManager: createSceneAdminManagerMockedComponent()
+      config: mockConfig
     })
   })
 
@@ -180,9 +178,9 @@ describe('when generating watcher credentials by location', () => {
       mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(null)
     })
 
-    it('should throw an UnauthorizedError', async () => {
+    it('should throw a NoActiveStreamError', async () => {
       await expect(castComponent.generateWatcherCredentialsByLocation(location, identity)).rejects.toThrow(
-        UnauthorizedError
+        NoActiveStreamError
       )
     })
   })
@@ -210,9 +208,9 @@ describe('when generating watcher credentials by location', () => {
       mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(expiredStreamAccess)
     })
 
-    it('should throw an UnauthorizedError', async () => {
+    it('should throw an ExpiredStreamAccessError', async () => {
       await expect(castComponent.generateWatcherCredentialsByLocation(location, identity)).rejects.toThrow(
-        UnauthorizedError
+        ExpiredStreamAccessError
       )
     })
   })

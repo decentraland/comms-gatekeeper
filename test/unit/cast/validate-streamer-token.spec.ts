@@ -1,13 +1,12 @@
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
-import { UnauthorizedError } from '../../../src/types/errors'
+import { InvalidStreamingKeyError, ExpiredStreamingKeyError } from '../../../src/logic/cast/errors'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene-stream-access-manager-mock'
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
-import { createSceneAdminManagerMockedComponent } from '../../mocks/scene-admin-manager-mock'
 
 describe('when validating a streamer token', () => {
   let castComponent: ICastComponent
@@ -80,8 +79,7 @@ describe('when validating a streamer token', () => {
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: mockSceneManager,
       places: mockPlaces,
-      config: mockConfig,
-      sceneAdminManager: createSceneAdminManagerMockedComponent()
+      config: mockConfig
     })
   })
 
@@ -119,9 +117,9 @@ describe('when validating a streamer token', () => {
       mockSceneStreamAccessManager.getAccessByStreamingKey.mockResolvedValue(null)
     })
 
-    it('should throw an UnauthorizedError', async () => {
+    it('should throw an InvalidStreamingKeyError', async () => {
       await expect(castComponent.validateStreamerToken('invalid-key', 'streamer-identity')).rejects.toThrow(
-        UnauthorizedError
+        InvalidStreamingKeyError
       )
     })
   })
@@ -145,9 +143,9 @@ describe('when validating a streamer token', () => {
       mockSceneStreamAccessManager.getAccessByStreamingKey.mockResolvedValue(expiredStreamAccess)
     })
 
-    it('should throw an UnauthorizedError', async () => {
+    it('should throw an ExpiredStreamingKeyError', async () => {
       await expect(castComponent.validateStreamerToken('expired-key', 'streamer-identity')).rejects.toThrow(
-        UnauthorizedError
+        ExpiredStreamingKeyError
       )
     })
   })
