@@ -1,7 +1,13 @@
 import { randomUUID } from 'crypto'
 import { AppComponents } from '../../types'
-import { UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
+import {
+  InvalidStreamingKeyError,
+  ExpiredStreamingKeyError,
+  NoActiveStreamError,
+  NotSceneAdminError,
+  ExpiredStreamAccessError
+} from './errors'
 import { FOUR_DAYS } from '../time'
 import {
   ICastComponent,
@@ -32,53 +38,21 @@ export function buildStreamLinks(
 export function createCastComponent(
   components: Pick<
     AppComponents,
-    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config' | 'sceneAdminManager'
+    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config'
   >
 ): ICastComponent {
-  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, sceneAdminManager } = components
+  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config } = components
   const logger = logs.getLogger('cast')
 
   /**
-   * Generates a unique stream link for a scene.
-   * @param params - Parameters for generating the stream link
-   * @returns Stream link details
+   * Creates or reuses stream access for a place, returning the streaming key and expiration.
+   * Shared logic used by both generateStreamLink and generatePreviewStreamLink.
    */
-  async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, parcel, sceneId, realmName, skipAdminCheck } = params
-
-    // Generate the LiveKit room ID for the scene
-    let roomId: string
-    if (worldName) {
-      roomId = livekit.getWorldSceneRoomName(worldName, sceneId)
-    } else {
-      roomId = livekit.getSceneRoomName(realmName, sceneId)
-    }
-
-    let place: PlaceAttributes
-    if (skipAdminCheck) {
-      // Local preview — use roomId as place_id for consistency
-      place = {
-        id: roomId,
-        title: 'Local Preview'
-      } as PlaceAttributes
-      logger.info(`Using synthetic place for local preview`, { placeId: roomId, roomId })
-    } else if (worldName) {
-      place = await places.getWorldScenePlace(worldName, parcel)
-    } else {
-      place = await places.getPlaceByParcel(parcel)
-    }
-
-    if (!skipAdminCheck) {
-      const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
-
-      if (!isAdmin) {
-        logger.warn(
-          `User ${walletAddress} attempted to generate stream link without admin permissions for place ${place.id}`
-        )
-        throw new UnauthorizedError('Only scene administrators can generate stream links')
-      }
-    }
-
+  async function createStreamAccess(
+    place: PlaceAttributes,
+    roomId: string,
+    walletAddress: string
+  ): Promise<GenerateStreamLinkResult> {
     // Try to reuse existing active stream key
     const existingAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(place.id)
 
@@ -124,19 +98,17 @@ export function createCastComponent(
         generated_by: walletAddress
       })
 
-      logger.info(`Stream link generated for place ${place.id} by admin ${walletAddress}`, {
+      logger.info(`Stream link generated for place ${place.id} by ${walletAddress}`, {
         placeId: place.id,
         streamingKey: streamingKey.substring(0, 20) + '...',
         expiresAt: new Date(expirationTime).toISOString(),
-        generatedBy: walletAddress,
-        sceneId: sceneId || 'none',
-        realmName: realmName || 'none'
+        generatedBy: walletAddress
       })
     }
 
-    // Build links and calculate expiration (common for both reuse and new)
+    // Build links and calculate expiration
     const cast2BaseUrl = await config.getString('CAST2_URL')
-    const location = worldName || parcel || 'none'
+    const location = place.world_name || place.base_position || 'none'
     const { streamLink, watcherLink } = buildStreamLinks(cast2BaseUrl, streamingKey, location)
     const daysLeft = Math.ceil((expirationTime - Date.now()) / (24 * 60 * 60 * 1000))
 
@@ -152,6 +124,54 @@ export function createCastComponent(
   }
 
   /**
+   * Generates a unique stream link for a scene. Requires admin permissions.
+   * @param params - Parameters for generating the stream link
+   * @returns Stream link details
+   */
+  async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
+    const { walletAddress, worldName, parcel, sceneId, realmName } = params
+
+    const roomId = worldName
+      ? livekit.getWorldSceneRoomName(worldName, sceneId)
+      : livekit.getSceneRoomName(realmName, sceneId)
+
+    const place = worldName ? await places.getWorldScenePlace(worldName, parcel) : await places.getPlaceByParcel(parcel)
+
+    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
+    if (!isAdmin) {
+      logger.warn(
+        `User ${walletAddress} attempted to generate stream link without admin permissions for place ${place.id}`
+      )
+      throw new NotSceneAdminError('Only scene administrators can generate stream links')
+    }
+
+    return createStreamAccess(place, roomId, walletAddress)
+  }
+
+  /**
+   * Generates a stream link for local preview. Skips admin check and uses a synthetic place.
+   * @param params - Parameters for generating the preview stream link
+   * @returns Stream link details
+   */
+  async function generatePreviewStreamLink(params: {
+    sceneId: string
+    realmName: string
+    walletAddress: string
+  }): Promise<GenerateStreamLinkResult> {
+    const { sceneId, realmName, walletAddress } = params
+
+    const roomId = livekit.getSceneRoomName(realmName, sceneId)
+    const place = {
+      id: roomId,
+      title: 'Local Preview'
+    } as PlaceAttributes
+
+    logger.info(`Using synthetic place for local preview`, { placeId: roomId, roomId })
+
+    return createStreamAccess(place, roomId, walletAddress)
+  }
+
+  /**
    * Validates a streaming token and generates LiveKit credentials for a streamer.
    * Streamers connect directly to the scene room where they can publish video/audio streams.
    * @param streamingKey - The streaming key to validate
@@ -164,7 +184,7 @@ export function createCastComponent(
 
     if (!streamAccess) {
       logger.warn(`Invalid streaming token provided: ${streamingKey.substring(0, 8)}...`)
-      throw new UnauthorizedError('Invalid or expired streaming token')
+      throw new InvalidStreamingKeyError()
     }
 
     // Check if token has expired (for temporary stream links)
@@ -172,7 +192,7 @@ export function createCastComponent(
       logger.warn(`Expired streaming token: ${streamingKey.substring(0, 8)}...`, {
         expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
       })
-      throw new UnauthorizedError('Streaming token has expired')
+      throw new ExpiredStreamingKeyError()
     }
 
     // Use the room_id from the stream access (scene room format)
@@ -191,6 +211,7 @@ export function createCastComponent(
       {
         canPublish: true, // Streamers can publish video/audio
         canSubscribe: true, // Can see other streams
+        canUpdateOwnMetadata: false, // Only server can update metadata (role management)
         cast: [internalId] // Grant full casting permissions using the unique internal ID
       },
       false, // Use production LiveKit
@@ -299,7 +320,7 @@ export function createCastComponent(
         placeId: place.id,
         isWorldName: isWorldName ? 'true' : 'false'
       })
-      throw new UnauthorizedError('No active stream found for this location')
+      throw new NoActiveStreamError(location)
     }
 
     // Check if the stream access has expired (4 days limit for Cast2)
@@ -309,7 +330,7 @@ export function createCastComponent(
         isWorldName: isWorldName ? 'true' : 'false',
         expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
       })
-      throw new UnauthorizedError('Stream access has expired. Please generate a new stream link.')
+      throw new ExpiredStreamAccessError()
     }
 
     // Use the room_id from the stream access
@@ -347,12 +368,12 @@ export function createCastComponent(
 
     if (!streamAccess) {
       logger.warn(`Invalid streaming key for presentation bot: ${streamingKey.substring(0, 8)}...`)
-      throw new UnauthorizedError('Invalid or expired streaming token')
+      throw new InvalidStreamingKeyError()
     }
 
     if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
       logger.warn(`Expired streaming key for presentation bot: ${streamingKey.substring(0, 8)}...`)
-      throw new UnauthorizedError('Streaming token has expired')
+      throw new ExpiredStreamingKeyError()
     }
 
     const roomId = streamAccess.room_id!
@@ -364,6 +385,7 @@ export function createCastComponent(
       {
         canPublish: true,
         canSubscribe: true,
+        canUpdateOwnMetadata: false, // Only server can update metadata
         cast: [botIdentity]
       },
       false,
@@ -388,11 +410,22 @@ export function createCastComponent(
   async function validatePresenterAdmin(roomId: string, callerAddress: string): Promise<void> {
     const streamAccess = await sceneStreamAccessManager.getAccessByRoomId(roomId)
     if (!streamAccess) {
-      throw new UnauthorizedError('No active stream found for this room')
+      throw new NoActiveStreamError(roomId)
     }
-    const isAdmin = await sceneAdminManager.isAdmin(streamAccess.place_id, callerAddress)
+
+    // Local preview: synthetic place IDs don't exist in the Places API — skip admin check
+    const { realmName } = livekit.getRoomMetadataFromRoomName(roomId)
+    if (livekit.isLocalPreview(realmName)) {
+      return
+    }
+
+    const [place] = await places.getPlaceStatusByIds([streamAccess.place_id])
+    if (!place) {
+      throw new NoActiveStreamError(roomId)
+    }
+    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place as PlaceAttributes, callerAddress)
     if (!isAdmin) {
-      throw new UnauthorizedError('Only scene administrators can manage presenters')
+      throw new NotSceneAdminError('Only scene administrators can manage presenters')
     }
   }
 
@@ -425,6 +458,7 @@ export function createCastComponent(
 
   return {
     generateStreamLink,
+    generatePreviewStreamLink,
     validateStreamerToken,
     generateWatcherCredentials,
     generateWatcherCredentialsByLocation,

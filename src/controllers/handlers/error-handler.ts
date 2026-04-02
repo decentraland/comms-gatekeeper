@@ -12,6 +12,13 @@ import {
   ForbiddenError
 } from '../../types/errors'
 import { PlayerAlreadyBannedError, BanNotFoundError } from '../../logic/user-moderation/errors'
+import {
+  InvalidStreamingKeyError,
+  ExpiredStreamingKeyError,
+  NoActiveStreamError,
+  NotSceneAdminError,
+  ExpiredStreamAccessError
+} from '../../logic/cast/errors'
 
 export async function errorHandler(
   _ctx: IHttpServerComponent.DefaultContext<object>,
@@ -53,9 +60,25 @@ export async function errorHandler(
       }
     }
 
-    if (error instanceof UnauthorizedError || error instanceof NotAuthorizedError) {
+    if (
+      error instanceof UnauthorizedError ||
+      error instanceof NotAuthorizedError ||
+      error instanceof InvalidStreamingKeyError ||
+      error instanceof ExpiredStreamingKeyError ||
+      error instanceof NotSceneAdminError ||
+      error instanceof ExpiredStreamAccessError
+    ) {
       return {
         status: 401,
+        body: {
+          error: error.message
+        }
+      }
+    }
+
+    if (error instanceof NoActiveStreamError) {
+      return {
+        status: 404,
         body: {
           error: error.message
         }
