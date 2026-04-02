@@ -43,7 +43,8 @@ export async function createLivekitComponent(
     prodSecret,
     previewHost,
     previewApiKey,
-    previewSecret
+    previewSecret,
+    allowLocalPreview
   ] = await Promise.all([
     config.requireString('COMMS_ROOM_PREFIX'),
     config.requireString('WORLD_ROOM_PREFIX'),
@@ -54,7 +55,8 @@ export async function createLivekitComponent(
     config.requireString('PROD_LIVEKIT_API_SECRET'),
     config.requireString('PREVIEW_LIVEKIT_HOST'),
     config.requireString('PREVIEW_LIVEKIT_API_KEY'),
-    config.requireString('PREVIEW_LIVEKIT_API_SECRET')
+    config.requireString('PREVIEW_LIVEKIT_API_SECRET'),
+    config.getString('ALLOW_LOCAL_PREVIEW')
   ])
 
   const normalizedProdHost = !prodHost.startsWith('wss://') ? `wss://${prodHost}` : prodHost
@@ -105,8 +107,10 @@ export async function createLivekitComponent(
 
   /**
    * Checks if the given realm name indicates a local preview environment.
+   * Returns false when the ALLOW_LOCAL_PREVIEW config flag is not enabled.
    */
   function isLocalPreview(realmName: string | undefined): boolean {
+    if (allowLocalPreview !== 'true') return false
     if (!realmName) return false
     return LOCAL_PREVIEW_REALM_NAMES.includes(realmName.toLowerCase())
   }

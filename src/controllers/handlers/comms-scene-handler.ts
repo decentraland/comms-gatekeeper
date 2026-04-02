@@ -21,7 +21,6 @@ export async function commsSceneHandler(
 ): Promise<IHttpServerComponent.IResponse> {
   const {
     components: {
-      config,
       livekit,
       logs,
       denyList,
@@ -37,8 +36,7 @@ export async function commsSceneHandler(
   const logger = logs.getLogger('comms-scene-handler')
   const { sceneId, identity, parcel, realmName } = await oldValidate(context)
 
-  const allowLocalPreview = (await config.getString('ALLOW_LOCAL_PREVIEW')) === 'true'
-  const isLocalPreview = allowLocalPreview && livekit.isLocalPreview(realmName)
+  const isLocalPreview = livekit.isLocalPreview(realmName)
 
   let forPreview = false
   let room: string
@@ -168,6 +166,9 @@ export async function commsSceneHandler(
 
   let credentials
   try {
+    logger.info(
+      `Generating credentials identity: ${identity} -- room: ${room} -- forPreview: ${JSON.stringify(forPreview)} -- metadata: ${JSON.stringify(metadata)}`
+    )
     credentials = await livekit.generateCredentials(identity, room, permissions, forPreview, metadata)
   } catch (err) {
     logger.error(`Failed to generate credentials for ${identity} in room ${room}: ${err}`)
