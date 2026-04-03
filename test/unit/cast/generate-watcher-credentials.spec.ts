@@ -80,7 +80,6 @@ describe('when generating watcher credentials', () => {
         expect.objectContaining({
           canPublish: false,
           canSubscribe: true,
-          canUpdateOwnMetadata: false,
           cast: []
         }),
         false,

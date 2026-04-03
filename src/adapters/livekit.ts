@@ -79,8 +79,10 @@ export async function createLivekitComponent(
   ): Promise<LivekitCredentials> {
     const settings = forPreview ? previewSettings : prodSettings
     const allSources = permissions.cast.includes(identity)
+    const name = metadata?.displayName as string | undefined
     const token = new AccessToken(settings.apiKey, settings.secret, {
       identity,
+      name,
       metadata: metadata ? JSON.stringify(metadata) : undefined,
       ttl: 5 * 60 // 5 minutes
     })

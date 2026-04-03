@@ -224,7 +224,6 @@ export function createCastComponent(
       {
         canPublish: true, // Streamers can publish video/audio
         canSubscribe: true, // Can see other streams
-        canUpdateOwnMetadata: false, // Only server can update metadata (role management)
         cast: [internalId] // Grant full casting permissions using the unique internal ID
       },
       false, // Use production LiveKit
@@ -277,7 +276,6 @@ export function createCastComponent(
       {
         canPublish: false, // Watchers cannot publish video/audio
         canSubscribe: true, // Can watch streams and see chat
-        canUpdateOwnMetadata: false, // Watchers cannot impersonate other participants
         cast: [] // No casting permissions
       },
       false, // Use production LiveKit
