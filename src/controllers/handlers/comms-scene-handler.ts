@@ -7,6 +7,7 @@ export async function commsSceneHandler(
   context: HandlerContextWithPath<
     | 'fetch'
     | 'config'
+    | 'cast'
     | 'livekit'
     | 'logs'
     | 'denyList'
@@ -20,17 +21,7 @@ export async function commsSceneHandler(
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: {
-      livekit,
-      logs,
-      denyList,
-      sceneBans,
-      worlds,
-      userModeration,
-      sceneManager,
-      places,
-      sceneStreamAccessManager
-    }
+    components: { cast, livekit, logs, denyList, sceneBans, worlds, userModeration, sceneManager, places }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -140,36 +131,28 @@ export async function commsSceneHandler(
     throw new NotFoundError('Realm or scene not found')
   }
 
-  // Check if user is a scene admin — admins get 'presenter' role
-  // which allows them to control presentations via data channel
-  let metadata: Record<string, unknown> | undefined
+  // Add scene admins as presenters in room metadata
   try {
     if (isLocalPreview) {
-      // Local preview — all users are admins for testing
-      metadata = { role: 'presenter' }
-      logger.info(`Local preview: ${identity} granted presenter role`)
+      await cast.addPresenter(room, identity)
     } else {
-      const hasActivePresentation = await sceneStreamAccessManager.getAccessByRoomId(room)
-      if (hasActivePresentation) {
-        const place = isWorld ? await places.getWorldByName(realmName) : await places.getPlaceByParcel(parcel)
-        const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, identity)
-        if (isAdmin) {
-          metadata = { role: 'presenter' }
-          logger.info(`Admin ${identity} granted presenter role for room ${room}`)
-        }
+      const place = isWorld ? await places.getWorldByName(realmName) : await places.getPlaceByParcel(parcel)
+      const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, identity)
+      if (isAdmin) {
+        await cast.addPresenter(room, identity)
       }
     }
   } catch (err) {
-    // Non-critical — if admin check fails, user just won't have presenter role
-    logger.warn(`Failed to check admin status for ${identity}: ${err}`)
+    // Non-critical — if presenter update fails, user can still join
+    logger.warn(`Failed to add presenter for ${identity}: ${err}`)
   }
 
   let credentials
   try {
     logger.info(
-      `Generating credentials identity: ${identity} -- room: ${room} -- forPreview: ${JSON.stringify(forPreview)} -- metadata: ${JSON.stringify(metadata)}`
+      `Generating credentials identity: ${identity} -- room: ${room} -- forPreview: ${JSON.stringify(forPreview)}`
     )
-    credentials = await livekit.generateCredentials(identity, room, permissions, forPreview, metadata)
+    credentials = await livekit.generateCredentials(identity, room, permissions, forPreview)
   } catch (err) {
     logger.error(`Failed to generate credentials for ${identity} in room ${room}: ${err}`)
     throw err

@@ -1,4 +1,4 @@
-import { ParticipantInfo } from 'livekit-server-sdk'
+import { Room } from 'livekit-server-sdk'
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
 import { NotSceneAdminError, NoActiveStreamError } from '../../../src/logic/cast/errors'
@@ -13,7 +13,11 @@ const ROOM_ID = 'scene-test-realm:bafkreiscene123'
 const PLACE_ID = 'place-123'
 const ADMIN_ADDRESS = '0xadmin'
 const NON_ADMIN_ADDRESS = '0xnobody'
-const PARTICIPANT_IDENTITY = 'stream:place-123:1234567890'
+const PARTICIPANT_IDENTITY = '0x1234567890abcdef1234567890abcdef12345678'
+
+function createRoomWithPresenters(presenters: string[]): Room {
+  return new Room({ metadata: JSON.stringify({ presenters }) })
+}
 
 describe('when managing presenters', () => {
   let castComponent: ICastComponent
@@ -40,12 +44,8 @@ describe('when managing presenters', () => {
 
   beforeEach(() => {
     mockLivekit = createLivekitMockedComponent({
-      updateParticipantMetadata: jest.fn().mockResolvedValue(undefined),
-      listRoomParticipants: jest.fn().mockResolvedValue([
-        new ParticipantInfo({ identity: PARTICIPANT_IDENTITY, metadata: JSON.stringify({ role: 'presenter' }) }),
-        new ParticipantInfo({ identity: 'watch:room:999', metadata: JSON.stringify({ role: 'watcher' }) }),
-        new ParticipantInfo({ identity: 'watch:room:888' })
-      ])
+      getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
+      updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
     })
 
     mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
@@ -72,14 +72,47 @@ describe('when managing presenters', () => {
     })
   })
 
+  describe('addPresenter', () => {
+    it('should add identity to presenters array in room metadata', async () => {
+      await castComponent.addPresenter(ROOM_ID, PARTICIPANT_IDENTITY)
+
+      expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
+        ROOM_ID,
+        { presenters: [PARTICIPANT_IDENTITY] },
+        expect.any(Room)
+      )
+    })
+
+    it('should not duplicate when identity is already a presenter', async () => {
+      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([PARTICIPANT_IDENTITY]))
+
+      await castComponent.addPresenter(ROOM_ID, PARTICIPANT_IDENTITY)
+
+      expect(mockLivekit.updateRoomMetadata).not.toHaveBeenCalled()
+    })
+
+    it('should append to existing presenters', async () => {
+      const existingPresenter = '0xexisting'
+      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([existingPresenter]))
+
+      await castComponent.addPresenter(ROOM_ID, PARTICIPANT_IDENTITY)
+
+      expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
+        ROOM_ID,
+        { presenters: [existingPresenter, PARTICIPANT_IDENTITY] },
+        expect.any(Room)
+      )
+    })
+  })
+
   describe('promotePresenter', () => {
-    it('should set role=presenter in participant metadata when called by an admin', async () => {
+    it('should add identity to room metadata presenters when called by an admin', async () => {
       await castComponent.promotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, ADMIN_ADDRESS)
 
-      expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
+      expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
         ROOM_ID,
-        PARTICIPANT_IDENTITY,
-        { role: 'presenter' }
+        { presenters: [PARTICIPANT_IDENTITY] },
+        expect.any(Room)
       )
     })
 
@@ -99,13 +132,15 @@ describe('when managing presenters', () => {
   })
 
   describe('demotePresenter', () => {
-    it('should set role=watcher in participant metadata when called by an admin', async () => {
+    it('should remove identity from room metadata presenters when called by an admin', async () => {
+      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([PARTICIPANT_IDENTITY, '0xother']))
+
       await castComponent.demotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, ADMIN_ADDRESS)
 
-      expect(mockLivekit.updateParticipantMetadata).toHaveBeenCalledWith(
+      expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
         ROOM_ID,
-        PARTICIPANT_IDENTITY,
-        { role: 'watcher' }
+        { presenters: ['0xother'] },
+        expect.any(Room)
       )
     })
 
@@ -117,16 +152,24 @@ describe('when managing presenters', () => {
   })
 
   describe('getPresenters', () => {
-    it('should return identities of participants with role=presenter', async () => {
+    it('should return presenters from room metadata', async () => {
+      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([PARTICIPANT_IDENTITY]))
+
       const result = await castComponent.getPresenters(ROOM_ID, ADMIN_ADDRESS)
 
       expect(result.presenters).toEqual([PARTICIPANT_IDENTITY])
     })
 
-    it('should return empty array when no presenters are in the room', async () => {
-      mockLivekit.listRoomParticipants.mockResolvedValue([
-        new ParticipantInfo({ identity: 'watch:room:999', metadata: JSON.stringify({ role: 'watcher' }) })
-      ])
+    it('should return empty array when no presenters in room metadata', async () => {
+      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([]))
+
+      const result = await castComponent.getPresenters(ROOM_ID, ADMIN_ADDRESS)
+
+      expect(result.presenters).toEqual([])
+    })
+
+    it('should return empty array when room has no metadata', async () => {
+      mockLivekit.getRoomInfo.mockResolvedValue(new Room())
 
       const result = await castComponent.getPresenters(ROOM_ID, ADMIN_ADDRESS)
 

@@ -1,5 +1,14 @@
 export interface ICastComponent {
   /**
+   * Adds a participant to the presenters list in room metadata.
+   * Idempotent — calling twice with the same identity has no additional effect.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param identity - Ethereum address of the participant to add
+   */
+  addPresenter(roomId: string, identity: string): Promise<void>
+
+  /**
    * Generates a stream link for a scene. Requires admin permissions.
    * @param params - Stream link generation parameters
    * @returns Stream link details including streaming key and expiration

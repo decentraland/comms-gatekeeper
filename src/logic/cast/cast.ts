@@ -234,6 +234,9 @@ export function createCastComponent(
       }
     )
 
+    // Auto-add streamer as presenter in room metadata
+    await addPresenter(roomId, internalId)
+
     logger.info(`Streamer token generated for scene room ${roomId}`, {
       internalId,
       displayName: identity,
@@ -455,8 +458,40 @@ export function createCastComponent(
   }
 
   /**
+   * Adds a participant to the presenters list in room metadata.
+   * Idempotent — calling twice with the same identity has no additional effect.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param identity - Ethereum address of the participant to add
+   */
+  async function addPresenter(roomId: string, identity: string): Promise<void> {
+    const room = await livekit.getRoomInfo(roomId)
+    const roomMeta = JSON.parse(room?.metadata || '{}')
+    const presenters: string[] = roomMeta.presenters || []
+    if (!presenters.includes(identity)) {
+      presenters.push(identity)
+      await livekit.updateRoomMetadata(roomId, { presenters }, room!)
+      logger.info(`Added ${identity} to presenters in room ${roomId}`)
+    }
+  }
+
+  /**
+   * Removes a participant from the presenters list in room metadata.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param identity - Ethereum address of the participant to remove
+   */
+  async function removePresenter(roomId: string, identity: string): Promise<void> {
+    const room = await livekit.getRoomInfo(roomId)
+    const roomMeta = JSON.parse(room?.metadata || '{}')
+    const presenters: string[] = (roomMeta.presenters || []).filter((id: string) => id !== identity)
+    await livekit.updateRoomMetadata(roomId, { presenters }, room!)
+    logger.info(`Removed ${identity} from presenters in room ${roomId}`)
+  }
+
+  /**
    * Promotes a participant to the presenter role within a cast room.
-   * Validates that the caller is a scene admin before updating metadata.
+   * Validates that the caller is a scene admin before updating room metadata.
    *
    * @param roomId - LiveKit room identifier
    * @param participantIdentity - Ethereum address of the participant to promote
@@ -466,8 +501,7 @@ export function createCastComponent(
    */
   async function promotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
     await validatePresenterAdmin(roomId, callerAddress)
-    await livekit.updateParticipantMetadata(roomId, participantIdentity, { role: 'presenter' })
-    logger.info(`Participant ${participantIdentity} promoted to presenter in room ${roomId}`)
+    await addPresenter(roomId, participantIdentity)
   }
 
   /**
@@ -481,12 +515,12 @@ export function createCastComponent(
    */
   async function demotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
     await validatePresenterAdmin(roomId, callerAddress)
-    await livekit.updateParticipantMetadata(roomId, participantIdentity, { role: 'watcher' })
-    logger.info(`Participant ${participantIdentity} demoted from presenter in room ${roomId}`)
+    await removePresenter(roomId, participantIdentity)
   }
 
   /**
    * Returns the list of participants with the presenter role in a cast room.
+   * Reads from room metadata (server-authoritative source of truth).
    *
    * @param roomId - LiveKit room identifier
    * @param callerAddress - Ethereum address of the caller
@@ -496,20 +530,13 @@ export function createCastComponent(
    */
   async function getPresenters(roomId: string, callerAddress: string): Promise<GetPresentersResult> {
     await validatePresenterAdmin(roomId, callerAddress)
-    const participants = await livekit.listRoomParticipants(roomId)
-    const presenters = participants
-      .filter((p) => {
-        try {
-          return JSON.parse(p.metadata ?? '{}').role === 'presenter'
-        } catch {
-          return false
-        }
-      })
-      .map((p) => p.identity)
-    return { presenters }
+    const room = await livekit.getRoomInfo(roomId)
+    const roomMeta = JSON.parse(room?.metadata || '{}')
+    return { presenters: roomMeta.presenters || [] }
   }
 
   return {
+    addPresenter,
     generateStreamLink,
     generatePreviewStreamLink,
     validateStreamerToken,
