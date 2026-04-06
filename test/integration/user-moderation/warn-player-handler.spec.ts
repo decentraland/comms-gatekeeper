@@ -40,7 +40,8 @@ test('POST /users/:address/warnings', ({ components }) => {
             `/users/${targetAddress}/warnings`,
             {
               method: 'POST',
-              body: JSON.stringify({ reason: 'test' })
+              body: JSON.stringify({ reason: 'test' }),
+              metadata: { signer: 'dcl:moderator' }
             },
             nonModeratorIdentity
           )
@@ -63,7 +64,8 @@ test('POST /users/:address/warnings', ({ components }) => {
             `/users/${targetAddress}/warnings`,
             {
               method: 'POST',
-              body: JSON.stringify({ reason: 'Bad behavior' })
+              body: JSON.stringify({ reason: 'Bad behavior' }),
+              metadata: { signer: 'dcl:moderator' }
             },
             moderatorIdentity
           )
@@ -83,7 +85,8 @@ test('POST /users/:address/warnings', ({ components }) => {
               `/users/${targetAddress}/warnings`,
               {
                 method: 'POST',
-                body: JSON.stringify({})
+                body: JSON.stringify({}),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )

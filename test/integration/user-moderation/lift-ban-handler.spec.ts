@@ -36,7 +36,7 @@ test('DELETE /users/:address/bans', ({ components }) => {
           const response = await makeRequest(
             components.localFetch,
             `/users/${targetAddress}/bans`,
-            { method: 'DELETE' },
+            { method: 'DELETE', metadata: { signer: 'dcl:moderator' } },
             nonModeratorIdentity
           )
           expect(response.status).toBe(401)
@@ -59,7 +59,8 @@ test('DELETE /users/:address/bans', ({ components }) => {
               `/users/${targetAddress}/bans`,
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'Spamming' })
+                body: JSON.stringify({ reason: 'Spamming' }),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
@@ -69,7 +70,7 @@ test('DELETE /users/:address/bans', ({ components }) => {
             const response = await makeRequest(
               components.localFetch,
               `/users/${targetAddress}/bans`,
-              { method: 'DELETE' },
+              { method: 'DELETE', metadata: { signer: 'dcl:moderator' } },
               moderatorIdentity
             )
             expect(response.status).toBe(204)
@@ -89,7 +90,7 @@ test('DELETE /users/:address/bans', ({ components }) => {
             const response = await makeRequest(
               components.localFetch,
               `/users/${targetAddress}/bans`,
-              { method: 'DELETE' },
+              { method: 'DELETE', metadata: { signer: 'dcl:moderator' } },
               moderatorIdentity
             )
             expect(response.status).toBe(404)
