@@ -463,12 +463,19 @@ export function createCastComponent(
    * @param identity - Ethereum address of the participant to add
    */
   async function addPresenter(roomId: string, identity: string): Promise<void> {
+    // Ensure room exists (e.g., streamer token generated before connecting)
+    await livekit.getRoom(roomId)
+    // Fetch latest room state from LiveKit server instead of reusing a cached Room object.
+    // Webhook handlers (e.g., refreshRoomBans on participant-joined) may pass stale Room
+    // snapshots to updateRoomMetadata, causing a read-stale-write that overwrites our
+    // presenters key. By not passing a Room object, updateRoomMetadata fetches the latest
+    // metadata from LiveKit before merging, avoiding the race condition.
     const room = await livekit.getRoomInfo(roomId)
     const roomMeta = JSON.parse(room?.metadata || '{}')
     const presenters: string[] = roomMeta.presenters || []
     if (!presenters.includes(identity)) {
       presenters.push(identity)
-      await livekit.updateRoomMetadata(roomId, { presenters }, room!)
+      await livekit.updateRoomMetadata(roomId, { presenters })
       logger.info(`Added ${identity} to presenters in room ${roomId}`)
     }
   }
@@ -483,7 +490,7 @@ export function createCastComponent(
     const room = await livekit.getRoomInfo(roomId)
     const roomMeta = JSON.parse(room?.metadata || '{}')
     const presenters: string[] = (roomMeta.presenters || []).filter((id: string) => id !== identity)
-    await livekit.updateRoomMetadata(roomId, { presenters }, room!)
+    await livekit.updateRoomMetadata(roomId, { presenters })
     logger.info(`Removed ${identity} from presenters in room ${roomId}`)
   }
 

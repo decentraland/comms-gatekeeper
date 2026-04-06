@@ -44,6 +44,7 @@ describe('when managing presenters', () => {
 
   beforeEach(() => {
     mockLivekit = createLivekitMockedComponent({
+      getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
       getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
       updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
     })
@@ -79,7 +80,6 @@ describe('when managing presenters', () => {
       expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
         ROOM_ID,
         { presenters: [PARTICIPANT_IDENTITY] },
-        expect.any(Room)
       )
     })
 
@@ -100,7 +100,6 @@ describe('when managing presenters', () => {
       expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
         ROOM_ID,
         { presenters: [existingPresenter, PARTICIPANT_IDENTITY] },
-        expect.any(Room)
       )
     })
   })
@@ -112,7 +111,6 @@ describe('when managing presenters', () => {
       expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
         ROOM_ID,
         { presenters: [PARTICIPANT_IDENTITY] },
-        expect.any(Room)
       )
     })
 
@@ -140,7 +138,6 @@ describe('when managing presenters', () => {
       expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
         ROOM_ID,
         { presenters: ['0xother'] },
-        expect.any(Room)
       )
     })
 
