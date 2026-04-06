@@ -218,7 +218,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   const signedFetch = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: true,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'decentraland-kernel-scene'
+    metadataValidator: (metadata: Record<string, any>) => metadata.signer !== 'decentraland-kernel-scene'
   })
 
   const moderatorWrite = moderator.moderatorAuthMiddleware({ moderatorRequired: true })
