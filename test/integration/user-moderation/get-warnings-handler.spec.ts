@@ -36,7 +36,7 @@ test('GET /users/:address/warnings', ({ components }) => {
           const response = await makeRequest(
             components.localFetch,
             `/users/${targetAddress}/warnings`,
-            { method: 'GET' },
+            { method: 'GET', metadata: { signer: 'dcl:moderator' } },
             nonModeratorIdentity
           )
           expect(response.status).toBe(401)
@@ -59,7 +59,8 @@ test('GET /users/:address/warnings', ({ components }) => {
               `/users/${targetAddress}/warnings`,
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'Warning 1' })
+                body: JSON.stringify({ reason: 'Warning 1' }),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
@@ -68,7 +69,8 @@ test('GET /users/:address/warnings', ({ components }) => {
               `/users/${targetAddress}/warnings`,
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'Warning 2' })
+                body: JSON.stringify({ reason: 'Warning 2' }),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
@@ -78,7 +80,7 @@ test('GET /users/:address/warnings', ({ components }) => {
             const response = await makeRequest(
               components.localFetch,
               `/users/${targetAddress}/warnings`,
-              { method: 'GET' },
+              { method: 'GET', metadata: { signer: 'dcl:moderator' } },
               moderatorIdentity
             )
             expect(response.status).toBe(200)
@@ -92,7 +94,7 @@ test('GET /users/:address/warnings', ({ components }) => {
             const response = await makeRequest(
               components.localFetch,
               `/users/0x0000000000000000000000000000000000000099/warnings`,
-              { method: 'GET' },
+              { method: 'GET', metadata: { signer: 'dcl:moderator' } },
               moderatorIdentity
             )
             expect(response.status).toBe(200)

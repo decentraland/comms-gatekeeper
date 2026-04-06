@@ -30,7 +30,7 @@ test('GET /bans', ({ components }) => {
           const response = await makeRequest(
             components.localFetch,
             '/bans',
-            { method: 'GET' },
+            { method: 'GET', metadata: { signer: 'dcl:moderator' } },
             nonModeratorIdentity
           )
           expect(response.status).toBe(401)
@@ -51,7 +51,7 @@ test('GET /bans', ({ components }) => {
             const response = await makeRequest(
               components.localFetch,
               '/bans',
-              { method: 'GET' },
+              { method: 'GET', metadata: { signer: 'dcl:moderator' } },
               moderatorIdentity
             )
             expect(response.status).toBe(200)
@@ -67,7 +67,8 @@ test('GET /bans', ({ components }) => {
               '/users/0x0000000000000000000000000000000000000001/bans',
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'Ban 1' })
+                body: JSON.stringify({ reason: 'Ban 1' }),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
@@ -76,7 +77,8 @@ test('GET /bans', ({ components }) => {
               '/users/0x0000000000000000000000000000000000000002/bans',
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'Ban 2' })
+                body: JSON.stringify({ reason: 'Ban 2' }),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
@@ -86,7 +88,7 @@ test('GET /bans', ({ components }) => {
             const response = await makeRequest(
               components.localFetch,
               '/bans',
-              { method: 'GET' },
+              { method: 'GET', metadata: { signer: 'dcl:moderator' } },
               moderatorIdentity
             )
             expect(response.status).toBe(200)

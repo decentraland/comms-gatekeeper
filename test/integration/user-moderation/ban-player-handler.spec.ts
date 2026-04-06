@@ -40,7 +40,8 @@ test('POST /users/:address/bans', ({ components }) => {
             `/users/${targetAddress}/bans`,
             {
               method: 'POST',
-              body: JSON.stringify({ reason: 'test' })
+              body: JSON.stringify({ reason: 'test' }),
+              metadata: { signer: 'dcl:moderator' }
             },
             nonModeratorIdentity
           )
@@ -64,7 +65,8 @@ test('POST /users/:address/bans', ({ components }) => {
               `/users/${targetAddress}/bans`,
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'Spamming' })
+                body: JSON.stringify({ reason: 'Spamming' }),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
@@ -96,7 +98,8 @@ test('POST /users/:address/bans', ({ components }) => {
               `/users/${targetAddress}/bans`,
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'Temporary ban', duration: 3600000, customMessage: 'You have been temporarily banned' })
+                body: JSON.stringify({ reason: 'Temporary ban', duration: 3600000, customMessage: 'You have been temporarily banned' }),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
@@ -118,7 +121,8 @@ test('POST /users/:address/bans', ({ components }) => {
               `/users/${targetAddress}/bans`,
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'First ban' })
+                body: JSON.stringify({ reason: 'First ban' }),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
@@ -130,7 +134,8 @@ test('POST /users/:address/bans', ({ components }) => {
               `/users/${targetAddress}/bans`,
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'Second ban' })
+                body: JSON.stringify({ reason: 'Second ban' }),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
@@ -147,7 +152,8 @@ test('POST /users/:address/bans', ({ components }) => {
               `/users/${targetAddress}/bans`,
               {
                 method: 'POST',
-                body: JSON.stringify({})
+                body: JSON.stringify({}),
+                metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
             )
