@@ -95,7 +95,7 @@ export async function commsSceneHandler(
   }
 
   if (livekit.isLocalPreview(realmName)) {
-    room = `preview-${identity}`
+    room = `preview-${sceneId}`
 
     forPreview = true
   } else if (isWorld) {
