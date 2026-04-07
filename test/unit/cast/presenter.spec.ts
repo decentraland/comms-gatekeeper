@@ -25,12 +25,11 @@ describe('when managing presenters', () => {
   })
 
   describe('when adding a presenter', () => {
-    describe('and the room has no presenters', () => {
+    describe('and the room exists', () => {
       beforeEach(() => {
         mockLivekit = createLivekitMockedComponent({
           getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
-          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
-          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
+          appendToRoomMetadataArray: jest.fn().mockResolvedValue(undefined)
         })
 
         castComponent = createCastComponent({
@@ -43,76 +42,24 @@ describe('when managing presenters', () => {
         })
       })
 
-      it('should add the identity to the presenters array in room metadata', async () => {
+      it('should append the identity to the presenters array in room metadata', async () => {
         const identity = '0x1234567890abcdef1234567890abcdef12345678'
 
         await castComponent.addPresenter('scene-test:bafytest', identity)
 
-        expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith('scene-test:bafytest', {
-          presenters: [identity]
-        })
-      })
-    })
-
-    describe('and the room already has presenters', () => {
-      let existingPresenter: string
-
-      beforeEach(() => {
-        existingPresenter = '0xexistingaddress1234567890abcdef12345678'
-
-        mockLivekit = createLivekitMockedComponent({
-          getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([existingPresenter])),
-          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([existingPresenter])),
-          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
-        })
-
-        castComponent = createCastComponent({
-          livekit: mockLivekit,
-          logs: createLoggerMockedComponent(),
-          sceneStreamAccessManager: createSceneStreamAccessManagerMockedComponent(),
-          sceneManager: createSceneManagerMockedComponent(),
-          places: createPlacesMockedComponent(),
-          config: createConfigMockedComponent()
-        })
+        expect(mockLivekit.appendToRoomMetadataArray).toHaveBeenCalledWith(
+          'scene-test:bafytest',
+          'presenters',
+          identity
+        )
       })
 
-      it('should append to the existing presenters list', async () => {
-        const newIdentity = '0x1234567890abcdef1234567890abcdef12345678'
+      it('should ensure the room exists before appending', async () => {
+        const identity = '0x1234567890abcdef1234567890abcdef12345678'
 
-        await castComponent.addPresenter('scene-test:bafytest', newIdentity)
-
-        expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith('scene-test:bafytest', {
-          presenters: [existingPresenter, newIdentity]
-        })
-      })
-    })
-
-    describe('and the identity is already a presenter', () => {
-      let identity: string
-
-      beforeEach(() => {
-        identity = '0x1234567890abcdef1234567890abcdef12345678'
-
-        mockLivekit = createLivekitMockedComponent({
-          getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([identity])),
-          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([identity])),
-          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
-        })
-
-        castComponent = createCastComponent({
-          livekit: mockLivekit,
-          logs: createLoggerMockedComponent(),
-          sceneStreamAccessManager: createSceneStreamAccessManagerMockedComponent(),
-          sceneManager: createSceneManagerMockedComponent(),
-          places: createPlacesMockedComponent(),
-          config: createConfigMockedComponent()
-        })
-      })
-
-      it('should not duplicate the identity in the presenters list', async () => {
         await castComponent.addPresenter('scene-test:bafytest', identity)
 
-        expect(mockLivekit.updateRoomMetadata).not.toHaveBeenCalled()
+        expect(mockLivekit.getRoom).toHaveBeenCalledWith('scene-test:bafytest')
       })
     })
   })
@@ -122,8 +69,7 @@ describe('when managing presenters', () => {
       beforeEach(() => {
         mockLivekit = createLivekitMockedComponent({
           getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
-          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
-          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
+          appendToRoomMetadataArray: jest.fn().mockResolvedValue(undefined)
         })
 
         mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
@@ -153,14 +99,16 @@ describe('when managing presenters', () => {
         })
       })
 
-      it('should add the participant to the presenters list in room metadata', async () => {
+      it('should append the participant to the presenters list in room metadata', async () => {
         const participantIdentity = '0x1234567890abcdef1234567890abcdef12345678'
 
         await castComponent.promotePresenter('scene-test:bafytest', participantIdentity, '0xadmin')
 
-        expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith('scene-test:bafytest', {
-          presenters: [participantIdentity]
-        })
+        expect(mockLivekit.appendToRoomMetadataArray).toHaveBeenCalledWith(
+          'scene-test:bafytest',
+          'presenters',
+          participantIdentity
+        )
       })
     })
 
@@ -226,15 +174,9 @@ describe('when managing presenters', () => {
 
   describe('when demoting a presenter', () => {
     describe('and the caller is an admin', () => {
-      let participantIdentity: string
-
       beforeEach(() => {
-        participantIdentity = '0x1234567890abcdef1234567890abcdef12345678'
-
         mockLivekit = createLivekitMockedComponent({
-          getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([participantIdentity, '0xother'])),
-          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([participantIdentity, '0xother'])),
-          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
+          removeFromRoomMetadataArray: jest.fn().mockResolvedValue(undefined)
         })
 
         mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
@@ -265,11 +207,15 @@ describe('when managing presenters', () => {
       })
 
       it('should remove the participant from the presenters list', async () => {
+        const participantIdentity = '0x1234567890abcdef1234567890abcdef12345678'
+
         await castComponent.demotePresenter('scene-test:bafytest', participantIdentity, '0xadmin')
 
-        expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith('scene-test:bafytest', {
-          presenters: ['0xother']
-        })
+        expect(mockLivekit.removeFromRoomMetadataArray).toHaveBeenCalledWith(
+          'scene-test:bafytest',
+          'presenters',
+          participantIdentity
+        )
       })
     })
 

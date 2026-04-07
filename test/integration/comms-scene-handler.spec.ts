@@ -384,9 +384,6 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       })
 
       it('should add admin as presenter in room metadata', async () => {
-        stubComponents.livekit.getRoomInfo.resolves(new Room({ metadata: JSON.stringify({ presenters: [] }) }))
-        stubComponents.livekit.updateRoomMetadata.resolves()
-
         const response = await makeRequest(
           components.localFetch,
           '/get-scene-adapter',
@@ -398,10 +395,11 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         )
 
         expect(response.status).toBe(200)
-        expect(stubComponents.livekit.updateRoomMetadata.calledOnce).toBe(true)
-        const updateCall = stubComponents.livekit.updateRoomMetadata.firstCall
-        expect(updateCall.args[0]).toBe('world-prd-scene-room-test-world.eth-bafytest123')
-        expect(updateCall.args[1]).toEqual({ presenters: [owner.authChain[0].payload] })
+        expect(stubComponents.livekit.appendToRoomMetadataArray.calledOnce).toBe(true)
+        const appendCall = stubComponents.livekit.appendToRoomMetadataArray.firstCall
+        expect(appendCall.args[0]).toBe('world-prd-scene-room-test-world.eth-bafytest123')
+        expect(appendCall.args[1]).toBe('presenters')
+        expect(appendCall.args[2]).toBe(owner.authChain[0].payload)
       })
     })
 
@@ -442,7 +440,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         )
 
         expect(response.status).toBe(200)
-        expect(stubComponents.livekit.updateRoomMetadata.called).toBe(false)
+        expect(stubComponents.livekit.appendToRoomMetadataArray.called).toBe(false)
       })
     })
 
@@ -478,7 +476,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         )
 
         expect(response.status).toBe(200)
-        expect(stubComponents.livekit.updateRoomMetadata.called).toBe(false)
+        expect(stubComponents.livekit.appendToRoomMetadataArray.called).toBe(false)
       })
     })
 

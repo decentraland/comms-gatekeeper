@@ -48,6 +48,8 @@ export const createLivekitMockedComponent = (
     updateParticipantMetadata: jest.fn(),
     updateParticipantPermissions: jest.fn(),
     updateRoomMetadata: jest.fn(),
+    appendToRoomMetadataArray: jest.fn().mockResolvedValue(undefined),
+    removeFromRoomMetadataArray: jest.fn().mockResolvedValue(undefined),
     removeParticipantFromAllRooms: jest.fn(),
     start: jest.fn(),
     stop: jest.fn(),
