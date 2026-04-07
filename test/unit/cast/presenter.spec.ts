@@ -9,12 +9,6 @@ import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-moc
 import { createPlacesMockedComponent, createMockedPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
 
-const ROOM_ID = 'scene-test-realm:bafkreiscene123'
-const PLACE_ID = 'place-123'
-const ADMIN_ADDRESS = '0xadmin'
-const NON_ADMIN_ADDRESS = '0xnobody'
-const PARTICIPANT_IDENTITY = '0x1234567890abcdef1234567890abcdef12345678'
-
 function createRoomWithPresenters(presenters: string[]): Room {
   return new Room({ metadata: JSON.stringify({ presenters }) })
 }
@@ -26,155 +20,455 @@ describe('when managing presenters', () => {
   let mockSceneManager: ReturnType<typeof createSceneManagerMockedComponent>
   let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
 
-  const mockPlace = createMockedPlace({ id: PLACE_ID, title: 'Test Place', owner: '0xowner123' })
+  afterEach(() => {
+    jest.resetAllMocks()
+  })
 
-  const validStreamAccess = {
-    id: 'access-123',
-    place_id: PLACE_ID,
-    streaming_key: 'valid-stream-key',
-    streaming_url: 'rtmp://test-url',
-    ingress_id: 'test-ingress-id',
-    created_at: Date.now(),
-    active: true,
-    streaming: false,
-    streaming_start_time: 0,
-    room_id: ROOM_ID,
-    expiration_time: String(Date.now() + 2 * 24 * 60 * 60 * 1000)
-  }
+  describe('when adding a presenter', () => {
+    describe('and the room has no presenters', () => {
+      beforeEach(() => {
+        mockLivekit = createLivekitMockedComponent({
+          getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
+          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
+          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
+        })
 
-  beforeEach(() => {
-    mockLivekit = createLivekitMockedComponent({
-      getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
-      getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
-      updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
+        castComponent = createCastComponent({
+          livekit: mockLivekit,
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: createSceneStreamAccessManagerMockedComponent(),
+          sceneManager: createSceneManagerMockedComponent(),
+          places: createPlacesMockedComponent(),
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should add the identity to the presenters array in room metadata', async () => {
+        const identity = '0x1234567890abcdef1234567890abcdef12345678'
+
+        await castComponent.addPresenter('scene-test:bafytest', identity)
+
+        expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith('scene-test:bafytest', {
+          presenters: [identity]
+        })
+      })
     })
 
-    mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
-      getAccessByRoomId: jest.fn().mockResolvedValue(validStreamAccess)
+    describe('and the room already has presenters', () => {
+      let existingPresenter: string
+
+      beforeEach(() => {
+        existingPresenter = '0xexistingaddress1234567890abcdef12345678'
+
+        mockLivekit = createLivekitMockedComponent({
+          getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([existingPresenter])),
+          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([existingPresenter])),
+          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
+        })
+
+        castComponent = createCastComponent({
+          livekit: mockLivekit,
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: createSceneStreamAccessManagerMockedComponent(),
+          sceneManager: createSceneManagerMockedComponent(),
+          places: createPlacesMockedComponent(),
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should append to the existing presenters list', async () => {
+        const newIdentity = '0x1234567890abcdef1234567890abcdef12345678'
+
+        await castComponent.addPresenter('scene-test:bafytest', newIdentity)
+
+        expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith('scene-test:bafytest', {
+          presenters: [existingPresenter, newIdentity]
+        })
+      })
     })
 
-    mockSceneManager = createSceneManagerMockedComponent({
-      isSceneOwnerOrAdmin: jest.fn().mockImplementation((_place, address) =>
-        Promise.resolve(address.toLowerCase() === ADMIN_ADDRESS)
-      )
-    })
+    describe('and the identity is already a presenter', () => {
+      let identity: string
 
-    mockPlaces = createPlacesMockedComponent({
-      getPlaceStatusByIds: jest.fn().mockResolvedValue([mockPlace])
-    })
+      beforeEach(() => {
+        identity = '0x1234567890abcdef1234567890abcdef12345678'
 
-    castComponent = createCastComponent({
-      livekit: mockLivekit,
-      logs: createLoggerMockedComponent(),
-      sceneStreamAccessManager: mockSceneStreamAccessManager,
-      sceneManager: mockSceneManager,
-      places: mockPlaces,
-      config: createConfigMockedComponent()
+        mockLivekit = createLivekitMockedComponent({
+          getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([identity])),
+          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([identity])),
+          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
+        })
+
+        castComponent = createCastComponent({
+          livekit: mockLivekit,
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: createSceneStreamAccessManagerMockedComponent(),
+          sceneManager: createSceneManagerMockedComponent(),
+          places: createPlacesMockedComponent(),
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should not duplicate the identity in the presenters list', async () => {
+        await castComponent.addPresenter('scene-test:bafytest', identity)
+
+        expect(mockLivekit.updateRoomMetadata).not.toHaveBeenCalled()
+      })
     })
   })
 
-  describe('addPresenter', () => {
-    it('should add identity to presenters array in room metadata', async () => {
-      await castComponent.addPresenter(ROOM_ID, PARTICIPANT_IDENTITY)
+  describe('when promoting a presenter', () => {
+    describe('and the caller is an admin', () => {
+      beforeEach(() => {
+        mockLivekit = createLivekitMockedComponent({
+          getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
+          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
+          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
+        })
 
-      expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
-        ROOM_ID,
-        { presenters: [PARTICIPANT_IDENTITY] },
-      )
+        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+          getAccessByRoomId: jest.fn().mockResolvedValue({
+            place_id: 'place-123',
+            room_id: 'scene-test:bafytest'
+          })
+        })
+
+        mockPlaces = createPlacesMockedComponent({
+          getPlaceStatusByIds: jest
+            .fn()
+            .mockResolvedValue([createMockedPlace({ id: 'place-123', title: 'Test', owner: '0xowner' })])
+        })
+
+        mockSceneManager = createSceneManagerMockedComponent({
+          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(true)
+        })
+
+        castComponent = createCastComponent({
+          livekit: mockLivekit,
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: mockSceneStreamAccessManager,
+          sceneManager: mockSceneManager,
+          places: mockPlaces,
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should add the participant to the presenters list in room metadata', async () => {
+        const participantIdentity = '0x1234567890abcdef1234567890abcdef12345678'
+
+        await castComponent.promotePresenter('scene-test:bafytest', participantIdentity, '0xadmin')
+
+        expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith('scene-test:bafytest', {
+          presenters: [participantIdentity]
+        })
+      })
     })
 
-    it('should not duplicate when identity is already a presenter', async () => {
-      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([PARTICIPANT_IDENTITY]))
+    describe('and the caller is not an admin', () => {
+      beforeEach(() => {
+        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+          getAccessByRoomId: jest.fn().mockResolvedValue({
+            place_id: 'place-123',
+            room_id: 'scene-test:bafytest'
+          })
+        })
 
-      await castComponent.addPresenter(ROOM_ID, PARTICIPANT_IDENTITY)
+        mockPlaces = createPlacesMockedComponent({
+          getPlaceStatusByIds: jest
+            .fn()
+            .mockResolvedValue([createMockedPlace({ id: 'place-123', title: 'Test', owner: '0xowner' })])
+        })
 
-      expect(mockLivekit.updateRoomMetadata).not.toHaveBeenCalled()
+        mockSceneManager = createSceneManagerMockedComponent({
+          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(false)
+        })
+
+        castComponent = createCastComponent({
+          livekit: createLivekitMockedComponent(),
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: mockSceneStreamAccessManager,
+          sceneManager: mockSceneManager,
+          places: mockPlaces,
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should throw a NotSceneAdminError', async () => {
+        await expect(
+          castComponent.promotePresenter('scene-test:bafytest', '0x1234567890abcdef1234567890abcdef12345678', '0xnobody')
+        ).rejects.toThrow(NotSceneAdminError)
+      })
     })
 
-    it('should append to existing presenters', async () => {
-      const existingPresenter = '0xexisting'
-      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([existingPresenter]))
+    describe('and no active stream exists for the room', () => {
+      beforeEach(() => {
+        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+          getAccessByRoomId: jest.fn().mockResolvedValue(null)
+        })
 
-      await castComponent.addPresenter(ROOM_ID, PARTICIPANT_IDENTITY)
+        castComponent = createCastComponent({
+          livekit: createLivekitMockedComponent(),
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: mockSceneStreamAccessManager,
+          sceneManager: createSceneManagerMockedComponent(),
+          places: createPlacesMockedComponent(),
+          config: createConfigMockedComponent()
+        })
+      })
 
-      expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
-        ROOM_ID,
-        { presenters: [existingPresenter, PARTICIPANT_IDENTITY] },
-      )
+      it('should throw a NoActiveStreamError', async () => {
+        await expect(
+          castComponent.promotePresenter('scene-test:bafytest', '0x1234567890abcdef1234567890abcdef12345678', '0xadmin')
+        ).rejects.toThrow(NoActiveStreamError)
+      })
     })
   })
 
-  describe('promotePresenter', () => {
-    it('should add identity to room metadata presenters when called by an admin', async () => {
-      await castComponent.promotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, ADMIN_ADDRESS)
+  describe('when demoting a presenter', () => {
+    describe('and the caller is an admin', () => {
+      let participantIdentity: string
 
-      expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
-        ROOM_ID,
-        { presenters: [PARTICIPANT_IDENTITY] },
-      )
+      beforeEach(() => {
+        participantIdentity = '0x1234567890abcdef1234567890abcdef12345678'
+
+        mockLivekit = createLivekitMockedComponent({
+          getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([participantIdentity, '0xother'])),
+          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([participantIdentity, '0xother'])),
+          updateRoomMetadata: jest.fn().mockResolvedValue(undefined)
+        })
+
+        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+          getAccessByRoomId: jest.fn().mockResolvedValue({
+            place_id: 'place-123',
+            room_id: 'scene-test:bafytest'
+          })
+        })
+
+        mockPlaces = createPlacesMockedComponent({
+          getPlaceStatusByIds: jest
+            .fn()
+            .mockResolvedValue([createMockedPlace({ id: 'place-123', title: 'Test', owner: '0xowner' })])
+        })
+
+        mockSceneManager = createSceneManagerMockedComponent({
+          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(true)
+        })
+
+        castComponent = createCastComponent({
+          livekit: mockLivekit,
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: mockSceneStreamAccessManager,
+          sceneManager: mockSceneManager,
+          places: mockPlaces,
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should remove the participant from the presenters list', async () => {
+        await castComponent.demotePresenter('scene-test:bafytest', participantIdentity, '0xadmin')
+
+        expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith('scene-test:bafytest', {
+          presenters: ['0xother']
+        })
+      })
     })
 
-    it('should throw NotSceneAdminError when called by a non-admin', async () => {
-      await expect(
-        castComponent.promotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, NON_ADMIN_ADDRESS)
-      ).rejects.toThrow(NotSceneAdminError)
-    })
+    describe('and the caller is not an admin', () => {
+      beforeEach(() => {
+        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+          getAccessByRoomId: jest.fn().mockResolvedValue({
+            place_id: 'place-123',
+            room_id: 'scene-test:bafytest'
+          })
+        })
 
-    it('should throw NoActiveStreamError when room does not exist', async () => {
-      mockSceneStreamAccessManager.getAccessByRoomId.mockResolvedValue(null)
+        mockPlaces = createPlacesMockedComponent({
+          getPlaceStatusByIds: jest
+            .fn()
+            .mockResolvedValue([createMockedPlace({ id: 'place-123', title: 'Test', owner: '0xowner' })])
+        })
 
-      await expect(
-        castComponent.promotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, ADMIN_ADDRESS)
-      ).rejects.toThrow(NoActiveStreamError)
+        mockSceneManager = createSceneManagerMockedComponent({
+          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(false)
+        })
+
+        castComponent = createCastComponent({
+          livekit: createLivekitMockedComponent(),
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: mockSceneStreamAccessManager,
+          sceneManager: mockSceneManager,
+          places: mockPlaces,
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should throw a NotSceneAdminError', async () => {
+        await expect(
+          castComponent.demotePresenter('scene-test:bafytest', '0x1234567890abcdef1234567890abcdef12345678', '0xnobody')
+        ).rejects.toThrow(NotSceneAdminError)
+      })
     })
   })
 
-  describe('demotePresenter', () => {
-    it('should remove identity from room metadata presenters when called by an admin', async () => {
-      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([PARTICIPANT_IDENTITY, '0xother']))
+  describe('when getting presenters', () => {
+    describe('and the room has presenters', () => {
+      let presenterIdentity: string
 
-      await castComponent.demotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, ADMIN_ADDRESS)
+      beforeEach(() => {
+        presenterIdentity = '0x1234567890abcdef1234567890abcdef12345678'
 
-      expect(mockLivekit.updateRoomMetadata).toHaveBeenCalledWith(
-        ROOM_ID,
-        { presenters: ['0xother'] },
-      )
+        mockLivekit = createLivekitMockedComponent({
+          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([presenterIdentity]))
+        })
+
+        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+          getAccessByRoomId: jest.fn().mockResolvedValue({
+            place_id: 'place-123',
+            room_id: 'scene-test:bafytest'
+          })
+        })
+
+        mockPlaces = createPlacesMockedComponent({
+          getPlaceStatusByIds: jest
+            .fn()
+            .mockResolvedValue([createMockedPlace({ id: 'place-123', title: 'Test', owner: '0xowner' })])
+        })
+
+        mockSceneManager = createSceneManagerMockedComponent({
+          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(true)
+        })
+
+        castComponent = createCastComponent({
+          livekit: mockLivekit,
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: mockSceneStreamAccessManager,
+          sceneManager: mockSceneManager,
+          places: mockPlaces,
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should return the presenters list from room metadata', async () => {
+        const result = await castComponent.getPresenters('scene-test:bafytest', '0xadmin')
+
+        expect(result.presenters).toEqual([presenterIdentity])
+      })
     })
 
-    it('should throw NotSceneAdminError when called by a non-admin', async () => {
-      await expect(
-        castComponent.demotePresenter(ROOM_ID, PARTICIPANT_IDENTITY, NON_ADMIN_ADDRESS)
-      ).rejects.toThrow(NotSceneAdminError)
+    describe('and the room has no presenters', () => {
+      beforeEach(() => {
+        mockLivekit = createLivekitMockedComponent({
+          getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([]))
+        })
+
+        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+          getAccessByRoomId: jest.fn().mockResolvedValue({
+            place_id: 'place-123',
+            room_id: 'scene-test:bafytest'
+          })
+        })
+
+        mockPlaces = createPlacesMockedComponent({
+          getPlaceStatusByIds: jest
+            .fn()
+            .mockResolvedValue([createMockedPlace({ id: 'place-123', title: 'Test', owner: '0xowner' })])
+        })
+
+        mockSceneManager = createSceneManagerMockedComponent({
+          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(true)
+        })
+
+        castComponent = createCastComponent({
+          livekit: mockLivekit,
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: mockSceneStreamAccessManager,
+          sceneManager: mockSceneManager,
+          places: mockPlaces,
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should return an empty array', async () => {
+        const result = await castComponent.getPresenters('scene-test:bafytest', '0xadmin')
+
+        expect(result.presenters).toEqual([])
+      })
     })
-  })
 
-  describe('getPresenters', () => {
-    it('should return presenters from room metadata', async () => {
-      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([PARTICIPANT_IDENTITY]))
+    describe('and the room has no metadata', () => {
+      beforeEach(() => {
+        mockLivekit = createLivekitMockedComponent({
+          getRoomInfo: jest.fn().mockResolvedValue(new Room())
+        })
 
-      const result = await castComponent.getPresenters(ROOM_ID, ADMIN_ADDRESS)
+        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+          getAccessByRoomId: jest.fn().mockResolvedValue({
+            place_id: 'place-123',
+            room_id: 'scene-test:bafytest'
+          })
+        })
 
-      expect(result.presenters).toEqual([PARTICIPANT_IDENTITY])
+        mockPlaces = createPlacesMockedComponent({
+          getPlaceStatusByIds: jest
+            .fn()
+            .mockResolvedValue([createMockedPlace({ id: 'place-123', title: 'Test', owner: '0xowner' })])
+        })
+
+        mockSceneManager = createSceneManagerMockedComponent({
+          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(true)
+        })
+
+        castComponent = createCastComponent({
+          livekit: mockLivekit,
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: mockSceneStreamAccessManager,
+          sceneManager: mockSceneManager,
+          places: mockPlaces,
+          config: createConfigMockedComponent()
+        })
+      })
+
+      it('should return an empty array', async () => {
+        const result = await castComponent.getPresenters('scene-test:bafytest', '0xadmin')
+
+        expect(result.presenters).toEqual([])
+      })
     })
 
-    it('should return empty array when no presenters in room metadata', async () => {
-      mockLivekit.getRoomInfo.mockResolvedValue(createRoomWithPresenters([]))
+    describe('and the caller is not an admin', () => {
+      beforeEach(() => {
+        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+          getAccessByRoomId: jest.fn().mockResolvedValue({
+            place_id: 'place-123',
+            room_id: 'scene-test:bafytest'
+          })
+        })
 
-      const result = await castComponent.getPresenters(ROOM_ID, ADMIN_ADDRESS)
+        mockPlaces = createPlacesMockedComponent({
+          getPlaceStatusByIds: jest
+            .fn()
+            .mockResolvedValue([createMockedPlace({ id: 'place-123', title: 'Test', owner: '0xowner' })])
+        })
 
-      expect(result.presenters).toEqual([])
-    })
+        mockSceneManager = createSceneManagerMockedComponent({
+          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(false)
+        })
 
-    it('should return empty array when room has no metadata', async () => {
-      mockLivekit.getRoomInfo.mockResolvedValue(new Room())
+        castComponent = createCastComponent({
+          livekit: createLivekitMockedComponent(),
+          logs: createLoggerMockedComponent(),
+          sceneStreamAccessManager: mockSceneStreamAccessManager,
+          sceneManager: mockSceneManager,
+          places: mockPlaces,
+          config: createConfigMockedComponent()
+        })
+      })
 
-      const result = await castComponent.getPresenters(ROOM_ID, ADMIN_ADDRESS)
-
-      expect(result.presenters).toEqual([])
-    })
-
-    it('should throw NotSceneAdminError when called by a non-admin', async () => {
-      await expect(castComponent.getPresenters(ROOM_ID, NON_ADMIN_ADDRESS)).rejects.toThrow(NotSceneAdminError)
+      it('should throw a NotSceneAdminError', async () => {
+        await expect(castComponent.getPresenters('scene-test:bafytest', '0xnobody')).rejects.toThrow(
+          NotSceneAdminError
+        )
+      })
     })
   })
 })

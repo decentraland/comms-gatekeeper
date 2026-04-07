@@ -2,8 +2,8 @@ import { test } from '../../components'
 import { makeRequest, owner } from '../../utils'
 import { NotSceneAdminError } from '../../../src/logic/cast/errors'
 
-test('Cast: Presenter Handler', function ({ components, spyComponents }) {
-  const participantIdentity = '0x1234567890abcdef1234567890abcdef12345678'
+test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
+  const validAddress = '0x1234567890abcdef1234567890abcdef12345678'
 
   const metadata = {
     sceneId: 'bafytest123',
@@ -15,63 +15,52 @@ test('Cast: Presenter Handler', function ({ components, spyComponents }) {
     parcel: '10,20'
   }
 
-  describe('GET /cast/presenters', () => {
-    describe('when the caller is a scene admin', () => {
+  afterEach(() => {
+    jest.resetAllMocks()
+  })
+
+  describe('when getting presenters', () => {
+    describe('and the caller is a scene admin', () => {
       beforeEach(() => {
-        spyComponents.cast.getPresenters.mockResolvedValue({
-          presenters: [participantIdentity]
+        spyComponents.cast.getPresenters.mockResolvedValueOnce({
+          presenters: [validAddress]
         })
       })
 
-      it('should return the list of presenters', async () => {
-        const response = await makeRequest(
-          components.localFetch,
-          '/cast/presenters',
-          { method: 'GET', metadata },
-          owner
-        )
+      it('should respond with 200 and the presenters list', async () => {
+        const response = await makeRequest(components.localFetch, '/cast/presenters', { method: 'GET', metadata }, owner)
 
         const body = await response.json()
 
         expect(response.status).toBe(200)
-        expect(body.presenters).toEqual([participantIdentity])
+        expect(body.presenters).toEqual([validAddress])
       })
     })
 
-    describe('when the caller is not an admin', () => {
+    describe('and the caller is not an admin', () => {
       beforeEach(() => {
-        spyComponents.cast.getPresenters.mockRejectedValue(
-          new NotSceneAdminError('Only scene administrators can manage presenters')
-        )
+        spyComponents.cast.getPresenters.mockRejectedValueOnce(new NotSceneAdminError())
       })
 
-      it('should return 401', async () => {
-        const response = await makeRequest(
-          components.localFetch,
-          '/cast/presenters',
-          { method: 'GET', metadata },
-          owner
-        )
+      it('should respond with 401', async () => {
+        const response = await makeRequest(components.localFetch, '/cast/presenters', { method: 'GET', metadata }, owner)
 
         expect(response.status).toBe(401)
       })
     })
   })
 
-  describe('PUT /cast/presenters/:participantIdentity', () => {
-    describe('when the caller is a scene admin', () => {
+  describe('when promoting a presenter', () => {
+    describe('and the caller is a scene admin', () => {
       beforeEach(() => {
-        spyComponents.cast.promotePresenter.mockResolvedValue(undefined)
+        spyComponents.cast.promotePresenter.mockResolvedValueOnce(undefined)
       })
 
-      it('should promote the participant to presenter', async () => {
+      it('should respond with 200 and a success message', async () => {
         const response = await makeRequest(
           components.localFetch,
-          `/cast/presenters/${participantIdentity}`,
-          {
-            method: 'PUT',
-            metadata
-          },
+          `/cast/presenters/${validAddress}`,
+          { method: 'PUT', metadata },
           owner
         )
 
@@ -82,21 +71,16 @@ test('Cast: Presenter Handler', function ({ components, spyComponents }) {
       })
     })
 
-    describe('when the caller is not an admin', () => {
+    describe('and the caller is not an admin', () => {
       beforeEach(() => {
-        spyComponents.cast.promotePresenter.mockRejectedValue(
-          new NotSceneAdminError('Only scene administrators can manage presenters')
-        )
+        spyComponents.cast.promotePresenter.mockRejectedValueOnce(new NotSceneAdminError())
       })
 
-      it('should return 401', async () => {
+      it('should respond with 401', async () => {
         const response = await makeRequest(
           components.localFetch,
-          `/cast/presenters/${participantIdentity}`,
-          {
-            method: 'PUT',
-            metadata
-          },
+          `/cast/presenters/${validAddress}`,
+          { method: 'PUT', metadata },
           owner
         )
 
@@ -104,15 +88,12 @@ test('Cast: Presenter Handler', function ({ components, spyComponents }) {
       })
     })
 
-    describe('when the participantIdentity is not a valid Ethereum address', () => {
-      it('should return 400', async () => {
+    describe('and the participantIdentity is not a valid Ethereum address', () => {
+      it('should respond with 400', async () => {
         const response = await makeRequest(
           components.localFetch,
           '/cast/presenters/not-an-address',
-          {
-            method: 'PUT',
-            metadata
-          },
+          { method: 'PUT', metadata },
           owner
         )
 
@@ -121,20 +102,17 @@ test('Cast: Presenter Handler', function ({ components, spyComponents }) {
     })
   })
 
-  describe('DELETE /cast/presenters/:participantIdentity', () => {
-    describe('when the caller is a scene admin', () => {
+  describe('when demoting a presenter', () => {
+    describe('and the caller is a scene admin', () => {
       beforeEach(() => {
-        spyComponents.cast.demotePresenter.mockResolvedValue(undefined)
+        spyComponents.cast.demotePresenter.mockResolvedValueOnce(undefined)
       })
 
-      it('should demote the participant from presenter', async () => {
+      it('should respond with 200 and a success message', async () => {
         const response = await makeRequest(
           components.localFetch,
-          `/cast/presenters/${participantIdentity}`,
-          {
-            method: 'DELETE',
-            metadata
-          },
+          `/cast/presenters/${validAddress}`,
+          { method: 'DELETE', metadata },
           owner
         )
 
@@ -145,25 +123,33 @@ test('Cast: Presenter Handler', function ({ components, spyComponents }) {
       })
     })
 
-    describe('when the caller is not an admin', () => {
+    describe('and the caller is not an admin', () => {
       beforeEach(() => {
-        spyComponents.cast.demotePresenter.mockRejectedValue(
-          new NotSceneAdminError('Only scene administrators can manage presenters')
-        )
+        spyComponents.cast.demotePresenter.mockRejectedValueOnce(new NotSceneAdminError())
       })
 
-      it('should return 401', async () => {
+      it('should respond with 401', async () => {
         const response = await makeRequest(
           components.localFetch,
-          `/cast/presenters/${participantIdentity}`,
-          {
-            method: 'DELETE',
-            metadata
-          },
+          `/cast/presenters/${validAddress}`,
+          { method: 'DELETE', metadata },
           owner
         )
 
         expect(response.status).toBe(401)
+      })
+    })
+
+    describe('and the participantIdentity is not a valid Ethereum address', () => {
+      it('should respond with 400', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/cast/presenters/invalid-address',
+          { method: 'DELETE', metadata },
+          owner
+        )
+
+        expect(response.status).toBe(400)
       })
     })
   })

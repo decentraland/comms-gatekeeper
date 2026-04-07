@@ -132,8 +132,7 @@ describe('SceneBanComponent', () => {
           'scene-test-realm:test-scene',
           {
             bannedAddresses: ['0x1234567890123456789012345678901234567890']
-          },
-          undefined
+          }
         )
       })
 
@@ -205,8 +204,7 @@ describe('SceneBanComponent', () => {
           'world-test-world.dcl.eth',
           {
             bannedAddresses: ['0x1234567890123456789012345678901234567890']
-          },
-          undefined
+          }
         )
       })
 
@@ -287,8 +285,7 @@ describe('SceneBanComponent', () => {
           'scene-test-realm:test-scene',
           {
             bannedAddresses: ['0x1234567890123456789012345678901234567890']
-          },
-          undefined
+          }
         )
       })
 
@@ -566,8 +563,7 @@ describe('SceneBanComponent', () => {
           'scene-test-realm:test-scene',
           {
             bannedAddresses: []
-          },
-          undefined
+          }
         )
       })
 
@@ -633,8 +629,7 @@ describe('SceneBanComponent', () => {
           'world-test-world.dcl.eth',
           {
             bannedAddresses: []
-          },
-          undefined
+          }
         )
       })
 
@@ -698,8 +693,7 @@ describe('SceneBanComponent', () => {
           'scene-test-realm:test-scene',
           {
             bannedAddresses: []
-          },
-          undefined
+          }
         )
       })
 
@@ -2014,8 +2008,7 @@ describe('SceneBanComponent', () => {
       it('should update room metadata with the banned addresses', () => {
         expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
           'test-room-name',
-          { bannedAddresses: ['0x123', '0x456'] },
-          mockRoom
+          { bannedAddresses: ['0x123', '0x456'] }
         )
       })
     })
@@ -2048,8 +2041,7 @@ describe('SceneBanComponent', () => {
       it('should update room metadata with the banned addresses', () => {
         expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
           'test-room-name',
-          { bannedAddresses: ['0x123', '0x456'] },
-          mockRoom
+          { bannedAddresses: ['0x123', '0x456'] }
         )
       })
     })
@@ -2082,8 +2074,7 @@ describe('SceneBanComponent', () => {
       it('should update room metadata with the banned addresses', () => {
         expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
           'test-room-name',
-          { bannedAddresses: ['0x123', '0x456'] },
-          mockRoom
+          { bannedAddresses: ['0x123', '0x456'] }
         )
       })
     })
@@ -2142,8 +2133,7 @@ describe('SceneBanComponent', () => {
       it('should update room metadata with an empty banned addresses array', () => {
         expect(livekitMockedComponent.updateRoomMetadata).toHaveBeenCalledWith(
           'test-room-name',
-          { bannedAddresses: [] },
-          mockRoom
+          { bannedAddresses: [] }
         )
       })
     })
