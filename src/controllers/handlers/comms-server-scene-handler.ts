@@ -41,7 +41,7 @@ export async function commsServerSceneHandler(
   }
 
   if (livekit.isLocalPreview(realmName)) {
-    room = `preview-${identity}`
+    room = `preview-${sceneId}`
   } else if (isWorld) {
     // The caller may send the world name as the sceneId instead of the content hash.
     // Resolve the real sceneId from the world's about endpoint to ensure the room name
