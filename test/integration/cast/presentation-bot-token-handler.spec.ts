@@ -33,17 +33,6 @@ test('Cast: Presentation Bot Token Handler', function ({ components, spyComponen
       expect(body.url).toBe(mockResult.url)
       expect(body.token).toBe(mockResult.token)
       expect(body.roomId).toBe(mockResult.roomId)
-    })
-
-    it('should call generatePresentationBotToken with the streaming key', async () => {
-      spyComponents.cast.generatePresentationBotToken.mockResolvedValueOnce(mockResult)
-
-      await makeRequest(components.localFetch, '/cast/presentation-bot-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ streamingKey: 'valid-stream-key-123' })
-      })
-
       expect(spyComponents.cast.generatePresentationBotToken).toHaveBeenCalledWith('valid-stream-key-123')
     })
   })

@@ -434,7 +434,14 @@ export async function createLivekitComponent(
     }
   }
 
-  async function updateRoomMetadata(roomId: string, metadata: Record<string, unknown>, _room?: Room): Promise<void> {
+  /**
+   * Merges the provided metadata keys into the room's existing metadata and writes back.
+   * Serialized per-room via withRoomMetadataLock to prevent concurrent overwrites.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param metadata - Key-value pairs to merge into existing room metadata
+   */
+  async function updateRoomMetadata(roomId: string, metadata: Record<string, unknown>): Promise<void> {
     await withRoomMetadataLock(roomId, async () => {
       try {
         const roomInfo = await getRoomInfo(roomId)
