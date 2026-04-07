@@ -267,10 +267,8 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(response.status).toBe(200)
   })
 
-  it('returns 401 when user is not authorized', async () => {
+  it('returns 200 when user is not an admin (endpoint is public for all authenticated participants)', async () => {
     const { localFetch } = components
-
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
 
     const response = await makeRequest(
       localFetch,
@@ -282,9 +280,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       nonOwner
     )
 
-    expect(response.status).toBe(401)
-    const body = await response.json()
-    expect(body).toHaveProperty('error')
+    expect(response.status).toBe(200)
   })
 
   it('returns 404 when place is not found', async () => {
@@ -908,11 +904,10 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey)
     })
 
-    it('should return 401 even with server public key configured', async () => {
+    it('should return 200 even for non-server non-admin users (endpoint is public)', async () => {
       const { localFetch } = components
 
-      // User is NOT the server and is NOT owner/admin
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+      stubComponents.landLease.getAuthorizations.resolves({ authorizations: [] })
 
       const response = await makeRequest(
         localFetch,
@@ -921,12 +916,10 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
           method: 'GET',
           metadata: metadataLand
         },
-        nonOwner // nonOwner's address doesn't match serverPublicKey
+        nonOwner
       )
 
-      expect(response.status).toBe(401)
-      // Verify isSceneOwnerOrAdmin WAS called since this is a regular user
-      expect(stubComponents.sceneManager.isSceneOwnerOrAdmin.called).toBe(true)
+      expect(response.status).toBe(200)
     })
   })
 })

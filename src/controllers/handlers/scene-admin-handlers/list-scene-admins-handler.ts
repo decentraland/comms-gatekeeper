@@ -7,21 +7,20 @@ import { PlaceAttributes } from '../../../types/places.type'
 export async function listSceneAdminsHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'names' | 'sceneAdmins' | 'landLease',
+      'logs' | 'config' | 'fetch' | 'places' | 'names' | 'sceneAdmins' | 'landLease',
       '/scene-admin'
     >,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, config, sceneManager, places, names, sceneAdmins, landLease },
+    components: { logs, config, places, names, sceneAdmins, landLease },
     url,
     verification
   } = ctx
 
   const logger = logs.getLogger('list-scene-admins-handler')
   const { getWorldScenePlace, getPlaceByParcel } = places
-  const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
@@ -47,15 +46,9 @@ export async function listSceneAdminsHandler(
     place = await getPlaceByParcel(parcel)
   }
 
-  // Skip admin check if request comes from authoritative server identity
-  if (!isAuthoritativeServerIdentity) {
-    const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
-
-    if (!isOwnerOrAdmin) {
-      logger.warn(`User ${authenticatedAddress} is not authorized to list administrators of entity ${place.id}`)
-      throw new UnauthorizedError('Only administrators or the owner can list administrators')
-    }
-  } else {
+  // Allow any authenticated scene participant to list admins.
+  // This enables all clients to validate admin identity for applying changes.
+  if (isAuthoritativeServerIdentity) {
     logger.debug(`Authoritative server ${authenticatedAddress} requesting scene admins for place ${place.id}`)
   }
 
