@@ -1,5 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { NotAuthorizedError } from '@dcl/http-commons'
+import { GlobalContext } from '../../types'
 import {
   InvalidRequestError,
   NotFoundError,
@@ -21,7 +22,7 @@ import {
 } from '../../logic/cast/errors'
 
 export async function errorHandler(
-  _ctx: IHttpServerComponent.DefaultContext<object>,
+  ctx: IHttpServerComponent.DefaultContext<GlobalContext>,
   next: () => Promise<IHttpServerComponent.IResponse>
 ): Promise<IHttpServerComponent.IResponse> {
   try {
@@ -113,6 +114,14 @@ export async function errorHandler(
         }
       }
     }
+
+    const logger = ctx.components.logs.getLogger('error-handler')
+    logger.error('Unhandled error', {
+      message: error?.message || String(error),
+      stack: error?.stack,
+      url: ctx.url?.pathname,
+      method: ctx.request?.method
+    })
 
     return {
       status: 500,
