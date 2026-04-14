@@ -1,6 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, Permissions } from '../../types'
-import { ForbiddenError, InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
+import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
@@ -125,10 +125,6 @@ export async function commsSceneHandler(
     room = livekit.getWorldSceneRoomName(realmName, resolvedSceneId)
   } else {
     room = livekit.getSceneRoomName(realmName, sceneId)
-  }
-
-  if (!permissions) {
-    throw new NotFoundError('Realm or scene not found')
   }
 
   // Add scene admins as presenters in room metadata

@@ -130,6 +130,58 @@ describe('when managing presenters', () => {
     })
   })
 
+  describe('when promoting a presenter in a local preview room', () => {
+    const localPreviewRoomId = 'scene-localpreview:bafytest'
+
+    beforeEach(() => {
+      mockLivekit = createLivekitMockedComponent({
+        getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
+        appendToRoomMetadataArray: jest.fn().mockResolvedValue(undefined),
+        removeFromRoomMetadataArray: jest.fn().mockResolvedValue(undefined),
+        getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
+        getRoomMetadataFromRoomName: jest.fn().mockReturnValue({ realmName: 'localpreview' })
+      })
+
+      mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
+        getAccessByRoomId: jest.fn().mockResolvedValue({
+          place_id: localPreviewRoomId,
+          room_id: localPreviewRoomId
+        })
+      })
+
+      castComponent = createCastComponent({
+        livekit: mockLivekit,
+        logs: createLoggerMockedComponent(),
+        sceneStreamAccessManager: mockSceneStreamAccessManager,
+        sceneManager: mockSceneManager,
+        places: mockPlaces,
+        config: createConfigMockedComponent()
+      })
+    })
+
+    it('should skip admin validation and succeed', async () => {
+      await castComponent.promotePresenter(localPreviewRoomId, identity, '0xanyone')
+
+      expect(mockLivekit.appendToRoomMetadataArray).toHaveBeenCalledWith(
+        localPreviewRoomId,
+        'presenters',
+        identity
+      )
+    })
+
+    it('should not call places.getPlaceStatusByIds', async () => {
+      await castComponent.promotePresenter(localPreviewRoomId, identity, '0xanyone')
+
+      expect(mockPlaces.getPlaceStatusByIds).not.toHaveBeenCalled()
+    })
+
+    it('should not call sceneManager.isSceneOwnerOrAdmin', async () => {
+      await castComponent.promotePresenter(localPreviewRoomId, identity, '0xanyone')
+
+      expect(mockSceneManager.isSceneOwnerOrAdmin).not.toHaveBeenCalled()
+    })
+  })
+
   describe('when demoting a presenter', () => {
     describe('and the caller is an admin', () => {
       it('should remove the participant from the presenters list', async () => {

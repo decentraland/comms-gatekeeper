@@ -98,7 +98,53 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
       })
     })
 
-    describe('and the participantIdentity is not a valid Ethereum address', () => {
+    describe('and the participantIdentity is a valid streamer identity', () => {
+      beforeEach(() => {
+        spyComponents.cast.promotePresenter.mockResolvedValueOnce(undefined)
+      })
+
+      it('should respond with 200', async () => {
+        const streamerIdentity = 'stream:place-123:a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+        const response = await makeRequest(
+          components.localFetch,
+          `/cast/presenters/${encodeURIComponent(streamerIdentity)}`,
+          { method: 'PUT', metadata },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+      })
+    })
+
+    describe('and the participantIdentity is a watcher identity', () => {
+      it('should respond with 400', async () => {
+        const watcherIdentity = 'watch:room-123:a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+        const response = await makeRequest(
+          components.localFetch,
+          `/cast/presenters/${encodeURIComponent(watcherIdentity)}`,
+          { method: 'PUT', metadata },
+          owner
+        )
+
+        expect(response.status).toBe(400)
+      })
+    })
+
+    describe('and the participantIdentity is a presentation bot identity', () => {
+      it('should respond with 400', async () => {
+        const botIdentity = 'presentation-bot:room-123:a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+        const response = await makeRequest(
+          components.localFetch,
+          `/cast/presenters/${encodeURIComponent(botIdentity)}`,
+          { method: 'PUT', metadata },
+          owner
+        )
+
+        expect(response.status).toBe(400)
+      })
+    })
+
+    describe('and the participantIdentity is not a valid identity format', () => {
       it('should respond with 400', async () => {
         const response = await makeRequest(
           components.localFetch,
@@ -150,7 +196,25 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
       })
     })
 
-    describe('and the participantIdentity is not a valid Ethereum address', () => {
+    describe('and the participantIdentity is a valid streamer identity', () => {
+      beforeEach(() => {
+        spyComponents.cast.demotePresenter.mockResolvedValueOnce(undefined)
+      })
+
+      it('should respond with 200', async () => {
+        const streamerIdentity = 'stream:place-123:a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+        const response = await makeRequest(
+          components.localFetch,
+          `/cast/presenters/${encodeURIComponent(streamerIdentity)}`,
+          { method: 'DELETE', metadata },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+      })
+    })
+
+    describe('and the participantIdentity is not a valid identity format', () => {
       it('should respond with 400', async () => {
         const response = await makeRequest(
           components.localFetch,

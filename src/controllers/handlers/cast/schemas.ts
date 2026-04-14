@@ -8,8 +8,8 @@ export type StreamerTokenRequestBody = {
 export const StreamerTokenRequestSchema: Schema = {
   type: 'object',
   properties: {
-    token: { type: 'string', pattern: '^\\S+.*$' },
-    identity: { type: 'string', pattern: '^\\S+.*$' }
+    token: { type: 'string', pattern: '^\\S+.*$', maxLength: 256 },
+    identity: { type: 'string', pattern: '^\\S+.*$', maxLength: 256 }
   },
   required: ['token', 'identity']
 }
@@ -23,9 +23,9 @@ export type WatcherTokenRequestBody = {
 export const WatcherTokenRequestSchema: Schema = {
   type: 'object',
   properties: {
-    location: { type: 'string', pattern: '^\\S+.*$' },
-    identity: { type: 'string', pattern: '^\\S+.*$' },
-    parcel: { type: 'string', pattern: '^\\S+.*$' }
+    location: { type: 'string', pattern: '^\\S+.*$', maxLength: 256 },
+    identity: { type: 'string', pattern: '^\\S+.*$', maxLength: 256 },
+    parcel: { type: 'string', pattern: '^\\S+.*$', maxLength: 256 }
   },
   required: ['location', 'identity']
 }
@@ -37,7 +37,7 @@ export type PresentationBotTokenRequestBody = {
 export const PresentationBotTokenRequestSchema: Schema = {
   type: 'object',
   properties: {
-    streamingKey: { type: 'string', pattern: '^\\S+.*$' }
+    streamingKey: { type: 'string', pattern: '^\\S+.*$', maxLength: 256 }
   },
   required: ['streamingKey']
 }

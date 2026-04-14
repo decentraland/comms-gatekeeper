@@ -4,14 +4,19 @@ import { InvalidRequestError } from '../../../types/errors'
 import { validate } from '../../../logic/utils'
 
 const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
+const STREAMER_IDENTITY_REGEX = /^stream:[^:]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+function isValidPresenterIdentity(identity: string): boolean {
+  return ETH_ADDRESS_REGEX.test(identity) || STREAMER_IDENTITY_REGEX.test(identity)
+}
 
 /**
  * Promotes a participant to the presenter role in a cast room.
  * The room is derived from the Signed Fetch auth metadata (sceneId + realm).
- * The participantIdentity URL param must be a valid Ethereum address.
+ * The participantIdentity URL param must be a valid Ethereum address or Cast 2.0 streamer identity.
  *
  * @param context - HTTP request context with authentication, components, and URL params
- * @returns 200 on success, 400 for invalid address, or 401 for unauthorized
+ * @returns 200 on success, 400 for invalid identity, or 401 for unauthorized
  */
 export async function promotePresenterHandler(
   context: HandlerContextWithPath<
@@ -27,8 +32,8 @@ export async function promotePresenterHandler(
   const logger = logs.getLogger('promote-presenter-handler')
 
   const participantIdentity = params.participantIdentity
-  if (!participantIdentity || !ETH_ADDRESS_REGEX.test(participantIdentity)) {
-    throw new InvalidRequestError('participantIdentity must be a valid Ethereum address')
+  if (!participantIdentity || !isValidPresenterIdentity(participantIdentity)) {
+    throw new InvalidRequestError('participantIdentity must be a valid Ethereum address or streamer identity')
   }
 
   const { identity: callerAddress, sceneId, realm, isWorld } = await validate(context)

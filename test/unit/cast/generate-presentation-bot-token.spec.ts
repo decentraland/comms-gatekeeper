@@ -98,6 +98,32 @@ describe('when generating a presentation bot token', () => {
     })
   })
 
+  describe('and the stream access has no room_id', () => {
+    beforeEach(() => {
+      const streamAccessWithoutRoomId = {
+        id: 'access-123',
+        place_id: 'world-place-123',
+        streaming_key: 'valid-stream-key',
+        streaming_url: 'rtmp://test-url',
+        ingress_id: 'test-ingress-id',
+        created_at: Date.now(),
+        active: true,
+        streaming: false,
+        streaming_start_time: 0,
+        room_id: undefined,
+        expiration_time: String(Date.now() + 2 * 24 * 60 * 60 * 1000)
+      }
+
+      mockSceneStreamAccessManager.getAccessByStreamingKey.mockResolvedValue(streamAccessWithoutRoomId)
+    })
+
+    it('should throw an InvalidStreamingKeyError', async () => {
+      await expect(castComponent.generatePresentationBotToken('valid-stream-key')).rejects.toThrow(
+        InvalidStreamingKeyError
+      )
+    })
+  })
+
   describe('and the streaming key has expired', () => {
     beforeEach(() => {
       const expiredStreamAccess = {

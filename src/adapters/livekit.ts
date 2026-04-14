@@ -470,7 +470,8 @@ export async function createLivekitComponent(
   async function appendToRoomMetadataArray(roomId: string, field: string, value: string): Promise<void> {
     await withRoomMetadataLock(roomId, async () => {
       const roomInfo = await getRoomInfo(roomId)
-      const existingMetadata = parseRoomMetadata(roomInfo?.metadata)
+      if (!roomInfo) return
+      const existingMetadata = parseRoomMetadata(roomInfo.metadata)
       const arr: string[] = Array.isArray(existingMetadata[field]) ? (existingMetadata[field] as string[]) : []
       if (!arr.includes(value)) {
         arr.push(value)

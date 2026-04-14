@@ -74,6 +74,7 @@ import {
   listBansHandler
 } from './handlers/user-moderation'
 import { BanPlayerSchema, WarnPlayerSchema } from './handlers/user-moderation/schemas'
+import { createRateLimiterComponent } from '../logic/rate-limiter'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -84,6 +85,10 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   const router = new Router<GlobalContext>()
   router.use(errorHandler)
+
+  // Rate limiters for endpoints authenticated only by streaming key
+  const rateLimiter = createRateLimiterComponent()
+  const castTokenLimiter = rateLimiter.createLimiter(10, 60_000) // 10 per minute per IP
 
   const auth = authVerificationMiddleware({
     fetcher: components.fetch,
@@ -216,7 +221,12 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post(
     '/cast/streamer-token',
     schemaValidator.withSchemaValidatorMiddleware(StreamerTokenRequestSchema),
-    streamerTokenHandler
+    async (ctx) => {
+      const ip = ctx.request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+      const limited = castTokenLimiter(ip)
+      if (limited) return limited
+      return streamerTokenHandler(ctx)
+    }
   )
   router.post(
     '/cast/watcher-token',
@@ -258,7 +268,12 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post(
     '/cast/presentation-bot-token',
     schemaValidator.withSchemaValidatorMiddleware(PresentationBotTokenRequestSchema),
-    presentationBotTokenHandler
+    async (ctx) => {
+      const ip = ctx.request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+      const limited = castTokenLimiter(ip)
+      if (limited) return limited
+      return presentationBotTokenHandler(ctx)
+    }
   )
   router.get('/cast/presenters', auth, getPresentersHandler)
   router.put('/cast/presenters/:participantIdentity', auth, promotePresenterHandler)

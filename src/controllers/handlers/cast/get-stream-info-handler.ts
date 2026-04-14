@@ -49,7 +49,12 @@ export async function getStreamInfoHandler(
   let isWorld: boolean
   let location: string
 
-  const { realmName } = livekit.getRoomMetadataFromRoomName(streamAccess.place_id)
+  if (!streamAccess.room_id) {
+    logger.debug(`Stream access missing room_id for key: ${streamingKey.substring(0, 20)}...`)
+    throw new InvalidRequestError('Stream access is missing room information')
+  }
+
+  const { realmName } = livekit.getRoomMetadataFromRoomName(streamAccess.room_id)
   if (livekit.isLocalPreview(realmName)) {
     placeName = 'Local Preview'
     isWorld = false
@@ -66,7 +71,7 @@ export async function getStreamInfoHandler(
     const placeData = place[0]
     placeName = placeData.world_name || `${placeData.base_position}`
     isWorld = placeData.world
-    location = isWorld ? placeData.world_name! : placeData.base_position
+    location = isWorld ? (placeData.world_name ?? placeData.base_position) : placeData.base_position
   }
 
   logger.info(`Stream info retrieved for place ${streamAccess.place_id}`, {
