@@ -2,6 +2,8 @@ import { Room } from 'livekit-server-sdk'
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
 import { NotSceneAdminError, NoActiveStreamError } from '../../../src/logic/cast/errors'
+import { RoomMetadata } from '../../../src/types/livekit.type'
+import { SceneStreamAccess } from '../../../src/types'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene-stream-access-manager-mock'
@@ -22,6 +24,7 @@ describe('when managing presenters', () => {
   let mockSceneStreamAccessManager: ReturnType<typeof createSceneStreamAccessManagerMockedComponent>
   let mockSceneManager: ReturnType<typeof createSceneManagerMockedComponent>
   let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
+  let mockLogs: ReturnType<typeof createLoggerMockedComponent>
 
   beforeEach(() => {
     mockLivekit = createLivekitMockedComponent({
@@ -48,9 +51,11 @@ describe('when managing presenters', () => {
       isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(true)
     })
 
+    mockLogs = createLoggerMockedComponent()
+
     castComponent = createCastComponent({
       livekit: mockLivekit,
-      logs: createLoggerMockedComponent(),
+      logs: mockLogs,
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: mockSceneManager,
       places: mockPlaces,
@@ -89,18 +94,7 @@ describe('when managing presenters', () => {
 
     describe('and the caller is not an admin', () => {
       beforeEach(() => {
-        mockSceneManager = createSceneManagerMockedComponent({
-          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(false)
-        })
-
-        castComponent = createCastComponent({
-          livekit: mockLivekit,
-          logs: createLoggerMockedComponent(),
-          sceneStreamAccessManager: mockSceneStreamAccessManager,
-          sceneManager: mockSceneManager,
-          places: mockPlaces,
-          config: createConfigMockedComponent()
-        })
+        mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
       })
 
       it('should throw a NotSceneAdminError', async () => {
@@ -110,18 +104,7 @@ describe('when managing presenters', () => {
 
     describe('and no active stream exists for the room', () => {
       beforeEach(() => {
-        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
-          getAccessByRoomId: jest.fn().mockResolvedValue(null)
-        })
-
-        castComponent = createCastComponent({
-          livekit: mockLivekit,
-          logs: createLoggerMockedComponent(),
-          sceneStreamAccessManager: mockSceneStreamAccessManager,
-          sceneManager: mockSceneManager,
-          places: mockPlaces,
-          config: createConfigMockedComponent()
-        })
+        mockSceneStreamAccessManager.getAccessByRoomId.mockResolvedValue(null)
       })
 
       it('should throw a NoActiveStreamError', async () => {
@@ -134,39 +117,17 @@ describe('when managing presenters', () => {
     const localPreviewRoomId = 'scene-localpreview:bafytest'
 
     beforeEach(() => {
-      mockLivekit = createLivekitMockedComponent({
-        getRoom: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
-        appendToRoomMetadataArray: jest.fn().mockResolvedValue(undefined),
-        removeFromRoomMetadataArray: jest.fn().mockResolvedValue(undefined),
-        getRoomInfo: jest.fn().mockResolvedValue(createRoomWithPresenters([])),
-        getRoomMetadataFromRoomName: jest.fn().mockReturnValue({ realmName: 'localpreview' })
-      })
-
-      mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
-        getAccessByRoomId: jest.fn().mockResolvedValue({
-          place_id: localPreviewRoomId,
-          room_id: localPreviewRoomId
-        })
-      })
-
-      castComponent = createCastComponent({
-        livekit: mockLivekit,
-        logs: createLoggerMockedComponent(),
-        sceneStreamAccessManager: mockSceneStreamAccessManager,
-        sceneManager: mockSceneManager,
-        places: mockPlaces,
-        config: createConfigMockedComponent()
-      })
+      mockLivekit.getRoomMetadataFromRoomName.mockReturnValue({ realmName: 'localpreview' } as RoomMetadata)
+      mockSceneStreamAccessManager.getAccessByRoomId.mockResolvedValue({
+        place_id: localPreviewRoomId,
+        room_id: localPreviewRoomId
+      } as SceneStreamAccess)
     })
 
     it('should skip admin validation and succeed', async () => {
       await castComponent.promotePresenter(localPreviewRoomId, identity, '0xanyone')
 
-      expect(mockLivekit.appendToRoomMetadataArray).toHaveBeenCalledWith(
-        localPreviewRoomId,
-        'presenters',
-        identity
-      )
+      expect(mockLivekit.appendToRoomMetadataArray).toHaveBeenCalledWith(localPreviewRoomId, 'presenters', identity)
     })
 
     it('should not call places.getPlaceStatusByIds', async () => {
@@ -193,18 +154,7 @@ describe('when managing presenters', () => {
 
     describe('and the caller is not an admin', () => {
       beforeEach(() => {
-        mockSceneManager = createSceneManagerMockedComponent({
-          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(false)
-        })
-
-        castComponent = createCastComponent({
-          livekit: mockLivekit,
-          logs: createLoggerMockedComponent(),
-          sceneStreamAccessManager: mockSceneStreamAccessManager,
-          sceneManager: mockSceneManager,
-          places: mockPlaces,
-          config: createConfigMockedComponent()
-        })
+        mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
       })
 
       it('should throw a NotSceneAdminError', async () => {
@@ -214,18 +164,7 @@ describe('when managing presenters', () => {
 
     describe('and no active stream exists for the room', () => {
       beforeEach(() => {
-        mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
-          getAccessByRoomId: jest.fn().mockResolvedValue(null)
-        })
-
-        castComponent = createCastComponent({
-          livekit: mockLivekit,
-          logs: createLoggerMockedComponent(),
-          sceneStreamAccessManager: mockSceneStreamAccessManager,
-          sceneManager: mockSceneManager,
-          places: mockPlaces,
-          config: createConfigMockedComponent()
-        })
+        mockSceneStreamAccessManager.getAccessByRoomId.mockResolvedValue(null)
       })
 
       it('should throw a NoActiveStreamError', async () => {
@@ -271,18 +210,7 @@ describe('when managing presenters', () => {
 
     describe('and the caller is not an admin', () => {
       beforeEach(() => {
-        mockSceneManager = createSceneManagerMockedComponent({
-          isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(false)
-        })
-
-        castComponent = createCastComponent({
-          livekit: mockLivekit,
-          logs: createLoggerMockedComponent(),
-          sceneStreamAccessManager: mockSceneStreamAccessManager,
-          sceneManager: mockSceneManager,
-          places: mockPlaces,
-          config: createConfigMockedComponent()
-        })
+        mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
       })
 
       it('should throw a NotSceneAdminError', async () => {
