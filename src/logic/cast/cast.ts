@@ -55,12 +55,16 @@ export function createCastComponent(
   const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config } = components
   const logger = logs.getLogger('cast')
 
+  /** Minimal place fields needed by createStreamAccess. */
+  type StreamAccessPlace = Pick<PlaceAttributes, 'id' | 'title'> &
+    Partial<Pick<PlaceAttributes, 'world_name' | 'base_position'>>
+
   /**
    * Creates or reuses stream access for a place, returning the streaming key and expiration.
    * Shared logic used by both generateStreamLink and generatePreviewStreamLink.
    */
   async function createStreamAccess(
-    place: PlaceAttributes,
+    place: StreamAccessPlace,
     roomId: string,
     walletAddress: string
   ): Promise<GenerateStreamLinkResult> {
@@ -174,10 +178,10 @@ export function createCastComponent(
     const { sceneId, realmName, walletAddress } = params
 
     const roomId = livekit.getSceneRoomName(realmName, sceneId)
-    const place = {
+    const place: StreamAccessPlace = {
       id: roomId,
       title: 'Local Preview'
-    } as PlaceAttributes
+    }
 
     logger.info(`Using synthetic place for local preview`, { placeId: roomId, roomId })
 
@@ -209,11 +213,14 @@ export function createCastComponent(
     }
 
     // Use the room_id from the stream access (scene room format)
-    const roomId = streamAccess.room_id!
+    if (!streamAccess.room_id) {
+      throw new InvalidStreamingKeyError()
+    }
+    const roomId = streamAccess.room_id
 
     // Generate unique internal ID for LiveKit identity (prevents collisions)
     // Format: stream:{placeId}:{timestamp}
-    const internalId = `stream:${streamAccess.place_id}:${Date.now()}`
+    const internalId = `stream:${streamAccess.place_id}:${randomUUID()}`
 
     // Create LiveKit credentials with publish permissions for the scene room
     // Use internalId as LiveKit identity (guaranteed unique)
@@ -265,7 +272,7 @@ export function createCastComponent(
   ): Promise<GenerateWatcherCredentialsResult> {
     // Generate unique internal ID for LiveKit identity (prevents collisions)
     // Format: watch:{roomId}:{timestamp}
-    const internalId = `watch:${roomId}:${Date.now()}`
+    const internalId = `watch:${roomId}:${randomUUID()}`
 
     // Create LiveKit credentials with watch-only permissions for the scene room
     // Use internalId as LiveKit identity (guaranteed unique)
@@ -276,6 +283,7 @@ export function createCastComponent(
       {
         canPublish: false, // Watchers cannot publish video/audio
         canSubscribe: true, // Can watch streams and see chat
+        canUpdateOwnMetadata: false, // Prevent watchers from spoofing their role
         cast: [] // No casting permissions
       },
       false, // Use production LiveKit
@@ -348,7 +356,10 @@ export function createCastComponent(
     }
 
     // Use the room_id from the stream access
-    const roomId = streamAccess.room_id!
+    if (!streamAccess.room_id) {
+      throw new NoActiveStreamError(location)
+    }
+    const roomId = streamAccess.room_id
 
     // Generate watcher credentials using the existing method
     const credentials = await generateWatcherCredentials(roomId, identity)
@@ -393,8 +404,11 @@ export function createCastComponent(
       throw new ExpiredStreamingKeyError()
     }
 
-    const roomId = streamAccess.room_id!
-    const botIdentity = `presentation-bot:${roomId}:${Date.now()}`
+    if (!streamAccess.room_id) {
+      throw new InvalidStreamingKeyError()
+    }
+    const roomId = streamAccess.room_id
+    const botIdentity = `presentation-bot:${roomId}:${randomUUID()}`
 
     const credentials = await livekit.generateCredentials(
       botIdentity,
@@ -449,6 +463,7 @@ export function createCastComponent(
     if (!place) {
       throw new NoActiveStreamError(roomId)
     }
+    // Safe cast: isSceneOwnerOrAdmin only accesses id, world, world_name, and positions — all in the Pick type
     const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place as PlaceAttributes, callerAddress)
     if (!isAdmin) {
       throw new NotSceneAdminError('Only scene administrators can manage presenters')
@@ -526,8 +541,13 @@ export function createCastComponent(
   async function getPresenters(roomId: string, callerAddress: string): Promise<GetPresentersResult> {
     await validatePresenterAdmin(roomId, callerAddress)
     const room = await livekit.getRoomInfo(roomId)
-    const roomMeta = JSON.parse(room?.metadata || '{}')
-    return { presenters: roomMeta.presenters || [] }
+    let roomMeta: Record<string, unknown> = {}
+    try {
+      roomMeta = JSON.parse(room?.metadata || '{}')
+    } catch {
+      // Malformed metadata — treat as empty
+    }
+    return { presenters: Array.isArray(roomMeta.presenters) ? (roomMeta.presenters as string[]) : [] }
   }
 
   return {

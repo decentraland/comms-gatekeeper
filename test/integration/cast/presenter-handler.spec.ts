@@ -28,7 +28,12 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
       })
 
       it('should respond with 200 and the presenters list', async () => {
-        const response = await makeRequest(components.localFetch, '/cast/presenters', { method: 'GET', metadata }, owner)
+        const response = await makeRequest(
+          components.localFetch,
+          '/cast/presenters',
+          { method: 'GET', metadata },
+          owner
+        )
 
         const body = await response.json()
 
@@ -42,10 +47,15 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
         spyComponents.cast.getPresenters.mockRejectedValueOnce(new NotSceneAdminError())
       })
 
-      it('should respond with 401', async () => {
-        const response = await makeRequest(components.localFetch, '/cast/presenters', { method: 'GET', metadata }, owner)
+      it('should respond with 403', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/cast/presenters',
+          { method: 'GET', metadata },
+          owner
+        )
 
-        expect(response.status).toBe(401)
+        expect(response.status).toBe(403)
       })
     })
   })
@@ -76,7 +86,7 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
         spyComponents.cast.promotePresenter.mockRejectedValueOnce(new NotSceneAdminError())
       })
 
-      it('should respond with 401', async () => {
+      it('should respond with 403', async () => {
         const response = await makeRequest(
           components.localFetch,
           `/cast/presenters/${validAddress}`,
@@ -84,7 +94,7 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
           owner
         )
 
-        expect(response.status).toBe(401)
+        expect(response.status).toBe(403)
       })
     })
 
@@ -128,7 +138,7 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
         spyComponents.cast.demotePresenter.mockRejectedValueOnce(new NotSceneAdminError())
       })
 
-      it('should respond with 401', async () => {
+      it('should respond with 403', async () => {
         const response = await makeRequest(
           components.localFetch,
           `/cast/presenters/${validAddress}`,
@@ -136,7 +146,7 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
           owner
         )
 
-        expect(response.status).toBe(401)
+        expect(response.status).toBe(403)
       })
     })
 

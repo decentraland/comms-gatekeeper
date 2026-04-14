@@ -57,7 +57,7 @@ describe('when generating a presentation bot token', () => {
       await castComponent.generatePresentationBotToken('valid-stream-key')
 
       expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
-        expect.stringMatching(/^presentation-bot:scene-test-realm:bafkreiscene123:\d+$/),
+        expect.stringMatching(/^presentation-bot:scene-test-realm:bafkreiscene123:[0-9a-f-]+$/),
         'scene-test-realm:bafkreiscene123',
         expect.objectContaining({
           canPublish: true,
@@ -86,7 +86,6 @@ describe('when generating a presentation bot token', () => {
       expect(result.token).toBe('test-bot-token')
       expect(result.roomId).toBe('scene-test-realm:bafkreiscene123')
     })
-
   })
 
   describe('and the streaming key is invalid', () => {

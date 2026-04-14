@@ -96,7 +96,7 @@ describe('when generating watcher credentials', () => {
       expect(result.url).toBe('wss://test-livekit-url')
       expect(result.token).toBe('test-token')
       expect(result.roomId).toBe(roomId)
-      expect(result.identity).toMatch(/^watch:scene-test-realm:bafkreiscene123:\d+$/)
+      expect(result.identity).toMatch(/^watch:scene-test-realm:bafkreiscene123:[0-9a-f-]+$/)
     })
   })
 

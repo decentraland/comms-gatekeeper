@@ -491,9 +491,12 @@ export async function createLivekitComponent(
   async function removeFromRoomMetadataArray(roomId: string, field: string, value: string): Promise<void> {
     await withRoomMetadataLock(roomId, async () => {
       const roomInfo = await getRoomInfo(roomId)
-      const existingMetadata = parseRoomMetadata(roomInfo?.metadata)
+      if (!roomInfo) return
+      const existingMetadata = parseRoomMetadata(roomInfo.metadata)
       const arr: string[] = Array.isArray(existingMetadata[field]) ? (existingMetadata[field] as string[]) : []
-      existingMetadata[field] = arr.filter((item) => item !== value)
+      const filtered = arr.filter((item) => item !== value)
+      if (filtered.length === arr.length) return
+      existingMetadata[field] = filtered
       await roomClient.updateRoomMetadata(roomId, JSON.stringify(existingMetadata))
     })
   }

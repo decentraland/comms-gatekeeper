@@ -108,7 +108,7 @@ describe('when validating a streamer token', () => {
       expect(result.url).toBe('wss://test-livekit-url')
       expect(result.token).toBe('test-token')
       expect(result.roomId).toBe('scene-test-realm:bafkreiscene123')
-      expect(result.identity).toMatch(/^stream:world-place-123:\d+$/)
+      expect(result.identity).toMatch(/^stream:world-place-123:[0-9a-f-]+$/)
     })
   })
 

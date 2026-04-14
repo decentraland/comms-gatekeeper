@@ -3,12 +3,15 @@ import { InvalidRequestError } from '../../../types/errors'
 
 export async function getStreamInfoHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneStreamAccessManager' | 'places' | 'logs', '/cast/stream-info/:streamingKey'>,
+    HandlerContextWithPath<
+      'sceneStreamAccessManager' | 'places' | 'logs' | 'livekit',
+      '/cast/stream-info/:streamingKey'
+    >,
     'components' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, places },
+    components: { logs, sceneStreamAccessManager, places, livekit },
     params
   } = ctx
   const logger = logs.getLogger('get-stream-info-handler')
@@ -46,7 +49,8 @@ export async function getStreamInfoHandler(
   let isWorld: boolean
   let location: string
 
-  if (streamAccess.place_id.startsWith('preview-') || streamAccess.place_id.includes('Preview')) {
+  const { realmName } = livekit.getRoomMetadataFromRoomName(streamAccess.place_id)
+  if (livekit.isLocalPreview(realmName)) {
     placeName = 'Local Preview'
     isWorld = false
     location = 'preview'

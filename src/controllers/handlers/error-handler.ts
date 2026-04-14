@@ -66,11 +66,19 @@ export async function errorHandler(
       error instanceof NotAuthorizedError ||
       error instanceof InvalidStreamingKeyError ||
       error instanceof ExpiredStreamingKeyError ||
-      error instanceof NotSceneAdminError ||
       error instanceof ExpiredStreamAccessError
     ) {
       return {
         status: 401,
+        body: {
+          error: error.message
+        }
+      }
+    }
+
+    if (error instanceof NotSceneAdminError) {
+      return {
+        status: 403,
         body: {
           error: error.message
         }
