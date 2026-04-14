@@ -1,5 +1,6 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { NotAuthorizedError } from '@dcl/http-commons'
+import { GlobalContext } from '../../types'
 import {
   InvalidRequestError,
   NotFoundError,
@@ -12,9 +13,16 @@ import {
   ForbiddenError
 } from '../../types/errors'
 import { PlayerAlreadyBannedError, BanNotFoundError } from '../../logic/user-moderation/errors'
+import {
+  InvalidStreamingKeyError,
+  ExpiredStreamingKeyError,
+  NoActiveStreamError,
+  NotSceneAdminError,
+  ExpiredStreamAccessError
+} from '../../logic/cast/errors'
 
 export async function errorHandler(
-  _ctx: IHttpServerComponent.DefaultContext<object>,
+  ctx: IHttpServerComponent.DefaultContext<GlobalContext>,
   next: () => Promise<IHttpServerComponent.IResponse>
 ): Promise<IHttpServerComponent.IResponse> {
   try {
@@ -53,9 +61,33 @@ export async function errorHandler(
       }
     }
 
-    if (error instanceof UnauthorizedError || error instanceof NotAuthorizedError) {
+    if (
+      error instanceof UnauthorizedError ||
+      error instanceof NotAuthorizedError ||
+      error instanceof InvalidStreamingKeyError ||
+      error instanceof ExpiredStreamingKeyError ||
+      error instanceof ExpiredStreamAccessError
+    ) {
       return {
         status: 401,
+        body: {
+          error: error.message
+        }
+      }
+    }
+
+    if (error instanceof NotSceneAdminError) {
+      return {
+        status: 403,
+        body: {
+          error: error.message
+        }
+      }
+    }
+
+    if (error instanceof NoActiveStreamError) {
+      return {
+        status: 404,
         body: {
           error: error.message
         }
@@ -90,6 +122,14 @@ export async function errorHandler(
         }
       }
     }
+
+    const logger = ctx.components.logs.getLogger('error-handler')
+    logger.error('Unhandled error', {
+      message: error?.message || String(error),
+      stack: error?.stack,
+      url: ctx.url?.pathname,
+      method: ctx.request?.method
+    })
 
     return {
       status: 500,

@@ -43,7 +43,8 @@ export async function createLivekitComponent(
     prodSecret,
     previewHost,
     previewApiKey,
-    previewSecret
+    previewSecret,
+    allowLocalPreview
   ] = await Promise.all([
     config.requireString('COMMS_ROOM_PREFIX'),
     config.requireString('WORLD_ROOM_PREFIX'),
@@ -54,7 +55,8 @@ export async function createLivekitComponent(
     config.requireString('PROD_LIVEKIT_API_SECRET'),
     config.requireString('PREVIEW_LIVEKIT_HOST'),
     config.requireString('PREVIEW_LIVEKIT_API_KEY'),
-    config.requireString('PREVIEW_LIVEKIT_API_SECRET')
+    config.requireString('PREVIEW_LIVEKIT_API_SECRET'),
+    config.getString('ALLOW_LOCAL_PREVIEW')
   ])
 
   const normalizedProdHost = !prodHost.startsWith('wss://') ? `wss://${prodHost}` : prodHost
@@ -77,8 +79,10 @@ export async function createLivekitComponent(
   ): Promise<LivekitCredentials> {
     const settings = forPreview ? previewSettings : prodSettings
     const allSources = permissions.cast.includes(identity)
+    const name = metadata?.displayName as string | undefined
     const token = new AccessToken(settings.apiKey, settings.secret, {
       identity,
+      name,
       metadata: metadata ? JSON.stringify(metadata) : undefined,
       ttl: 5 * 60 // 5 minutes
     })
@@ -105,8 +109,10 @@ export async function createLivekitComponent(
 
   /**
    * Checks if the given realm name indicates a local preview environment.
+   * Returns false when the ALLOW_LOCAL_PREVIEW config flag is not enabled.
    */
   function isLocalPreview(realmName: string | undefined): boolean {
+    if (allowLocalPreview !== 'true') return false
     if (!realmName) return false
     return LOCAL_PREVIEW_REALM_NAMES.includes(realmName.toLowerCase())
   }
@@ -385,37 +391,115 @@ export async function createLivekitComponent(
     await roomClient.updateParticipant(roomId, participantId, undefined, permissions)
   }
 
-  async function updateRoomMetadata(roomId: string, metadata: Record<string, unknown>, room?: Room): Promise<void> {
+  /**
+   * Per-room promise chain that serializes metadata writes within this process.
+   *
+   * LiveKit's updateRoomMetadata does a full replace — there are no atomic updates.
+   * All our metadata functions (updateRoomMetadata, appendToRoomMetadataArray,
+   * removeFromRoomMetadataArray) follow a read-modify-write pattern. Without
+   * serialization, concurrent writes to the same room race: both read the same
+   * state, both write, and the last write silently overwrites the first.
+   *
+   * Example: a participant-joined webhook triggers refreshRoomBans (writes
+   * bannedAddresses) at the same time as addPresenter (writes presenters).
+   * Without the lock, the second write can erase the first's changes.
+   *
+   * The lock works by chaining promises per room via .then(). Operations on
+   * room "A" execute sequentially (1 → 2 → 3), while room "B" operations
+   * run independently in parallel. The .then(fn, fn) pattern ensures the chain
+   * continues even if an operation fails, preventing deadlocks. The Map entry
+   * is cleaned up when the last operation in the chain completes.
+   */
+  const roomMetadataLocks = new Map<string, Promise<void>>()
+
+  async function withRoomMetadataLock(roomId: string, fn: () => Promise<void>): Promise<void> {
+    const previous = roomMetadataLocks.get(roomId) ?? Promise.resolve()
+    const current = previous.then(fn, fn)
+    roomMetadataLocks.set(roomId, current)
     try {
-      // Use provided room or get room info
-      const roomInfo = room || (await getRoomInfo(roomId))
-      let existingMetadata: Record<string, unknown> = {}
-
-      if (roomInfo?.metadata) {
-        try {
-          existingMetadata = JSON.parse(roomInfo.metadata)
-        } catch (error) {
-          logger.warn(
-            `Error parsing existing room metadata for room ${roomId}: ${
-              isErrorWithMessage(error) ? error.message : 'Unknown error'
-            }`
-          )
-          existingMetadata = {}
-        }
+      await current
+    } finally {
+      if (roomMetadataLocks.get(roomId) === current) {
+        roomMetadataLocks.delete(roomId)
       }
-
-      // Merge existing metadata with new metadata
-      const mergedMetadata = { ...existingMetadata, ...metadata }
-
-      await roomClient.updateRoomMetadata(roomId, JSON.stringify(mergedMetadata))
-    } catch (error) {
-      logger.error(
-        `Error updating room metadata for room ${roomId}: ${
-          isErrorWithMessage(error) ? error.message : 'Unknown error'
-        }`
-      )
-      throw error
     }
+  }
+
+  function parseRoomMetadata(metadataStr: string | undefined): Record<string, unknown> {
+    if (!metadataStr) return {}
+    try {
+      return JSON.parse(metadataStr)
+    } catch {
+      return {}
+    }
+  }
+
+  /**
+   * Merges the provided metadata keys into the room's existing metadata and writes back.
+   * Serialized per-room via withRoomMetadataLock to prevent concurrent overwrites.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param metadata - Key-value pairs to merge into existing room metadata
+   */
+  async function updateRoomMetadata(roomId: string, metadata: Record<string, unknown>): Promise<void> {
+    await withRoomMetadataLock(roomId, async () => {
+      try {
+        const roomInfo = await getRoomInfo(roomId)
+        const existingMetadata = parseRoomMetadata(roomInfo?.metadata)
+        const mergedMetadata = { ...existingMetadata, ...metadata }
+        await roomClient.updateRoomMetadata(roomId, JSON.stringify(mergedMetadata))
+      } catch (error) {
+        logger.error(
+          `Error updating room metadata for room ${roomId}: ${
+            isErrorWithMessage(error) ? error.message : 'Unknown error'
+          }`
+        )
+        throw error
+      }
+    })
+  }
+
+  /**
+   * Adds a value to an array field in room metadata.
+   * Serialized per-room to prevent concurrent writes from overwriting each other.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param field - The metadata field name (e.g., 'presenters')
+   * @param value - The value to append to the array
+   */
+  async function appendToRoomMetadataArray(roomId: string, field: string, value: string): Promise<void> {
+    await withRoomMetadataLock(roomId, async () => {
+      const roomInfo = await getRoomInfo(roomId)
+      if (!roomInfo) return
+      const existingMetadata = parseRoomMetadata(roomInfo.metadata)
+      const arr: string[] = Array.isArray(existingMetadata[field]) ? (existingMetadata[field] as string[]) : []
+      if (!arr.includes(value)) {
+        arr.push(value)
+        existingMetadata[field] = arr
+        await roomClient.updateRoomMetadata(roomId, JSON.stringify(existingMetadata))
+      }
+    })
+  }
+
+  /**
+   * Removes a value from an array field in room metadata.
+   * Serialized per-room to prevent concurrent writes from overwriting each other.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param field - The metadata field name (e.g., 'presenters')
+   * @param value - The value to remove from the array
+   */
+  async function removeFromRoomMetadataArray(roomId: string, field: string, value: string): Promise<void> {
+    await withRoomMetadataLock(roomId, async () => {
+      const roomInfo = await getRoomInfo(roomId)
+      if (!roomInfo) return
+      const existingMetadata = parseRoomMetadata(roomInfo.metadata)
+      const arr: string[] = Array.isArray(existingMetadata[field]) ? (existingMetadata[field] as string[]) : []
+      const filtered = arr.filter((item) => item !== value)
+      if (filtered.length === arr.length) return
+      existingMetadata[field] = filtered
+      await roomClient.updateRoomMetadata(roomId, JSON.stringify(existingMetadata))
+    })
   }
 
   async function getWebhookEvent(body: string, authorization: string) {
@@ -433,6 +517,8 @@ export async function createLivekitComponent(
     updateParticipantMetadata,
     updateParticipantPermissions,
     updateRoomMetadata,
+    appendToRoomMetadataArray,
+    removeFromRoomMetadataArray,
     getParticipantInfo,
     listRoomParticipants,
     generateCredentials,

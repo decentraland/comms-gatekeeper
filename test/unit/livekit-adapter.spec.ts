@@ -62,7 +62,10 @@ beforeEach(async () => {
             return Promise.reject(new Error(`Unknown key: ${key}`))
         }
       }),
-      getString: jest.fn().mockReturnValue(''),
+      getString: jest.fn().mockImplementation((key: string) => {
+        if (key === 'ALLOW_LOCAL_PREVIEW') return 'true'
+        return ''
+      }),
       getNumber: jest.fn().mockReturnValue(0),
       requireNumber: jest.fn().mockResolvedValue(0)
     },
@@ -236,6 +239,25 @@ describe('when checking if a realm is a local preview', () => {
 
   it('should return false for a string containing preview', () => {
     expect(livekitComponent.isLocalPreview('preview-something')).toBe(false)
+  })
+
+  it('should return false when ALLOW_LOCAL_PREVIEW is not enabled', async () => {
+    const componentWithoutPreview = await createLivekitComponent({
+      config: {
+        requireString: jest.fn().mockResolvedValue('test'),
+        getString: jest.fn().mockReturnValue(''),
+        getNumber: jest.fn().mockReturnValue(0),
+        requireNumber: jest.fn().mockResolvedValue(0)
+      },
+      logs: {
+        getLogger: jest.fn().mockReturnValue({
+          info: jest.fn(),
+          warn: jest.fn(),
+          error: jest.fn()
+        })
+      }
+    })
+    expect(componentWithoutPreview.isLocalPreview('localpreview')).toBe(false)
   })
 })
 

@@ -1,6 +1,6 @@
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
-import { UnauthorizedError } from '../../../src/types/errors'
+import { NoActiveStreamError, ExpiredStreamAccessError } from '../../../src/logic/cast/errors'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene-stream-access-manager-mock'
@@ -178,9 +178,9 @@ describe('when generating watcher credentials by location', () => {
       mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(null)
     })
 
-    it('should throw an UnauthorizedError', async () => {
+    it('should throw a NoActiveStreamError', async () => {
       await expect(castComponent.generateWatcherCredentialsByLocation(location, identity)).rejects.toThrow(
-        UnauthorizedError
+        NoActiveStreamError
       )
     })
   })
@@ -208,9 +208,9 @@ describe('when generating watcher credentials by location', () => {
       mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(expiredStreamAccess)
     })
 
-    it('should throw an UnauthorizedError', async () => {
+    it('should throw an ExpiredStreamAccessError', async () => {
       await expect(castComponent.generateWatcherCredentialsByLocation(location, identity)).rejects.toThrow(
-        UnauthorizedError
+        ExpiredStreamAccessError
       )
     })
   })
@@ -244,7 +244,7 @@ describe('when generating watcher credentials by location', () => {
       expect(result.url).toBe('wss://test-livekit-url')
       expect(result.token).toBe('test-token')
       expect(result.roomId).toBe('scene-test-realm:bafkreiscene123')
-      expect(result.identity).toMatch(/^watch:scene-test-realm:bafkreiscene123:\d+$/)
+      expect(result.identity).toMatch(/^watch:scene-test-realm:bafkreiscene123:[0-9a-f-]+$/)
     })
   })
 

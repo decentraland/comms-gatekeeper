@@ -1,5 +1,6 @@
 import { test } from '../components'
 import { makeRequest, owner, nonOwner } from '../utils'
+import { Room } from 'livekit-server-sdk'
 import { PlaceAttributes } from '../../src/types/places.type'
 
 type Metadata = {
@@ -354,6 +355,128 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(stubComponents.sceneBans.isUserBanned.firstCall.args[1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.worlds.hasWorldAccessPermission.called).toBe(false)
         })
+      })
+    })
+
+    describe('when user is a scene admin', () => {
+      let adminWorldMetadata: Metadata
+
+      beforeEach(() => {
+        adminWorldMetadata = {
+          identity: owner.authChain[0].payload,
+          realmName: 'test-world.eth',
+          parcel: '10,20',
+          sceneId: 'bafytest123'
+        }
+
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+        stubComponents.livekit.getWorldSceneRoomName.returns('world-prd-scene-room-test-world.eth-bafytest123')
+        stubComponents.places.getWorldByName.resolves({
+          id: 'place-123',
+          title: 'Test World',
+          owner: owner.authChain[0].payload
+        } as PlaceAttributes)
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+        stubComponents.livekit.generateCredentials.resolves({
+          url: 'wss://test-livekit-url',
+          token: 'test-token'
+        })
+      })
+
+      it('should add admin as presenter in room metadata', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: adminWorldMetadata
+          },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+        expect(stubComponents.livekit.appendToRoomMetadataArray.calledOnce).toBe(true)
+        const appendCall = stubComponents.livekit.appendToRoomMetadataArray.firstCall
+        expect(appendCall.args[0]).toBe('world-prd-scene-room-test-world.eth-bafytest123')
+        expect(appendCall.args[1]).toBe('presenters')
+        expect(appendCall.args[2]).toBe(owner.authChain[0].payload)
+      })
+    })
+
+    describe('when user is NOT an admin', () => {
+      let nonAdminWorldMetadata: Metadata
+
+      beforeEach(() => {
+        nonAdminWorldMetadata = {
+          identity: nonOwner.authChain[0].payload,
+          realmName: 'test-world.eth',
+          parcel: '10,20',
+          sceneId: 'bafytest123'
+        }
+
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+        stubComponents.livekit.getWorldSceneRoomName.returns('world-prd-scene-room-test-world.eth-bafytest123')
+        stubComponents.places.getWorldByName.resolves({
+          id: 'place-123',
+          title: 'Test World',
+          owner: owner.authChain[0].payload
+        } as PlaceAttributes)
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+        stubComponents.livekit.generateCredentials.resolves({
+          url: 'wss://test-livekit-url',
+          token: 'test-token'
+        })
+      })
+
+      it('should not add user as presenter', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: nonAdminWorldMetadata
+          },
+          nonOwner
+        )
+
+        expect(response.status).toBe(200)
+        expect(stubComponents.livekit.appendToRoomMetadataArray.called).toBe(false)
+      })
+    })
+
+    describe('when the admin check fails', () => {
+      let failingMetadata: Metadata
+
+      beforeEach(() => {
+        failingMetadata = {
+          identity: owner.authChain[0].payload,
+          realmName: 'test-world.eth',
+          parcel: '10,20',
+          sceneId: 'bafytest123'
+        }
+
+        stubComponents.worlds.hasWorldAccessPermission.resolves(true)
+        stubComponents.livekit.getWorldSceneRoomName.returns('world-prd-scene-room-test-world.eth-bafytest123')
+        stubComponents.places.getWorldByName.rejects(new Error('Places API down'))
+        stubComponents.livekit.generateCredentials.resolves({
+          url: 'wss://test-livekit-url',
+          token: 'test-token'
+        })
+      })
+
+      it('should still return 200 (fail-open)', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: failingMetadata
+          },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+        expect(stubComponents.livekit.appendToRoomMetadataArray.called).toBe(false)
       })
     })
 

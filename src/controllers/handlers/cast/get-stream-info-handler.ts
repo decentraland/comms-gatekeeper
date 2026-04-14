@@ -3,12 +3,15 @@ import { InvalidRequestError } from '../../../types/errors'
 
 export async function getStreamInfoHandler(
   ctx: Pick<
-    HandlerContextWithPath<'sceneStreamAccessManager' | 'places' | 'logs', '/cast/stream-info/:streamingKey'>,
+    HandlerContextWithPath<
+      'sceneStreamAccessManager' | 'places' | 'logs' | 'livekit',
+      '/cast/stream-info/:streamingKey'
+    >,
     'components' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, places },
+    components: { logs, sceneStreamAccessManager, places, livekit },
     params
   } = ctx
   const logger = logs.getLogger('get-stream-info-handler')
@@ -41,18 +44,35 @@ export async function getStreamInfoHandler(
     throw new InvalidRequestError('Stream access has expired')
   }
 
-  // Fetch place information from Places API
-  const place = await places.getPlaceStatusByIds([streamAccess.place_id])
+  // Handle synthetic preview places (created by local preview flow)
+  let placeName: string
+  let isWorld: boolean
+  let location: string
 
-  if (!place || place.length === 0) {
-    logger.debug(`Place not found for place_id: ${streamAccess.place_id}`)
-    throw new InvalidRequestError('Place not found')
+  if (!streamAccess.room_id) {
+    logger.debug(`Stream access missing room_id for key: ${streamingKey.substring(0, 20)}...`)
+    throw new InvalidRequestError('Stream access is missing room information')
   }
 
-  const placeData = place[0]
-  const placeName = placeData.world_name || `${placeData.base_position}`
-  const isWorld = placeData.world
-  const location = isWorld ? placeData.world_name! : placeData.base_position
+  const { realmName } = livekit.getRoomMetadataFromRoomName(streamAccess.room_id)
+  if (livekit.isLocalPreview(realmName)) {
+    placeName = 'Local Preview'
+    isWorld = false
+    location = 'preview'
+  } else {
+    // Fetch place information from Places API
+    const place = await places.getPlaceStatusByIds([streamAccess.place_id])
+
+    if (!place || place.length === 0) {
+      logger.debug(`Place not found for place_id: ${streamAccess.place_id}`)
+      throw new InvalidRequestError('Place not found')
+    }
+
+    const placeData = place[0]
+    placeName = placeData.world_name || `${placeData.base_position}`
+    isWorld = placeData.world
+    location = isWorld ? (placeData.world_name ?? placeData.base_position) : placeData.base_position
+  }
 
   logger.info(`Stream info retrieved for place ${streamAccess.place_id}`, {
     placeId: streamAccess.place_id,

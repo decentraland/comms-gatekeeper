@@ -42,7 +42,15 @@ import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-activ
 import { commsServerSceneHandler } from './handlers/comms-server-scene-handler'
 import { worldBanCheckHandler } from './handlers/world-ban-check-handler'
 import { getSceneParticipantsHandler } from './handlers/scene-participants-handler'
-import { streamerTokenHandler, watcherTokenHandler, generateStreamLinkHandler } from './handlers/cast'
+import {
+  streamerTokenHandler,
+  watcherTokenHandler,
+  generateStreamLinkHandler,
+  presentationBotTokenHandler,
+  getPresentersHandler,
+  promotePresenterHandler,
+  demotePresenterHandler
+} from './handlers/cast'
 import { getStreamInfoHandler } from './handlers/cast/get-stream-info-handler'
 import { AddSceneBanRequestSchema } from './handlers/scene-ban-handlers/schemas'
 import { AddSceneAdminRequestSchema } from './handlers/scene-admin-handlers/schemas'
@@ -52,7 +60,11 @@ import {
   BulkCommunityVoiceChatStatusRequestSchema,
   MuteSpeakerRequestSchema
 } from './handlers/community-voice-chat/schemas'
-import { StreamerTokenRequestSchema, WatcherTokenRequestSchema } from './handlers/cast/schemas'
+import {
+  StreamerTokenRequestSchema,
+  WatcherTokenRequestSchema,
+  PresentationBotTokenRequestSchema
+} from './handlers/cast/schemas'
 import {
   banPlayerHandler,
   liftBanHandler,
@@ -243,5 +255,13 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.get('/users/:address/warnings', signedFetch, moderatorRead, getWarningsHandler)
   router.get('/bans', signedFetch, moderatorRead, listBansHandler)
 
+  router.post(
+    '/cast/presentation-bot-token',
+    schemaValidator.withSchemaValidatorMiddleware(PresentationBotTokenRequestSchema),
+    presentationBotTokenHandler
+  )
+  router.get('/cast/presenters', auth, getPresentersHandler)
+  router.put('/cast/presenters/:participantIdentity', auth, promotePresenterHandler)
+  router.delete('/cast/presenters/:participantIdentity', auth, demotePresenterHandler)
   return router
 }

@@ -50,7 +50,9 @@ export async function createStreamingKeyTTLChecker(
             try {
               await livekit.removeIngress(ingressId)
               await sceneStreamAccessManager.removeAccess(placeId)
-              await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_EXPIRED, place)
+              if (place) {
+                await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_EXPIRED, place)
+              }
               logger.info(`Ingress ${ingressId} removed and streaming key expired for place ${placeId}`)
             } catch (error) {
               logger.error(

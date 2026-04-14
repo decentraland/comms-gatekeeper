@@ -33,18 +33,24 @@ export function createSceneBansComponent(
 
   /**
    * Refresh LiveKit room metadata with the current list of banned addresses for a scene.
+   *
+   * This function intentionally omits the Room object when calling updateRoomMetadata,
+   * forcing it to fetch the latest metadata from the LiveKit server before merging.
+   *
+   * Previously, the webhook-provided Room object was passed through, but its metadata
+   * is a snapshot captured at the moment the webhook event was emitted. If another system
+   * (e.g., the cast presenter service) updates room metadata between the snapshot and this
+   * call, those changes are silently overwritten by the stale merge — for example, the
+   * presenters list would be erased every time a new participant joined the room.
+   *
    * @param place - The place attributes for the scene.
    * @param roomName - The room name.
-   * @param room - Optional room object from webhook event to avoid race conditions.
    */
-  async function refreshRoomBans(place: PlaceAttributes, roomName: string, room?: Room): Promise<void> {
+  async function refreshRoomBans(place: PlaceAttributes, roomName: string): Promise<void> {
     try {
-      // Get the current list of banned addresses for this place
       const bannedAddresses = await sceneBanManager.listBannedAddresses(place.id)
-
-      // Update the room metadata with the banned addresses
       const metadata = { bannedAddresses }
-      await livekit.updateRoomMetadata(roomName, metadata, room)
+      await livekit.updateRoomMetadata(roomName, metadata)
 
       logger.debug(`Updated room metadata for ${roomName} with ${bannedAddresses.length} banned addresses`)
     } catch (error) {
@@ -437,7 +443,14 @@ export function createSceneBansComponent(
   /**
    * Updates room metadata with banned addresses for a given room.
    * This function handles the common logic of fetching banned addresses and updating room metadata.
-   * @param room - Livekit room object.
+   *
+   * Note: Only the room name is forwarded to refreshRoomBans — never the Room object itself.
+   * Webhook-provided Room objects carry a stale metadata snapshot from the moment the event was
+   * emitted. Passing that snapshot to updateRoomMetadata would cause a read-stale-write that
+   * silently drops keys added between the snapshot and now (e.g., the presenters list set by
+   * the cast system). See the identical guard in addPresenter() for context.
+   *
+   * @param room - Livekit room object (used only for room.name, metadata is NOT forwarded).
    */
   async function updateRoomMetadataWithBans(room: Room): Promise<void> {
     try {
@@ -460,7 +473,7 @@ export function createSceneBansComponent(
         place = await places.getPlaceByParcel(entity.metadata.scene.base)
       }
 
-      await refreshRoomBans(place, room.name, room)
+      await refreshRoomBans(place, room.name)
     } catch (error) {
       logger.error(`Error updating room metadata for room ${room.name}`, {
         error: isErrorWithMessage(error) ? error.message : 'Unknown error'

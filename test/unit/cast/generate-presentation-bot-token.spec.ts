@@ -5,26 +5,16 @@ import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene-stream-access-manager-mock'
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
-import { createPlacesMockedComponent, createMockedWorldPlace } from '../../mocks/places-mock'
+import { createPlacesMockedComponent } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
 
-describe('when validating a streamer token', () => {
+describe('when generating a presentation bot token', () => {
   let castComponent: ICastComponent
   let mockLivekit: ReturnType<typeof createLivekitMockedComponent>
   let mockLogs: ReturnType<typeof createLoggerMockedComponent>
   let mockSceneStreamAccessManager: ReturnType<typeof createSceneStreamAccessManagerMockedComponent>
-  let mockSceneManager: ReturnType<typeof createSceneManagerMockedComponent>
-  let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
-  let mockConfig: ReturnType<typeof createConfigMockedComponent>
 
   beforeEach(() => {
-    const mockWorldPlace = createMockedWorldPlace({
-      id: 'world-place-123',
-      title: 'Test World Place',
-      owner: '0xowner123',
-      world_name: 'test-world.dcl.eth'
-    })
-
     const validStreamAccess = {
       id: 'access-123',
       place_id: 'world-place-123',
@@ -40,55 +30,34 @@ describe('when validating a streamer token', () => {
     }
 
     mockLivekit = createLivekitMockedComponent({
-      getWorldSceneRoomName: jest.fn().mockReturnValue('world-prod-scene-room-test-world.dcl.eth-bafkreiscene123'),
-      getSceneRoomName: jest.fn().mockReturnValue('scene-test-realm:bafkreiscene123'),
-      getOrCreateIngress: jest.fn().mockResolvedValue({
-        url: 'rtmp://test-url',
-        streamKey: 'test-stream-key',
-        ingressId: 'test-ingress-id'
-      }),
       generateCredentials: jest.fn().mockResolvedValue({
         url: 'wss://test-livekit-url',
-        token: 'test-token'
+        token: 'test-bot-token'
       })
     })
 
     mockLogs = createLoggerMockedComponent()
 
     mockSceneStreamAccessManager = createSceneStreamAccessManagerMockedComponent({
-      getLatestAccessByPlaceId: jest.fn().mockResolvedValue(null),
       getAccessByStreamingKey: jest.fn().mockResolvedValue(validStreamAccess)
-    })
-
-    mockSceneManager = createSceneManagerMockedComponent({
-      isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(true)
-    })
-
-    mockPlaces = createPlacesMockedComponent({
-      getWorldScenePlace: jest.fn().mockResolvedValue(mockWorldPlace),
-      getWorldByName: jest.fn().mockResolvedValue(mockWorldPlace)
-    })
-
-    mockConfig = createConfigMockedComponent({
-      getString: jest.fn().mockResolvedValue('https://cast2.decentraland.org')
     })
 
     castComponent = createCastComponent({
       livekit: mockLivekit,
       logs: mockLogs,
       sceneStreamAccessManager: mockSceneStreamAccessManager,
-      sceneManager: mockSceneManager,
-      places: mockPlaces,
-      config: mockConfig
+      sceneManager: createSceneManagerMockedComponent(),
+      places: createPlacesMockedComponent(),
+      config: createConfigMockedComponent()
     })
   })
 
   describe('and the streaming key is valid', () => {
-    it('should generate LiveKit credentials with the room id, publish permissions, and streamer role', async () => {
-      await castComponent.validateStreamerToken('valid-stream-key', 'streamer-identity')
+    it('should generate LiveKit credentials with publish-only permissions and presentation role', async () => {
+      await castComponent.generatePresentationBotToken('valid-stream-key')
 
       expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
-        expect.any(String),
+        expect.stringMatching(/^presentation-bot:scene-test-realm:bafkreiscene123:[0-9a-f-]+$/),
         'scene-test-realm:bafkreiscene123',
         expect.objectContaining({
           canPublish: true,
@@ -96,19 +65,26 @@ describe('when validating a streamer token', () => {
         }),
         false,
         expect.objectContaining({
-          role: 'streamer',
-          displayName: 'streamer-identity'
+          role: 'presentation'
         })
       )
     })
 
-    it('should return the LiveKit credentials and room information', async () => {
-      const result = await castComponent.validateStreamerToken('valid-stream-key', 'streamer-identity')
+    it('should include the bot identity in the cast permissions array', async () => {
+      await castComponent.generatePresentationBotToken('valid-stream-key')
+
+      const callArgs = mockLivekit.generateCredentials.mock.calls[0]
+      const botIdentity = callArgs[0]
+      const permissions = callArgs[2]
+      expect(permissions.cast).toEqual([botIdentity])
+    })
+
+    it('should return the LiveKit url, token, and roomId', async () => {
+      const result = await castComponent.generatePresentationBotToken('valid-stream-key')
 
       expect(result.url).toBe('wss://test-livekit-url')
-      expect(result.token).toBe('test-token')
+      expect(result.token).toBe('test-bot-token')
       expect(result.roomId).toBe('scene-test-realm:bafkreiscene123')
-      expect(result.identity).toMatch(/^stream:world-place-123:[0-9a-f-]+$/)
     })
   })
 
@@ -118,9 +94,7 @@ describe('when validating a streamer token', () => {
     })
 
     it('should throw an InvalidStreamingKeyError', async () => {
-      await expect(castComponent.validateStreamerToken('invalid-key', 'streamer-identity')).rejects.toThrow(
-        InvalidStreamingKeyError
-      )
+      await expect(castComponent.generatePresentationBotToken('invalid-key')).rejects.toThrow(InvalidStreamingKeyError)
     })
   })
 
@@ -144,13 +118,13 @@ describe('when validating a streamer token', () => {
     })
 
     it('should throw an InvalidStreamingKeyError', async () => {
-      await expect(castComponent.validateStreamerToken('valid-stream-key', 'streamer-identity')).rejects.toThrow(
+      await expect(castComponent.generatePresentationBotToken('valid-stream-key')).rejects.toThrow(
         InvalidStreamingKeyError
       )
     })
   })
 
-  describe('and the streaming token has expired', () => {
+  describe('and the streaming key has expired', () => {
     beforeEach(() => {
       const expiredStreamAccess = {
         id: 'access-123',
@@ -170,9 +144,7 @@ describe('when validating a streamer token', () => {
     })
 
     it('should throw an ExpiredStreamingKeyError', async () => {
-      await expect(castComponent.validateStreamerToken('expired-key', 'streamer-identity')).rejects.toThrow(
-        ExpiredStreamingKeyError
-      )
+      await expect(castComponent.generatePresentationBotToken('expired-key')).rejects.toThrow(ExpiredStreamingKeyError)
     })
   })
 })

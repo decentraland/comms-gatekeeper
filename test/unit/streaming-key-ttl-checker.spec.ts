@@ -98,6 +98,36 @@ describe('StreamingKeyTTLChecker', () => {
       )
     })
 
+    describe('and the place is not found for the expired key', () => {
+      beforeEach(async () => {
+        mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValue([
+          {
+            place_id: 'unknown-place',
+            ingress_id: 'test-ingress'
+          }
+        ])
+        mockedComponents.places.getPlaceStatusByIds.mockResolvedValue([])
+      })
+
+      it('should remove the ingress', async () => {
+        await executeOnTick(streamingKeyChecker, startOptions)
+
+        expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('test-ingress')
+      })
+
+      it('should remove the access', async () => {
+        await executeOnTick(streamingKeyChecker, startOptions)
+
+        expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('unknown-place')
+      })
+
+      it('should not send a notification', async () => {
+        await executeOnTick(streamingKeyChecker, startOptions)
+
+        expect(mockedComponents.notifications.sendNotificationType).not.toHaveBeenCalled()
+      })
+    })
+
     it('should handle errors gracefully', async () => {
       const error = new Error('Test error')
       mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockRejectedValue(error)

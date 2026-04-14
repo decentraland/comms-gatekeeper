@@ -1,14 +1,22 @@
 import { randomUUID } from 'crypto'
 import { AppComponents } from '../../types'
-import { UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
+import {
+  InvalidStreamingKeyError,
+  ExpiredStreamingKeyError,
+  NoActiveStreamError,
+  NotSceneAdminError,
+  ExpiredStreamAccessError
+} from './errors'
 import { FOUR_DAYS } from '../time'
 import {
   ICastComponent,
   GenerateStreamLinkParams,
   GenerateStreamLinkResult,
   ValidateStreamerTokenResult,
-  GenerateWatcherCredentialsResult
+  GenerateWatcherCredentialsResult,
+  PresentationBotTokenResult,
+  GetPresentersResult
 } from './types'
 
 /**
@@ -27,6 +35,17 @@ export function buildStreamLinks(
   }
 }
 
+/**
+ * Creates the Cast component for managing streaming and presenter roles.
+ *
+ * Orchestrates:
+ * 1. Stream link generation with admin validation and ingress creation
+ * 2. Streamer/watcher/bot token generation with LiveKit credentials
+ * 3. Presenter role management (promote/demote) with scene admin checks
+ *
+ * @param components - Required dependencies
+ * @returns ICastComponent implementation
+ */
 export function createCastComponent(
   components: Pick<
     AppComponents,
@@ -36,38 +55,19 @@ export function createCastComponent(
   const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config } = components
   const logger = logs.getLogger('cast')
 
+  /** Minimal place fields needed by createStreamAccess. */
+  type StreamAccessPlace = Pick<PlaceAttributes, 'id' | 'title'> &
+    Partial<Pick<PlaceAttributes, 'world_name' | 'base_position'>>
+
   /**
-   * Generates a unique stream link for a scene.
-   * @param params - Parameters for generating the stream link
-   * @returns Stream link details
+   * Creates or reuses stream access for a place, returning the streaming key and expiration.
+   * Shared logic used by both generateStreamLink and generatePreviewStreamLink.
    */
-  async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, parcel, sceneId, realmName } = params
-
-    let place: PlaceAttributes
-    if (worldName) {
-      place = await places.getWorldScenePlace(worldName, parcel)
-    } else {
-      place = await places.getPlaceByParcel(parcel)
-    }
-
-    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
-
-    if (!isAdmin) {
-      logger.warn(
-        `User ${walletAddress} attempted to generate stream link without admin permissions for place ${place.id}`
-      )
-      throw new UnauthorizedError('Only scene administrators can generate stream links')
-    }
-
-    // Generate the LiveKit room ID for the scene
-    let roomId: string
-    if (worldName) {
-      roomId = livekit.getWorldSceneRoomName(worldName, sceneId)
-    } else {
-      roomId = livekit.getSceneRoomName(realmName, sceneId)
-    }
-
+  async function createStreamAccess(
+    place: StreamAccessPlace,
+    roomId: string,
+    walletAddress: string
+  ): Promise<GenerateStreamLinkResult> {
     // Try to reuse existing active stream key
     const existingAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(place.id)
 
@@ -113,19 +113,17 @@ export function createCastComponent(
         generated_by: walletAddress
       })
 
-      logger.info(`Stream link generated for place ${place.id} by admin ${walletAddress}`, {
+      logger.info(`Stream link generated for place ${place.id} by ${walletAddress}`, {
         placeId: place.id,
         streamingKey: streamingKey.substring(0, 20) + '...',
         expiresAt: new Date(expirationTime).toISOString(),
-        generatedBy: walletAddress,
-        sceneId: sceneId || 'none',
-        realmName: realmName || 'none'
+        generatedBy: walletAddress
       })
     }
 
-    // Build links and calculate expiration (common for both reuse and new)
+    // Build links and calculate expiration
     const cast2BaseUrl = await config.getString('CAST2_URL')
-    const location = worldName || parcel || 'none'
+    const location = place.world_name || place.base_position || 'none'
     const { streamLink, watcherLink } = buildStreamLinks(cast2BaseUrl, streamingKey, location)
     const daysLeft = Math.ceil((expirationTime - Date.now()) / (24 * 60 * 60 * 1000))
 
@@ -141,6 +139,56 @@ export function createCastComponent(
   }
 
   /**
+   * Generates a unique stream link for a scene. Requires admin permissions.
+   *
+   * @param params - Parameters for generating the stream link
+   * @returns Stream link details including streaming key and expiration
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
+   */
+  async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
+    const { walletAddress, worldName, parcel, sceneId, realmName } = params
+
+    const roomId = worldName
+      ? livekit.getWorldSceneRoomName(worldName, sceneId)
+      : livekit.getSceneRoomName(realmName, sceneId)
+
+    const place = worldName ? await places.getWorldScenePlace(worldName, parcel) : await places.getPlaceByParcel(parcel)
+
+    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
+    if (!isAdmin) {
+      logger.warn(
+        `User ${walletAddress} attempted to generate stream link without admin permissions for place ${place.id}`
+      )
+      throw new NotSceneAdminError('Only scene administrators can generate stream links')
+    }
+
+    return createStreamAccess(place, roomId, walletAddress)
+  }
+
+  /**
+   * Generates a stream link for local preview. Skips admin check and uses a synthetic place.
+   * @param params - Parameters for generating the preview stream link
+   * @returns Stream link details
+   */
+  async function generatePreviewStreamLink(params: {
+    sceneId: string
+    realmName: string
+    walletAddress: string
+  }): Promise<GenerateStreamLinkResult> {
+    const { sceneId, realmName, walletAddress } = params
+
+    const roomId = livekit.getSceneRoomName(realmName, sceneId)
+    const place: StreamAccessPlace = {
+      id: roomId,
+      title: 'Local Preview'
+    }
+
+    logger.info(`Using synthetic place for local preview`, { placeId: roomId, roomId })
+
+    return createStreamAccess(place, roomId, walletAddress)
+  }
+
+  /**
    * Validates a streaming token and generates LiveKit credentials for a streamer.
    * Streamers connect directly to the scene room where they can publish video/audio streams.
    * @param streamingKey - The streaming key to validate
@@ -153,7 +201,7 @@ export function createCastComponent(
 
     if (!streamAccess) {
       logger.warn(`Invalid streaming token provided: ${streamingKey.substring(0, 8)}...`)
-      throw new UnauthorizedError('Invalid or expired streaming token')
+      throw new InvalidStreamingKeyError()
     }
 
     // Check if token has expired (for temporary stream links)
@@ -161,15 +209,18 @@ export function createCastComponent(
       logger.warn(`Expired streaming token: ${streamingKey.substring(0, 8)}...`, {
         expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
       })
-      throw new UnauthorizedError('Streaming token has expired')
+      throw new ExpiredStreamingKeyError()
     }
 
     // Use the room_id from the stream access (scene room format)
-    const roomId = streamAccess.room_id!
+    if (!streamAccess.room_id) {
+      throw new InvalidStreamingKeyError()
+    }
+    const roomId = streamAccess.room_id
 
     // Generate unique internal ID for LiveKit identity (prevents collisions)
     // Format: stream:{placeId}:{timestamp}
-    const internalId = `stream:${streamAccess.place_id}:${Date.now()}`
+    const internalId = `stream:${streamAccess.place_id}:${randomUUID()}`
 
     // Create LiveKit credentials with publish permissions for the scene room
     // Use internalId as LiveKit identity (guaranteed unique)
@@ -188,6 +239,9 @@ export function createCastComponent(
         displayName: identity
       }
     )
+
+    // Auto-add streamer as presenter in room metadata
+    await addPresenter(roomId, internalId)
 
     logger.info(`Streamer token generated for scene room ${roomId}`, {
       internalId,
@@ -218,7 +272,7 @@ export function createCastComponent(
   ): Promise<GenerateWatcherCredentialsResult> {
     // Generate unique internal ID for LiveKit identity (prevents collisions)
     // Format: watch:{roomId}:{timestamp}
-    const internalId = `watch:${roomId}:${Date.now()}`
+    const internalId = `watch:${roomId}:${randomUUID()}`
 
     // Create LiveKit credentials with watch-only permissions for the scene room
     // Use internalId as LiveKit identity (guaranteed unique)
@@ -229,6 +283,7 @@ export function createCastComponent(
       {
         canPublish: false, // Watchers cannot publish video/audio
         canSubscribe: true, // Can watch streams and see chat
+        canUpdateOwnMetadata: false, // Prevent watchers from spoofing their role
         cast: [] // No casting permissions
       },
       false, // Use production LiveKit
@@ -287,7 +342,7 @@ export function createCastComponent(
         placeId: place.id,
         isWorldName: isWorldName ? 'true' : 'false'
       })
-      throw new UnauthorizedError('No active stream found for this location')
+      throw new NoActiveStreamError(location)
     }
 
     // Check if the stream access has expired (4 days limit for Cast2)
@@ -297,11 +352,14 @@ export function createCastComponent(
         isWorldName: isWorldName ? 'true' : 'false',
         expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
       })
-      throw new UnauthorizedError('Stream access has expired. Please generate a new stream link.')
+      throw new ExpiredStreamAccessError()
     }
 
     // Use the room_id from the stream access
-    const roomId = streamAccess.room_id!
+    if (!streamAccess.room_id) {
+      throw new NoActiveStreamError(location)
+    }
+    const roomId = streamAccess.room_id
 
     // Generate watcher credentials using the existing method
     const credentials = await generateWatcherCredentials(roomId, identity)
@@ -324,10 +382,184 @@ export function createCastComponent(
     }
   }
 
+  /**
+   * Generates a LiveKit token for the presentation bot participant.
+   * The bot joins the room with publish-only permissions to stream presentation slides.
+   *
+   * @param streamingKey - The streaming key used by the streamer
+   * @returns LiveKit connection details for the presentation bot
+   * @throws {InvalidStreamingKeyError} If the streaming key is not found
+   * @throws {ExpiredStreamingKeyError} If the streaming key has expired
+   */
+  async function generatePresentationBotToken(streamingKey: string): Promise<PresentationBotTokenResult> {
+    const streamAccess = await sceneStreamAccessManager.getAccessByStreamingKey(streamingKey)
+
+    if (!streamAccess) {
+      logger.warn(`Invalid streaming key for presentation bot: ${streamingKey.substring(0, 8)}...`)
+      throw new InvalidStreamingKeyError()
+    }
+
+    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
+      logger.warn(`Expired streaming key for presentation bot: ${streamingKey.substring(0, 8)}...`)
+      throw new ExpiredStreamingKeyError()
+    }
+
+    if (!streamAccess.room_id) {
+      throw new InvalidStreamingKeyError()
+    }
+    const roomId = streamAccess.room_id
+    const botIdentity = `presentation-bot:${roomId}:${randomUUID()}`
+
+    const credentials = await livekit.generateCredentials(
+      botIdentity,
+      roomId,
+      {
+        canPublish: true,
+        canSubscribe: true,
+        canUpdateOwnMetadata: false, // Only server can update metadata
+        cast: [botIdentity]
+      },
+      false,
+      {
+        role: 'presentation'
+      }
+    )
+
+    logger.info(`Presentation bot token generated for room ${roomId}`, {
+      botIdentity,
+      roomId,
+      placeId: streamAccess.place_id
+    })
+
+    return {
+      url: credentials.url,
+      token: credentials.token,
+      roomId
+    }
+  }
+
+  /**
+   * Validates that the caller is an admin for the scene associated with the given room.
+   * Skips validation for local preview rooms.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param callerAddress - Ethereum address of the caller
+   * @throws {NoActiveStreamError} If no active stream exists for the room
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
+   */
+  async function validatePresenterAdmin(roomId: string, callerAddress: string): Promise<void> {
+    const streamAccess = await sceneStreamAccessManager.getAccessByRoomId(roomId)
+    if (!streamAccess) {
+      throw new NoActiveStreamError(roomId)
+    }
+
+    // Local preview: synthetic place IDs don't exist in the Places API — skip admin check
+    const { realmName } = livekit.getRoomMetadataFromRoomName(roomId)
+    if (livekit.isLocalPreview(realmName)) {
+      return
+    }
+
+    const [place] = await places.getPlaceStatusByIds([streamAccess.place_id])
+    if (!place) {
+      throw new NoActiveStreamError(roomId)
+    }
+    // Safe cast: isSceneOwnerOrAdmin only accesses id, world, world_name, and positions — all in the Pick type
+    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place as PlaceAttributes, callerAddress)
+    if (!isAdmin) {
+      throw new NotSceneAdminError('Only scene administrators can manage presenters')
+    }
+  }
+
+  /**
+   * Adds a participant to the presenters list in room metadata.
+   * Idempotent — calling twice with the same identity has no additional effect.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param identity - Ethereum address of the participant to add
+   */
+  async function addPresenter(roomId: string, identity: string): Promise<void> {
+    // Ensure room exists (e.g., streamer token generated before connecting)
+    await livekit.getRoom(roomId)
+    // Use appendToRoomMetadataArray for a single read-append-write that preserves
+    // all existing metadata keys. This avoids the race condition where concurrent
+    // writers (e.g., bans webhook) overwrite each other's changes via the
+    // read-merge-write pattern in updateRoomMetadata.
+    await livekit.appendToRoomMetadataArray(roomId, 'presenters', identity)
+    logger.info(`Added ${identity} to presenters in room ${roomId}`)
+  }
+
+  /**
+   * Removes a participant from the presenters list in room metadata.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param identity - Ethereum address of the participant to remove
+   */
+  async function removePresenter(roomId: string, identity: string): Promise<void> {
+    await livekit.removeFromRoomMetadataArray(roomId, 'presenters', identity)
+    logger.info(`Removed ${identity} from presenters in room ${roomId}`)
+  }
+
+  /**
+   * Promotes a participant to the presenter role within a cast room.
+   * Validates that the caller is a scene admin before updating room metadata.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param participantIdentity - Ethereum address of the participant to promote
+   * @param callerAddress - Ethereum address of the caller
+   * @throws {NoActiveStreamError} If the room has no active stream
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
+   */
+  async function promotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
+    await validatePresenterAdmin(roomId, callerAddress)
+    await addPresenter(roomId, participantIdentity)
+  }
+
+  /**
+   * Demotes a presenter back to watcher role within a cast room.
+   *
+   * @param roomId - LiveKit room identifier
+   * @param participantIdentity - Ethereum address of the participant to demote
+   * @param callerAddress - Ethereum address of the caller
+   * @throws {NoActiveStreamError} If the room has no active stream
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
+   */
+  async function demotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
+    await validatePresenterAdmin(roomId, callerAddress)
+    await removePresenter(roomId, participantIdentity)
+  }
+
+  /**
+   * Returns the list of participants with the presenter role in a cast room.
+   * Reads from room metadata (server-authoritative source of truth).
+   *
+   * @param roomId - LiveKit room identifier
+   * @param callerAddress - Ethereum address of the caller
+   * @returns Object containing an array of presenter identities
+   * @throws {NoActiveStreamError} If the room has no active stream
+   * @throws {NotSceneAdminError} If the caller is not a scene admin
+   */
+  async function getPresenters(roomId: string, callerAddress: string): Promise<GetPresentersResult> {
+    await validatePresenterAdmin(roomId, callerAddress)
+    const room = await livekit.getRoomInfo(roomId)
+    let roomMeta: Record<string, unknown> = {}
+    try {
+      roomMeta = JSON.parse(room?.metadata || '{}')
+    } catch {
+      // Malformed metadata — treat as empty
+    }
+    return { presenters: Array.isArray(roomMeta.presenters) ? (roomMeta.presenters as string[]) : [] }
+  }
+
   return {
+    addPresenter,
     generateStreamLink,
+    generatePreviewStreamLink,
     validateStreamerToken,
     generateWatcherCredentials,
-    generateWatcherCredentialsByLocation
+    generateWatcherCredentialsByLocation,
+    generatePresentationBotToken,
+    promotePresenter,
+    demotePresenter,
+    getPresenters
   }
 }

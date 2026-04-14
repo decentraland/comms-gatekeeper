@@ -37,7 +37,7 @@ export const createLivekitMockedComponent = (
       .fn()
       .mockImplementation((roomName: string) => roomName.replace(ISLAND_ROOM_PREFIX, '')),
     getRoomName: jest.fn(),
-    getRoomMetadataFromRoomName: jest.fn(),
+    getRoomMetadataFromRoomName: jest.fn().mockReturnValue({ realmName: undefined }),
     getRoom: jest.fn(),
     getRoomInfo: jest.fn(),
     getOrCreateIngress: jest.fn(),
@@ -48,6 +48,8 @@ export const createLivekitMockedComponent = (
     updateParticipantMetadata: jest.fn(),
     updateParticipantPermissions: jest.fn(),
     updateRoomMetadata: jest.fn(),
+    appendToRoomMetadataArray: jest.fn().mockResolvedValue(undefined),
+    removeFromRoomMetadataArray: jest.fn().mockResolvedValue(undefined),
     removeParticipantFromAllRooms: jest.fn(),
     start: jest.fn(),
     stop: jest.fn(),

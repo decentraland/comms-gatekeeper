@@ -1,6 +1,6 @@
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
-import { UnauthorizedError } from '../../../src/types/errors'
+import { NotSceneAdminError } from '../../../src/logic/cast/errors'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
@@ -194,7 +194,7 @@ describe('when generating a stream link', () => {
       mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldScenePlace)
     })
 
-    it('should throw an UnauthorizedError', async () => {
+    it('should throw a NotSceneAdminError', async () => {
       await expect(
         castComponent.generateStreamLink({
           walletAddress: '0xrandomuser',
@@ -203,7 +203,7 @@ describe('when generating a stream link', () => {
           sceneId: 'bafkreiscene123',
           realmName: 'test-world.dcl.eth'
         })
-      ).rejects.toThrow(UnauthorizedError)
+      ).rejects.toThrow(NotSceneAdminError)
     })
   })
 
