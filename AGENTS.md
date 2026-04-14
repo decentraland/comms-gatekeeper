@@ -12,7 +12,6 @@ This project uses skills from [decentraland/ai-toolkit](https://github.com/decen
 
 | Skill | When to load |
 |---|---|
-| `dcl-backend-standards` | Writing or modifying any `*.ts` file |
 | `dcl-testing` | Writing, modifying, or reviewing `*.spec.ts` / `*.test.ts` files |
 | `dcl-wkc-components` | Working on files in `src/components.ts`, `src/adapters/`, `src/logic/`, `src/controllers/`, `src/types/`, or any file importing from `@well-known-components` |
 
