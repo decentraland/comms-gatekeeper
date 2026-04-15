@@ -213,6 +213,10 @@ For detailed testing guidelines and standards, refer to our [Testing Standards](
 
 For detailed AI Agent context, see [docs/ai-agent-context.md](docs/ai-agent-context.md).
 
+### AI Skills
+
+This project uses [skills](https://skills.sh/docs) to manage AI agent standards from [decentraland/ai-toolkit](https://github.com/decentraland/ai-toolkit). See the `skills-lock.json` file for installed skills.
+
 ---
 
 **Note**: This service is critical for Decentraland's communication infrastructure. Ensure LiveKit is properly configured and accessible before running the service.

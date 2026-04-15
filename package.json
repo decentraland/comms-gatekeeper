@@ -3,6 +3,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
     "start": "node --trace-warnings --abort-on-uncaught-exception --unhandled-rejections=strict dist/index.js",
     "start:dev": "yarn build && yarn start",
     "start:dev:clean": "yarn migrate down 10 && yarn migrate up && yarn build && yarn start",
@@ -10,13 +11,28 @@
     "test": "jest --forceExit --detectOpenHandles --coverage --verbose --passWithNoTests",
     "lint:check": "eslint '**/*.{js,ts}'",
     "lint:fix": "eslint '**/*.{js,ts}' --fix",
-    "migrate": "node-pg-migrate --tsconfig ./tsconfig.json --migrations-dir ./src/migrations"
+    "format:check": "prettier --check '**/*.{js,ts}'",
+    "format:fix": "prettier --write '**/*.{js,ts}'",
+    "migrate": "node-pg-migrate --tsconfig ./tsconfig.json --migrations-dir ./src/migrations",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "yarn nano-staged",
+    "pre-push": "yarn typecheck && yarn test --no-coverage"
+  },
+  "nano-staged": {
+    "*.{js,ts}": [
+      "eslint",
+      "prettier --check"
+    ]
   },
   "devDependencies": {
     "@dcl/eslint-config": "^2.2.1",
     "@types/node": "^20.7.1",
     "@well-known-components/test-helpers": "^1.5.8",
+    "nano-staged": "0.8.0",
     "nodemon": "^3.0.1",
+    "simple-git-hooks": "2.11.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.2.2"
   },
