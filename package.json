@@ -18,7 +18,7 @@
   },
   "simple-git-hooks": {
     "pre-commit": "yarn nano-staged",
-    "pre-push": "yarn typecheck && yarn test"
+    "pre-push": "yarn typecheck && yarn test --no-coverage"
   },
   "nano-staged": {
     "*.{js,ts}": [
