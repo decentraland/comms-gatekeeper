@@ -52,10 +52,20 @@
 
 The Comms Gatekeeper is the access authority for player-to-player interaction in Genesis City. Specifically:
 
-- **LiveKit token as the mandatory platform credential**: A LiveKit token issued by comms-gatekeeper is the single required credential to enter the Genesis City platform. Without it, a client cannot join any room (scene room or island room) and therefore cannot see other players, hear voice, or exchange positional data. There is no alternative path — token issuance by comms-gatekeeper is the gate.
+- **LiveKit token as the mandatory platform credential**: A LiveKit token issued by comms-gatekeeper is the single required credential to enter the Genesis City platform. Without it, a client cannot join any room and cannot see other players, hear voice, or exchange CRDT. There is no alternative path — token issuance by comms-gatekeeper is the gate.
 - **Scene rooms and island rooms**: Controls access to both scene-specific LiveKit rooms (tied to a particular scene/parcel) and island rooms (the dynamic clustering rooms managed by Archipelago). Both require a token from comms-gatekeeper.
 - **The enforcement point for Genesis City interaction**: All ban checks, permission checks, and access-control decisions for real-time Genesis City interaction happen here, synchronously, before a token is issued.
 - **Scoped to Genesis City**: The Comms Gatekeeper's role applies to Genesis City scenes and islands. For Worlds, the access control gatekeeper role is fulfilled by the Worlds Content Server, which may use a separate LiveKit account/cluster.
+
+**Token issuance in the real-time flow:**
+
+There are two token paths in the real-time layer:
+
+1. **Archipelago Core → LiveKit API (direct):** When a player gets an island assignment from Archipelago Core via the WS Connector, the `island_changed` NATS message already includes a LiveKit connection string with an embedded token (`livekit:{host}?access_token={jwt}`). Archipelago Core calls the LiveKit API directly to generate this token. This token grants access to the island room.
+
+2. **Client → comms-gatekeeper (signed fetch):** For scene-specific rooms and for Hammurabi bots, the caller explicitly requests a token from comms-gatekeeper. This path is used when the `CommsTransportWrapper` adapter is `comms-gatekeeper` (the default for Genesis City scenes). Hammurabi bots authenticate here using `PROCESS_PRIVATE_KEY`.
+
+The ban enforcement that matters for scene access happens at comms-gatekeeper (path 2). Platform bans are checked synchronously at token issuance time on this path.
 
 **Database Schema:**
 
