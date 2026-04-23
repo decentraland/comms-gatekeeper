@@ -279,9 +279,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       describe('and the world about endpoint returns the scene ID', () => {
         beforeEach(() => {
           stubComponents.worlds.fetchWorldSceneId.resolves('bafkreiabcdef123')
-          stubComponents.livekit.getWorldSceneRoomName.returns(
-            'world-prd-scene-room-test-world.eth-bafkreiabcdef123'
-          )
+          stubComponents.livekit.getWorldSceneRoomName.returns('world-prd-scene-room-test-world.eth-bafkreiabcdef123')
         })
 
         it('should fetch the real sceneId and use it for both the ban check and room name', async () => {
@@ -492,9 +490,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         }
 
         stubComponents.worlds.hasWorldAccessPermission.resolves(true)
-        stubComponents.livekit.getWorldSceneRoomName.returns(
-          'world-prd-scene-room-test-world.eth-bafkreiabcdef123'
-        )
+        stubComponents.livekit.getWorldSceneRoomName.returns('world-prd-scene-room-test-world.eth-bafkreiabcdef123')
       })
 
       it('should use the sceneId as-is without fetching from the about endpoint', async () => {
@@ -512,6 +508,82 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         expect(stubComponents.worlds.fetchWorldSceneId.called).toBe(false)
         expect(stubComponents.sceneBans.isUserBanned.firstCall.args[1].sceneId).toBe('bafkreiabcdef123')
         expect(stubComponents.livekit.getWorldSceneRoomName.calledWith('test-world.eth', 'bafkreiabcdef123')).toBe(true)
+      })
+    })
+  })
+
+  describe('when accessing a local preview realm', () => {
+    let previewMetadata: Metadata
+
+    beforeEach(() => {
+      previewMetadata = {
+        identity: owner.authChain[0].payload,
+        realmName: 'LocalPreview',
+        parcel: '10,20',
+        sceneId: 'test-preview-scene'
+      }
+
+      stubComponents.livekit.isLocalPreview.returns(true)
+      stubComponents.livekit.getSceneRoomName.returns('scene-LocalPreview:test-preview-scene')
+      stubComponents.livekit.generateCredentials.resolves({
+        url: 'wss://test-livekit-url',
+        token: 'test-token'
+      })
+    })
+
+    describe('and sceneId is provided', () => {
+      it('should build the room name from the scene id and generate credentials with forPreview=false', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: previewMetadata
+          },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+        expect(stubComponents.livekit.getSceneRoomName.calledWith('LocalPreview', 'test-preview-scene')).toBe(true)
+        expect(stubComponents.livekit.generateCredentials.firstCall.args[3]).toBe(false)
+      })
+
+      it('should skip the scene ban check', async () => {
+        await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: previewMetadata
+          },
+          owner
+        )
+
+        expect(stubComponents.sceneBans.isUserBanned.called).toBe(false)
+      })
+    })
+
+    describe('and sceneId is missing', () => {
+      it('should reject the request returning 400', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: {
+              identity: owner.authChain[0].payload,
+              realmName: 'LocalPreview',
+              parcel: '10,20'
+            }
+          },
+          owner
+        )
+
+        expect(response.status).toBe(400)
+        const body = await response.json()
+        expect(body).toEqual({
+          error: 'Access denied, invalid signed-fetch request, no sceneId'
+        })
       })
     })
   })

@@ -29,7 +29,7 @@ export async function commsSceneHandler(
 
   const isLocalPreview = livekit.isLocalPreview(realmName)
 
-  let forPreview = false
+  const forPreview = false
   let room: string
   const permissions: Permissions = {
     cast: [],
@@ -57,7 +57,7 @@ export async function commsSceneHandler(
 
   const isWorld = realmName.endsWith('.eth')
 
-  if (!isLocalPreview && !sceneId) {
+  if (!sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
@@ -108,13 +108,7 @@ export async function commsSceneHandler(
   }
 
   if (isLocalPreview) {
-    if (resolvedSceneId) {
-      room = livekit.getSceneRoomName(realmName, resolvedSceneId)
-      forPreview = false
-    } else {
-      room = `preview-${identity}`
-      forPreview = true
-    }
+    room = livekit.getSceneRoomName(realmName, resolvedSceneId)
   } else if (isWorld) {
     const hasAccess = await worlds.hasWorldAccessPermission(identity, realmName)
 
