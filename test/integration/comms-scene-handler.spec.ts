@@ -544,7 +544,20 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         )
 
         expect(response.status).toBe(200)
+        const body = await response.json()
+        expect(body).toEqual({
+          adapter: 'livekit:wss://test-livekit-url?access_token=test-token'
+        })
         expect(stubComponents.livekit.getSceneRoomName.calledWith('LocalPreview', 'test-preview-scene')).toBe(true)
+        // cast.addPresenter internally appends to the 'presenters' metadata array
+        expect(
+          stubComponents.livekit.appendToRoomMetadataArray.calledWith(
+            'scene-LocalPreview:test-preview-scene',
+            'presenters',
+            owner.authChain[0].payload
+          )
+        ).toBe(true)
+        // generateCredentials signature: (identity, room, permissions, forPreview)
         expect(stubComponents.livekit.generateCredentials.firstCall.args[3]).toBe(false)
       })
 
