@@ -20,9 +20,12 @@ export async function createWorldsComponent(
     config.requireString('LAMBDAS_URL')
   ])
 
+  const worldPermissionsCache = cachedFetch.cache<PermissionsOverWorld>()
+  const entityMetadataCache = cachedFetch.cache<{ metadata: WorldSceneEntityMetadata }>()
+  const namesCache = cachedFetch.cache<NamesResponse>()
+
   async function fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined> {
-    const fetchFromCache = cachedFetch.cache<PermissionsOverWorld>()
-    const response = await fetchFromCache.fetch(`${worldContentUrl}/world/${worldName.toLowerCase()}/permissions`)
+    const response = await worldPermissionsCache.fetch(`${worldContentUrl}/world/${worldName.toLowerCase()}/permissions`)
     return response
   }
 
@@ -57,8 +60,7 @@ export async function createWorldsComponent(
     const url = `${worldContentUrl}/contents/${entityId}`
     logger.debug(`Fetching world scene entity metadata for ${entityId}`)
 
-    const fetchFromCache = cachedFetch.cache<{ metadata: WorldSceneEntityMetadata }>()
-    const result = await fetchFromCache.fetch(url)
+    const result = await entityMetadataCache.fetch(url)
 
     if (!result?.metadata?.scene) {
       logger.debug(`No scene entity metadata found for entity ID ${entityId}`)
@@ -86,7 +88,7 @@ export async function createWorldsComponent(
       throw new Error('Lambdas URL is not set')
     }
 
-    const namesResponse = await cachedFetch.cache<NamesResponse>().fetch(`${baseUrl}users/${authAddress}/names`)
+    const namesResponse = await namesCache.fetch(`${baseUrl}users/${authAddress}/names`)
 
     if (!namesResponse?.elements?.length) return false
 
