@@ -126,6 +126,27 @@ describe('feature-flags adapter', () => {
       })
     })
 
+    describe('and the variant payload contains multiple newlines between values', () => {
+      beforeEach(async () => {
+        mockGetIsFeatureEnabled.mockResolvedValue(true)
+        mockGetFeatureVariant.mockResolvedValue({
+          name: 'allowlist',
+          enabled: true,
+          payload: {
+            type: 'string',
+            value: '0xAaa,\n0xBBB,\n0xccc'
+          }
+        })
+
+        await adapter[START_COMPONENT]()
+      })
+
+      it('should strip every newline before splitting', async () => {
+        const result = await adapter.getVariants<string[]>(FeatureFlag.PLATFORM_USER_MODERATORS)
+        expect(result).toEqual(['0xaaa', '0xbbb', '0xccc'])
+      })
+    })
+
     describe('and the variant payload has an empty value', () => {
       beforeEach(async () => {
         mockGetIsFeatureEnabled.mockResolvedValue(true)

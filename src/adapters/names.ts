@@ -32,6 +32,11 @@ export async function createNamesComponent(
     max: NAME_BY_ADDRESS_CACHE_MAX,
     ttl: NAME_BY_ADDRESS_CACHE_TTL
   })
+  // In-flight registry: concurrent callers asking for the same uncached address share
+  // one pending batch via tag-along, so a burst of overlapping requests issues a single
+  // /profiles POST instead of one per caller. The LRU cache alone can't dedup this —
+  // entries only land after the fetch resolves, so requests overlapping in time would
+  // all see a cache miss and each issue their own upstream call.
   const inflightByAddress = new Map<string, ProfileBatch>()
 
   function formatProfileName(avatar: Profile['avatars'][number]): string {

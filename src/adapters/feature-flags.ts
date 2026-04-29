@@ -47,7 +47,7 @@ export async function createFeatureFlagsAdapter(
 
     if (variant?.payload?.value) {
       const values = variant.payload.value
-        .replace('\n', '')
+        .replace(/\n/g, '')
         .split(',')
         .map((domain) => domain.toLowerCase().trim())
 

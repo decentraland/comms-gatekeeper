@@ -223,6 +223,95 @@ describe('when the land lease component is created', () => {
     })
   })
 
+  describe('and two callers request authorizations concurrently before the first response arrives', () => {
+    let firstResult: any
+    let secondResult: any
+
+    beforeEach(async () => {
+      mockFetch.fetch.mockImplementationOnce(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ ok: true, json: () => Promise.resolve(mockAuthorizations) }), 0)
+          )
+      )
+
+      landLease = await createLandLeaseComponent({
+        fetch: mockFetch,
+        logs: mockLogs
+      })
+      ;[firstResult, secondResult] = await Promise.all([landLease.getAuthorizations(), landLease.getAuthorizations()])
+    })
+
+    it('should issue only one upstream fetch for the shared in-flight call', () => {
+      expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('should resolve both callers with the same authorizations payload', () => {
+      expect(firstResult.authorizations).toHaveLength(mockAuthorizations.length)
+      expect(secondResult).toEqual(firstResult)
+    })
+  })
+
+  describe('and a refresh fetch fails after the cache has expired', () => {
+    let result: any
+
+    beforeEach(async () => {
+      jest.useFakeTimers()
+
+      mockFetch.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockAuthorizations)
+      })
+
+      landLease = await createLandLeaseComponent({
+        fetch: mockFetch,
+        logs: mockLogs
+      })
+
+      // Populate cache
+      await landLease.getAuthorizations()
+
+      // Expire cache
+      jest.advanceTimersByTime(5 * 60 * 1000 + 1000)
+
+      // Next fetch fails
+      mockFetch.fetch.mockRejectedValueOnce(new Error('Network down'))
+
+      result = await landLease.getAuthorizations()
+    })
+
+    afterEach(() => {
+      jest.useRealTimers()
+    })
+
+    it('should fall back to the previously cached authorizations instead of returning empty', () => {
+      expect(result.authorizations).toHaveLength(mockAuthorizations.length)
+    })
+
+    it('should have attempted the fresh fetch', () => {
+      expect(mockFetch.fetch).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('and the fetch fails on the very first call with no cache populated', () => {
+    let result: any
+
+    beforeEach(async () => {
+      mockFetch.fetch.mockRejectedValueOnce(new Error('Network down'))
+
+      landLease = await createLandLeaseComponent({
+        fetch: mockFetch,
+        logs: mockLogs
+      })
+
+      result = await landLease.getAuthorizations()
+    })
+
+    it('should return an empty authorizations payload', () => {
+      expect(result).toEqual({ authorizations: [] })
+    })
+  })
+
   describe('and refreshAuthorizations is called', () => {
     beforeEach(async () => {
       mockFetch.fetch.mockResolvedValue({
