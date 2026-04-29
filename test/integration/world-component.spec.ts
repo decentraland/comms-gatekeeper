@@ -97,6 +97,11 @@ describe('WorldComponent', () => {
       const result = await worldsComponent.hasWorldOwnerPermission('authAddress', 'unknownworld.eth')
       expect(result).toBe(false)
     })
+
+    it('should lowercase the auth address in the lambdas users URL', async () => {
+      await worldsComponent.hasWorldOwnerPermission('0xUserAddress', 'myworld.eth')
+      expect(mockFetch).toHaveBeenCalledWith('https://lambdas.test/users/0xuseraddress/names')
+    })
   })
 
   describe('hasWorldStreamingPermission', () => {
@@ -166,6 +171,34 @@ describe('WorldComponent', () => {
       const result = await worldsComponent.hasWorldStreamingPermission('0xUserAddress', 'test-world')
       expect(result).toBe(false)
     })
+
+    it('should match case-insensitively when allowlist wallets are stored in mixed case', async () => {
+      mockFetch.mockResolvedValueOnce({
+        permissions: {
+          deployment: { type: PermissionType.AllowList, wallets: [] },
+          streaming: {
+            type: PermissionType.AllowList,
+            wallets: ['0xUserAddress']
+          }
+        }
+      })
+      const result = await worldsComponent.hasWorldStreamingPermission('0xuseraddress', 'test-world')
+      expect(result).toBe(true)
+    })
+
+    it('should match case-insensitively when the request address is in mixed case', async () => {
+      mockFetch.mockResolvedValueOnce({
+        permissions: {
+          deployment: { type: PermissionType.AllowList, wallets: [] },
+          streaming: {
+            type: PermissionType.AllowList,
+            wallets: ['0xuseraddress']
+          }
+        }
+      })
+      const result = await worldsComponent.hasWorldStreamingPermission('0xUSERADDRESS', 'test-world')
+      expect(result).toBe(true)
+    })
   })
 
   describe('hasWorldDeployPermission', () => {
@@ -234,6 +267,20 @@ describe('WorldComponent', () => {
 
       const result = await worldsComponent.hasWorldDeployPermission('0xUserAddress', 'test-world')
       expect(result).toBe(false)
+    })
+
+    it('should match case-insensitively when allowlist wallets are stored in mixed case', async () => {
+      mockFetch.mockResolvedValueOnce({
+        permissions: {
+          deployment: {
+            type: PermissionType.AllowList,
+            wallets: ['0xUserAddress']
+          },
+          streaming: { type: PermissionType.AllowList, wallets: [] }
+        }
+      })
+      const result = await worldsComponent.hasWorldDeployPermission('0xuseraddress', 'test-world')
+      expect(result).toBe(true)
     })
   })
 

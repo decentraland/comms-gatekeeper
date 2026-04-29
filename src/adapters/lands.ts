@@ -11,6 +11,9 @@ export async function createLandsComponent(
 
   const lambdasUrl = await config.requireString('LAMBDAS_URL')
 
+  const parcelPermissionsCache = cachedFetch.cache<LandsParcelPermissionsResponse>()
+  const parcelOperatorsCache = cachedFetch.cache<LandsParcelOperatorsResponse>()
+
   async function getLandPermissions(
     authAddress: string,
     placePositions: string[]
@@ -22,9 +25,9 @@ export async function createLandsComponent(
     }
 
     const position = placePositions[0].split(',')
-    const parcelPermissionsResponse = await cachedFetch
-      .cache<LandsParcelPermissionsResponse>()
-      .fetch(`${baseUrl}users/${authAddress}/parcels/${position[0]}/${position[1]}/permissions`)
+    const parcelPermissionsResponse = await parcelPermissionsCache.fetch(
+      `${baseUrl}users/${authAddress.toLowerCase()}/parcels/${position[0]}/${position[1]}/permissions`
+    )
 
     if (!parcelPermissionsResponse) {
       logger.info(`Land permissions not found for ${authAddress} at ${position[0]},${position[1]}`)
@@ -43,9 +46,7 @@ export async function createLandsComponent(
       throw new Error('Lambdas URL is not set')
     }
     const [x, y] = parcel.split(',')
-    const parcelPermissionsResponse = await cachedFetch
-      .cache<LandsParcelOperatorsResponse>()
-      .fetch(`${baseUrl}parcels/${x}/${y}/operators`)
+    const parcelPermissionsResponse = await parcelOperatorsCache.fetch(`${baseUrl}parcels/${x}/${y}/operators`)
 
     if (!parcelPermissionsResponse) {
       logger.info(`Land permissions not found for ${x},${y}`)
