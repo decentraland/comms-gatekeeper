@@ -1,5 +1,7 @@
 import { createLandsComponent } from '../../src/adapters/lands'
+import { cachedFetchComponent } from '../../src/adapters/fetch'
 import { LandsParcelPermissionsResponse, LandsParcelOperatorsResponse } from '../../src/types/lands.type'
+import { createLoggerMockedComponent } from '../mocks/logger-mock'
 
 describe('LandsComponent', () => {
   let landsComponent: Awaited<ReturnType<typeof createLandsComponent>>
@@ -273,6 +275,98 @@ describe('LandsComponent', () => {
       })
 
       await expect(component.getLandOperators('10,20')).rejects.toThrow('Lambdas URL is not set')
+    })
+  })
+
+  describe('cache reuse with the real cachedFetch component', () => {
+    let cachedFetchFetch: jest.Mock
+    let cachedLandsComponent: Awaited<ReturnType<typeof createLandsComponent>>
+
+    beforeEach(async () => {
+      cachedFetchFetch = jest.fn()
+      const realCachedFetch = await cachedFetchComponent({
+        fetch: { fetch: cachedFetchFetch },
+        logs: createLoggerMockedComponent()
+      })
+
+      const mockConfig = {
+        requireString: jest.fn().mockResolvedValue('https://lambdas.decentraland.org/api'),
+        getString: jest.fn(),
+        getNumber: jest.fn(),
+        requireNumber: jest.fn()
+      }
+
+      cachedLandsComponent = await createLandsComponent({
+        config: mockConfig,
+        cachedFetch: realCachedFetch,
+        logs: createLoggerMockedComponent()
+      })
+    })
+
+    describe('and getLandPermissions is called twice for the same address and parcel', () => {
+      beforeEach(async () => {
+        cachedFetchFetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            owner: true,
+            operator: false,
+            updateOperator: false,
+            updateManager: false,
+            approvedForAll: false
+          })
+        })
+
+        await cachedLandsComponent.getLandPermissions('0xUserAddress', ['10,20'])
+        await cachedLandsComponent.getLandPermissions('0xUserAddress', ['10,20'])
+      })
+
+      it('should call the upstream only once', () => {
+        expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('and getLandPermissions is called for the same address with different casings', () => {
+      beforeEach(async () => {
+        cachedFetchFetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            owner: true,
+            operator: false,
+            updateOperator: false,
+            updateManager: false,
+            approvedForAll: false
+          })
+        })
+
+        await cachedLandsComponent.getLandPermissions('0xUserAddress', ['10,20'])
+        await cachedLandsComponent.getLandPermissions('0xuseraddress', ['10,20'])
+      })
+
+      it('should share the cache entry across casings', () => {
+        expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('and getLandOperators is called twice for the same parcel', () => {
+      beforeEach(async () => {
+        cachedFetchFetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            owner: '0xOwnerAddress',
+            operator: null,
+            updateOperator: null,
+            updateManagers: [],
+            approvedForAll: []
+          })
+        })
+
+        await cachedLandsComponent.getLandOperators('10,20')
+        await cachedLandsComponent.getLandOperators('10,20')
+      })
+
+      it('should call the upstream only once', () => {
+        expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      })
     })
   })
 })

@@ -1,8 +1,10 @@
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createWorldsComponent } from '../../src/adapters/worlds'
+import { cachedFetchComponent } from '../../src/adapters/fetch'
 import { IWorldComponent, WorldScene } from '../../src/types/worlds.type'
 import { createConfigMockedComponent } from '../mocks/config-mock'
 import { createCachedFetchMockedComponent } from '../mocks/cached-fetch'
+import { createLoggerMockedComponent } from '../mocks/logger-mock'
 
 describe('worlds adapter', () => {
   const worldContentUrl = 'https://worlds-content.example.com'
@@ -506,6 +508,62 @@ describe('worlds adapter', () => {
         expect(mockFetch.fetch).toHaveBeenCalledWith(
           `${worldContentUrl}/world/${uppercaseWorldName.toLowerCase()}/about`
         )
+      })
+    })
+  })
+
+  describe('when the cache is wired up with the real cachedFetch component', () => {
+    let cachedFetchFetch: jest.Mock
+    let cachedWorldsComponent: IWorldComponent
+
+    beforeEach(async () => {
+      cachedFetchFetch = jest.fn()
+      const realCachedFetch = await cachedFetchComponent({
+        fetch: { fetch: cachedFetchFetch },
+        logs: createLoggerMockedComponent()
+      })
+
+      cachedWorldsComponent = await createWorldsComponent({
+        config: mockConfig,
+        logs: { getLogger: jest.fn().mockReturnValue(mockLogger) },
+        fetch: mockFetch,
+        cachedFetch: realCachedFetch
+      })
+    })
+
+    describe('and fetchWorldActionPermissions is called twice for the same world', () => {
+      const worldName = 'myworld.dcl.eth'
+
+      beforeEach(async () => {
+        cachedFetchFetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ owner: '0xabc', permissions: {} })
+        })
+
+        await cachedWorldsComponent.fetchWorldActionPermissions(worldName)
+        await cachedWorldsComponent.fetchWorldActionPermissions(worldName)
+      })
+
+      it('should call the upstream only once', () => {
+        expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('and fetchWorldSceneEntityMetadataById is called twice for the same entity', () => {
+      const entityId = 'bafkreiabc123'
+
+      beforeEach(async () => {
+        cachedFetchFetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ metadata: { scene: { base: '0,0' } } })
+        })
+
+        await cachedWorldsComponent.fetchWorldSceneEntityMetadataById(entityId)
+        await cachedWorldsComponent.fetchWorldSceneEntityMetadataById(entityId)
+      })
+
+      it('should call the upstream only once', () => {
+        expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
       })
     })
   })
