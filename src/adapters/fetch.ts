@@ -11,7 +11,7 @@ export async function cachedFetchComponent(
   }
 ): Promise<ICachedFetchComponent> {
   const { fetch, logs } = components
-  const max = options?.max ?? 1000
+  const max = options?.max ?? 5000
   const ttl = options?.ttl ?? 1000 * 60 * 5
   const allowStaleOnFetchRejection = options?.allowStaleOnFetchRejection ?? false
 

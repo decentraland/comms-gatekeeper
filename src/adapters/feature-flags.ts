@@ -1,5 +1,5 @@
 import { IBaseComponent, START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
-import { ApplicationName } from '@well-known-components/features-component'
+import { ApplicationName, FeatureFlagVariant } from '@well-known-components/features-component'
 import { AppComponents } from '../types'
 
 export enum FeatureFlag {
@@ -22,16 +22,19 @@ export async function createFeatureFlagsAdapter(
   const refreshIntervalInMs = (await config.getNumber('FEATURE_FLAG_REFRESH_INTERVAL_IN_MS')) || 4 * 60 * 1000
 
   const featuresFlagMap = new Map<FeatureFlag, boolean>()
+  const variantsMap = new Map<FeatureFlag, FeatureFlagVariant | null>()
 
   let refreshInterval: NodeJS.Timeout | null = null
 
   async function refresh() {
     try {
-      const [isPlatformUserModeratorsEnabled] = await Promise.all([
-        features.getIsFeatureEnabled(ApplicationName.DAPPS, FeatureFlag.PLATFORM_USER_MODERATORS)
+      const [isPlatformUserModeratorsEnabled, platformUserModeratorsVariant] = await Promise.all([
+        features.getIsFeatureEnabled(ApplicationName.DAPPS, FeatureFlag.PLATFORM_USER_MODERATORS),
+        features.getFeatureVariant(ApplicationName.DAPPS, FeatureFlag.PLATFORM_USER_MODERATORS)
       ])
 
       featuresFlagMap.set(FeatureFlag.PLATFORM_USER_MODERATORS, isPlatformUserModeratorsEnabled)
+      variantsMap.set(FeatureFlag.PLATFORM_USER_MODERATORS, platformUserModeratorsVariant)
     } catch (error) {
       logger.error('Failed to refresh feature flags', {
         error: error instanceof Error ? error.message : String(error)
@@ -39,11 +42,8 @@ export async function createFeatureFlagsAdapter(
     }
   }
 
-  async function getVariants<T>(
-    feature: FeatureFlag,
-    prefixAppName: ApplicationName = ApplicationName.DAPPS
-  ): Promise<T | undefined> {
-    const variant = await features.getFeatureVariant(prefixAppName, feature)
+  async function getVariants<T>(feature: FeatureFlag): Promise<T | undefined> {
+    const variant = variantsMap.get(feature)
 
     if (variant?.payload?.value) {
       const values = variant.payload.value

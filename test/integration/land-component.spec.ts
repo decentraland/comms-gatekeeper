@@ -65,7 +65,7 @@ describe('LandsComponent', () => {
         approvedForAll: false
       })
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://lambdas.decentraland.org/api/users/0xUserAddress/parcels/10/20/permissions'
+        'https://lambdas.decentraland.org/api/users/0xuseraddress/parcels/10/20/permissions'
       )
     })
 
@@ -89,7 +89,7 @@ describe('LandsComponent', () => {
         approvedForAll: false
       })
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://lambdas.decentraland.org/api/users/0xUserAddress/parcels/50/60/permissions'
+        'https://lambdas.decentraland.org/api/users/0xuseraddress/parcels/50/60/permissions'
       )
     })
 
@@ -100,7 +100,7 @@ describe('LandsComponent', () => {
         'Land permissions not found for 0xUserAddress at 10,20'
       )
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://lambdas.decentraland.org/api/users/0xUserAddress/parcels/10/20/permissions'
+        'https://lambdas.decentraland.org/api/users/0xuseraddress/parcels/10/20/permissions'
       )
     })
 

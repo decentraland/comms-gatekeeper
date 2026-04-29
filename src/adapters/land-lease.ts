@@ -13,6 +13,7 @@ export async function createLandLeaseComponent({
 
   let cachedAuthorizations: LandLeaseAuthorizations | null = null
   let lastFetchTime = 0
+  let inFlightFetch: Promise<LandLeaseAuthorizations> | null = null
 
   async function fetchAuthorizations(): Promise<LandLeaseAuthorizations> {
     try {
@@ -46,16 +47,26 @@ export async function createLandLeaseComponent({
   async function getAuthorizations(): Promise<LandLeaseAuthorizations> {
     const now = Date.now()
 
-    // Check if the cache is valid
     if (cachedAuthorizations && now - lastFetchTime < CACHE_TTL) {
       return cachedAuthorizations
     }
 
+    if (!inFlightFetch) {
+      const chain: Promise<LandLeaseAuthorizations> = fetchAuthorizations()
+        .then((result) => {
+          cachedAuthorizations = result
+          lastFetchTime = Date.now()
+          return result
+        })
+        .finally(() => {
+          if (inFlightFetch === chain) inFlightFetch = null
+        })
+      inFlightFetch = chain
+    }
+
     try {
-      cachedAuthorizations = await fetchAuthorizations()
-      lastFetchTime = now
-      return cachedAuthorizations
-    } catch (error) {
+      return await inFlightFetch
+    } catch {
       if (cachedAuthorizations) {
         return cachedAuthorizations
       }
@@ -92,6 +103,7 @@ export async function createLandLeaseComponent({
   async function refreshAuthorizations(): Promise<void> {
     cachedAuthorizations = null
     lastFetchTime = 0
+    inFlightFetch = null
     await getAuthorizations()
   }
 
