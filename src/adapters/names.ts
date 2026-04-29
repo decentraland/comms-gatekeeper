@@ -26,7 +26,9 @@ export async function createNamesComponent(
   }
 
   const nameOwnerCache = cachedFetch.cache<{ owner: string }>()
-  const nameByAddressCache = new LRUCache<string, string>({
+  // Caches a display name for each lowercased address. A `null` entry is a negative
+  // cache marker meaning the upstream confirmed no profile exists for that address.
+  const nameByAddressCache = new LRUCache<string, string | null>({
     max: NAME_BY_ADDRESS_CACHE_MAX,
     ttl: NAME_BY_ADDRESS_CACHE_TTL
   })
@@ -36,11 +38,21 @@ export async function createNamesComponent(
     return avatar.hasClaimedName ? avatar.name : `${avatar.name}#${avatar.ethAddress.slice(-4)}`
   }
 
-  async function fetchProfileBatch(lowerAddresses: string[]): Promise<Map<string, string>> {
+  /**
+   * Sends a batched POST to the lambdas /profiles endpoint and parses the response
+   * into a map of resolved display names. Only addresses for which the upstream
+   * returned a profile appear in the result; missing addresses are absent from the
+   * map. The cache is not touched here — `getNamesFromAddresses` is the sole owner
+   * of the cache and persists both positive and negative results.
+   *
+   * @param addresses - Lowercased ETH addresses to look up.
+   * @returns Map keyed by lowercased address to formatted display name.
+   */
+  async function fetchProfileBatch(addresses: string[]): Promise<Map<string, string>> {
     const profilesResponse = await fetch.fetch(`${lambdasBaseUrl}profiles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: lowerAddresses })
+      body: JSON.stringify({ ids: addresses })
     })
 
     const profiles = (await profilesResponse.json()) as Profile[]
@@ -52,74 +64,105 @@ export async function createNamesComponent(
         if (!avatar) continue
 
         const name = formatProfileName(avatar)
-        const lower = avatar.ethAddress.toLowerCase()
-        nameByAddressCache.set(lower, name)
-        batchResult.set(lower, name)
+        const address = avatar.ethAddress.toLowerCase()
+        batchResult.set(address, name)
       }
     }
 
     return batchResult
   }
 
+  /**
+   * Resolves a list of ETH addresses into their display names via the lambdas
+   * /profiles endpoint, deduplicating work at three levels:
+   *
+   * 1. **Per-address LRU cache** (positive and negative entries) so repeated lookups
+   *    skip the upstream entirely. Cache keys are lowercased addresses; a cached
+   *    `null` means the upstream previously confirmed no profile exists.
+   * 2. **In-flight registry** so concurrent callers asking for the same address
+   *    share one pending batch instead of issuing parallel POSTs.
+   * 3. **Mixed-case input dedup** so `[0xABC, 0xabc]` only sends one address upstream
+   *    and still returns both casings as keys in the response.
+   *
+   * The returned record preserves the original casing of each input address.
+   *
+   * @param addresses - ETH addresses (any casing) to resolve.
+   * @returns Object keyed by the input address (original casing preserved) to the
+   *   resolved display name. Addresses without a profile are absent from the map.
+   * @throws ProfilesNotFoundError if no addresses can be resolved (neither from cache
+   *   nor from the upstream response).
+   */
   async function getNamesFromAddresses(addresses: string[]): Promise<Record<string, string>> {
     if (addresses.length === 0) {
       return {}
     }
 
-    const lowerToName = new Map<string, string>()
-    const tagAlongs: Array<{ lower: string; batch: ProfileBatch }> = []
-    const ownLowers: string[] = []
+    // Intermediate maps and the in-flight registry are keyed by lowercased addresses.
+    // The result map is keyed by the original input casing, populated below.
+    const nameByAddress = new Map<string, string>()
+    const tagAlongs: Array<{ address: string; batch: ProfileBatch }> = []
+    const ownAddresses: string[] = []
     const seen = new Set<string>()
 
-    for (const address of addresses) {
-      const lower = address.toLowerCase()
-      if (seen.has(lower)) continue
-      seen.add(lower)
+    for (const inputAddress of addresses) {
+      const address = inputAddress.toLowerCase()
+      if (seen.has(address)) continue
+      seen.add(address)
 
-      const cached = nameByAddressCache.get(lower)
+      const cached = nameByAddressCache.get(address)
       if (cached !== undefined) {
-        lowerToName.set(lower, cached)
+        // null indicates a negative cache entry; skip without re-fetching.
+        if (cached !== null) {
+          nameByAddress.set(address, cached)
+        }
         continue
       }
 
-      const inflight = inflightByAddress.get(lower)
+      const inflight = inflightByAddress.get(address)
       if (inflight) {
-        tagAlongs.push({ lower, batch: inflight })
+        tagAlongs.push({ address, batch: inflight })
         continue
       }
 
-      ownLowers.push(lower)
+      ownAddresses.push(address)
     }
 
     let ownTask: Promise<void> = Promise.resolve()
 
-    if (ownLowers.length > 0) {
+    if (ownAddresses.length > 0) {
       const batchPromise: ProfileBatch = (async () => {
         try {
-          return await fetchProfileBatch(ownLowers)
+          return await fetchProfileBatch(ownAddresses)
         } finally {
-          for (const lower of ownLowers) {
-            inflightByAddress.delete(lower)
+          for (const address of ownAddresses) {
+            inflightByAddress.delete(address)
           }
         }
       })()
 
-      for (const lower of ownLowers) {
-        inflightByAddress.set(lower, batchPromise)
+      for (const address of ownAddresses) {
+        inflightByAddress.set(address, batchPromise)
       }
 
       ownTask = batchPromise.then((batchResult) => {
-        for (const [lower, name] of batchResult) {
-          lowerToName.set(lower, name)
+        // The owner is responsible for persisting both positive and negative results
+        // for every address it owned. Addresses absent from `batchResult` are recorded
+        // as null so subsequent callers don't re-issue the same upstream lookup.
+        for (const address of ownAddresses) {
+          const name = batchResult.get(address)
+          nameByAddressCache.set(address, name ?? null)
+          if (name !== undefined) {
+            nameByAddress.set(address, name)
+          }
         }
       })
     }
 
-    const tagTasks: Promise<void>[] = tagAlongs.map(({ lower, batch }) =>
+    const tagTasks: Promise<void>[] = tagAlongs.map(({ address, batch }) =>
       batch.then(
         (batchResult) => {
-          const name = batchResult.get(lower)
-          if (name !== undefined) lowerToName.set(lower, name)
+          const name = batchResult.get(address)
+          if (name !== undefined) nameByAddress.set(address, name)
         },
         () => undefined
       )
@@ -128,10 +171,10 @@ export async function createNamesComponent(
     await Promise.all([ownTask, ...tagTasks])
 
     const result: Record<string, string> = {}
-    for (const address of addresses) {
-      const name = lowerToName.get(address.toLowerCase())
+    for (const inputAddress of addresses) {
+      const name = nameByAddress.get(inputAddress.toLowerCase())
       if (name !== undefined) {
-        result[address] = name
+        result[inputAddress] = name
       }
     }
 

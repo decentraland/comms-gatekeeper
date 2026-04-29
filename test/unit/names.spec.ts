@@ -307,6 +307,39 @@ describe('names adapter', () => {
       })
     })
 
+    describe('and an address has no profile upstream', () => {
+      let firstResult: Record<string, string>
+      let secondCallError: Error | null
+
+      beforeEach(async () => {
+        secondCallError = null
+
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue([buildProfile('0xaaaa', 'alice')])
+        })
+        firstResult = await namesComponent.getNamesFromAddresses(['0xaaaa', '0xbbbb'])
+
+        try {
+          await namesComponent.getNamesFromAddresses(['0xbbbb'])
+        } catch (err) {
+          secondCallError = err as Error
+        }
+      })
+
+      it('should resolve the address that was returned and skip the missing one', () => {
+        expect(firstResult).toEqual({ '0xaaaa': 'alice' })
+      })
+
+      it('should not re-fetch the missing address on a subsequent call', () => {
+        expect(mockFetch).toHaveBeenCalledTimes(1)
+      })
+
+      it('should throw ProfilesNotFoundError when the only address requested is negatively cached', () => {
+        expect(secondCallError).toBeInstanceOf(ProfilesNotFoundError)
+      })
+    })
+
     describe('and two concurrent callers request overlapping addresses', () => {
       let resultA: Record<string, string>
       let resultB: Record<string, string>
