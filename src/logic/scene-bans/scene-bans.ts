@@ -288,11 +288,11 @@ export function createSceneBansComponent(
 
     const bannedNames = await names.getNamesFromAddresses(addresses)
 
-    logger.info(`Successfully listed ${bannedNames.length} bans for place`)
+    logger.info(`Successfully listed ${Object.keys(bannedNames).length} bans for place`)
 
     const bans = addresses.map((address) => ({
       bannedAddress: address,
-      name: bannedNames[address]
+      name: bannedNames[address] ?? ''
     }))
 
     return { bans, total }
