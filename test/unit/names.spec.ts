@@ -3,7 +3,7 @@ import { createNamesComponent } from '../../src/adapters/names'
 import { cachedFetchComponent } from '../../src/adapters/fetch'
 import { ICachedFetchComponent } from '../../src/types/fetch.type'
 import { INamesComponent } from '../../src/types/names.type'
-import { NameOwnerNotFoundError, ProfilesNotFoundError } from '../../src/types/errors'
+import { NameOwnerNotFoundError } from '../../src/types/errors'
 import { createConfigMockedComponent } from '../mocks/config-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 
@@ -280,8 +280,8 @@ describe('names adapter', () => {
         })
       })
 
-      it('should throw ProfilesNotFoundError', async () => {
-        await expect(namesComponent.getNamesFromAddresses(['0xaaaa'])).rejects.toBeInstanceOf(ProfilesNotFoundError)
+      it('should resolve to an empty record', async () => {
+        await expect(namesComponent.getNamesFromAddresses(['0xaaaa'])).resolves.toEqual({})
       })
     })
 
@@ -309,22 +309,15 @@ describe('names adapter', () => {
 
     describe('and an address has no profile upstream', () => {
       let firstResult: Record<string, string>
-      let secondCallError: Error | null
+      let secondResult: Record<string, string>
 
       beforeEach(async () => {
-        secondCallError = null
-
         mockFetch.mockResolvedValueOnce({
           ok: true,
           json: jest.fn().mockResolvedValue([buildProfile('0xaaaa', 'alice')])
         })
         firstResult = await namesComponent.getNamesFromAddresses(['0xaaaa', '0xbbbb'])
-
-        try {
-          await namesComponent.getNamesFromAddresses(['0xbbbb'])
-        } catch (err) {
-          secondCallError = err as Error
-        }
+        secondResult = await namesComponent.getNamesFromAddresses(['0xbbbb'])
       })
 
       it('should resolve the address that was returned and skip the missing one', () => {
@@ -335,8 +328,8 @@ describe('names adapter', () => {
         expect(mockFetch).toHaveBeenCalledTimes(1)
       })
 
-      it('should throw ProfilesNotFoundError when the only address requested is negatively cached', () => {
-        expect(secondCallError).toBeInstanceOf(ProfilesNotFoundError)
+      it('should resolve to an empty record when the only address requested is negatively cached', () => {
+        expect(secondResult).toEqual({})
       })
     })
 

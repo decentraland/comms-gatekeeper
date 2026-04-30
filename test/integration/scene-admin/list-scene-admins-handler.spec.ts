@@ -666,6 +666,46 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses.calledOnce).toBe(true)
   })
 
+  it('returns 200 with empty names when no profiles are found for any admin', async () => {
+    const { localFetch } = components
+
+    const mockAdmin = {
+      id: '1',
+      place_id: placeId,
+      admin: admin.authChain[0].payload,
+      added_by: owner.authChain[0].payload,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      deleted_at: null,
+      active: true,
+      canBeRemoved: true,
+      name: ''
+    }
+
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+      admins: new Set([mockAdmin]),
+      extraAddresses: new Set(),
+      addresses: new Set([mockAdmin.admin])
+    })
+
+    stubComponents.names.getNamesFromAddresses.resolves({})
+
+    const response = await makeRequest(
+      localFetch,
+      '/scene-admin',
+      {
+        method: 'GET',
+        metadata: metadataLand
+      },
+      owner
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(Array.isArray(body)).toBe(true)
+    expect(body).toEqual([mockAdmin])
+  })
+
   it('returns 500 when getAdminsAndExtraAddresses request fails', async () => {
     const { localFetch } = components
 

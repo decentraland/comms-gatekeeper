@@ -3,7 +3,7 @@ import { EthAddress, Profile } from '@dcl/schemas'
 import { ensureSlashAtTheEnd } from '../logic/utils'
 import { AppComponents } from '../types'
 import { INamesComponent } from '../types/names.type'
-import { NameOwnerNotFoundError, ProfilesNotFoundError } from '../types/errors'
+import { NameOwnerNotFoundError } from '../types/errors'
 import { isErrorWithMessage } from '../logic/errors'
 
 const NAME_BY_ADDRESS_CACHE_MAX = 10000
@@ -93,9 +93,8 @@ export async function createNamesComponent(
    *
    * @param addresses - ETH addresses (any casing) to resolve.
    * @returns Object keyed by the input address (original casing preserved) to the
-   *   resolved display name. Addresses without a profile are absent from the map.
-   * @throws ProfilesNotFoundError if no addresses can be resolved (neither from cache
-   *   nor from the upstream response).
+   *   resolved display name. Addresses without a profile are absent from the map;
+   *   if none of the requested addresses have a profile, an empty object is returned.
    */
   async function getNamesFromAddresses(addresses: string[]): Promise<Record<string, string>> {
     if (addresses.length === 0) {
@@ -181,11 +180,6 @@ export async function createNamesComponent(
       if (name !== undefined) {
         result[inputAddress] = name
       }
-    }
-
-    if (Object.keys(result).length === 0) {
-      logger.info(`Profiles not found for ${addresses}`)
-      throw new ProfilesNotFoundError(`Profiles not found for ${addresses}`)
     }
 
     return result
