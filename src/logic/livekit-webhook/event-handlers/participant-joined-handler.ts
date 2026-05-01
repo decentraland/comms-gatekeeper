@@ -7,9 +7,9 @@ import { isRoomEventValid, isVoiceChatRoom } from './utils'
 import { UserJoinedRoomEvent } from '@dcl/schemas'
 
 export function createParticipantJoinedHandler(
-  components: Pick<AppComponents, 'voice' | 'analytics' | 'logs' | 'livekit' | 'publisher' | 'sceneBans'>
+  components: Pick<AppComponents, 'voice' | 'analytics' | 'logs' | 'livekit' | 'publisher' | 'roomMetadataSync'>
 ): ILivekitWebhookEventHandler {
-  const { livekit, logs, publisher, analytics, voice, sceneBans } = components
+  const { livekit, logs, publisher, analytics, voice, roomMetadataSync } = components
   const logger = logs.getLogger('participant-joined-handler')
 
   async function publishUserJoinedRoomEvent(room: Room, userAddress: string): Promise<void> {
@@ -82,7 +82,7 @@ export function createParticipantJoinedHandler(
 
       await Promise.all([
         publishUserJoinedRoomEvent(room, address),
-        sceneBans.updateRoomMetadataWithBans(room),
+        roomMetadataSync.updateRoomMetadataForRoom(room),
         analytics.fireEvent(AnalyticsEvent.PARTICIPANT_JOINED_ROOM, {
           room: room.name,
           address

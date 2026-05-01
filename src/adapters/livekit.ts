@@ -215,10 +215,16 @@ export async function createLivekitComponent(
     const { isWorld, sceneId } = params
 
     if (isWorld) {
-      return getWorldSceneRoomName(realmName, sceneId)
-    } else {
-      return getSceneRoomName(realmName, sceneId)
+      // Legacy world rooms (deployed before per-scene rooms) use the world-level
+      // name; modern rooms include the sceneId. Falling back to the legacy name
+      // when sceneId is absent keeps callers from producing `world-name-undefined`.
+      return sceneId ? getWorldSceneRoomName(realmName, sceneId) : getWorldRoomName(realmName)
     }
+
+    if (!sceneId) {
+      throw new Error(`Cannot compute scene room name for realm ${realmName}: missing sceneId`)
+    }
+    return getSceneRoomName(realmName, sceneId)
   }
 
   async function muteParticipant(roomId: string, participantId: string): Promise<void> {

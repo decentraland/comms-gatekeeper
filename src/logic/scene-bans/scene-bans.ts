@@ -10,8 +10,7 @@ import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../typ
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
-import { EthAddress, Events, RoomType, UserBannedFromSceneEvent, UserUnbannedFromSceneEvent } from '@dcl/schemas'
-import { Room } from 'livekit-server-sdk'
+import { EthAddress, Events, UserBannedFromSceneEvent, UserUnbannedFromSceneEvent } from '@dcl/schemas'
 
 export function createSceneBansComponent(
   components: Pick<
@@ -25,43 +24,22 @@ export function createSceneBansComponent(
     | 'names'
     | 'contentClient'
     | 'publisher'
+    | 'roomMetadataSync'
   >
 ): ISceneBansComponent {
-  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, contentClient, publisher } =
-    components
+  const {
+    sceneBanManager,
+    livekit,
+    logs,
+    sceneManager,
+    places,
+    analytics,
+    names,
+    contentClient,
+    publisher,
+    roomMetadataSync
+  } = components
   const logger = logs.getLogger('scene-bans')
-
-  /**
-   * Refresh LiveKit room metadata with the current list of banned addresses for a scene.
-   *
-   * This function intentionally omits the Room object when calling updateRoomMetadata,
-   * forcing it to fetch the latest metadata from the LiveKit server before merging.
-   *
-   * Previously, the webhook-provided Room object was passed through, but its metadata
-   * is a snapshot captured at the moment the webhook event was emitted. If another system
-   * (e.g., the cast presenter service) updates room metadata between the snapshot and this
-   * call, those changes are silently overwritten by the stale merge — for example, the
-   * presenters list would be erased every time a new participant joined the room.
-   *
-   * @param place - The place attributes for the scene.
-   * @param roomName - The room name.
-   */
-  async function refreshRoomBans(place: PlaceAttributes, roomName: string): Promise<void> {
-    try {
-      const bannedAddresses = await sceneBanManager.listBannedAddresses(place.id)
-      const metadata = { bannedAddresses }
-      await livekit.updateRoomMetadata(roomName, metadata)
-
-      logger.debug(`Updated room metadata for ${roomName} with ${bannedAddresses.length} banned addresses`)
-    } catch (error) {
-      logger.warn(
-        `Failed to update room metadata for place ${place.id}: ${
-          isErrorWithMessage(error) ? error.message : 'Unknown error'
-        }`
-      )
-      // Don't throw the error to avoid breaking the main ban/unban operations
-    }
-  }
 
   /**
    * Publishes a scene ban event without waiting for it to be published.
@@ -159,22 +137,29 @@ export function createSceneBansComponent(
       throw new InvalidRequestError('Cannot ban this address')
     }
 
+    // Compute the room name up front so a malformed-params throw cannot leave the
+    // DB and LiveKit metadata in a partially-mutated state.
     const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
 
+    // Persist the ban first — it is the source of truth. If this fails, no
+    // LiveKit-side effects run, so we never end up with a participant kicked
+    // but not recorded as banned.
+    await sceneBanManager.addBan({
+      placeId: place.id,
+      bannedAddress: userAddressToBan,
+      bannedBy: bannedBy.toLowerCase()
+    })
+
+    void publishSceneBanEvent(userAddressToBan, place)
+
+    // Best-effort LiveKit side effects in parallel; failures here are tolerable
+    // because the DB ban has already been persisted and webhooks will reconcile.
     await Promise.all([
       livekit.removeParticipant(roomName, userAddressToBan).catch((err) => {
         logger.warn(`Error removing participant ${userAddressToBan} from LiveKit room ${roomName}`, { err })
       }),
-      sceneBanManager.addBan({
-        placeId: place.id,
-        bannedAddress: userAddressToBan,
-        bannedBy: bannedBy.toLowerCase()
-      })
+      roomMetadataSync.addBan(roomName, userAddressToBan)
     ])
-
-    void publishSceneBanEvent(userAddressToBan, place)
-
-    await refreshRoomBans(place, roomName)
 
     logger.info(
       `Successfully banned user ${userAddressToBan} for place ${place.id} and removed participant from LiveKit room ${roomName}`
@@ -238,12 +223,15 @@ export function createSceneBansComponent(
       throw new UnauthorizedError('You do not have permission to unban users from this place')
     }
 
+    // Compute the room name up front so a malformed-params throw cannot leave
+    // the DB and LiveKit metadata in a partially-mutated state.
+    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
+
     await sceneBanManager.removeBan(place.id, userAddressToUnban)
 
     void publishSceneBanEvent(userAddressToUnban, place, false)
 
-    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
-    await refreshRoomBans(place, roomName)
+    await roomMetadataSync.removeBan(roomName, userAddressToUnban)
 
     logger.info(`Successfully unbanned user ${userAddressToUnban} for place ${place.id}`)
 
@@ -440,47 +428,6 @@ export function createSceneBansComponent(
     }
   }
 
-  /**
-   * Updates room metadata with banned addresses for a given room.
-   * This function handles the common logic of fetching banned addresses and updating room metadata.
-   *
-   * Note: Only the room name is forwarded to refreshRoomBans — never the Room object itself.
-   * Webhook-provided Room objects carry a stale metadata snapshot from the moment the event was
-   * emitted. Passing that snapshot to updateRoomMetadata would cause a read-stale-write that
-   * silently drops keys added between the snapshot and now (e.g., the presenters list set by
-   * the cast system). See the identical guard in addPresenter() for context.
-   *
-   * @param room - Livekit room object (used only for room.name, metadata is NOT forwarded).
-   */
-  async function updateRoomMetadataWithBans(room: Room): Promise<void> {
-    try {
-      let place: PlaceAttributes
-
-      const { sceneId, worldName, roomType } = livekit.getRoomMetadataFromRoomName(room.name)
-
-      if (roomType !== RoomType.SCENE && roomType !== RoomType.WORLD) {
-        logger.warn(`Room ${room.name} is not a scene or world room, skipping update of room metadata with bans`)
-        return
-      }
-
-      if (worldName && sceneId) {
-        place = await places.getWorldScenePlaceByEntityId(worldName, sceneId)
-      } else if (worldName) {
-        // Legacy rooms without sceneId: fall back to world-level lookup
-        place = await places.getWorldByName(worldName)
-      } else {
-        const entity = await contentClient.fetchEntityById(sceneId!)
-        place = await places.getPlaceByParcel(entity.metadata.scene.base)
-      }
-
-      await refreshRoomBans(place, room.name)
-    } catch (error) {
-      logger.error(`Error updating room metadata for room ${room.name}`, {
-        error: isErrorWithMessage(error) ? error.message : 'Unknown error'
-      })
-    }
-  }
-
   return {
     addSceneBan,
     addSceneBanByName,
@@ -489,7 +436,6 @@ export function createSceneBansComponent(
     listSceneBans,
     listSceneBannedAddresses,
     isUserBanned,
-    removeBansFromDisabledPlaces,
-    updateRoomMetadataWithBans
+    removeBansFromDisabledPlaces
   }
 }

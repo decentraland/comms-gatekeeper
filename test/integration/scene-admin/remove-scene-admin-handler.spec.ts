@@ -125,6 +125,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
 
     stubComponents.sceneAdminManager.removeAdmin.resolves()
+    stubComponents.roomMetadataSync.removeAdmin.resolves()
   })
 
   afterEach(async () => {
@@ -158,6 +159,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     )
 
     expect(response.status).toBe(204)
+    expect(stubComponents.roomMetadataSync.removeAdmin.calledOnce).toBe(true)
+    expect(stubComponents.roomMetadataSync.removeAdmin.firstCall.args[1]).toBe(adminAddress.toLowerCase())
   })
 
   it('returns 204 when an admin removes another admin', async () => {

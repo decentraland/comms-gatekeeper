@@ -117,6 +117,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     ])
     stubComponents.names.getNameOwner.resolves(null)
     stubComponents.sceneBans.isUserBanned.resolves(false)
+    stubComponents.roomMetadataSync.addAdmin.resolves()
   })
 
   afterEach(async () => {
@@ -153,6 +154,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
       expect(response.status).toBe(204)
       expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
+      expect(stubComponents.roomMetadataSync.addAdmin.calledOnce).toBe(true)
+      expect(stubComponents.roomMetadataSync.addAdmin.firstCall.args[1]).toBe(admin.authChain[0].payload.toLowerCase())
 
       const result = await components.sceneAdminManager.listActiveAdmins({
         place_id: testPlaceId,

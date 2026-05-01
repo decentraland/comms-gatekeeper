@@ -15,7 +15,7 @@ import { IPgComponent } from '@well-known-components/pg-component'
 import { ICachedFetchComponent } from './types/fetch.type'
 import { IPlacesComponent } from './types/places.type'
 import { IWorldComponent } from './types/worlds.type'
-import { ILandComponent } from './types/lands.type'
+import { ILandComponent } from './adapters/lands'
 import { ISceneManager } from './types/scene-manager.type'
 import { INamesComponent } from './types/names.type'
 import { ISocialComponent } from './types/social.type'
@@ -26,11 +26,12 @@ import { ISceneAdmins } from './types/scene.type'
 import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
 import { ISceneBansComponent } from './logic/scene-bans/types'
+import { IRoomMetadataSyncComponent } from './logic/room-metadata-sync/types'
+import { ICacheStorageComponent } from '@dcl/core-commons'
 import { ICronJobComponent } from './logic/cron-job/types'
 import { ILivekitWebhookComponent } from './logic/livekit-webhook'
 import { ICastComponent } from './logic/cast'
 import { AnalyticsEventPayload } from './types/analytics'
-import { ILandLeaseComponent } from './types/land-lease.type'
 import { IContentClientComponent } from './types/content-client.type'
 import { ISceneParticipantsComponent } from './adapters/scene-participants'
 import { ISchemaValidatorComponent } from '@dcl/schema-validator-component'
@@ -58,6 +59,8 @@ export type BaseComponents = {
   sceneAdminManager: ISceneAdminManager
   sceneBanManager: ISceneBanManager
   sceneBans: ISceneBansComponent
+  roomMetadataSync: IRoomMetadataSyncComponent
+  cache: ICacheStorageComponent
   sceneStreamAccessManager: ISceneStreamAccessManager
   cachedFetch: ICachedFetchComponent
   places: IPlacesComponent
@@ -72,7 +75,6 @@ export type BaseComponents = {
   streamingKeyTTLChecker: IStreamingKeyChecker
   voiceDB: IVoiceDBComponent
   voice: IVoiceComponent
-  landLease: ILandLeaseComponent
   analytics: IAnalyticsComponent<AnalyticsEventPayload>
   publisher: IPublisherComponent
   livekitWebhook: ILivekitWebhookComponent

@@ -6,15 +6,12 @@ import { PlaceAttributes } from '../../../types/places.type'
 
 export async function listSceneAdminsHandler(
   ctx: Pick<
-    HandlerContextWithPath<
-      'logs' | 'config' | 'fetch' | 'places' | 'names' | 'sceneAdmins' | 'landLease',
-      '/scene-admin'
-    >,
+    HandlerContextWithPath<'logs' | 'config' | 'fetch' | 'places' | 'names' | 'sceneAdmins' | 'lands', '/scene-admin'>,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, config, places, names, sceneAdmins, landLease },
+    components: { logs, config, places, names, sceneAdmins, lands },
     url,
     verification
   } = ctx
@@ -68,19 +65,8 @@ export async function listSceneAdminsHandler(
 
   const allAddresses = await sceneAdmins.getAdminsAndExtraAddresses(place, validationResult.value.admin)
 
-  // Get land lease owners
-  const landLeaseOwners = new Set<string>()
-  if (!isWorld) {
-    const { authorizations } = await landLease.getAuthorizations()
-    if (authorizations) {
-      for (const auth of authorizations) {
-        const existLease = place.positions.some((position) => auth.plots.includes(position))
-        if (existLease) {
-          auth.addresses.forEach((address: string) => landLeaseOwners.add(address.toLowerCase()))
-        }
-      }
-    }
-  }
+  // Land-lease only applies to Genesis City scenes; skip for worlds.
+  const landLeaseOwners = new Set<string>(isWorld ? [] : await lands.getLeaseHoldersForParcels(place.positions))
 
   // Combine all addresses including land lease owners
   const allAddressesWithLandLease = new Set([...allAddresses.addresses, ...landLeaseOwners])

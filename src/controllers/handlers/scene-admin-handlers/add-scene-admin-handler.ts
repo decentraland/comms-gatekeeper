@@ -7,14 +7,23 @@ import { AddSceneAdminRequestBody } from './schemas'
 export async function addSceneAdminHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneAdminManager' | 'logs' | 'config' | 'sceneManager' | 'places' | 'names' | 'sceneBans',
+      | 'fetch'
+      | 'sceneAdminManager'
+      | 'logs'
+      | 'config'
+      | 'sceneManager'
+      | 'places'
+      | 'names'
+      | 'sceneBans'
+      | 'roomMetadataSync'
+      | 'livekit',
       '/scene-admin'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { sceneAdminManager, sceneManager, places, names, sceneBans },
+    components: { sceneAdminManager, sceneManager, places, names, sceneBans, roomMetadataSync, livekit },
     request,
     verification
   } = ctx
@@ -23,7 +32,7 @@ export async function addSceneAdminHandler(
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
-    throw new InvalidRequestError('Authentication required')
+    throw new UnauthorizedError('Authentication required')
   }
 
   const payload: AddSceneAdminRequestBody = await request.json()
@@ -87,11 +96,17 @@ export async function addSceneAdminHandler(
     throw new InvalidRequestError('Cannot add this address as an admin because it is banned from this scene')
   }
 
+  // Compute the room name before mutating the DB so a malformed-params throw
+  // cannot leave the DB and LiveKit metadata out of sync.
+  const roomName = livekit.getRoomName(serverName, { isWorld, sceneId })
+
   await sceneAdminManager.addAdmin({
     place_id: place.id,
     admin: adminToAdd,
     added_by: authenticatedAddress.toLowerCase()
   })
+
+  await roomMetadataSync.addAdmin(roomName, adminToAdd)
 
   return {
     status: 204

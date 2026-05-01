@@ -28,9 +28,11 @@ export type RoomMetadata = {
   sceneId?: string
   worldName?: string
   roomType: RoomType
+  bannedAddresses?: string[]
+  sceneAdmins?: string[]
 }
 
-export type GetRoomNameParams = { isWorld: boolean; sceneId: string }
+export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
 
 export type ILivekitComponent = IBaseComponent & {
   isLocalPreview: (realmName: string | undefined) => boolean

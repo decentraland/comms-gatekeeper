@@ -33,6 +33,8 @@ import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
 import { createSceneBansComponent } from './logic/scene-bans'
+import { createRoomMetadataSyncComponent } from './logic/room-metadata-sync'
+import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { createCronJobComponent } from './logic/cron-job'
 import { createCastComponent } from './logic/cast'
 import {
@@ -43,7 +45,6 @@ import {
   createLivekitWebhookComponent
 } from './logic/livekit-webhook'
 import { AnalyticsEventPayload } from './types/analytics'
-import { createLandLeaseComponent } from './adapters/land-lease'
 import { createRoomStartedHandler } from './logic/livekit-webhook/event-handlers/room-started-handler'
 import { createContentClientComponent } from './adapters/content-client'
 import { createSceneParticipantsComponent } from './adapters/scene-participants'
@@ -112,10 +113,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   )
   const worlds = await createWorldsComponent({ config, logs, cachedFetch, fetch: tracedFetch })
   const places = await createPlacesComponent({ config, logs, cachedFetch, fetch: tracedFetch, worlds })
-  const lands = await createLandsComponent({ config, logs, cachedFetch })
   const names = await createNamesComponent({ config, logs, fetch: tracedFetch, cachedFetch })
-  const landLease = await createLandLeaseComponent({ fetch: tracedFetch, logs })
-  const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager, landLease })
+  const lands = await createLandsComponent({ config, logs, cachedFetch, fetch: tracedFetch })
+  const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager })
   const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
   const denyList = await createDenyListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
   const schemaValidator = await createSchemaValidatorComponent({ ensureJsonContentType: false })
@@ -180,6 +180,19 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const contentClient = await createContentClientComponent({ config, fetch: tracedFetch, logs })
 
+  const cache = createInMemoryCacheComponent()
+
+  const roomMetadataSync = createRoomMetadataSyncComponent({
+    sceneBanManager,
+    sceneAdmins,
+    livekit,
+    places,
+    contentClient,
+    lands,
+    cache,
+    logs
+  })
+
   // Scene ban components
   const sceneBans = createSceneBansComponent({
     sceneBanManager,
@@ -190,7 +203,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     analytics,
     names,
     contentClient,
-    publisher
+    publisher,
+    roomMetadataSync
   })
   const disabledPlacesBansRemovalJob = await createCronJobComponent(
     { logs },
@@ -228,7 +242,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     logs,
     livekit,
     publisher,
-    sceneBans
+    roomMetadataSync
   })
   const participantLeftHandler = createParticipantLeftHandler({
     voice,
@@ -238,7 +252,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     publisher
   })
   const roomStartedHandler = createRoomStartedHandler({
-    sceneBans,
+    roomMetadataSync,
     logs
   })
 
@@ -277,6 +291,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneAdminManager,
     sceneBanManager,
     sceneBans,
+    roomMetadataSync,
+    cache,
     sceneStreamAccessManager,
     placesChecker,
     streamingTTLChecker,
@@ -284,7 +300,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     publisher,
     sceneAdmins,
     notifications,
-    landLease,
     livekitWebhook,
     contentClient,
     schemaValidator,

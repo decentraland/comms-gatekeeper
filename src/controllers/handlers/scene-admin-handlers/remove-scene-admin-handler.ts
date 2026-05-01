@@ -7,14 +7,14 @@ import { PlaceAttributes } from '../../../types/places.type'
 export async function removeSceneAdminHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places',
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'roomMetadataSync' | 'livekit',
       '/scene-admin'
     >,
     'components' | 'url' | 'params' | 'verification' | 'request'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places },
+    components: { logs, sceneAdminManager, sceneManager, places, roomMetadataSync, livekit },
     request,
     verification
   } = ctx
@@ -29,23 +29,26 @@ export async function removeSceneAdminHandler(
 
   const payload = await request.json()
 
-  const adminToRemove = payload.admin
-
-  if (!adminToRemove) {
+  if (!payload.admin) {
     logger.warn(`Invalid scene admin payload`, payload)
     throw new InvalidRequestError(`Invalid payload`)
   }
 
+  if (!EthAddress.validate(payload.admin)) {
+    throw new UnauthorizedError('Invalid admin address')
+  }
+
+  // Normalize once: the scene_admin table and the LiveKit metadata `sceneAdmins`
+  // array both store lowercase addresses, but the request can arrive checksum-cased.
+  const adminToRemove = payload.admin.toLowerCase()
+
   const {
+    sceneId,
     parcel,
     realm: { hostname, serverName }
   } = await validate(ctx)
   const isWorld = hostname.includes('worlds-content-server')
   const authenticatedAddress = verification.auth.toLowerCase()
-
-  if (!EthAddress.validate(adminToRemove)) {
-    throw new UnauthorizedError('Invalid admin address')
-  }
 
   let place: PlaceAttributes
   if (isWorld) {
@@ -74,7 +77,14 @@ export async function removeSceneAdminHandler(
     throw new InvalidRequestError('The specified admin does not exist or is already inactive')
   }
 
+  // Compute the room name before mutating the DB so a malformed-params throw
+  // cannot leave the DB and LiveKit metadata out of sync.
+  const roomName = livekit.getRoomName(serverName, { isWorld, sceneId })
+
   await sceneAdminManager.removeAdmin(place.id, adminToRemove)
+
+  await roomMetadataSync.removeAdmin(roomName, adminToRemove)
+
   return {
     status: 204
   }

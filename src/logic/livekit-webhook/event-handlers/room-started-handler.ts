@@ -3,9 +3,9 @@ import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 
 export function createRoomStartedHandler(
-  components: Pick<AppComponents, 'sceneBans' | 'logs'>
+  components: Pick<AppComponents, 'roomMetadataSync' | 'logs'>
 ): ILivekitWebhookEventHandler {
-  const { sceneBans, logs } = components
+  const { roomMetadataSync, logs } = components
 
   const logger = logs.getLogger('room-started-handler')
 
@@ -20,7 +20,7 @@ export function createRoomStartedHandler(
         room: webhookEvent.room.name
       })
 
-      await sceneBans.updateRoomMetadataWithBans(webhookEvent.room)
+      await roomMetadataSync.updateRoomMetadataForRoom(webhookEvent.room)
     }
   }
 }
