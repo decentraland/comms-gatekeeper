@@ -365,6 +365,20 @@ describe('LandsComponent', () => {
         expect(result).toEqual([])
       })
     })
+
+    describe('and the lease service responds without an authorizations array', () => {
+      beforeEach(() => {
+        // Real-world shape if the upstream JSON ever returns the wrapper without
+        // the field; the cache in landLease has produced this on partial fetches.
+        landLease.getAuthorizations.mockResolvedValue({ authorizations: undefined as unknown as [] })
+      })
+
+      it('should return an empty array', async () => {
+        const component = await buildComponent()
+        const result = await component.getLeaseHoldersForParcels(['10,20'])
+        expect(result).toEqual([])
+      })
+    })
   })
 
   describe('cache reuse with the real cachedFetch component', () => {
