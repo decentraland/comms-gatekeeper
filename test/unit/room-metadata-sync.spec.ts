@@ -1,3 +1,5 @@
+import { ICacheStorageComponent } from '@dcl/core-commons'
+import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { RoomType } from '@dcl/schemas'
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createRoomMetadataSyncComponent } from '../../src/logic/room-metadata-sync'
@@ -23,6 +25,7 @@ describe('RoomMetadataSyncComponent', () => {
   let places: jest.Mocked<IPlacesComponent>
   let contentClient: jest.Mocked<IContentClientComponent>
   let landLease: jest.Mocked<ILandLeaseComponent>
+  let cache: ICacheStorageComponent
   let logs: jest.Mocked<ILoggerComponent>
   let mockPlace: PlaceAttributes
 
@@ -37,6 +40,7 @@ describe('RoomMetadataSyncComponent', () => {
       getAuthorizations: jest.fn().mockResolvedValue({ authorizations: [] }),
       refreshAuthorizations: jest.fn()
     } as jest.Mocked<ILandLeaseComponent>
+    cache = createInMemoryCacheComponent()
     logs = createLoggerMockedComponent()
     mockPlace = createMockedPlace({ id: 'test-place-id' })
 
@@ -47,6 +51,7 @@ describe('RoomMetadataSyncComponent', () => {
       places,
       contentClient,
       landLease,
+      cache,
       logs
     })
   })
@@ -363,9 +368,8 @@ describe('RoomMetadataSyncComponent', () => {
       })
     })
 
-    describe('and the same room is refreshed again after the cooldown elapses', () => {
+    describe('and the cooldown entry has expired before the next refresh', () => {
       beforeEach(async () => {
-        jest.useFakeTimers()
         livekit.getRoomMetadataFromRoomName.mockReturnValue({
           sceneId: 'scene-id',
           worldName: 'test-world',
@@ -375,12 +379,14 @@ describe('RoomMetadataSyncComponent', () => {
         places.getWorldScenePlaceByEntityId.mockResolvedValue(mockPlace)
 
         await component.updateRoomMetadataForRoom(mockRoom)
-        jest.advanceTimersByTime(60_001)
+        // Simulate the cache TTL expiring by clearing the cooldown entry
+        // directly. Avoids relying on jest fake timers, which don't always
+        // play well with lru-cache's internal scheduling.
+        const keys = await cache.keys()
+        for (const key of keys) {
+          await cache.remove(key)
+        }
         await component.updateRoomMetadataForRoom(mockRoom)
-      })
-
-      afterEach(() => {
-        jest.useRealTimers()
       })
 
       it('should refresh again', () => {

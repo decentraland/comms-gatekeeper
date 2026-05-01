@@ -6,27 +6,31 @@ import { isErrorWithMessage } from '../errors'
 import { IRoomMetadataSyncComponent } from './types'
 
 /**
- * Cooldown applied to webhook-driven full refreshes. A busy scene can trigger
- * `participant_joined` hundreds of times per minute; the underlying ban/admin
- * state rarely changes that often, and mutations already update metadata
- * incrementally, so we throttle the redundant fetches here. Off-band changes
- * (e.g., a world owner editing their allow-list) are still picked up on the
- * next webhook after the cooldown elapses.
+ * Cooldown (in seconds) applied to webhook-driven full refreshes. A busy scene
+ * can trigger `participant_joined` hundreds of times per minute; the underlying
+ * ban/admin state rarely changes that often, and mutations already update
+ * metadata incrementally, so we throttle the redundant fetches here. Off-band
+ * changes (e.g., a world owner editing their allow-list) are still picked up
+ * on the next webhook after the cooldown elapses.
  */
-const WEBHOOK_REFRESH_COOLDOWN_MS = 60_000
+const WEBHOOK_REFRESH_COOLDOWN_SECONDS = 60
+
+const WEBHOOK_REFRESH_CACHE_KEY_PREFIX = 'room-metadata-sync:webhook-refresh:'
 
 export function createRoomMetadataSyncComponent(
   components: Pick<
     AppComponents,
-    'sceneBanManager' | 'sceneAdmins' | 'livekit' | 'places' | 'contentClient' | 'landLease' | 'logs'
+    'sceneBanManager' | 'sceneAdmins' | 'livekit' | 'places' | 'contentClient' | 'landLease' | 'cache' | 'logs'
   >
 ): IRoomMetadataSyncComponent {
-  const { sceneBanManager, sceneAdmins, livekit, places, contentClient, landLease, logs } = components
+  const { sceneBanManager, sceneAdmins, livekit, places, contentClient, landLease, cache, logs } = components
   const logger = logs.getLogger('room-metadata-sync')
 
-  // Per-room timestamp of the last webhook-initiated refresh. Used to throttle
-  // updateRoomMetadataForRoom; the explicit refreshRoomMetadata path bypasses it.
-  const lastWebhookRefreshAt = new Map<string, number>()
+  // Cache key namespace prevents collisions if `cache` is later shared with
+  // other consumers.
+  function refreshCacheKey(roomName: string): string {
+    return `${WEBHOOK_REFRESH_CACHE_KEY_PREFIX}${roomName}`
+  }
 
   /**
    * Returns the lowercase land-lease holder addresses whose authorized plots overlap
@@ -93,32 +97,19 @@ export function createRoomMetadataSyncComponent(
     }
   }
 
-  // Lazy GC: every time we set a new timestamp, also drop entries older than 2x the
-  // cooldown so the map can't grow unbounded on long-running instances. Cheap because
-  // it only runs when we'd refresh anyway, and the work is O(map size).
-  function pruneStaleRefreshEntries(now: number): void {
-    const cutoff = now - 2 * WEBHOOK_REFRESH_COOLDOWN_MS
-    for (const [roomName, timestamp] of lastWebhookRefreshAt) {
-      if (timestamp < cutoff) {
-        lastWebhookRefreshAt.delete(roomName)
-      }
-    }
-  }
-
   async function updateRoomMetadataForRoom(room: Room): Promise<void> {
     // Throttle: with hundreds of joins per minute on a busy scene, refreshing on
-    // every webhook is wasteful. The check-and-set is synchronous so concurrent
-    // webhooks for the same room can't both pass the gate. We mark the timestamp
-    // upfront (not after success) to avoid retry thrash on persistent failures —
-    // the next webhook after the cooldown will retry.
-    const now = Date.now()
-    const lastRefresh = lastWebhookRefreshAt.get(room.name)
-    if (lastRefresh !== undefined && now - lastRefresh < WEBHOOK_REFRESH_COOLDOWN_MS) {
-      logger.debug(`Skipping refresh for ${room.name}: last refresh ${now - lastRefresh}ms ago`)
+    // every webhook is wasteful. The cache entry's existence IS the cooldown
+    // signal — the TTL handles eviction; the LRU cap handles bounded memory.
+    // Mark upfront (not after success) so a persistent downstream failure can't
+    // thrash; the next webhook after the cooldown elapses will retry.
+    const cooldownKey = refreshCacheKey(room.name)
+    const isCoolingDown = await cache.get(cooldownKey)
+    if (isCoolingDown) {
+      logger.debug(`Skipping refresh for ${room.name}: within cooldown window`)
       return
     }
-    lastWebhookRefreshAt.set(room.name, now)
-    pruneStaleRefreshEntries(now)
+    await cache.set(cooldownKey, true, WEBHOOK_REFRESH_COOLDOWN_SECONDS)
 
     try {
       const { sceneId, worldName, roomType } = livekit.getRoomMetadataFromRoomName(room.name)

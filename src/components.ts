@@ -34,6 +34,7 @@ import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
 import { createSceneBansComponent } from './logic/scene-bans'
 import { createRoomMetadataSyncComponent } from './logic/room-metadata-sync'
+import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { createCronJobComponent } from './logic/cron-job'
 import { createCastComponent } from './logic/cast'
 import {
@@ -181,6 +182,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const contentClient = await createContentClientComponent({ config, fetch: tracedFetch, logs })
 
+  const cache = createInMemoryCacheComponent()
+
   const roomMetadataSync = createRoomMetadataSyncComponent({
     sceneBanManager,
     sceneAdmins,
@@ -188,6 +191,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     places,
     contentClient,
     landLease,
+    cache,
     logs
   })
 
@@ -290,6 +294,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneBanManager,
     sceneBans,
     roomMetadataSync,
+    cache,
     sceneStreamAccessManager,
     placesChecker,
     streamingTTLChecker,
