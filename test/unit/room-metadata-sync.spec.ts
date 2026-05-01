@@ -309,6 +309,25 @@ describe('RoomMetadataSyncComponent', () => {
       })
     })
 
+    describe('and a malformed scene room name parses without a sceneId', () => {
+      beforeEach(async () => {
+        livekit.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: undefined,
+          worldName: undefined,
+          realmName: 'test-realm',
+          roomType: RoomType.SCENE
+        })
+
+        await component.updateRoomMetadataForRoom(mockRoom)
+      })
+
+      it('should not perform any place lookup or metadata write', () => {
+        expect(places.getPlaceByParcel).not.toHaveBeenCalled()
+        expect(contentClient.fetchEntityById).not.toHaveBeenCalled()
+        expect(livekit.updateRoomMetadata).not.toHaveBeenCalled()
+      })
+    })
+
     describe('and the room type is neither scene nor world', () => {
       beforeEach(async () => {
         livekit.getRoomMetadataFromRoomName.mockReturnValue({

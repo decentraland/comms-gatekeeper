@@ -127,7 +127,15 @@ export function createRoomMetadataSyncComponent(
         // Legacy rooms without sceneId: fall back to world-level lookup
         place = await places.getWorldByName(worldName)
       } else {
-        const entity = await contentClient.fetchEntityById(sceneId!)
+        // Non-world room reaching this branch must be `RoomType.SCENE`, which
+        // `getRoomMetadataFromRoomName` only returns when it parsed a sceneId
+        // from the room name. Guard explicitly so a malformed scene room name
+        // surfaces as a logged warning instead of an unhandled exception.
+        if (!sceneId) {
+          logger.warn(`Room ${room.name} parsed as a scene but has no sceneId; skipping metadata refresh`)
+          return
+        }
+        const entity = await contentClient.fetchEntityById(sceneId)
         place = await places.getPlaceByParcel(entity.metadata.scene.base)
       }
 

@@ -299,10 +299,7 @@ describe('when getting a room name', () => {
     describe('and the sceneId is missing (legacy world room)', () => {
       it('should fall back to the world-level (comms-prefixed) room name', () => {
         const realmName = 'test-world.dcl.eth'
-        const result = livekitComponent.getRoomName(realmName, {
-          isWorld: true,
-          sceneId: undefined as unknown as string
-        })
+        const result = livekitComponent.getRoomName(realmName, { isWorld: true })
         expect(result).toBe('world-env-test-world.dcl.eth')
       })
     })
@@ -319,9 +316,7 @@ describe('when getting a room name', () => {
     describe('and the sceneId is missing', () => {
       it('should throw because non-world rooms require a sceneId to identify the scene', () => {
         const realmName = 'test-realm'
-        expect(() =>
-          livekitComponent.getRoomName(realmName, { isWorld: false, sceneId: undefined as unknown as string })
-        ).toThrow(/missing sceneId/)
+        expect(() => livekitComponent.getRoomName(realmName, { isWorld: false })).toThrow(/missing sceneId/)
       })
     })
   })

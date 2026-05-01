@@ -32,7 +32,7 @@ export type RoomMetadata = {
   sceneAdmins?: string[]
 }
 
-export type GetRoomNameParams = { isWorld: boolean; sceneId: string }
+export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
 
 export type ILivekitComponent = IBaseComponent & {
   isLocalPreview: (realmName: string | undefined) => boolean
