@@ -16,6 +16,7 @@ import { createSceneBanManagerMockedComponent } from '../mocks/scene-ban-manager
 import { createMockedPlace, createPlacesMockedComponent } from '../mocks/places-mock'
 import { createContentClientMockedComponent } from '../mocks/content-client-mock'
 import { createSceneAdminsMockedComponent } from '../mocks/scene-admins-mock'
+import { createLandsMockedComponent } from '../mocks/lands-mock'
 
 describe('RoomMetadataSyncComponent', () => {
   let component: IRoomMetadataSyncComponent
@@ -35,14 +36,7 @@ describe('RoomMetadataSyncComponent', () => {
     sceneAdmins = createSceneAdminsMockedComponent()
     places = createPlacesMockedComponent()
     contentClient = createContentClientMockedComponent()
-    lands = {
-      getLandPermissions: jest.fn(),
-      getLandOperators: jest.fn(),
-      hasLandLease: jest.fn(),
-      getLeaseHoldersForParcels: jest.fn().mockResolvedValue([]),
-      getAuthorizations: jest.fn().mockResolvedValue({ authorizations: [] }),
-      refreshAuthorizations: jest.fn()
-    } as jest.Mocked<ILandComponent>
+    lands = createLandsMockedComponent()
     cache = createInMemoryCacheComponent()
     logs = createLoggerMockedComponent()
     mockPlace = createMockedPlace({ id: 'test-place-id' })

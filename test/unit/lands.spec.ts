@@ -1,198 +1,229 @@
 import {
   createLandsComponent,
   ILandComponent,
+  LandLeaseAuthorization,
   LandsParcelOperatorsResponse,
   LandsParcelPermissionsResponse
 } from '../../src/adapters/lands'
 import { cachedFetchComponent } from '../../src/adapters/fetch'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 
-// The lands component fans out to two different transports:
-//   - cachedFetch (for parcel permissions / operators against the lambdas API)
-//   - fetch       (for the off-chain lease authorizations document)
-// Tests configure them independently via the mocks below.
+const LAMBDAS_URL = 'https://lambdas.decentraland.org/api'
 
-const SAMPLE_AUTHORIZATIONS = [
-  {
-    name: 'Test Authorization 1',
-    desc: 'Test Description 1',
-    contactInfo: { name: 'Test Contact 1' },
-    addresses: ['0x1234567890123456789012345678901234567890'],
-    plots: ['-73,50', '10,20']
-  },
-  {
-    name: 'Test Authorization 2',
-    desc: 'Test Description 2',
-    contactInfo: { name: 'Test Contact 2' },
-    addresses: ['0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'],
-    plots: ['-100,100']
-  }
-]
+const buildConfigMock = (lambdasUrl: string = LAMBDAS_URL) =>
+  ({
+    requireString: jest
+      .fn()
+      .mockImplementation((key: string) => Promise.resolve(key === 'LAMBDAS_URL' ? lambdasUrl : ''))
+  }) as any
 
-describe('lands component', () => {
+describe('LandsComponent', () => {
   let lands: ILandComponent
   let mockLambdasFetch: jest.Mock
   let mockLeaseFetch: { fetch: jest.Mock }
 
   beforeEach(async () => {
-    jest.clearAllMocks()
-
     mockLambdasFetch = jest.fn()
     mockLeaseFetch = { fetch: jest.fn() }
 
     lands = await createLandsComponent({
-      config: {
-        requireString: jest
-          .fn()
-          .mockImplementation((key: string) =>
-            Promise.resolve(key === 'LAMBDAS_URL' ? 'https://lambdas.decentraland.org/api' : '')
-          )
-      } as any,
-      cachedFetch: {
-        cache: jest.fn().mockReturnValue({ fetch: mockLambdasFetch })
-      } as any,
+      config: buildConfigMock(),
+      cachedFetch: { cache: jest.fn().mockReturnValue({ fetch: mockLambdasFetch }) } as any,
       fetch: mockLeaseFetch as any,
       logs: createLoggerMockedComponent()
     })
   })
 
-  describe('getLandPermissions', () => {
-    it('should return owner=true when user has owner permission', async () => {
-      const response: LandsParcelPermissionsResponse = {
-        owner: true,
-        operator: false,
-        updateOperator: false,
-        updateManager: false,
-        approvedForAll: false
-      }
-      mockLambdasFetch.mockResolvedValueOnce(response)
+  afterEach(() => {
+    jest.resetAllMocks()
+  })
 
-      const result = await lands.getLandPermissions('0xUserAddress', ['10,20', '99,99'])
+  describe('when getLandPermissions is called', () => {
+    describe('and the user has owner permission', () => {
+      let response: LandsParcelPermissionsResponse
 
-      expect(result).toEqual(response)
-      expect(mockLambdasFetch).toHaveBeenCalledWith(
-        'https://lambdas.decentraland.org/api/users/0xuseraddress/parcels/10/20/permissions'
-      )
-    })
-
-    it('should return operator=true when user has operator permission', async () => {
-      const response: LandsParcelPermissionsResponse = {
-        owner: false,
-        operator: true,
-        updateOperator: false,
-        updateManager: false,
-        approvedForAll: false
-      }
-      mockLambdasFetch.mockResolvedValueOnce(response)
-
-      const result = await lands.getLandPermissions('0xUserAddress', ['50,60', '99,99'])
-
-      expect(result).toEqual(response)
-      expect(mockLambdasFetch).toHaveBeenCalledWith(
-        'https://lambdas.decentraland.org/api/users/0xuseraddress/parcels/50/60/permissions'
-      )
-    })
-
-    it('should throw LandPermissionsNotFoundError when the response is empty', async () => {
-      mockLambdasFetch.mockResolvedValueOnce(null)
-
-      await expect(lands.getLandPermissions('0xUserAddress', ['10,20'])).rejects.toThrow(
-        'Land permissions not found for 0xUserAddress at 10,20'
-      )
-    })
-
-    it('should throw when LAMBDAS_URL is not configured', async () => {
-      const componentWithoutUrl = await createLandsComponent({
-        config: { requireString: jest.fn().mockResolvedValue('') } as any,
-        cachedFetch: { cache: jest.fn().mockReturnValue({ fetch: jest.fn() }) } as any,
-        fetch: { fetch: jest.fn() } as any,
-        logs: createLoggerMockedComponent()
+      beforeEach(() => {
+        response = {
+          owner: true,
+          operator: false,
+          updateOperator: false,
+          updateManager: false,
+          approvedForAll: false
+        }
+        mockLambdasFetch.mockResolvedValueOnce(response)
       })
 
-      await expect(componentWithoutUrl.getLandPermissions('0xUserAddress', ['10,20'])).rejects.toThrow(
-        'Lambdas URL is not set'
-      )
+      it('should return the permissions response with owner=true', async () => {
+        const result = await lands.getLandPermissions('0xUserAddress', ['10,20', '99,99'])
+        expect(result).toEqual(response)
+      })
+
+      it('should call the lambdas endpoint with the lowercased address and the first parcel', async () => {
+        await lands.getLandPermissions('0xUserAddress', ['10,20', '99,99'])
+        expect(mockLambdasFetch).toHaveBeenCalledWith(
+          'https://lambdas.decentraland.org/api/users/0xuseraddress/parcels/10/20/permissions'
+        )
+      })
+    })
+
+    describe('and the user has operator permission', () => {
+      let response: LandsParcelPermissionsResponse
+
+      beforeEach(() => {
+        response = {
+          owner: false,
+          operator: true,
+          updateOperator: false,
+          updateManager: false,
+          approvedForAll: false
+        }
+        mockLambdasFetch.mockResolvedValueOnce(response)
+      })
+
+      it('should return the permissions response with operator=true', async () => {
+        const result = await lands.getLandPermissions('0xUserAddress', ['50,60', '99,99'])
+        expect(result).toEqual(response)
+      })
+    })
+
+    describe('and the lambdas response is empty', () => {
+      beforeEach(() => {
+        mockLambdasFetch.mockResolvedValueOnce(null)
+      })
+
+      it('should throw a LandPermissionsNotFoundError', async () => {
+        await expect(lands.getLandPermissions('0xUserAddress', ['10,20'])).rejects.toThrow(
+          'Land permissions not found for 0xUserAddress at 10,20'
+        )
+      })
+    })
+
+    describe('and the LAMBDAS_URL is not configured', () => {
+      let componentWithoutUrl: ILandComponent
+
+      beforeEach(async () => {
+        componentWithoutUrl = await createLandsComponent({
+          config: buildConfigMock(''),
+          cachedFetch: { cache: jest.fn().mockReturnValue({ fetch: jest.fn() }) } as any,
+          fetch: { fetch: jest.fn() } as any,
+          logs: createLoggerMockedComponent()
+        })
+      })
+
+      it('should throw "Lambdas URL is not set"', async () => {
+        await expect(componentWithoutUrl.getLandPermissions('0xUserAddress', ['10,20'])).rejects.toThrow(
+          'Lambdas URL is not set'
+        )
+      })
     })
   })
 
-  describe('getLandOperators', () => {
-    it('should return owner and operator when both exist', async () => {
-      const response: LandsParcelOperatorsResponse = {
-        owner: '0xOwnerAddress',
-        operator: '0xOperatorAddress',
-        updateOperator: null,
-        updateManagers: [],
-        approvedForAll: []
-      }
-      mockLambdasFetch.mockResolvedValueOnce(response)
+  describe('when getLandOperators is called', () => {
+    describe('and the parcel has owner and operator', () => {
+      let response: LandsParcelOperatorsResponse
 
-      const result = await lands.getLandOperators('10,20')
-
-      expect(result).toEqual(response)
-      expect(mockLambdasFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/parcels/10/20/operators')
-    })
-
-    it('should return updateOperator when it exists', async () => {
-      mockLambdasFetch.mockResolvedValueOnce({
-        owner: '0xOwnerAddress',
-        operator: null,
-        updateOperator: '0xUpdateOperatorAddress',
-        updateManagers: [],
-        approvedForAll: []
+      beforeEach(() => {
+        response = {
+          owner: '0xOwnerAddress',
+          operator: '0xOperatorAddress',
+          updateOperator: null,
+          updateManagers: [],
+          approvedForAll: []
+        }
+        mockLambdasFetch.mockResolvedValueOnce(response)
       })
 
-      const result = await lands.getLandOperators('10,20')
-
-      expect(result.updateOperator).toBe('0xUpdateOperatorAddress')
-    })
-
-    it('should return updateManagers when present', async () => {
-      mockLambdasFetch.mockResolvedValueOnce({
-        owner: '0xOwnerAddress',
-        operator: null,
-        updateOperator: null,
-        updateManagers: ['0xUpdateManagerAddress'],
-        approvedForAll: []
+      it('should return the operators response with both owner and operator', async () => {
+        const result = await lands.getLandOperators('10,20')
+        expect(result).toEqual(response)
       })
 
-      const result = await lands.getLandOperators('10,20')
-
-      expect(result.updateManagers).toEqual(['0xUpdateManagerAddress'])
+      it('should call the lambdas endpoint with the parcel coordinates', async () => {
+        await lands.getLandOperators('10,20')
+        expect(mockLambdasFetch).toHaveBeenCalledWith('https://lambdas.decentraland.org/api/parcels/10/20/operators')
+      })
     })
 
-    it('should return approvedForAll when present', async () => {
-      mockLambdasFetch.mockResolvedValueOnce({
-        owner: '0xOwnerAddress',
-        operator: null,
-        updateOperator: null,
-        updateManagers: [],
-        approvedForAll: ['0xApprovedForAllAddress']
+    describe('and the parcel has an updateOperator', () => {
+      beforeEach(() => {
+        mockLambdasFetch.mockResolvedValueOnce({
+          owner: '0xOwnerAddress',
+          operator: null,
+          updateOperator: '0xUpdateOperatorAddress',
+          updateManagers: [],
+          approvedForAll: []
+        })
       })
 
-      const result = await lands.getLandOperators('10,20')
-
-      expect(result.approvedForAll).toEqual(['0xApprovedForAllAddress'])
+      it('should expose the updateOperator in the response', async () => {
+        const result = await lands.getLandOperators('10,20')
+        expect(result.updateOperator).toBe('0xUpdateOperatorAddress')
+      })
     })
 
-    it('should throw LandPermissionsNotFoundError when the response is empty', async () => {
-      mockLambdasFetch.mockResolvedValueOnce(null)
-
-      await expect(lands.getLandOperators('10,20')).rejects.toThrow('Land permissions not found for 10,20')
-    })
-
-    it('should throw when LAMBDAS_URL is not configured', async () => {
-      const componentWithoutUrl = await createLandsComponent({
-        config: { requireString: jest.fn().mockResolvedValue('') } as any,
-        cachedFetch: { cache: jest.fn().mockReturnValue({ fetch: jest.fn() }) } as any,
-        fetch: { fetch: jest.fn() } as any,
-        logs: createLoggerMockedComponent()
+    describe('and the parcel has updateManagers', () => {
+      beforeEach(() => {
+        mockLambdasFetch.mockResolvedValueOnce({
+          owner: '0xOwnerAddress',
+          operator: null,
+          updateOperator: null,
+          updateManagers: ['0xUpdateManagerAddress'],
+          approvedForAll: []
+        })
       })
 
-      await expect(componentWithoutUrl.getLandOperators('10,20')).rejects.toThrow('Lambdas URL is not set')
+      it('should expose the updateManagers in the response', async () => {
+        const result = await lands.getLandOperators('10,20')
+        expect(result.updateManagers).toEqual(['0xUpdateManagerAddress'])
+      })
+    })
+
+    describe('and the parcel has approvedForAll addresses', () => {
+      beforeEach(() => {
+        mockLambdasFetch.mockResolvedValueOnce({
+          owner: '0xOwnerAddress',
+          operator: null,
+          updateOperator: null,
+          updateManagers: [],
+          approvedForAll: ['0xApprovedForAllAddress']
+        })
+      })
+
+      it('should expose the approvedForAll addresses in the response', async () => {
+        const result = await lands.getLandOperators('10,20')
+        expect(result.approvedForAll).toEqual(['0xApprovedForAllAddress'])
+      })
+    })
+
+    describe('and the lambdas response is empty', () => {
+      beforeEach(() => {
+        mockLambdasFetch.mockResolvedValueOnce(null)
+      })
+
+      it('should throw a LandPermissionsNotFoundError', async () => {
+        await expect(lands.getLandOperators('10,20')).rejects.toThrow('Land permissions not found for 10,20')
+      })
+    })
+
+    describe('and the LAMBDAS_URL is not configured', () => {
+      let componentWithoutUrl: ILandComponent
+
+      beforeEach(async () => {
+        componentWithoutUrl = await createLandsComponent({
+          config: buildConfigMock(''),
+          cachedFetch: { cache: jest.fn().mockReturnValue({ fetch: jest.fn() }) } as any,
+          fetch: { fetch: jest.fn() } as any,
+          logs: createLoggerMockedComponent()
+        })
+      })
+
+      it('should throw "Lambdas URL is not set"', async () => {
+        await expect(componentWithoutUrl.getLandOperators('10,20')).rejects.toThrow('Lambdas URL is not set')
+      })
     })
   })
 
-  describe('cachedFetch reuse with the real cachedFetch component', () => {
+  describe('when the lambdas calls go through the real cachedFetch component', () => {
     let cachedFetchFetch: jest.Mock
     let cachedLands: ILandComponent
 
@@ -204,76 +235,107 @@ describe('lands component', () => {
       })
 
       cachedLands = await createLandsComponent({
-        config: {
-          requireString: jest.fn().mockResolvedValue('https://lambdas.decentraland.org/api')
-        } as any,
+        config: buildConfigMock(),
         cachedFetch: realCachedFetch,
         fetch: { fetch: jest.fn() } as any,
         logs: createLoggerMockedComponent()
       })
     })
 
-    it('should call the upstream only once for two getLandPermissions calls with the same key', async () => {
-      cachedFetchFetch.mockResolvedValueOnce({
-        ok: true,
-        json: jest.fn().mockResolvedValue({
-          owner: true,
-          operator: false,
-          updateOperator: false,
-          updateManager: false,
-          approvedForAll: false
+    describe('and getLandPermissions is called twice with the same address and parcel', () => {
+      beforeEach(async () => {
+        cachedFetchFetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            owner: true,
+            operator: false,
+            updateOperator: false,
+            updateManager: false,
+            approvedForAll: false
+          })
         })
+
+        await cachedLands.getLandPermissions('0xUserAddress', ['10,20'])
+        await cachedLands.getLandPermissions('0xUserAddress', ['10,20'])
       })
 
-      await cachedLands.getLandPermissions('0xUserAddress', ['10,20'])
-      await cachedLands.getLandPermissions('0xUserAddress', ['10,20'])
-
-      expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      it('should hit the upstream only once', () => {
+        expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      })
     })
 
-    it('should share the cache entry across address casings', async () => {
-      cachedFetchFetch.mockResolvedValueOnce({
-        ok: true,
-        json: jest.fn().mockResolvedValue({
-          owner: true,
-          operator: false,
-          updateOperator: false,
-          updateManager: false,
-          approvedForAll: false
+    describe('and getLandPermissions is called for the same address with different casings', () => {
+      beforeEach(async () => {
+        cachedFetchFetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            owner: true,
+            operator: false,
+            updateOperator: false,
+            updateManager: false,
+            approvedForAll: false
+          })
         })
+
+        await cachedLands.getLandPermissions('0xUserAddress', ['10,20'])
+        await cachedLands.getLandPermissions('0xuseraddress', ['10,20'])
       })
 
-      await cachedLands.getLandPermissions('0xUserAddress', ['10,20'])
-      await cachedLands.getLandPermissions('0xuseraddress', ['10,20'])
-
-      expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      it('should share the cache entry across casings', () => {
+        expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      })
     })
 
-    it('should call the upstream only once for two getLandOperators calls with the same parcel', async () => {
-      cachedFetchFetch.mockResolvedValueOnce({
-        ok: true,
-        json: jest.fn().mockResolvedValue({
-          owner: '0xOwnerAddress',
-          operator: null,
-          updateOperator: null,
-          updateManagers: [],
-          approvedForAll: []
+    describe('and getLandOperators is called twice for the same parcel', () => {
+      beforeEach(async () => {
+        cachedFetchFetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            owner: '0xOwnerAddress',
+            operator: null,
+            updateOperator: null,
+            updateManagers: [],
+            approvedForAll: []
+          })
         })
+
+        await cachedLands.getLandOperators('10,20')
+        await cachedLands.getLandOperators('10,20')
       })
 
-      await cachedLands.getLandOperators('10,20')
-      await cachedLands.getLandOperators('10,20')
-
-      expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      it('should hit the upstream only once', () => {
+        expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+      })
     })
   })
 
-  describe('hasLandLease', () => {
-    describe('and the user has a lease for the parcel', () => {
+  describe('when hasLandLease is called', () => {
+    let sampleAuthorizations: LandLeaseAuthorization[]
+
+    beforeEach(() => {
+      sampleAuthorizations = [
+        {
+          name: 'Test Authorization 1',
+          desc: 'Test Description 1',
+          contactInfo: { name: 'Test Contact 1' },
+          addresses: ['0x1234567890123456789012345678901234567890'],
+          plots: ['-73,50', '10,20']
+        },
+        {
+          name: 'Test Authorization 2',
+          desc: 'Test Description 2',
+          contactInfo: { name: 'Test Contact 2' },
+          addresses: ['0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'],
+          plots: ['-100,100']
+        }
+      ]
+    })
+
+    describe('and the user is authorized to lease the requested parcel', () => {
       beforeEach(() => {
         mockLeaseFetch.fetch.mockResolvedValue({
           ok: true,
-          json: () => Promise.resolve(SAMPLE_AUTHORIZATIONS)
+          json: () => Promise.resolve(sampleAuthorizations)
         })
       })
 
@@ -281,18 +343,27 @@ describe('lands component', () => {
         const result = await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
         expect(result).toBe(true)
       })
+    })
 
-      it('should return true with case-insensitive address matching', async () => {
+    describe('and the user is queried with a different address casing', () => {
+      beforeEach(() => {
+        mockLeaseFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(sampleAuthorizations)
+        })
+      })
+
+      it('should match case-insensitively and return true', async () => {
         const result = await lands.hasLandLease('0X1234567890123456789012345678901234567890', ['-73,50'])
         expect(result).toBe(true)
       })
     })
 
-    describe('and the user has no overlap with their authorized parcels', () => {
+    describe('and the user is authorized but not for any of the requested parcels', () => {
       beforeEach(() => {
         mockLeaseFetch.fetch.mockResolvedValue({
           ok: true,
-          json: () => Promise.resolve(SAMPLE_AUTHORIZATIONS)
+          json: () => Promise.resolve(sampleAuthorizations)
         })
       })
 
@@ -302,11 +373,11 @@ describe('lands component', () => {
       })
     })
 
-    describe('and the user is not in any authorization', () => {
+    describe('and the user is absent from the authorizations document', () => {
       beforeEach(() => {
         mockLeaseFetch.fetch.mockResolvedValue({
           ok: true,
-          json: () => Promise.resolve(SAMPLE_AUTHORIZATIONS)
+          json: () => Promise.resolve(sampleAuthorizations)
         })
       })
 
@@ -320,7 +391,7 @@ describe('lands component', () => {
       beforeEach(() => {
         mockLeaseFetch.fetch.mockResolvedValue({
           ok: true,
-          json: () => Promise.resolve(SAMPLE_AUTHORIZATIONS)
+          json: () => Promise.resolve(sampleAuthorizations)
         })
       })
 
@@ -330,7 +401,7 @@ describe('lands component', () => {
       })
     })
 
-    describe('and the upstream fetch fails', () => {
+    describe('and the upstream lease fetch rejects', () => {
       beforeEach(() => {
         mockLeaseFetch.fetch.mockRejectedValue(new Error('Network error'))
       })
@@ -341,7 +412,7 @@ describe('lands component', () => {
       })
     })
 
-    describe('and the upstream returns a non-ok response', () => {
+    describe('and the upstream lease fetch responds with a non-ok status', () => {
       beforeEach(() => {
         mockLeaseFetch.fetch.mockResolvedValue({ ok: false, status: 404, statusText: 'Not Found' })
       })
@@ -353,39 +424,60 @@ describe('lands component', () => {
     })
   })
 
-  describe('getAuthorizations caching and dedup', () => {
-    describe('and the cache is valid', () => {
-      beforeEach(() => {
+  describe('when getAuthorizations is called', () => {
+    let sampleAuthorizations: LandLeaseAuthorization[]
+
+    beforeEach(() => {
+      sampleAuthorizations = [
+        {
+          name: 'Test Authorization 1',
+          desc: 'Test Description 1',
+          contactInfo: { name: 'Test Contact 1' },
+          addresses: ['0x1234567890123456789012345678901234567890'],
+          plots: ['-73,50', '10,20']
+        },
+        {
+          name: 'Test Authorization 2',
+          desc: 'Test Description 2',
+          contactInfo: { name: 'Test Contact 2' },
+          addresses: ['0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'],
+          plots: ['-100,100']
+        }
+      ]
+    })
+
+    describe('and a fresh result is cached and queried again within the TTL', () => {
+      beforeEach(async () => {
         mockLeaseFetch.fetch.mockResolvedValue({
           ok: true,
-          json: () => Promise.resolve(SAMPLE_AUTHORIZATIONS)
+          json: () => Promise.resolve(sampleAuthorizations)
         })
-      })
-
-      it('should hit the upstream only once across multiple calls within the TTL', async () => {
         await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
         await lands.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
+      })
+
+      it('should hit the upstream only once across the two calls', () => {
         expect(mockLeaseFetch.fetch).toHaveBeenCalledTimes(1)
       })
     })
 
     describe('and the cache has expired', () => {
-      beforeEach(() => {
+      beforeEach(async () => {
         jest.useFakeTimers()
         mockLeaseFetch.fetch.mockResolvedValue({
           ok: true,
-          json: () => Promise.resolve(SAMPLE_AUTHORIZATIONS)
+          json: () => Promise.resolve(sampleAuthorizations)
         })
+        await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
+        jest.advanceTimersByTime(5 * 60 * 1000 + 1000)
+        await lands.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
       })
 
       afterEach(() => {
         jest.useRealTimers()
       })
 
-      it('should refetch fresh data after TTL elapses', async () => {
-        await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
-        jest.advanceTimersByTime(5 * 60 * 1000 + 1000)
-        await lands.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
+      it('should refetch fresh data on the second call', () => {
         expect(mockLeaseFetch.fetch).toHaveBeenCalledTimes(2)
       })
     })
@@ -398,7 +490,7 @@ describe('lands component', () => {
         mockLeaseFetch.fetch.mockImplementationOnce(
           () =>
             new Promise((resolve) =>
-              setTimeout(() => resolve({ ok: true, json: () => Promise.resolve(SAMPLE_AUTHORIZATIONS) }), 0)
+              setTimeout(() => resolve({ ok: true, json: () => Promise.resolve(sampleAuthorizations) }), 0)
             )
         )
         ;[firstResult, secondResult] = await Promise.all([lands.getAuthorizations(), lands.getAuthorizations()])
@@ -410,27 +502,21 @@ describe('lands component', () => {
 
       it('should resolve both callers with the same payload', () => {
         expect(firstResult).toEqual(secondResult)
-        expect(firstResult.authorizations).toHaveLength(SAMPLE_AUTHORIZATIONS.length)
       })
     })
 
-    describe('and a refresh fetch fails after the cache has expired', () => {
+    describe('and the refresh fetch fails after the cache has expired', () => {
       let result: any
 
       beforeEach(async () => {
         jest.useFakeTimers()
         mockLeaseFetch.fetch.mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve(SAMPLE_AUTHORIZATIONS)
+          json: () => Promise.resolve(sampleAuthorizations)
         })
-
-        // Populate cache
         await lands.getAuthorizations()
-        // Expire it
         jest.advanceTimersByTime(5 * 60 * 1000 + 1000)
-        // Next fetch fails
         mockLeaseFetch.fetch.mockRejectedValueOnce(new Error('Network down'))
-
         result = await lands.getAuthorizations()
       })
 
@@ -438,11 +524,11 @@ describe('lands component', () => {
         jest.useRealTimers()
       })
 
-      it('should serve stale cache instead of an empty result', () => {
-        expect(result.authorizations).toHaveLength(SAMPLE_AUTHORIZATIONS.length)
+      it('should serve the previously cached authorizations rather than an empty payload', () => {
+        expect(result.authorizations).toHaveLength(sampleAuthorizations.length)
       })
 
-      it('should have attempted the fresh fetch', () => {
+      it('should still attempt the fresh fetch', () => {
         expect(mockLeaseFetch.fetch).toHaveBeenCalledTimes(2)
       })
     })
@@ -461,34 +547,55 @@ describe('lands component', () => {
     })
   })
 
-  describe('refreshAuthorizations', () => {
-    beforeEach(() => {
+  describe('when refreshAuthorizations is called', () => {
+    let sampleAuthorizations: LandLeaseAuthorization[]
+
+    beforeEach(async () => {
+      sampleAuthorizations = [
+        {
+          name: 'Test Authorization 1',
+          desc: '',
+          contactInfo: { name: '' },
+          addresses: ['0x1234567890123456789012345678901234567890'],
+          plots: ['-73,50']
+        }
+      ]
       mockLeaseFetch.fetch.mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve(SAMPLE_AUTHORIZATIONS)
+        json: () => Promise.resolve(sampleAuthorizations)
       })
-    })
 
-    it('should clear the cache and trigger a fresh fetch', async () => {
       await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
       await lands.refreshAuthorizations()
       await lands.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
+    })
 
+    it('should clear the cache and trigger a fresh fetch', () => {
       expect(mockLeaseFetch.fetch).toHaveBeenCalledTimes(2)
     })
   })
 
-  describe('getLeaseHoldersForParcels', () => {
+  describe('when getLeaseHoldersForParcels is called', () => {
     describe('and no parcels are passed', () => {
-      it('should return an empty array without querying authorizations', async () => {
-        const result = await lands.getLeaseHoldersForParcels([])
+      let result: string[]
+
+      beforeEach(async () => {
+        result = await lands.getLeaseHoldersForParcels([])
+      })
+
+      it('should return an empty array', () => {
         expect(result).toEqual([])
+      })
+
+      it('should not query the lease authorizations', () => {
         expect(mockLeaseFetch.fetch).not.toHaveBeenCalled()
       })
     })
 
     describe('and an authorization overlaps the requested parcels', () => {
-      beforeEach(() => {
+      let result: string[]
+
+      beforeEach(async () => {
         mockLeaseFetch.fetch.mockResolvedValue({
           ok: true,
           json: () =>
@@ -509,21 +616,23 @@ describe('lands component', () => {
               }
             ])
         })
+        result = await lands.getLeaseHoldersForParcels(['10,20', '11,20'])
       })
 
-      it('should return only the lowercased addresses for overlapping plots', async () => {
-        const result = await lands.getLeaseHoldersForParcels(['10,20', '11,20'])
+      it('should return only the lowercased addresses for overlapping plots', () => {
         expect(new Set(result)).toEqual(new Set(['0xlease1', '0xlease2']))
       })
     })
 
     describe('and the upstream fetch throws', () => {
-      beforeEach(() => {
+      let result: string[]
+
+      beforeEach(async () => {
         mockLeaseFetch.fetch.mockRejectedValue(new Error('lease service unavailable'))
+        result = await lands.getLeaseHoldersForParcels(['10,20'])
       })
 
-      it('should swallow the error and return an empty array', async () => {
-        const result = await lands.getLeaseHoldersForParcels(['10,20'])
+      it('should swallow the error and return an empty array', () => {
         expect(result).toEqual([])
       })
     })
