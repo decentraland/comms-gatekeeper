@@ -32,7 +32,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
     handleParticipantLeftSpy = jest.spyOn(components.voice, 'handleParticipantLeft')
 
     spyComponents.publisher.publishMessages.mockReturnValue(undefined)
-    spyComponents.sceneBans.updateRoomMetadataWithBans.mockResolvedValue(undefined)
+    spyComponents.roomMetadataSync.updateRoomMetadataForRoom.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -409,7 +409,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(spyComponents.sceneBans.updateRoomMetadataWithBans).toHaveBeenCalledWith(webhookEvent.room)
+        expect(spyComponents.roomMetadataSync.updateRoomMetadataForRoom).toHaveBeenCalledWith(webhookEvent.room)
       })
     })
 
@@ -459,7 +459,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(spyComponents.sceneBans.updateRoomMetadataWithBans).toHaveBeenCalledWith(webhookEvent.room)
+        expect(spyComponents.roomMetadataSync.updateRoomMetadataForRoom).toHaveBeenCalledWith(webhookEvent.room)
       })
     })
 
@@ -510,7 +510,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(spyComponents.sceneBans.updateRoomMetadataWithBans).toHaveBeenCalledWith(webhookEvent.room)
+        expect(spyComponents.roomMetadataSync.updateRoomMetadataForRoom).toHaveBeenCalledWith(webhookEvent.room)
       })
     })
 
@@ -530,7 +530,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(spyComponents.sceneBans.updateRoomMetadataWithBans).not.toHaveBeenCalled()
+        expect(spyComponents.roomMetadataSync.updateRoomMetadataForRoom).not.toHaveBeenCalled()
       })
     })
   })

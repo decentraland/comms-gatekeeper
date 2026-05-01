@@ -295,6 +295,17 @@ describe('when getting a room name', () => {
       const result = livekitComponent.getRoomName(realmName, { isWorld: true, sceneId })
       expect(result).toBe('world-prod-scene-room-test-world.dcl.eth-bafkreiscene123')
     })
+
+    describe('and the sceneId is missing (legacy world room)', () => {
+      it('should fall back to the world-level (comms-prefixed) room name', () => {
+        const realmName = 'test-world.dcl.eth'
+        const result = livekitComponent.getRoomName(realmName, {
+          isWorld: true,
+          sceneId: undefined as unknown as string
+        })
+        expect(result).toBe('world-env-test-world.dcl.eth')
+      })
+    })
   })
 
   describe('when isWorld is false', () => {
@@ -303,6 +314,15 @@ describe('when getting a room name', () => {
       const sceneId = 'test-scene'
       const result = livekitComponent.getRoomName(realmName, { isWorld: false, sceneId })
       expect(result).toBe('scene-test-realm:test-scene')
+    })
+
+    describe('and the sceneId is missing', () => {
+      it('should throw because non-world rooms require a sceneId to identify the scene', () => {
+        const realmName = 'test-realm'
+        expect(() =>
+          livekitComponent.getRoomName(realmName, { isWorld: false, sceneId: undefined as unknown as string })
+        ).toThrow(/missing sceneId/)
+      })
     })
   })
 })
@@ -1007,10 +1027,7 @@ describe('when removing a participant from all rooms', () => {
     let mockRooms: Room[]
 
     beforeEach(() => {
-      mockRooms = [
-        { name: 'scene-realm1:scene1' } as Room,
-        { name: 'voice-chat-private-call1' } as Room
-      ]
+      mockRooms = [{ name: 'scene-realm1:scene1' } as Room, { name: 'voice-chat-private-call1' } as Room]
       listRoomsSpy.mockResolvedValue(mockRooms)
       const notFoundError = Object.assign(new Error('participant not found'), { code: 'not_found' })
       removeParticipantSpy.mockRejectedValue(notFoundError)
@@ -1031,9 +1048,7 @@ describe('when removing a participant from all rooms', () => {
     let mockRooms: Room[]
 
     beforeEach(() => {
-      mockRooms = [
-        { name: 'scene-realm1:scene1' } as Room
-      ]
+      mockRooms = [{ name: 'scene-realm1:scene1' } as Room]
       listRoomsSpy.mockResolvedValue(mockRooms)
       removeParticipantSpy.mockRejectedValue(new Error('network timeout'))
     })
@@ -1068,11 +1083,7 @@ describe('when removing a participant from all rooms', () => {
     let mockRooms: Room[]
 
     beforeEach(() => {
-      mockRooms = [
-        { name: 'room-1' } as Room,
-        { name: 'room-2' } as Room,
-        { name: 'room-3' } as Room
-      ]
+      mockRooms = [{ name: 'room-1' } as Room, { name: 'room-2' } as Room, { name: 'room-3' } as Room]
       listRoomsSpy.mockResolvedValue(mockRooms)
       const notFoundError = Object.assign(new Error('participant not found'), { code: 'not_found' })
       removeParticipantSpy

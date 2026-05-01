@@ -12,7 +12,6 @@ export function createSceneBansMockedComponent(
     listSceneBannedAddresses: jest.fn(),
     isUserBanned: jest.fn(),
     removeBansFromDisabledPlaces: jest.fn(),
-    updateRoomMetadataWithBans: jest.fn(),
     ...overrides
   }
 }

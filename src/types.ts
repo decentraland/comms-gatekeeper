@@ -26,6 +26,7 @@ import { ISceneAdmins } from './types/scene.type'
 import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
 import { ISceneBansComponent } from './logic/scene-bans/types'
+import { IRoomMetadataSyncComponent } from './logic/room-metadata-sync/types'
 import { ICronJobComponent } from './logic/cron-job/types'
 import { ILivekitWebhookComponent } from './logic/livekit-webhook'
 import { ICastComponent } from './logic/cast'
@@ -58,6 +59,7 @@ export type BaseComponents = {
   sceneAdminManager: ISceneAdminManager
   sceneBanManager: ISceneBanManager
   sceneBans: ISceneBansComponent
+  roomMetadataSync: IRoomMetadataSyncComponent
   sceneStreamAccessManager: ISceneStreamAccessManager
   cachedFetch: ICachedFetchComponent
   places: IPlacesComponent

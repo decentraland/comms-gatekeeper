@@ -33,6 +33,7 @@ import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
 import { createVoiceComponent } from './logic/voice/voice'
 import { createSceneBansComponent } from './logic/scene-bans'
+import { createRoomMetadataSyncComponent } from './logic/room-metadata-sync'
 import { createCronJobComponent } from './logic/cron-job'
 import { createCastComponent } from './logic/cast'
 import {
@@ -180,6 +181,16 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const contentClient = await createContentClientComponent({ config, fetch: tracedFetch, logs })
 
+  const roomMetadataSync = createRoomMetadataSyncComponent({
+    sceneBanManager,
+    sceneAdmins,
+    livekit,
+    places,
+    contentClient,
+    landLease,
+    logs
+  })
+
   // Scene ban components
   const sceneBans = createSceneBansComponent({
     sceneBanManager,
@@ -190,7 +201,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     analytics,
     names,
     contentClient,
-    publisher
+    publisher,
+    roomMetadataSync
   })
   const disabledPlacesBansRemovalJob = await createCronJobComponent(
     { logs },
@@ -228,7 +240,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     logs,
     livekit,
     publisher,
-    sceneBans
+    roomMetadataSync
   })
   const participantLeftHandler = createParticipantLeftHandler({
     voice,
@@ -238,7 +250,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     publisher
   })
   const roomStartedHandler = createRoomStartedHandler({
-    sceneBans,
+    roomMetadataSync,
     logs
   })
 
@@ -277,6 +289,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneAdminManager,
     sceneBanManager,
     sceneBans,
+    roomMetadataSync,
     sceneStreamAccessManager,
     placesChecker,
     streamingTTLChecker,

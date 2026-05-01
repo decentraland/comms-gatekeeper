@@ -12,8 +12,8 @@ import { AnalyticsEvent } from '../../../src/types/analytics'
 import { createPublisherMockedComponent } from '../../mocks/publisher-mock'
 import { ILivekitComponent } from '../../../src/types/livekit.type'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
-import { ISceneBansComponent } from '../../../src/logic/scene-bans/types'
-import { createSceneBansMockedComponent } from '../../mocks/scene-bans-mock'
+import { IRoomMetadataSyncComponent } from '../../../src/logic/room-metadata-sync/types'
+import { createRoomMetadataSyncMockedComponent } from '../../mocks/room-metadata-sync-mock'
 
 describe('Participant Joined Handler', () => {
   let handler: ReturnType<typeof createParticipantJoinedHandler>
@@ -24,17 +24,17 @@ describe('Participant Joined Handler', () => {
   let fireEventMock: jest.MockedFunction<IAnalyticsComponent['fireEvent']>
   let publishMessagesMock: jest.MockedFunction<IPublisherComponent['publishMessages']>
   let getRoomMetadataFromRoomNameMock: jest.MockedFunction<ILivekitComponent['getRoomMetadataFromRoomName']>
-  let updateRoomMetadataWithBansMock: jest.MockedFunction<ISceneBansComponent['updateRoomMetadataWithBans']>
+  let updateRoomMetadataForRoomMock: jest.MockedFunction<IRoomMetadataSyncComponent['updateRoomMetadataForRoom']>
   let publisher: jest.Mocked<IPublisherComponent>
   let livekit: jest.Mocked<ILivekitComponent>
-  let sceneBans: jest.Mocked<ISceneBansComponent>
+  let roomMetadataSync: jest.Mocked<IRoomMetadataSyncComponent>
 
   beforeEach(() => {
     handleParticipantJoinedMock = jest.fn()
     fireEventMock = jest.fn()
     publishMessagesMock = jest.fn()
     getRoomMetadataFromRoomNameMock = jest.fn()
-    updateRoomMetadataWithBansMock = jest.fn()
+    updateRoomMetadataForRoomMock = jest.fn()
 
     voice = createVoiceMockedComponent({
       handleParticipantJoined: handleParticipantJoinedMock
@@ -52,8 +52,8 @@ describe('Participant Joined Handler', () => {
       getRoomMetadataFromRoomName: getRoomMetadataFromRoomNameMock
     })
 
-    sceneBans = createSceneBansMockedComponent({
-      updateRoomMetadataWithBans: updateRoomMetadataWithBansMock
+    roomMetadataSync = createRoomMetadataSyncMockedComponent({
+      updateRoomMetadataForRoom: updateRoomMetadataForRoomMock
     })
 
     logs = createLoggerMockedComponent()
@@ -64,7 +64,7 @@ describe('Participant Joined Handler', () => {
       logs,
       livekit,
       publisher,
-      sceneBans
+      roomMetadataSync
     })
   })
 
@@ -113,10 +113,10 @@ describe('Participant Joined Handler', () => {
         expect(handleParticipantJoinedMock).toHaveBeenCalledWith(userAddress, roomName)
       })
 
-      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+      it('should call roomMetadataSync.updateRoomMetadataForRoom', async () => {
         await handler.handle(webhookEvent)
 
-        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+        expect(updateRoomMetadataForRoomMock).toHaveBeenCalledWith(webhookEvent.room)
       })
 
       it('should publish UserJoinedRoomEvent message for voice chat rooms', async () => {
@@ -236,10 +236,10 @@ describe('Participant Joined Handler', () => {
         })
       })
 
-      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+      it('should call roomMetadataSync.updateRoomMetadataForRoom', async () => {
         await handler.handle(webhookEvent)
 
-        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+        expect(updateRoomMetadataForRoomMock).toHaveBeenCalledWith(webhookEvent.room)
       })
 
       it('should not call the voice handler', async () => {
@@ -293,10 +293,10 @@ describe('Participant Joined Handler', () => {
         })
       })
 
-      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+      it('should call roomMetadataSync.updateRoomMetadataForRoom', async () => {
         await handler.handle(webhookEvent)
 
-        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+        expect(updateRoomMetadataForRoomMock).toHaveBeenCalledWith(webhookEvent.room)
       })
 
       it('should not call the voice handler', async () => {
@@ -352,10 +352,10 @@ describe('Participant Joined Handler', () => {
         })
       })
 
-      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+      it('should call roomMetadataSync.updateRoomMetadataForRoom', async () => {
         await handler.handle(webhookEvent)
 
-        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+        expect(updateRoomMetadataForRoomMock).toHaveBeenCalledWith(webhookEvent.room)
       })
 
       it('should call the voice handler for community voice chat rooms', async () => {
@@ -411,10 +411,10 @@ describe('Participant Joined Handler', () => {
         })
       })
 
-      it('should call sceneBans.updateRoomMetadataWithBans', async () => {
+      it('should call roomMetadataSync.updateRoomMetadataForRoom', async () => {
         await handler.handle(webhookEvent)
 
-        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+        expect(updateRoomMetadataForRoomMock).toHaveBeenCalledWith(webhookEvent.room)
       })
 
       it('should not call the voice handler for island rooms', async () => {
@@ -450,10 +450,10 @@ describe('Participant Joined Handler', () => {
         })
       })
 
-      it('should still call sceneBans.updateRoomMetadataWithBans', async () => {
+      it('should still call roomMetadataSync.updateRoomMetadataForRoom', async () => {
         await handler.handle(webhookEvent)
 
-        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+        expect(updateRoomMetadataForRoomMock).toHaveBeenCalledWith(webhookEvent.room)
       })
 
       it('should not call the voice handler', async () => {
@@ -492,10 +492,10 @@ describe('Participant Joined Handler', () => {
         })
       })
 
-      it('should still call sceneBans.updateRoomMetadataWithBans', async () => {
+      it('should still call roomMetadataSync.updateRoomMetadataForRoom', async () => {
         await handler.handle(webhookEvent)
 
-        expect(updateRoomMetadataWithBansMock).toHaveBeenCalledWith(webhookEvent.room)
+        expect(updateRoomMetadataForRoomMock).toHaveBeenCalledWith(webhookEvent.room)
       })
     })
 
