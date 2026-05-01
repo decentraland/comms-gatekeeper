@@ -32,7 +32,7 @@ export async function addSceneAdminHandler(
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
-    throw new InvalidRequestError('Authentication required')
+    throw new UnauthorizedError('Authentication required')
   }
 
   const payload: AddSceneAdminRequestBody = await request.json()

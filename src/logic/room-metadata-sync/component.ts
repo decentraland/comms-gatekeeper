@@ -68,8 +68,9 @@ export function createRoomMetadataSyncComponent(
     // Throttle: with hundreds of joins per minute on a busy scene, refreshing on
     // every webhook is wasteful. The cache entry's existence IS the cooldown
     // signal — the TTL handles eviction; the LRU cap handles bounded memory.
-    // Mark upfront (not after success) so a persistent downstream failure can't
-    // thrash; the next webhook after the cooldown elapses will retry.
+    // Mark upfront so concurrent webhooks within the same JS tick can't both
+    // pass the gate; on a thrown failure below we release the slot so a single
+    // transient blip doesn't block reconciliation for the full TTL.
     const cooldownKey = refreshCacheKey(room.name)
     const isCoolingDown = await cache.get(cooldownKey)
     if (isCoolingDown) {
@@ -108,6 +109,10 @@ export function createRoomMetadataSyncComponent(
 
       await refreshRoomMetadata(place, room.name)
     } catch (error) {
+      // Release the cooldown slot so the next webhook can retry promptly. A
+      // genuine outage will keep failing here, but that's the right signal —
+      // the upstream service is down regardless of how often we retry.
+      await cache.remove(cooldownKey)
       logger.error(`Error updating room metadata for room ${room.name}`, {
         error: isErrorWithMessage(error) ? error.message : 'Unknown error'
       })

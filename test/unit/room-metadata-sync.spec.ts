@@ -319,6 +319,28 @@ describe('RoomMetadataSyncComponent', () => {
       })
     })
 
+    describe('and the place lookup fails followed by a successful retry', () => {
+      beforeEach(async () => {
+        livekit.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: 'scene-id',
+          worldName: 'test-world',
+          realmName: 'test-realm',
+          roomType: RoomType.WORLD
+        })
+        places.getWorldScenePlaceByEntityId
+          .mockRejectedValueOnce(new Error('transient blip'))
+          .mockResolvedValueOnce(mockPlace)
+
+        await component.updateRoomMetadataForRoom(mockRoom)
+        await component.updateRoomMetadataForRoom(mockRoom)
+      })
+
+      it('should release the cooldown so the next webhook retries promptly', () => {
+        expect(places.getWorldScenePlaceByEntityId).toHaveBeenCalledTimes(2)
+        expect(livekit.updateRoomMetadata).toHaveBeenCalledTimes(1)
+      })
+    })
+
     describe('and the same room is refreshed twice in quick succession', () => {
       beforeEach(async () => {
         livekit.getRoomMetadataFromRoomName.mockReturnValue({
