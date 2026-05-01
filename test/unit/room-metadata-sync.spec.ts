@@ -9,7 +9,7 @@ import { ILivekitComponent } from '../../src/types/livekit.type'
 import { IPlacesComponent, PlaceAttributes } from '../../src/types/places.type'
 import { IContentClientComponent } from '../../src/types/content-client.type'
 import { ISceneAdmins } from '../../src/types/scene.type'
-import { ILandLeaseComponent } from '../../src/types/land-lease.type'
+import { ILandComponent } from '../../src/adapters/lands'
 import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createSceneBanManagerMockedComponent } from '../mocks/scene-ban-manager-mock'
@@ -24,7 +24,7 @@ describe('RoomMetadataSyncComponent', () => {
   let sceneAdmins: jest.Mocked<ISceneAdmins>
   let places: jest.Mocked<IPlacesComponent>
   let contentClient: jest.Mocked<IContentClientComponent>
-  let landLease: jest.Mocked<ILandLeaseComponent>
+  let lands: jest.Mocked<ILandComponent>
   let cache: ICacheStorageComponent
   let logs: jest.Mocked<ILoggerComponent>
   let mockPlace: PlaceAttributes
@@ -35,11 +35,11 @@ describe('RoomMetadataSyncComponent', () => {
     sceneAdmins = createSceneAdminsMockedComponent()
     places = createPlacesMockedComponent()
     contentClient = createContentClientMockedComponent()
-    landLease = {
-      hasLandLease: jest.fn(),
-      getAuthorizations: jest.fn().mockResolvedValue({ authorizations: [] }),
-      refreshAuthorizations: jest.fn()
-    } as jest.Mocked<ILandLeaseComponent>
+    lands = {
+      getLandPermissions: jest.fn(),
+      getLandOperators: jest.fn(),
+      getLeaseHoldersForParcels: jest.fn().mockResolvedValue([])
+    } as jest.Mocked<ILandComponent>
     cache = createInMemoryCacheComponent()
     logs = createLoggerMockedComponent()
     mockPlace = createMockedPlace({ id: 'test-place-id' })
@@ -50,7 +50,7 @@ describe('RoomMetadataSyncComponent', () => {
       livekit,
       places,
       contentClient,
-      landLease,
+      lands,
       cache,
       logs
     })
@@ -73,7 +73,7 @@ describe('RoomMetadataSyncComponent', () => {
       it('should fetch banned addresses, admins, and land-lease holders in parallel', () => {
         expect(sceneBanManager.listBannedAddresses).toHaveBeenCalledWith('test-place-id')
         expect(sceneAdmins.getAdminsAndExtraAddresses).toHaveBeenCalledWith(mockPlace)
-        expect(landLease.getAuthorizations).toHaveBeenCalled()
+        expect(lands.getLeaseHoldersForParcels).toHaveBeenCalledWith(mockPlace.positions)
       })
 
       it('should write both keys to room metadata in a single call', () => {
@@ -85,7 +85,7 @@ describe('RoomMetadataSyncComponent', () => {
       })
     })
 
-    describe('and the place has lease holders whose plots overlap', () => {
+    describe('and the place has lease holders', () => {
       beforeEach(async () => {
         mockPlace = createMockedPlace({ id: 'test-place-id', positions: ['10,20', '11,20'], world: false })
         sceneBanManager.listBannedAddresses.mockResolvedValue([])
@@ -94,37 +94,15 @@ describe('RoomMetadataSyncComponent', () => {
           extraAddresses: new Set(),
           addresses: new Set(['0xadmin1'])
         })
-        landLease.getAuthorizations.mockResolvedValue({
-          authorizations: [
-            {
-              name: 'lease-1',
-              desc: '',
-              contactInfo: { name: 'tenant' },
-              addresses: ['0xLEASE1', '0xLease2'],
-              plots: ['10,20']
-            },
-            {
-              name: 'unrelated',
-              desc: '',
-              contactInfo: { name: 'other' },
-              addresses: ['0xunrelated'],
-              plots: ['99,99']
-            }
-          ]
-        })
+        lands.getLeaseHoldersForParcels.mockResolvedValue(['0xlease1', '0xlease2'])
         livekit.updateRoomMetadata.mockResolvedValue(undefined)
 
         await component.refreshRoomMetadata(mockPlace, 'test-room-name')
       })
 
-      it('should include lowercased lease holders for overlapping plots in sceneAdmins', () => {
+      it('should fold the lease holders into the sceneAdmins union', () => {
         const payload = livekit.updateRoomMetadata.mock.calls[0][1]
         expect(new Set(payload.sceneAdmins as string[])).toEqual(new Set(['0xadmin1', '0xlease1', '0xlease2']))
-      })
-
-      it('should not include lease holders whose plots do not overlap with this place', () => {
-        const payload = livekit.updateRoomMetadata.mock.calls[0][1]
-        expect((payload.sceneAdmins as string[]).includes('0xunrelated')).toBe(false)
       })
     })
 
@@ -142,31 +120,8 @@ describe('RoomMetadataSyncComponent', () => {
         await component.refreshRoomMetadata(mockPlace, 'test-room-name')
       })
 
-      it('should not query land-lease authorizations (lease only applies to Genesis City)', () => {
-        expect(landLease.getAuthorizations).not.toHaveBeenCalled()
-      })
-    })
-
-    describe('and the land-lease lookup itself fails', () => {
-      beforeEach(async () => {
-        mockPlace = createMockedPlace({ id: 'test-place-id', world: false, positions: ['10,20'] })
-        sceneBanManager.listBannedAddresses.mockResolvedValue(['0xban1'])
-        sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
-          admins: new Set(),
-          extraAddresses: new Set(),
-          addresses: new Set(['0xadmin1'])
-        })
-        landLease.getAuthorizations.mockRejectedValue(new Error('lease service unavailable'))
-        livekit.updateRoomMetadata.mockResolvedValue(undefined)
-
-        await component.refreshRoomMetadata(mockPlace, 'test-room-name')
-      })
-
-      it('should still write bans and admins to metadata (lease failure is isolated)', () => {
-        expect(livekit.updateRoomMetadata).toHaveBeenCalledTimes(1)
-        const payload = livekit.updateRoomMetadata.mock.calls[0][1]
-        expect(payload.bannedAddresses).toEqual(['0xban1'])
-        expect(payload.sceneAdmins).toEqual(['0xadmin1'])
+      it('should not query land-lease holders (lease only applies to Genesis City)', () => {
+        expect(lands.getLeaseHoldersForParcels).not.toHaveBeenCalled()
       })
     })
 

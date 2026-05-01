@@ -1,7 +1,20 @@
-import { createLandsComponent } from '../../src/adapters/lands'
+import {
+  createLandsComponent,
+  LandsParcelPermissionsResponse,
+  LandsParcelOperatorsResponse
+} from '../../src/adapters/lands'
 import { cachedFetchComponent } from '../../src/adapters/fetch'
-import { LandsParcelPermissionsResponse, LandsParcelOperatorsResponse } from '../../src/types/lands.type'
+import { ILandLeaseComponent } from '../../src/types/land-lease.type'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
+
+const createLandLeaseMock = (
+  overrides?: Partial<jest.Mocked<ILandLeaseComponent>>
+): jest.Mocked<ILandLeaseComponent> => ({
+  hasLandLease: jest.fn(),
+  getAuthorizations: jest.fn().mockResolvedValue({ authorizations: [] }),
+  refreshAuthorizations: jest.fn(),
+  ...overrides
+})
 
 describe('LandsComponent', () => {
   let landsComponent: Awaited<ReturnType<typeof createLandsComponent>>
@@ -40,6 +53,7 @@ describe('LandsComponent', () => {
     }
 
     landsComponent = await createLandsComponent({
+      landLease: createLandLeaseMock(),
       config: mockConfig,
       cachedFetch: mockCachedFetch,
       logs: mockLogs
@@ -115,6 +129,7 @@ describe('LandsComponent', () => {
       }
 
       const component = await createLandsComponent({
+        landLease: createLandLeaseMock(),
         config: mockConfig,
         cachedFetch: {
           cache: jest.fn().mockReturnValue({
@@ -260,6 +275,7 @@ describe('LandsComponent', () => {
       }
 
       const component = await createLandsComponent({
+        landLease: createLandLeaseMock(),
         config: mockConfig,
         cachedFetch: {
           cache: jest.fn().mockReturnValue({
@@ -275,6 +291,79 @@ describe('LandsComponent', () => {
       })
 
       await expect(component.getLandOperators('10,20')).rejects.toThrow('Lambdas URL is not set')
+    })
+  })
+
+  describe('getLeaseHoldersForParcels', () => {
+    let landLease: jest.Mocked<ILandLeaseComponent>
+
+    const buildComponent = async () =>
+      createLandsComponent({
+        landLease,
+        config: {
+          requireString: jest.fn().mockResolvedValue('https://lambdas.decentraland.org/api'),
+          getString: jest.fn(),
+          getNumber: jest.fn(),
+          requireNumber: jest.fn()
+        },
+        cachedFetch: {
+          cache: jest.fn().mockReturnValue({ fetch: jest.fn() })
+        },
+        logs: createLoggerMockedComponent()
+      })
+
+    beforeEach(() => {
+      landLease = createLandLeaseMock()
+    })
+
+    describe('and no parcels are passed', () => {
+      it('should return an empty array without querying authorizations', async () => {
+        const component = await buildComponent()
+        const result = await component.getLeaseHoldersForParcels([])
+        expect(result).toEqual([])
+        expect(landLease.getAuthorizations).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and an authorization overlaps the requested parcels', () => {
+      beforeEach(() => {
+        landLease.getAuthorizations.mockResolvedValue({
+          authorizations: [
+            {
+              name: 'lease-1',
+              desc: '',
+              contactInfo: { name: 'tenant' },
+              addresses: ['0xLEASE1', '0xLease2'],
+              plots: ['10,20']
+            },
+            {
+              name: 'unrelated',
+              desc: '',
+              contactInfo: { name: 'other' },
+              addresses: ['0xunrelated'],
+              plots: ['99,99']
+            }
+          ]
+        })
+      })
+
+      it('should return only the lowercased addresses for overlapping plots', async () => {
+        const component = await buildComponent()
+        const result = await component.getLeaseHoldersForParcels(['10,20', '11,20'])
+        expect(new Set(result)).toEqual(new Set(['0xlease1', '0xlease2']))
+      })
+    })
+
+    describe('and the lease lookup throws', () => {
+      beforeEach(() => {
+        landLease.getAuthorizations.mockRejectedValue(new Error('lease service unavailable'))
+      })
+
+      it('should swallow the error and return an empty array (failures must not poison callers)', async () => {
+        const component = await buildComponent()
+        const result = await component.getLeaseHoldersForParcels(['10,20'])
+        expect(result).toEqual([])
+      })
     })
   })
 
@@ -297,6 +386,7 @@ describe('LandsComponent', () => {
       }
 
       cachedLandsComponent = await createLandsComponent({
+        landLease: createLandLeaseMock(),
         config: mockConfig,
         cachedFetch: realCachedFetch,
         logs: createLoggerMockedComponent()

@@ -114,9 +114,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   )
   const worlds = await createWorldsComponent({ config, logs, cachedFetch, fetch: tracedFetch })
   const places = await createPlacesComponent({ config, logs, cachedFetch, fetch: tracedFetch, worlds })
-  const lands = await createLandsComponent({ config, logs, cachedFetch })
   const names = await createNamesComponent({ config, logs, fetch: tracedFetch, cachedFetch })
   const landLease = await createLandLeaseComponent({ fetch: tracedFetch, logs })
+  const lands = await createLandsComponent({ config, logs, cachedFetch, landLease })
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager, landLease })
   const analytics = await createAnalyticsComponent<AnalyticsEventPayload>({ config, logs, fetcher: tracedFetch })
   const denyList = await createDenyListComponent({ config, cachedFetch: cachedFetchWithStale, logs })
@@ -190,7 +190,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     livekit,
     places,
     contentClient,
-    landLease,
+    lands,
     cache,
     logs
   })

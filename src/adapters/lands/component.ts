@@ -1,12 +1,13 @@
-import { ensureSlashAtTheEnd } from '../logic/utils'
-import { AppComponents } from '../types'
-import { LandPermissionsNotFoundError } from '../types/errors'
-import { ILandComponent, LandsParcelOperatorsResponse, LandsParcelPermissionsResponse } from '../types/lands.type'
+import { ensureSlashAtTheEnd } from '../../logic/utils'
+import { isErrorWithMessage } from '../../logic/errors'
+import { AppComponents } from '../../types'
+import { LandPermissionsNotFoundError } from './errors'
+import { ILandComponent, LandsParcelOperatorsResponse, LandsParcelPermissionsResponse } from './types'
 
 export async function createLandsComponent(
-  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs'>
+  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'landLease' | 'logs'>
 ): Promise<ILandComponent> {
-  const { config, cachedFetch, logs } = components
+  const { config, cachedFetch, landLease, logs } = components
   const logger = logs.getLogger('land-component')
 
   const lambdasUrl = await config.requireString('LAMBDAS_URL')
@@ -56,8 +57,41 @@ export async function createLandsComponent(
     return parcelPermissionsResponse
   }
 
+  async function getLeaseHoldersForParcels(parcels: string[]): Promise<string[]> {
+    if (parcels.length === 0) return []
+
+    // Failures degrade to an empty list rather than propagating: callers fold
+    // this into wider parallel fetches (see roomMetadataSync.refreshRoomMetadata),
+    // and a flaky lease service should not cascade into dropping the entire
+    // metadata write.
+    try {
+      const { authorizations } = await landLease.getAuthorizations()
+      if (!authorizations) return []
+
+      const parcelSet = new Set(parcels)
+      const leaseHolders = new Set<string>()
+      for (const auth of authorizations) {
+        const overlaps = auth.plots.some((plot) => parcelSet.has(plot))
+        if (overlaps) {
+          for (const address of auth.addresses) {
+            leaseHolders.add(address.toLowerCase())
+          }
+        }
+      }
+      return Array.from(leaseHolders)
+    } catch (error) {
+      logger.warn(
+        `Failed to fetch land-lease holders for parcels ${parcels.join(',')}: ${
+          isErrorWithMessage(error) ? error.message : 'Unknown error'
+        }`
+      )
+      return []
+    }
+  }
+
   return {
     getLandPermissions,
-    getLandOperators
+    getLandOperators,
+    getLeaseHoldersForParcels
   }
 }

@@ -8,10 +8,10 @@ import {
   ServiceUnavailableError,
   StreamingAccessNotFoundError,
   UnauthorizedError,
-  LandPermissionsNotFoundError,
   LivekitIngressNotFoundError,
   ForbiddenError
 } from '../../types/errors'
+import { LandPermissionsNotFoundError } from '../../adapters/lands'
 import { PlayerAlreadyBannedError, BanNotFoundError } from '../../logic/user-moderation/errors'
 import {
   InvalidStreamingKeyError,

@@ -2,7 +2,7 @@ import { AppComponents, SceneAdmin } from '../types'
 import { ISceneAdmins } from '../types/scene.type'
 import { PlaceAttributes } from '../types/places.type'
 import { PermissionType } from '../types/worlds.type'
-import { LandsParcelOperatorsResponse } from '../types/lands.type'
+import { LandsParcelOperatorsResponse } from './lands'
 
 export async function createSceneAdminsComponent(
   components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager'>

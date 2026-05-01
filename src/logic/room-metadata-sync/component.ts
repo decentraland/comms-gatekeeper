@@ -20,10 +20,10 @@ const WEBHOOK_REFRESH_CACHE_KEY_PREFIX = 'room-metadata-sync:webhook-refresh:'
 export function createRoomMetadataSyncComponent(
   components: Pick<
     AppComponents,
-    'sceneBanManager' | 'sceneAdmins' | 'livekit' | 'places' | 'contentClient' | 'landLease' | 'cache' | 'logs'
+    'sceneBanManager' | 'sceneAdmins' | 'livekit' | 'places' | 'contentClient' | 'lands' | 'cache' | 'logs'
   >
 ): IRoomMetadataSyncComponent {
-  const { sceneBanManager, sceneAdmins, livekit, places, contentClient, landLease, cache, logs } = components
+  const { sceneBanManager, sceneAdmins, livekit, places, contentClient, lands, cache, logs } = components
   const logger = logs.getLogger('room-metadata-sync')
 
   // Cache key namespace prevents collisions if `cache` is later shared with
@@ -32,50 +32,17 @@ export function createRoomMetadataSyncComponent(
     return `${WEBHOOK_REFRESH_CACHE_KEY_PREFIX}${roomName}`
   }
 
-  /**
-   * Returns the lowercase land-lease holder addresses whose authorized plots overlap
-   * with this place's positions. Land-lease only applies to Genesis City scenes.
-   *
-   * `getAdminsAndExtraAddresses` does NOT include lease holders today, but `isSceneOwnerOrAdmin`
-   * grants admin permissions to them — so for the metadata to reflect the same set of effective
-   * admins, we have to include them here.
-   */
-  async function getLandLeaseAddresses(place: PlaceAttributes): Promise<string[]> {
-    if (place.world) return []
-
-    // Failures here MUST NOT abort the surrounding Promise.all in refreshRoomMetadata —
-    // otherwise a flaky lease service would also drop bans and admins from the metadata
-    // write. Catch locally and degrade to an empty list; the next refresh retries.
-    try {
-      const { authorizations } = await landLease.getAuthorizations()
-      if (!authorizations) return []
-
-      const leaseAddresses = new Set<string>()
-      for (const auth of authorizations) {
-        const overlaps = place.positions.some((position) => auth.plots.includes(position))
-        if (overlaps) {
-          for (const address of auth.addresses) {
-            leaseAddresses.add(address.toLowerCase())
-          }
-        }
-      }
-      return Array.from(leaseAddresses)
-    } catch (error) {
-      logger.warn(
-        `Failed to fetch land-lease authorizations for place ${place.id}: ${
-          isErrorWithMessage(error) ? error.message : 'Unknown error'
-        }`
-      )
-      return []
-    }
-  }
-
   async function refreshRoomMetadata(place: PlaceAttributes, roomName: string): Promise<void> {
     try {
+      // Land-lease only applies to Genesis City scenes; skip the lookup for worlds.
+      // `lands.getLeaseHoldersForParcels` handles its own errors and returns [] on
+      // failure, so a flaky lease service won't poison this Promise.all and drop
+      // bans/admins from the metadata write.
+      const leaseLookup = place.world ? Promise.resolve<string[]>([]) : lands.getLeaseHoldersForParcels(place.positions)
       const [bannedAddresses, { addresses }, leaseAddresses] = await Promise.all([
         sceneBanManager.listBannedAddresses(place.id),
         sceneAdmins.getAdminsAndExtraAddresses(place),
-        getLandLeaseAddresses(place)
+        leaseLookup
       ])
 
       const sceneAdminsArray = Array.from(new Set([...addresses, ...leaseAddresses]))
