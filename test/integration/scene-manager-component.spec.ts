@@ -24,13 +24,12 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       approvedForAll: false
     })
     stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.landLease.hasLandLease.resolves(false)
+    stubComponents.lands.hasLandLease.resolves(false)
 
     sceneManager = await createSceneManagerComponent({
       worlds: stubComponents.worlds,
       lands: stubComponents.lands,
-      sceneAdminManager: stubComponents.sceneAdminManager,
-      landLease: stubComponents.landLease
+      sceneAdminManager: stubComponents.sceneAdminManager
     })
 
     scenePlace = {

@@ -3,9 +3,9 @@ import { ISceneManager, UserScenePermissions } from '../types/scene-manager.type
 import { PlaceAttributes } from '../types/places.type'
 
 export async function createSceneManagerComponent(
-  components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager' | 'landLease'>
+  components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager'>
 ): Promise<ISceneManager> {
-  const { worlds, lands, sceneAdminManager, landLease } = components
+  const { worlds, lands, sceneAdminManager } = components
 
   const { hasWorldOwnerPermission, hasWorldStreamingPermission, hasWorldDeployPermission, getWorldParcelPermissions } =
     worlds
@@ -57,7 +57,7 @@ export async function createSceneManagerComponent(
 
       // Check for land lease permissions for Genesis City scenes
       if (!isOwner && !hasExtendedPermissions) {
-        hasLandLease = await landLease.hasLandLease(address, place.positions)
+        hasLandLease = await lands.hasLandLease(address, place.positions)
       }
     }
 

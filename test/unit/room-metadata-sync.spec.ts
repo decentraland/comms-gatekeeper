@@ -38,7 +38,10 @@ describe('RoomMetadataSyncComponent', () => {
     lands = {
       getLandPermissions: jest.fn(),
       getLandOperators: jest.fn(),
-      getLeaseHoldersForParcels: jest.fn().mockResolvedValue([])
+      hasLandLease: jest.fn(),
+      getLeaseHoldersForParcels: jest.fn().mockResolvedValue([]),
+      getAuthorizations: jest.fn().mockResolvedValue({ authorizations: [] }),
+      refreshAuthorizations: jest.fn()
     } as jest.Mocked<ILandComponent>
     cache = createInMemoryCacheComponent()
     logs = createLoggerMockedComponent()

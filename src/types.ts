@@ -32,7 +32,6 @@ import { ICronJobComponent } from './logic/cron-job/types'
 import { ILivekitWebhookComponent } from './logic/livekit-webhook'
 import { ICastComponent } from './logic/cast'
 import { AnalyticsEventPayload } from './types/analytics'
-import { ILandLeaseComponent } from './types/land-lease.type'
 import { IContentClientComponent } from './types/content-client.type'
 import { ISceneParticipantsComponent } from './adapters/scene-participants'
 import { ISchemaValidatorComponent } from '@dcl/schema-validator-component'
@@ -76,7 +75,6 @@ export type BaseComponents = {
   streamingKeyTTLChecker: IStreamingKeyChecker
   voiceDB: IVoiceDBComponent
   voice: IVoiceComponent
-  landLease: ILandLeaseComponent
   analytics: IAnalyticsComponent<AnalyticsEventPayload>
   publisher: IPublisherComponent
   livekitWebhook: ILivekitWebhookComponent

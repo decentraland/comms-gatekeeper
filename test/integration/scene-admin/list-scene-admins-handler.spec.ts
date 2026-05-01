@@ -773,10 +773,10 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       stubComponents.sceneManager.isSceneOwner.resolves(false)
 
       // Mock land lease component to return true for this user and parcel
-      stubComponents.landLease.hasLandLease.resolves(true)
+      stubComponents.lands.hasLandLease.resolves(true)
 
       // Mock getAuthorizations to return authorizations for the test parcel
-      stubComponents.landLease.getAuthorizations.resolves({
+      stubComponents.lands.getAuthorizations.resolves({
         authorizations: [
           {
             name: 'Test Land Lease',
@@ -871,7 +871,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         [nonOwner.authChain[0].payload]: 'SirTest'
       })
 
-      stubComponents.landLease.getAuthorizations.resolves({ authorizations: [] })
+      stubComponents.lands.getAuthorizations.resolves({ authorizations: [] })
     })
 
     it('should return 200 with scene admins without checking owner/admin permissions', async () => {
@@ -947,7 +947,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     it('should return 200 even for non-server non-admin users (endpoint is public)', async () => {
       const { localFetch } = components
 
-      stubComponents.landLease.getAuthorizations.resolves({ authorizations: [] })
+      stubComponents.lands.getAuthorizations.resolves({ authorizations: [] })
 
       const response = await makeRequest(
         localFetch,

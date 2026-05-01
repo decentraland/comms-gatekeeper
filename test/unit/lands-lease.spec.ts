@@ -1,10 +1,29 @@
-import { createLandLeaseComponent } from '../../src/adapters/land-lease'
+import { createLandsComponent } from '../../src/adapters/lands'
 
-describe('when the land lease component is created', () => {
+// The lease behaviors below are now part of the lands component, but they
+// don't depend on the LAMBDAS_URL config or the cachedFetch — those are
+// only used by getLandPermissions / getLandOperators. This helper provides
+// inert defaults so the lease tests stay focused on lease behavior.
+const createLandsForLeaseTest = (deps: { fetch: { fetch: jest.Mock }; logs: { getLogger: jest.Mock } }) =>
+  createLandsComponent({
+    config: {
+      requireString: jest.fn().mockResolvedValue('https://lambdas.example.com/api'),
+      getString: jest.fn(),
+      getNumber: jest.fn(),
+      requireNumber: jest.fn()
+    } as any,
+    cachedFetch: {
+      cache: jest.fn().mockReturnValue({ fetch: jest.fn() })
+    } as any,
+    fetch: deps.fetch as any,
+    logs: deps.logs as any
+  })
+
+describe('when the lands component is created (lease behaviors)', () => {
   let mockFetch: { fetch: jest.Mock }
   let mockLogs: { getLogger: jest.Mock }
   let mockAuthorizations: any[]
-  let landLease: any
+  let lands: any
 
   beforeEach(() => {
     mockFetch = {
@@ -15,6 +34,7 @@ describe('when the land lease component is created', () => {
       getLogger: jest.fn().mockReturnValue({
         debug: jest.fn(),
         info: jest.fn(),
+        warn: jest.fn(),
         error: jest.fn()
       })
     }
@@ -52,14 +72,11 @@ describe('when the land lease component is created', () => {
           json: () => Promise.resolve(mockAuthorizations)
         })
 
-        landLease = await createLandLeaseComponent({
-          fetch: mockFetch,
-          logs: mockLogs
-        })
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
       })
 
       it('should return true', async () => {
-        const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
+        const result = await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         expect(result).toBe(true)
       })
@@ -72,14 +89,11 @@ describe('when the land lease component is created', () => {
           json: () => Promise.resolve(mockAuthorizations)
         })
 
-        landLease = await createLandLeaseComponent({
-          fetch: mockFetch,
-          logs: mockLogs
-        })
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
       })
 
       it('should return false', async () => {
-        const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['999,999'])
+        const result = await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['999,999'])
 
         expect(result).toBe(false)
       })
@@ -92,14 +106,11 @@ describe('when the land lease component is created', () => {
           json: () => Promise.resolve(mockAuthorizations)
         })
 
-        landLease = await createLandLeaseComponent({
-          fetch: mockFetch,
-          logs: mockLogs
-        })
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
       })
 
       it('should return false', async () => {
-        const result = await landLease.hasLandLease('0x9999999999999999999999999999999999999999', ['-73,50'])
+        const result = await lands.hasLandLease('0x9999999999999999999999999999999999999999', ['-73,50'])
 
         expect(result).toBe(false)
       })
@@ -112,14 +123,11 @@ describe('when the land lease component is created', () => {
           json: () => Promise.resolve(mockAuthorizations)
         })
 
-        landLease = await createLandLeaseComponent({
-          fetch: mockFetch,
-          logs: mockLogs
-        })
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
       })
 
       it('should handle case-insensitive address matching', async () => {
-        const result = await landLease.hasLandLease('0X1234567890123456789012345678901234567890', ['-73,50'])
+        const result = await lands.hasLandLease('0X1234567890123456789012345678901234567890', ['-73,50'])
 
         expect(result).toBe(true)
       })
@@ -129,14 +137,11 @@ describe('when the land lease component is created', () => {
       beforeEach(async () => {
         mockFetch.fetch.mockRejectedValue(new Error('Network error'))
 
-        landLease = await createLandLeaseComponent({
-          fetch: mockFetch,
-          logs: mockLogs
-        })
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
       })
 
       it('should return false', async () => {
-        const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
+        const result = await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         expect(result).toBe(false)
       })
@@ -150,14 +155,11 @@ describe('when the land lease component is created', () => {
           statusText: 'Not Found'
         })
 
-        landLease = await createLandLeaseComponent({
-          fetch: mockFetch,
-          logs: mockLogs
-        })
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
       })
 
       it('should return false', async () => {
-        const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
+        const result = await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         expect(result).toBe(false)
       })
@@ -172,18 +174,15 @@ describe('when the land lease component is created', () => {
           json: () => Promise.resolve(mockAuthorizations)
         })
 
-        landLease = await createLandLeaseComponent({
-          fetch: mockFetch,
-          logs: mockLogs
-        })
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
       })
 
       it('should not fetch again within TTL', async () => {
         // First call should fetch
-        await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
+        await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         // Second call should use cache
-        await landLease.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
+        await lands.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
 
         expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
       })
@@ -198,10 +197,7 @@ describe('when the land lease component is created', () => {
           json: () => Promise.resolve(mockAuthorizations)
         })
 
-        landLease = await createLandLeaseComponent({
-          fetch: mockFetch,
-          logs: mockLogs
-        })
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
       })
 
       afterEach(() => {
@@ -210,13 +206,13 @@ describe('when the land lease component is created', () => {
 
       it('should fetch fresh data after TTL expires', async () => {
         // First call
-        await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
+        await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
         // Advance time past TTL (5 minutes)
         jest.advanceTimersByTime(5 * 60 * 1000 + 1000)
 
         // Second call should fetch again
-        await landLease.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
+        await lands.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
 
         expect(mockFetch.fetch).toHaveBeenCalledTimes(2)
       })
@@ -235,11 +231,8 @@ describe('when the land lease component is created', () => {
           )
       )
 
-      landLease = await createLandLeaseComponent({
-        fetch: mockFetch,
-        logs: mockLogs
-      })
-      ;[firstResult, secondResult] = await Promise.all([landLease.getAuthorizations(), landLease.getAuthorizations()])
+      lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
+      ;[firstResult, secondResult] = await Promise.all([lands.getAuthorizations(), lands.getAuthorizations()])
     })
 
     it('should issue only one upstream fetch for the shared in-flight call', () => {
@@ -263,13 +256,10 @@ describe('when the land lease component is created', () => {
         json: () => Promise.resolve(mockAuthorizations)
       })
 
-      landLease = await createLandLeaseComponent({
-        fetch: mockFetch,
-        logs: mockLogs
-      })
+      lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
 
       // Populate cache
-      await landLease.getAuthorizations()
+      await lands.getAuthorizations()
 
       // Expire cache
       jest.advanceTimersByTime(5 * 60 * 1000 + 1000)
@@ -277,7 +267,7 @@ describe('when the land lease component is created', () => {
       // Next fetch fails
       mockFetch.fetch.mockRejectedValueOnce(new Error('Network down'))
 
-      result = await landLease.getAuthorizations()
+      result = await lands.getAuthorizations()
     })
 
     afterEach(() => {
@@ -299,12 +289,9 @@ describe('when the land lease component is created', () => {
     beforeEach(async () => {
       mockFetch.fetch.mockRejectedValueOnce(new Error('Network down'))
 
-      landLease = await createLandLeaseComponent({
-        fetch: mockFetch,
-        logs: mockLogs
-      })
+      lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
 
-      result = await landLease.getAuthorizations()
+      result = await lands.getAuthorizations()
     })
 
     it('should return an empty authorizations payload', () => {
@@ -319,21 +306,18 @@ describe('when the land lease component is created', () => {
         json: () => Promise.resolve(mockAuthorizations)
       })
 
-      landLease = await createLandLeaseComponent({
-        fetch: mockFetch,
-        logs: mockLogs
-      })
+      lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
     })
 
     it('should clear cache and fetch fresh data', async () => {
       // First call
-      await landLease.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
+      await lands.hasLandLease('0x1234567890123456789012345678901234567890', ['-73,50'])
 
       // Refresh cache
-      await landLease.refreshAuthorizations()
+      await lands.refreshAuthorizations()
 
       // Second call should fetch again
-      await landLease.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
+      await lands.hasLandLease('0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', ['-100,100'])
 
       expect(mockFetch.fetch).toHaveBeenCalledTimes(2)
     })
@@ -363,15 +347,12 @@ describe('when the land lease component is created', () => {
         json: () => Promise.resolve(multipleAuthorizations)
       })
 
-      landLease = await createLandLeaseComponent({
-        fetch: mockFetch,
-        logs: mockLogs
-      })
+      lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
     })
 
     describe('when the user has access through any authorization', () => {
       it('should return true', async () => {
-        const result = await landLease.hasLandLease('0x5555555555555555555555555555555555555555', ['-73,50'])
+        const result = await lands.hasLandLease('0x5555555555555555555555555555555555555555', ['-73,50'])
 
         expect(result).toBe(true)
       })
@@ -379,7 +360,7 @@ describe('when the land lease component is created', () => {
 
     describe('when the user has no access to any requested parcels', () => {
       it('should return false', async () => {
-        const result = await landLease.hasLandLease('0x5555555555555555555555555555555555555555', ['777,777'])
+        const result = await lands.hasLandLease('0x5555555555555555555555555555555555555555', ['777,777'])
 
         expect(result).toBe(false)
       })
@@ -403,15 +384,12 @@ describe('when the land lease component is created', () => {
         json: () => Promise.resolve(multiParcelAuthorization)
       })
 
-      landLease = await createLandLeaseComponent({
-        fetch: mockFetch,
-        logs: mockLogs
-      })
+      lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
     })
 
     describe('when the user has access to any of the requested parcels', () => {
       it('should return true', async () => {
-        const result = await landLease.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '999,999'])
+        const result = await lands.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '999,999'])
 
         expect(result).toBe(true)
       })
@@ -419,7 +397,7 @@ describe('when the land lease component is created', () => {
 
     describe('when the user has access to all requested parcels', () => {
       it('should return true', async () => {
-        const result = await landLease.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '10,20'])
+        const result = await lands.hasLandLease('0x6666666666666666666666666666666666666666', ['-73,50', '10,20'])
 
         expect(result).toBe(true)
       })
@@ -443,14 +421,11 @@ describe('when the land lease component is created', () => {
         json: () => Promise.resolve(limitedAccessAuthorization)
       })
 
-      landLease = await createLandLeaseComponent({
-        fetch: mockFetch,
-        logs: mockLogs
-      })
+      lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
     })
 
     it('should return false', async () => {
-      const result = await landLease.hasLandLease('0x7777777777777777777777777777777777777777', ['-73,50'])
+      const result = await lands.hasLandLease('0x7777777777777777777777777777777777777777', ['-73,50'])
 
       expect(result).toBe(false)
     })
@@ -473,15 +448,12 @@ describe('when the land lease component is created', () => {
         json: () => Promise.resolve(sharedAccessAuthorization)
       })
 
-      landLease = await createLandLeaseComponent({
-        fetch: mockFetch,
-        logs: mockLogs
-      })
+      lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
     })
 
     it('should return true for both users', async () => {
-      const result1 = await landLease.hasLandLease('0x8888888888888888888888888888888888888888', ['-73,50'])
-      const result2 = await landLease.hasLandLease('0x9999999999999999999999999999999999999999', ['-73,50'])
+      const result1 = await lands.hasLandLease('0x8888888888888888888888888888888888888888', ['-73,50'])
+      const result2 = await lands.hasLandLease('0x9999999999999999999999999999999999999999', ['-73,50'])
 
       expect(result1).toBe(true)
       expect(result2).toBe(true)
@@ -495,16 +467,71 @@ describe('when the land lease component is created', () => {
         json: () => Promise.resolve(mockAuthorizations)
       })
 
-      landLease = await createLandLeaseComponent({
-        fetch: mockFetch,
-        logs: mockLogs
-      })
+      lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
     })
 
     it('should return false', async () => {
-      const result = await landLease.hasLandLease('0x1234567890123456789012345678901234567890', [])
+      const result = await lands.hasLandLease('0x1234567890123456789012345678901234567890', [])
 
       expect(result).toBe(false)
+    })
+  })
+
+  describe('and getLeaseHoldersForParcels is called', () => {
+    describe('and no parcels are passed', () => {
+      beforeEach(async () => {
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
+      })
+
+      it('should return an empty array without querying authorizations', async () => {
+        const result = await lands.getLeaseHoldersForParcels([])
+        expect(result).toEqual([])
+        expect(mockFetch.fetch).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and an authorization overlaps the requested parcels', () => {
+      beforeEach(async () => {
+        mockFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve([
+              {
+                name: 'lease-1',
+                desc: '',
+                contactInfo: { name: 'tenant' },
+                addresses: ['0xLEASE1', '0xLease2'],
+                plots: ['10,20']
+              },
+              {
+                name: 'unrelated',
+                desc: '',
+                contactInfo: { name: 'other' },
+                addresses: ['0xunrelated'],
+                plots: ['99,99']
+              }
+            ])
+        })
+
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
+      })
+
+      it('should return only the lowercased addresses for overlapping plots', async () => {
+        const result = await lands.getLeaseHoldersForParcels(['10,20', '11,20'])
+        expect(new Set(result)).toEqual(new Set(['0xlease1', '0xlease2']))
+      })
+    })
+
+    describe('and the lease lookup throws', () => {
+      beforeEach(async () => {
+        mockFetch.fetch.mockRejectedValue(new Error('lease service unavailable'))
+        lands = await createLandsForLeaseTest({ fetch: mockFetch, logs: mockLogs })
+      })
+
+      it('should swallow the error and return an empty array (failures must not poison callers)', async () => {
+        const result = await lands.getLeaseHoldersForParcels(['10,20'])
+        expect(result).toEqual([])
+      })
     })
   })
 })
