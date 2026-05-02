@@ -27,7 +27,7 @@
     ]
   },
   "devDependencies": {
-    "@dcl/eslint-config": "^2.2.1",
+    "@dcl/eslint-config": "^2.4.3",
     "@types/node": "^20.7.1",
     "@well-known-components/test-helpers": "^1.5.8",
     "nano-staged": "0.8.0",
