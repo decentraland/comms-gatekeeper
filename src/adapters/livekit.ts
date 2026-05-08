@@ -239,13 +239,20 @@ export async function createLivekitComponent(
 
   async function removeParticipantFromAllRooms(participantIdentity: string): Promise<void> {
     const rooms = await roomClient.listRooms()
+    logger.info(`Kicking ${participantIdentity} — scanning ${rooms.length} active rooms`)
+    // LiveKit identity matching is case-sensitive. Some legacy tokens were minted
+    // with checksummed addresses; do a case-insensitive lookup and remove using
+    // the actual identity present in the room.
+    const lowerIdentity = participantIdentity.toLowerCase()
     await Promise.all(
       rooms.map(async (room) => {
         try {
-          await roomClient.removeParticipant(room.name, participantIdentity)
-          logger.info(`Removed ${participantIdentity} from room ${room.name}`)
+          const participants = await roomClient.listParticipants(room.name)
+          const match = participants.find((p) => p.identity?.toLowerCase() === lowerIdentity)
+          if (!match) return
+          await roomClient.removeParticipant(room.name, match.identity)
+          logger.info(`Removed ${match.identity} from room ${room.name}`)
         } catch (error: any) {
-          // LiveKit throws a TwirpError with code 'not_found' when the participant is not in the room
           if (error?.code !== 'not_found') {
             logger.warn(`Failed to remove ${participantIdentity} from room ${room.name}`, {
               error: isErrorWithMessage(error) ? error.message : 'Unknown error'
