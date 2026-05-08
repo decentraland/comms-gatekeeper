@@ -242,7 +242,9 @@ export async function createLivekitComponent(
     logger.info(`Kicking ${participantIdentity} — scanning ${rooms.length} active rooms`)
     // LiveKit identity matching is case-sensitive. Some legacy tokens were minted
     // with checksummed addresses; do a case-insensitive lookup and remove using
-    // the actual identity present in the room.
+    // the actual identity present in the room. Costs an extra listParticipants
+    // RPC per room — fine at current scale; revisit with a concurrency limit if
+    // listRooms ever returns thousands.
     const lowerIdentity = participantIdentity.toLowerCase()
     await Promise.all(
       rooms.map(async (room) => {
@@ -253,6 +255,9 @@ export async function createLivekitComponent(
           await roomClient.removeParticipant(room.name, match.identity)
           logger.info(`Removed ${match.identity} from room ${room.name}`)
         } catch (error: any) {
+          // Suppress not_found — the room may have been deleted between listRooms
+          // and listParticipants, or the participant may have left between list
+          // and remove. Both are benign races; anything else is a real failure.
           if (error?.code !== 'not_found') {
             logger.warn(`Failed to remove ${participantIdentity} from room ${room.name}`, {
               error: isErrorWithMessage(error) ? error.message : 'Unknown error'
@@ -337,7 +342,8 @@ export async function createLivekitComponent(
   async function getParticipantInfo(roomId: string, participantId: string): Promise<ParticipantInfo | null> {
     try {
       const participants = await roomClient.listParticipants(roomId)
-      return participants.find((p) => p.identity === participantId) || null
+      const target = participantId.toLowerCase()
+      return participants.find((p) => p.identity?.toLowerCase() === target) || null
     } catch (error) {
       logger.warn(
         `Error getting participant info for ${participantId} in room ${roomId}: ${

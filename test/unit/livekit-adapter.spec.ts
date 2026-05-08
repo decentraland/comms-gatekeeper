@@ -1039,6 +1039,31 @@ describe('when removing a participant from all rooms', () => {
     })
   })
 
+  describe('when no room contains the target participant', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([
+        { name: 'scene-realm1:scene1' } as Room,
+        { name: 'island-island1' } as Room
+      ])
+      // Both rooms have other participants but not the target one.
+      listParticipantsSpy.mockResolvedValue([{ identity: '0xsomeoneelse' } as ParticipantInfo])
+    })
+
+    it('should not call removeParticipant', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(removeParticipantSpy).not.toHaveBeenCalled()
+    })
+
+    it('should not log any warning or per-room removal info', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(loggerWarnSpy).not.toHaveBeenCalled()
+      // Only the up-front scan summary, no per-room "Removed ..." lines.
+      expect(loggerInfoSpy).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('when listParticipants throws not_found for all rooms', () => {
     let mockRooms: Room[]
 
