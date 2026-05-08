@@ -1059,8 +1059,8 @@ describe('when removing a participant from all rooms', () => {
       await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
 
       expect(loggerWarnSpy).not.toHaveBeenCalled()
-      // Only the up-front scan summary, no per-room "Removed ..." lines.
-      expect(loggerInfoSpy).toHaveBeenCalledTimes(1)
+      // 1 up-front scan summary + 1 "no match" diagnostic per room (2 rooms).
+      expect(loggerInfoSpy).toHaveBeenCalledTimes(3)
     })
   })
 

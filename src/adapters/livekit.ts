@@ -252,7 +252,7 @@ export async function createLivekitComponent(
           const participants = await roomClient.listParticipants(room.name)
           const match = participants.find((p) => p.identity?.toLowerCase() === lowerIdentity)
           if (!match) {
-            logger.debug(
+            logger.info(
               `No match for ${lowerIdentity} in ${room.name} — participants: [${participants
                 .map((p) => p.identity ?? '<no-identity>')
                 .join(', ')}]`
