@@ -1,4 +1,4 @@
-import { RoomServiceClient, Room, AccessToken, IngressClient, WebhookReceiver } from 'livekit-server-sdk'
+import { RoomServiceClient, Room, AccessToken, IngressClient, WebhookReceiver, ParticipantInfo } from 'livekit-server-sdk'
 import { createLivekitComponent } from '../../src/adapters/livekit'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 
@@ -981,6 +981,7 @@ describe('when removing a participant from all rooms', () => {
   afterEach(() => {
     removeParticipantSpy.mockReset()
     listRoomsSpy.mockReset()
+    listParticipantsSpy.mockReset()
   })
 
   describe('when the participant is in multiple rooms', () => {
@@ -993,6 +994,8 @@ describe('when removing a participant from all rooms', () => {
         { name: 'island-island1' } as Room
       ]
       listRoomsSpy.mockResolvedValue(mockRooms)
+      // The user is present in every room, with the matching lowercase identity.
+      listParticipantsSpy.mockResolvedValue([{ identity: participantIdentity } as ParticipantInfo])
       removeParticipantSpy.mockResolvedValue(undefined)
     })
 
@@ -1011,21 +1014,64 @@ describe('when removing a participant from all rooms', () => {
       expect(removeParticipantSpy).toHaveBeenCalledWith('island-island1', participantIdentity)
     })
 
-    it('should log info for each successful removal', async () => {
+    it('should log info for each successful removal (plus the per-call scan summary)', async () => {
       await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
 
+      // 1 scan summary + 3 per-room removal lines
+      expect(loggerInfoSpy).toHaveBeenCalledTimes(4)
+    })
+  })
+
+  describe('when the participant is in rooms but with a checksummed identity', () => {
+    const checksummedIdentity = '0xAbC'
+
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([{ name: 'scene-realm1:scene1' } as Room])
+      // Participant in the room registered with checksummed casing.
+      listParticipantsSpy.mockResolvedValue([{ identity: checksummedIdentity } as ParticipantInfo])
+      removeParticipantSpy.mockResolvedValue(undefined)
+    })
+
+    it('should remove using the actual identity case present in the room', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(removeParticipantSpy).toHaveBeenCalledWith('scene-realm1:scene1', checksummedIdentity)
+    })
+  })
+
+  describe('when no room contains the target participant', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([
+        { name: 'scene-realm1:scene1' } as Room,
+        { name: 'island-island1' } as Room
+      ])
+      // Both rooms have other participants but not the target one.
+      listParticipantsSpy.mockResolvedValue([{ identity: '0xsomeoneelse' } as ParticipantInfo])
+    })
+
+    it('should not call removeParticipant', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(removeParticipantSpy).not.toHaveBeenCalled()
+    })
+
+    it('should not log any warning or per-room removal info', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(loggerWarnSpy).not.toHaveBeenCalled()
+      // 1 up-front scan summary + 1 "no match" diagnostic per room (2 rooms).
       expect(loggerInfoSpy).toHaveBeenCalledTimes(3)
     })
   })
 
-  describe('when removeParticipant throws not_found for all rooms', () => {
+  describe('when listParticipants throws not_found for all rooms', () => {
     let mockRooms: Room[]
 
     beforeEach(() => {
       mockRooms = [{ name: 'scene-realm1:scene1' } as Room, { name: 'voice-chat-private-call1' } as Room]
       listRoomsSpy.mockResolvedValue(mockRooms)
-      const notFoundError = Object.assign(new Error('participant not found'), { code: 'not_found' })
-      removeParticipantSpy.mockRejectedValue(notFoundError)
+      const notFoundError = Object.assign(new Error('room not found'), { code: 'not_found' })
+      listParticipantsSpy.mockRejectedValue(notFoundError)
     })
 
     it('should resolve without throwing', async () => {
@@ -1037,6 +1083,12 @@ describe('when removing a participant from all rooms', () => {
 
       expect(loggerWarnSpy).not.toHaveBeenCalled()
     })
+
+    it('should not call removeParticipant', async () => {
+      await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
+
+      expect(removeParticipantSpy).not.toHaveBeenCalled()
+    })
   })
 
   describe('when removeParticipant throws an unexpected error', () => {
@@ -1045,6 +1097,7 @@ describe('when removing a participant from all rooms', () => {
     beforeEach(() => {
       mockRooms = [{ name: 'scene-realm1:scene1' } as Room]
       listRoomsSpy.mockResolvedValue(mockRooms)
+      listParticipantsSpy.mockResolvedValue([{ identity: participantIdentity } as ParticipantInfo])
       removeParticipantSpy.mockRejectedValue(new Error('network timeout'))
     })
 
@@ -1080,6 +1133,7 @@ describe('when removing a participant from all rooms', () => {
     beforeEach(() => {
       mockRooms = [{ name: 'room-1' } as Room, { name: 'room-2' } as Room, { name: 'room-3' } as Room]
       listRoomsSpy.mockResolvedValue(mockRooms)
+      listParticipantsSpy.mockResolvedValue([{ identity: participantIdentity } as ParticipantInfo])
       const notFoundError = Object.assign(new Error('participant not found'), { code: 'not_found' })
       removeParticipantSpy
         .mockResolvedValueOnce(undefined)

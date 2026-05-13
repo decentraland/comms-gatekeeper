@@ -239,13 +239,32 @@ export async function createLivekitComponent(
 
   async function removeParticipantFromAllRooms(participantIdentity: string): Promise<void> {
     const rooms = await roomClient.listRooms()
+    logger.info(`Kicking ${participantIdentity} — scanning ${rooms.length} active rooms`)
+    // LiveKit identity matching is case-sensitive. Some legacy tokens were minted
+    // with checksummed addresses; do a case-insensitive lookup and remove using
+    // the actual identity present in the room. Costs an extra listParticipants
+    // RPC per room — fine at current scale; revisit with a concurrency limit if
+    // listRooms ever returns thousands.
+    const lowerIdentity = participantIdentity.toLowerCase()
     await Promise.all(
       rooms.map(async (room) => {
         try {
-          await roomClient.removeParticipant(room.name, participantIdentity)
-          logger.info(`Removed ${participantIdentity} from room ${room.name}`)
+          const participants = await roomClient.listParticipants(room.name)
+          const match = participants.find((p) => p.identity?.toLowerCase() === lowerIdentity)
+          if (!match) {
+            logger.info(
+              `No match for ${lowerIdentity} in ${room.name} — participants: [${participants
+                .map((p) => p.identity ?? '<no-identity>')
+                .join(', ')}]`
+            )
+            return
+          }
+          await roomClient.removeParticipant(room.name, match.identity)
+          logger.info(`Removed ${match.identity} from room ${room.name}`)
         } catch (error: any) {
-          // LiveKit throws a TwirpError with code 'not_found' when the participant is not in the room
+          // Suppress not_found — the room may have been deleted between listRooms
+          // and listParticipants, or the participant may have left between list
+          // and remove. Both are benign races; anything else is a real failure.
           if (error?.code !== 'not_found') {
             logger.warn(`Failed to remove ${participantIdentity} from room ${room.name}`, {
               error: isErrorWithMessage(error) ? error.message : 'Unknown error'
@@ -330,7 +349,8 @@ export async function createLivekitComponent(
   async function getParticipantInfo(roomId: string, participantId: string): Promise<ParticipantInfo | null> {
     try {
       const participants = await roomClient.listParticipants(roomId)
-      return participants.find((p) => p.identity === participantId) || null
+      const target = participantId.toLowerCase()
+      return participants.find((p) => p.identity?.toLowerCase() === target) || null
     } catch (error) {
       logger.warn(
         `Error getting participant info for ${participantId} in room ${roomId}: ${

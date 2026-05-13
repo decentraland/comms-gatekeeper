@@ -28,7 +28,9 @@ export async function oldValidate<T extends string>(
     throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realmName')
   }
 
-  const identity = verification.auth
+  // Lowercase so LiveKit participant identities are canonical and case-sensitive
+  // ops (removeParticipant, ban lookups) match regardless of client-side casing.
+  const identity = verification.auth.toLowerCase()
 
   return {
     identity,
@@ -62,7 +64,7 @@ export async function validate<T extends string>(
     throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realm')
   }
 
-  const identity = verification.auth
+  const identity = verification.auth.toLowerCase()
 
   return {
     identity,
