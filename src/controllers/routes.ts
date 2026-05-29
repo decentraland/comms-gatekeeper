@@ -71,7 +71,9 @@ import {
   banStatusHandler,
   warnPlayerHandler,
   getWarningsHandler,
-  listBansHandler
+  listBansHandler,
+  getPersonalDataHandler,
+  deletePersonalDataHandler
 } from './handlers/user-moderation'
 import { BanPlayerSchema, WarnPlayerSchema } from './handlers/user-moderation/schemas'
 import {
@@ -263,6 +265,10 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.get('/users/:address/warnings', signedFetch, moderatorRead, getWarningsHandler)
   router.get('/bans', signedFetch, moderatorRead, listBansHandler)
   router.get('/users/:address/ips', signedFetch, moderatorRead, getIpsByAddressHandler)
+
+  // GDPR data subject rights (Art. 15, 17, 20)
+  router.get('/users/:address/personal-data', signedFetch, moderatorRead, getPersonalDataHandler)
+  router.delete('/users/:address/personal-data', signedFetch, moderatorWrite, deletePersonalDataHandler)
 
   // IP moderation routes
   router.post(

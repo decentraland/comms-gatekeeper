@@ -94,6 +94,7 @@ export type BaseComponents = {
   moderator: IModeratorComponent
   features: IFeaturesComponent
   featureFlags: IFeatureFlagsAdapter
+  connectionLogPurgeJob?: ICronJobComponent
 }
 
 export type AppComponents = BaseComponents & {

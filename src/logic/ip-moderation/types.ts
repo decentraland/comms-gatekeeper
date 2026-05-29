@@ -11,6 +11,11 @@ export interface IpBan {
   createdAt: Date
 }
 
+export interface ConnectionLog {
+  ip: string
+  connectedAt: Date
+}
+
 export type IpBanStatus = { isBanned: boolean; ban?: IpBan }
 
 export type CreateIpBanInput = {
@@ -28,4 +33,7 @@ export interface IIpModerationDatabaseComponent {
   logConnection(address: string, ip: string): Promise<void>
   getIpsByAddress(address: string): Promise<string[]>
   getAddressesByIp(ip: string): Promise<string[]>
+  getConnectionLogsByAddress(address: string): Promise<ConnectionLog[]>
+  deleteConnectionLogsByAddress(address: string): Promise<number>
+  purgeExpiredConnectionLogs(retentionDays: number): Promise<number>
 }

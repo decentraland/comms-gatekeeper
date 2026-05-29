@@ -166,6 +166,16 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const userModeration = createUserModerationComponent({ userModerationDb, logs, publisher, livekit })
   const ipModeration = createIpModerationComponent({ ipModerationDb, userModeration, logs })
 
+  // GDPR: automated retention cleanup for connection logs
+  const connectionLogRetentionDays = parseInt((await config.getString('CONNECTION_LOG_RETENTION_DAYS')) || '90', 10)
+  const everyDayAtMidnightExpression = '0 0 * * *'
+  const connectionLogPurgeJob = await createCronJobComponent(
+    { logs },
+    () => ipModeration.purgeExpiredConnectionLogs(connectionLogRetentionDays).then(() => {}),
+    everyDayAtMidnightExpression,
+    { startOnInit: isProduction, waitForCompletion: true }
+  )
+
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
   const voice = createVoiceComponent({ voiceDB, logs, livekit, analytics, publisher })
@@ -315,6 +325,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     ipModeration,
     moderator,
     features,
-    featureFlags
+    featureFlags,
+    connectionLogPurgeJob
   }
 }

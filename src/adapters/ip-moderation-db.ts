@@ -2,7 +2,13 @@ import SQL from 'sql-template-strings'
 import { randomUUID } from 'node:crypto'
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { IPgComponent } from '@well-known-components/pg-component'
-import { IIpModerationDatabaseComponent, IpBan, IpBanStatus, CreateIpBanInput } from '../logic/ip-moderation/types'
+import {
+  IIpModerationDatabaseComponent,
+  IpBan,
+  IpBanStatus,
+  CreateIpBanInput,
+  ConnectionLog
+} from '../logic/ip-moderation/types'
 
 const IP_BAN_SELECT_FIELDS = `id, banned_ip as "bannedIp", banned_by as "bannedBy", reason,
                custom_message as "customMessage", banned_at as "bannedAt", expires_at as "expiresAt",
@@ -84,6 +90,27 @@ export function createIpModerationDBComponent(components: {
 
       const result = await database.query<{ address: string }>(query)
       return result.rows.map((row) => row.address)
+    },
+
+    async getConnectionLogsByAddress(address: string): Promise<ConnectionLog[]> {
+      const query = SQL`SELECT ip, connected_at as "connectedAt" FROM connection_logs WHERE address = ${address} ORDER BY connected_at DESC`
+
+      const result = await database.query<ConnectionLog>(query)
+      return result.rows
+    },
+
+    async deleteConnectionLogsByAddress(address: string): Promise<number> {
+      const query = SQL`DELETE FROM connection_logs WHERE address = ${address}`
+
+      const result = await database.query(query)
+      return result.rowCount
+    },
+
+    async purgeExpiredConnectionLogs(retentionDays: number): Promise<number> {
+      const query = SQL`DELETE FROM connection_logs WHERE connected_at < NOW() - MAKE_INTERVAL(days => ${retentionDays})`
+
+      const result = await database.query(query)
+      return result.rowCount
     }
   }
 }

@@ -1,4 +1,4 @@
-import { IpBan, IpBanStatus, IIpModerationDatabaseComponent } from './types'
+import { IpBan, IpBanStatus, ConnectionLog, IIpModerationDatabaseComponent } from './types'
 import { IpAlreadyBannedError, IpBanNotFoundError } from './errors'
 import { IUserModerationComponent } from '../user-moderation/types'
 import { ILoggerComponent } from '@well-known-components/interfaces'
@@ -12,6 +12,9 @@ export interface IIpModerationComponent {
   getAddressesByIp(ip: string): Promise<string[]>
   banAllIpsForAddress(address: string, bannedBy: string, reason: string): Promise<void>
   banAllAddressesForIp(ip: string, bannedBy: string, reason: string): Promise<void>
+  getConnectionLogsByAddress(address: string): Promise<ConnectionLog[]>
+  deleteConnectionLogsByAddress(address: string): Promise<number>
+  purgeExpiredConnectionLogs(retentionDays: number): Promise<number>
 }
 
 function normalizeIp(ip: string): string {
@@ -31,7 +34,13 @@ export function createIpModerationComponent(components: {
   const logger = logs.getLogger('ip-moderation')
 
   return {
-    async banIp(ip: string, bannedBy: string, reason: string, duration?: number, customMessage?: string): Promise<IpBan> {
+    async banIp(
+      ip: string,
+      bannedBy: string,
+      reason: string,
+      duration?: number,
+      customMessage?: string
+    ): Promise<IpBan> {
       const normalizedIp = normalizeIp(ip)
       const normalizedBannedBy = normalizeAddress(bannedBy)
 
@@ -122,6 +131,25 @@ export function createIpModerationComponent(components: {
           await userModeration.banPlayer(address, normalizedBannedBy, reason)
         }
       }
+    },
+
+    async getConnectionLogsByAddress(address: string): Promise<ConnectionLog[]> {
+      const normalizedAddress = normalizeAddress(address)
+      return ipModerationDb.getConnectionLogsByAddress(normalizedAddress)
+    },
+
+    async deleteConnectionLogsByAddress(address: string): Promise<number> {
+      const normalizedAddress = normalizeAddress(address)
+      logger.info(`Deleting connection logs for address ${normalizedAddress} (GDPR erasure request)`)
+      return ipModerationDb.deleteConnectionLogsByAddress(normalizedAddress)
+    },
+
+    async purgeExpiredConnectionLogs(retentionDays: number): Promise<number> {
+      const count = await ipModerationDb.purgeExpiredConnectionLogs(retentionDays)
+      if (count > 0) {
+        logger.info(`Purged ${count} expired connection logs (retention: ${retentionDays} days)`)
+      }
+      return count
     }
   }
 }
