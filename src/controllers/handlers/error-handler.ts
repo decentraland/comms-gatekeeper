@@ -13,6 +13,7 @@ import {
 } from '../../types/errors'
 import { LandPermissionsNotFoundError } from '../../adapters/lands'
 import { PlayerAlreadyBannedError, BanNotFoundError } from '../../logic/user-moderation/errors'
+import { IpAlreadyBannedError, IpBanNotFoundError } from '../../logic/ip-moderation/errors'
 import {
   InvalidStreamingKeyError,
   ExpiredStreamingKeyError,
@@ -103,7 +104,7 @@ export async function errorHandler(
       }
     }
 
-    if (error instanceof PlayerAlreadyBannedError) {
+    if (error instanceof PlayerAlreadyBannedError || error instanceof IpAlreadyBannedError) {
       return {
         status: 409,
         body: {
@@ -113,7 +114,7 @@ export async function errorHandler(
       }
     }
 
-    if (error instanceof BanNotFoundError) {
+    if (error instanceof BanNotFoundError || error instanceof IpBanNotFoundError) {
       return {
         status: 404,
         body: {

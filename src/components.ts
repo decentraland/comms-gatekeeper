@@ -51,6 +51,8 @@ import { createSceneParticipantsComponent } from './adapters/scene-participants'
 import { createFeaturesComponent } from '@well-known-components/features-component'
 import { createUserModerationDBComponent } from './adapters/user-moderation-db'
 import { createUserModerationComponent } from './logic/user-moderation'
+import { createIpModerationDBComponent } from './adapters/ip-moderation-db'
+import { createIpModerationComponent } from './logic/ip-moderation/component'
 import { createModeratorComponent } from './logic/moderator'
 import { createFeatureFlagsAdapter } from './adapters/feature-flags'
 
@@ -125,6 +127,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const featureFlags = await createFeatureFlagsAdapter({ config, logs, features })
 
   const userModerationDb = createUserModerationDBComponent({ database, logs })
+  const ipModerationDb = createIpModerationDBComponent({ database, logs })
   const moderator = await createModeratorComponent({ featureFlags, logs, config })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
@@ -161,6 +164,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const publisher = await createSnsComponent({ config })
 
   const userModeration = createUserModerationComponent({ userModerationDb, logs, publisher, livekit })
+  const ipModeration = createIpModerationComponent({ ipModerationDb, userModeration, logs })
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
@@ -307,6 +311,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneParticipants,
     userModerationDb,
     userModeration,
+    ipModerationDb,
+    ipModeration,
     moderator,
     features,
     featureFlags

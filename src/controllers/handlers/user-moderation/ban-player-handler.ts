@@ -4,12 +4,12 @@ import { BanPlayerRequestBody } from './schemas'
 
 export async function banPlayerHandler(
   context: Pick<
-    HandlerContextWithPath<'userModeration' | 'logs', '/users/:address/bans'>,
+    HandlerContextWithPath<'userModeration' | 'ipModeration' | 'logs', '/users/:address/bans'>,
     'components' | 'params' | 'verification' | 'request'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { userModeration, logs },
+    components: { userModeration, ipModeration, logs },
     params: { address },
     verification,
     request
@@ -22,6 +22,10 @@ export async function banPlayerHandler(
     const bannedBy = verification!.auth
 
     const ban = await userModeration.banPlayer(address, bannedBy, body.reason, body.duration, body.customMessage)
+
+    if (body.banAllKnownIps) {
+      await ipModeration.banAllIpsForAddress(address, bannedBy, body.reason)
+    }
 
     return {
       status: 201,
