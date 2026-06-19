@@ -1,4 +1,4 @@
-import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { IHttpServerComponent } from '@dcl/core-commons'
 import { NotAuthorizedError } from '@dcl/http-commons'
 import { GlobalContext } from '../../types'
 import {

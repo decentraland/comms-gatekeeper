@@ -1,5 +1,5 @@
 import { EthAddress } from '@dcl/schemas'
-import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { IHttpServerComponent } from '@dcl/core-commons'
 import { FeatureFlag } from '../../adapters/feature-flags'
 import { IModeratorComponent, ModeratorAuthOptions } from './types'
 import { AppComponents } from '../../types'

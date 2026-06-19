@@ -1,6 +1,6 @@
 import { Router } from '@dcl/http-server'
 import { bearerTokenMiddleware } from '@dcl/http-commons'
-import { wellKnownComponents as authVerificationMiddleware } from '@dcl/platform-crypto-middleware'
+import { wellKnownComponents as authVerificationMiddleware } from '@dcl/crypto-middleware'
 import { GlobalContext } from '../types'
 import { errorHandler } from './handlers/error-handler'
 import { pingHandler } from './handlers/ping-handler'

@@ -9,13 +9,17 @@ import { instrumentHttpServerWithRequestLogger } from '@well-known-components/ht
 import { createSchemaValidatorComponent } from '@dcl/schema-validator-component'
 import { createHttpTracerComponent } from '@well-known-components/http-tracer-component'
 import { createPgComponent } from '@well-known-components/pg-component'
+import type {
+  IFetchComponent as IWkcFetchComponent,
+  IHttpServerComponent as IWkcHttpServerComponent
+} from '@well-known-components/interfaces'
 import { AppComponents, GlobalContext } from './types'
 import { metricDeclarations } from './metrics'
 import { createLivekitComponent } from './adapters/livekit'
 import { createSceneAdminManagerComponent } from './adapters/scene-admin-manager'
 import { createSceneBanManagerComponent } from './adapters/scene-ban-manager'
 import { createSceneStreamAccessManagerComponent } from './adapters/scene-stream-access-manager'
-import { createTracedFetchComponent } from './adapters/traced-fetch'
+import { createTracedFetcherComponent } from '@dcl/traced-fetch-component'
 import { createDenyListComponent } from './adapters/denylist'
 import { cachedFetchComponent } from './adapters/fetch'
 import { createWorldsComponent } from './adapters/worlds'
@@ -72,11 +76,18 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     }
   )
   const statusChecks = await createStatusCheckComponent({ server, config })
-  const tracedFetch = createTracedFetchComponent({ tracer })
+  // @dcl/traced-fetch-component returns the @dcl/core-commons (native-fetch) IFetchComponent, which
+  // is also the type of `components.fetch`. Consumers on the native type (crypto-middleware,
+  // analytics, catalyst-client) take it directly; only the still-legacy ones bridge at their call site.
+  const tracedFetch = await createTracedFetcherComponent({ tracer })
 
-  createHttpTracerComponent({ server, tracer })
-  instrumentHttpServerWithRequestLogger({ server, logger: logs })
-  await instrumentHttpServerWithMetrics({ metrics, server, config })
+  // The WKC server-instrumentation helpers are still typed against the interfaces IHttpServerComponent
+  // (node-fetch-based), while @dcl/http-server v2 exposes the core-commons native-fetch server. They
+  // are structurally compatible at runtime; bridge the type until those WKC packages migrate.
+  const wkcServer = server as unknown as IWkcHttpServerComponent<object>
+  createHttpTracerComponent({ server: wkcServer, tracer })
+  instrumentHttpServerWithRequestLogger({ server: wkcServer, logger: logs })
+  await instrumentHttpServerWithMetrics({ metrics, server: wkcServer, config })
 
   const livekit = await createLivekitComponent({ config, logs })
 
@@ -121,7 +132,12 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const schemaValidator = await createSchemaValidatorComponent({ ensureJsonContentType: false })
 
   const serviceBaseUrl = await config.requireString('SERVICE_BASE_URL')
-  const features = await createFeaturesComponent({ config, logs, fetch: tracedFetch }, serviceBaseUrl)
+  // @well-known-components/features-component still types `fetch` against the node-fetch interfaces
+  // IFetchComponent; the runtime fetcher is the same core-commons instance, so bridge the type here.
+  const features = await createFeaturesComponent(
+    { config, logs, fetch: tracedFetch as unknown as IWkcFetchComponent },
+    serviceBaseUrl
+  )
   const featureFlags = await createFeatureFlagsAdapter({ config, logs, features })
 
   const userModerationDb = createUserModerationDBComponent({ database, logs })
