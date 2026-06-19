@@ -2,6 +2,7 @@ import { IHttpServerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { oldValidate } from '../../logic/utils'
+import { extractClientIp } from '../../logic/ip-moderation/extract-ip'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
@@ -15,13 +16,14 @@ export async function commsSceneHandler(
     | 'places'
     | 'worlds'
     | 'userModeration'
+    | 'ipModeration'
     | 'sceneManager'
     | 'sceneStreamAccessManager',
     '/get-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { cast, livekit, logs, denyList, sceneBans, worlds, userModeration, sceneManager, places }
+    components: { cast, livekit, logs, denyList, sceneBans, worlds, userModeration, ipModeration, sceneManager, places }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -36,6 +38,8 @@ export async function commsSceneHandler(
     mute: []
   }
 
+  const clientIp = extractClientIp(context.request)
+
   try {
     const { isBanned: isPlatformBanned } = await userModeration.isPlayerBanned(identity)
     if (isPlatformBanned) {
@@ -47,6 +51,21 @@ export async function commsSceneHandler(
       throw error
     }
     logger.warn(`Error checking platform ban status for ${identity}: ${error}`)
+  }
+
+  if (clientIp) {
+    try {
+      const { isBanned: isIpBanned } = await ipModeration.getIpBanStatus(clientIp)
+      if (isIpBanned) {
+        logger.warn(`Rejected connection from banned IP: ${clientIp}`, { identity })
+        throw new ForbiddenError('Access denied, banned IP address')
+      }
+    } catch (error) {
+      if (error instanceof ForbiddenError) {
+        throw error
+      }
+      logger.warn(`Error checking IP ban status for ${clientIp}: ${error}`)
+    }
   }
 
   const isDenylisted = await denyList.isDenylisted(identity)
@@ -148,6 +167,12 @@ export async function commsSceneHandler(
     throw err
   }
   logger.debug(`Token generated for ${identity} to join room ${room}`)
+
+  if (clientIp) {
+    void ipModeration.logConnection(identity, clientIp).catch((err) => {
+      logger.warn(`Failed to log connection for ${identity} from ${clientIp}: ${err}`)
+    })
+  }
 
   return {
     status: 200,

@@ -71,9 +71,19 @@ import {
   banStatusHandler,
   warnPlayerHandler,
   getWarningsHandler,
-  listBansHandler
+  listBansHandler,
+  getPersonalDataHandler,
+  deletePersonalDataHandler
 } from './handlers/user-moderation'
 import { BanPlayerSchema, WarnPlayerSchema } from './handlers/user-moderation/schemas'
+import {
+  banIpHandler,
+  ipBanStatusHandler,
+  liftIpBanHandler,
+  getIpsByAddressHandler,
+  getAddressesByIpHandler
+} from './handlers/ip-moderation'
+import { BanIpSchema } from './handlers/ip-moderation/schemas'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -254,6 +264,23 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   )
   router.get('/users/:address/warnings', signedFetch, moderatorRead, getWarningsHandler)
   router.get('/bans', signedFetch, moderatorRead, listBansHandler)
+  router.get('/users/:address/ips', signedFetch, moderatorRead, getIpsByAddressHandler)
+
+  // GDPR data subject rights (Art. 15, 17, 20)
+  router.get('/users/:address/personal-data', signedFetch, moderatorRead, getPersonalDataHandler)
+  router.delete('/users/:address/personal-data', signedFetch, moderatorWrite, deletePersonalDataHandler)
+
+  // IP moderation routes
+  router.post(
+    '/ips/:ip/bans',
+    signedFetch,
+    moderatorWrite,
+    schemaValidator.withSchemaValidatorMiddleware(BanIpSchema),
+    banIpHandler
+  )
+  router.get('/ips/:ip/bans', ipBanStatusHandler)
+  router.delete('/ips/:ip/bans', signedFetch, moderatorWrite, liftIpBanHandler)
+  router.get('/ips/:ip/users', signedFetch, moderatorRead, getAddressesByIpHandler)
 
   router.post(
     '/cast/presentation-bot-token',

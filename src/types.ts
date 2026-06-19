@@ -37,6 +37,8 @@ import { ISceneParticipantsComponent } from './adapters/scene-participants'
 import { ISchemaValidatorComponent } from '@dcl/schema-validator-component'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { IUserModerationComponent, IUserModerationDatabaseComponent } from './logic/user-moderation/types'
+import { IIpModerationDatabaseComponent } from './logic/ip-moderation/types'
+import { IIpModerationComponent } from './logic/ip-moderation/component'
 import { IModeratorComponent } from './logic/moderator'
 import { IFeaturesComponent } from '@well-known-components/features-component'
 import { IFeatureFlagsAdapter } from './adapters/feature-flags'
@@ -87,9 +89,12 @@ export type BaseComponents = {
   sceneParticipants: ISceneParticipantsComponent
   userModerationDb: IUserModerationDatabaseComponent
   userModeration: IUserModerationComponent
+  ipModerationDb: IIpModerationDatabaseComponent
+  ipModeration: IIpModerationComponent
   moderator: IModeratorComponent
   features: IFeaturesComponent
   featureFlags: IFeatureFlagsAdapter
+  connectionLogPurgeJob?: ICronJobComponent
 }
 
 export type AppComponents = BaseComponents & {

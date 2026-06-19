@@ -1,17 +1,13 @@
 import type { Schema } from 'ajv'
 
-export type BanPlayerRequestBody = {
+export type BanIpRequestBody = {
   reason: string
   duration?: number
   customMessage?: string
-  banAllKnownIps?: boolean
+  banAllKnownAddresses?: boolean
 }
 
-export type WarnPlayerRequestBody = {
-  reason: string
-}
-
-export const BanPlayerSchema: Schema = {
+export const BanIpSchema: Schema = {
   type: 'object',
   required: ['reason'],
   additionalProperties: false,
@@ -27,20 +23,8 @@ export const BanPlayerSchema: Schema = {
     customMessage: {
       type: 'string'
     },
-    banAllKnownIps: {
+    banAllKnownAddresses: {
       type: 'boolean'
-    }
-  }
-}
-
-export const WarnPlayerSchema: Schema = {
-  type: 'object',
-  required: ['reason'],
-  additionalProperties: false,
-  properties: {
-    reason: {
-      type: 'string',
-      minLength: 1
     }
   }
 }
