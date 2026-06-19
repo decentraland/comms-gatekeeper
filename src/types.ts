@@ -37,7 +37,7 @@ import { ISchemaValidatorComponent } from '@dcl/schema-validator-component'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { IUserModerationComponent, IUserModerationDatabaseComponent } from './logic/user-moderation/types'
 import { IModeratorComponent } from './logic/moderator'
-import { IFeaturesComponent } from '@well-known-components/features-component'
+import { IFeaturesComponent } from '@dcl/features-component'
 import { IFeatureFlagsAdapter } from './adapters/feature-flags'
 
 export type GlobalContext = {

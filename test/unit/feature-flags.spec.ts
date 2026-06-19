@@ -1,5 +1,5 @@
 import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
-import { ApplicationName, IFeaturesComponent } from '@well-known-components/features-component'
+import { ApplicationName, IFeaturesComponent } from '@dcl/features-component'
 import { createFeatureFlagsAdapter, FeatureFlag, IFeatureFlagsAdapter } from '../../src/adapters/feature-flags'
 import { createConfigMockedComponent } from '../mocks/config-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'

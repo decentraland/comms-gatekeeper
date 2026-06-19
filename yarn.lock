@@ -1117,10 +1117,10 @@
   resolved "https://registry.npmjs.org/@dcl/core-commons/-/core-commons-0.5.0.tgz"
   integrity sha512-Lru7p7LcpTiIeZnpYQKRbYwHNqZBPieB7OLeGZ44kWt7+YdC6N7xj/GpAkn8xMGu+jcd7DaIZcfktZJqw+ELNA==
 
-"@dcl/crypto-middleware@^3.0.0":
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/@dcl/crypto-middleware/-/crypto-middleware-3.0.0.tgz#9fcf731d63fc927df2f92614de15fa12005c44e6"
-  integrity sha512-2hutXv8HITMQ9YFa0Llp/6JeBwmtrHv1j1wpwU9DFdwKo3/hBL14+XpRB23qnNUu4pLYmUHNETyUmCSmOGCRXg==
+"@dcl/crypto-middleware@^4.0.0":
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/@dcl/crypto-middleware/-/crypto-middleware-4.0.0.tgz#4a586f3243e351775564ff08c4c231bf5320ba7f"
+  integrity sha512-j12R22lMBYk5zwXRzoKxGvU+F8IER+iV9buehbriHPkxVQdBOBqS0EoWtREpanGW1MLhHqoAijsOft1hXzc/rA==
   dependencies:
     "@dcl/core-commons" "^0.10.0"
     "@dcl/crypto" "3.7.0"
@@ -1160,6 +1160,14 @@
     eslint-plugin-prettier "^5.1.3"
     prettier "^3.3.2"
 
+"@dcl/features-component@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@dcl/features-component/-/features-component-1.0.0.tgz#32620ca5d2cfced0db8912b1880abc5d145a92d0"
+  integrity sha512-3UvIAEwWVqlWDDDHihXbffFC6vm6nUGEVOmH/ZIUQUY5kp8V5TQqpZqmApiXuWYh6RUjU1fckhlmlsLBFer3KQ==
+  dependencies:
+    "@dcl/core-commons" "0.10.0"
+    "@well-known-components/interfaces" "^1.5.2"
+
 "@dcl/fetch-component@1.0.1":
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/@dcl/fetch-component/-/fetch-component-1.0.1.tgz#7cfb6d2d2bc6b40c9eca238be212626d511284c4"
@@ -1195,6 +1203,14 @@
     on-finished "^2.4.1"
     path-to-regexp "^6.3.0"
     reflect-metadata "^0.2.2"
+
+"@dcl/http-tracer-component@^2.0.0":
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/@dcl/http-tracer-component/-/http-tracer-component-2.0.0.tgz#c977476ba4c93f6c371bb2f60e662c9bc9acb910"
+  integrity sha512-wtYpB757L3Ie+Sm5QB7xFjLwjqtNhS389LOQ5ihpScE1JweMZd/rh6QwTHBHRdm9PCuZgSnQkbCqs7B8U08LAA==
+  dependencies:
+    "@dcl/core-commons" "0.10.0"
+    "@well-known-components/interfaces" "^1.5.2"
 
 "@dcl/memory-cache-component@^2.4.2":
   version "2.4.2"
@@ -2773,13 +2789,6 @@
   dependencies:
     dotenv "^16.0.1"
 
-"@well-known-components/features-component@2.1.0":
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/@well-known-components/features-component/-/features-component-2.1.0.tgz#193e2e40404481fe3e51ca963794692c1375f020"
-  integrity sha512-cFj/k30p3v3xvRjGqoTMKMAjMJQUGjCUZzZYCIBWmzGpSxfzSMxUIW8pqgDZ+2/jWL/nirz/okIkRxm7vLrimQ==
-  dependencies:
-    "@well-known-components/interfaces" "^1.4.3"
-
 "@well-known-components/fetch-component@^2.0.0":
   version "2.0.2"
   resolved "https://registry.npmjs.org/@well-known-components/fetch-component/-/fetch-component-2.0.2.tgz"
@@ -2792,14 +2801,6 @@
   version "2.1.0"
   resolved "https://registry.npmjs.org/@well-known-components/http-requests-logger-component/-/http-requests-logger-component-2.1.0.tgz"
   integrity sha512-mh5tc1g6XOhQSFiQWaWMPqeH/r0S1Lz5BZtqUfV0HxtpzKqgctUlgVO0S6a6IxHCDX/sfZBHb9LMcRsdUwE5XQ==
-  dependencies:
-    "@well-known-components/interfaces" "^1.2.0"
-    tslib "^2.5.0"
-
-"@well-known-components/http-tracer-component@^1.1.0":
-  version "1.1.0"
-  resolved "https://registry.npmjs.org/@well-known-components/http-tracer-component/-/http-tracer-component-1.1.0.tgz"
-  integrity sha512-ubFU1fBrhFVmKWXFXrNzuO+nFafzaLwQ7uOQPOIwvTF0dOO0TptTwvRH4sA4hwciTPdMXYjZfQZGhb41cyd3ZA==
   dependencies:
     "@well-known-components/interfaces" "^1.2.0"
     tslib "^2.5.0"
@@ -4971,11 +4972,6 @@ parse-json@^5.2.0:
     error-ex "^1.3.1"
     json-parse-even-better-errors "^2.3.0"
     lines-and-columns "^1.1.6"
-
-passport-strategy@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/passport-strategy/-/passport-strategy-1.0.0.tgz#b5539aa8fc225a3d1ad179476ddf236b440f52e4"
-  integrity sha512-CB97UUvDKJde2V0KDWWB3lyf6PC3FaZP7YxZ2G8OAtn9p4HI9j9JLP9qjOGZFvyl8uwNT8qM+hGnz/n16NI7oA==
 
 path-exists@^3.0.0:
   version "3.0.0"

@@ -1,5 +1,5 @@
 import { IBaseComponent, START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
-import { ApplicationName, FeatureFlagVariant } from '@well-known-components/features-component'
+import { ApplicationName, FeatureFlagVariant } from '@dcl/features-component'
 import { AppComponents } from '../types'
 
 export enum FeatureFlag {
