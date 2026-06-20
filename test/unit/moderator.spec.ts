@@ -203,6 +203,33 @@ describe('moderator-component', () => {
       })
     })
 
+    describe('when the feature flag is disabled but still carries a payload value', () => {
+      let component: IModeratorComponent
+      let next: jest.Mock
+      const moderatorAddress = '0x1234567890abcdef1234567890abcdef12345678'
+
+      beforeEach(async () => {
+        mockFeatures.getFeatureVariant.mockResolvedValue({
+          name: PLATFORM_USER_MODERATORS_FLAG,
+          enabled: false,
+          payload: { type: 'string', value: moderatorAddress }
+        })
+        component = await createModeratorComponent({ features: mockFeatures, logs: mockLogs, config: mockConfig })
+        next = jest.fn()
+      })
+
+      it('should respond with a 401 and the unauthorized error', async () => {
+        const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
+        const result = await middleware(createMockContext(moderatorAddress), next)
+
+        expect(next).not.toHaveBeenCalled()
+        expect(result).toEqual({
+          status: 401,
+          body: { error: 'You are not authorized to access this resource' }
+        })
+      })
+    })
+
     describe('when verification is undefined', () => {
       let component: IModeratorComponent
       let next: jest.Mock

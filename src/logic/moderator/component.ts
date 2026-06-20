@@ -18,12 +18,12 @@ export async function createModeratorComponent({
 
   async function getModeratorAddresses(): Promise<string[]> {
     const variant = await features.getFeatureVariant(ApplicationName.DAPPS, PLATFORM_USER_MODERATORS_FLAG)
-    const rawAddresses = variant?.payload?.value
-    if (!rawAddresses) {
+    // A disabled flag grants no moderators, even if it still carries a payload value.
+    if (!variant?.enabled || !variant.payload?.value) {
       return []
     }
 
-    const trimmedAddresses = rawAddresses
+    const trimmedAddresses = variant.payload.value
       .replace(/\n/g, '')
       .split(',')
       .map((address) => address.trim().toLowerCase())

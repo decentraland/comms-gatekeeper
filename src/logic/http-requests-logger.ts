@@ -32,6 +32,8 @@ export function instrumentHttpServerWithRequestLogger({
     let status = 200
     try {
       const response = await next()
+      // The native @dcl/http-server treats a response without an explicit status as 200 OK,
+      // so default to 200 to mirror what the client actually receives.
       status = response.status ?? 200
       return response
     } catch (error) {
