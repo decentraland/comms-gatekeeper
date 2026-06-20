@@ -38,7 +38,6 @@ import { IPublisherComponent } from '@dcl/sns-component'
 import { IUserModerationComponent, IUserModerationDatabaseComponent } from './logic/user-moderation/types'
 import { IModeratorComponent } from './logic/moderator'
 import { IFeaturesComponent } from '@dcl/features-component'
-import { IFeatureFlagsAdapter } from './adapters/feature-flags'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -88,7 +87,6 @@ export type BaseComponents = {
   userModeration: IUserModerationComponent
   moderator: IModeratorComponent
   features: IFeaturesComponent
-  featureFlags: IFeatureFlagsAdapter
 }
 
 export type AppComponents = BaseComponents & {

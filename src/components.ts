@@ -53,11 +53,10 @@ import { AnalyticsEventPayload } from './types/analytics'
 import { createRoomStartedHandler } from './logic/livekit-webhook/event-handlers/room-started-handler'
 import { createContentClientComponent } from './adapters/content-client'
 import { createSceneParticipantsComponent } from './adapters/scene-participants'
-import { createFeaturesComponent } from '@dcl/features-component'
+import { createFeaturesComponent, ApplicationName } from '@dcl/features-component'
 import { createUserModerationDBComponent } from './adapters/user-moderation-db'
 import { createUserModerationComponent } from './logic/user-moderation'
 import { createModeratorComponent } from './logic/moderator'
-import { createFeatureFlagsAdapter } from './adapters/feature-flags'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -133,11 +132,14 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const schemaValidator = await createSchemaValidatorComponent({ ensureJsonContentType: false })
 
   const serviceBaseUrl = await config.requireString('SERVICE_BASE_URL')
-  const features = await createFeaturesComponent({ config, logs, fetch: tracedFetch }, serviceBaseUrl)
-  const featureFlags = await createFeatureFlagsAdapter({ config, logs, features })
+  // Register the dapps app so the features component preloads and refreshes its flags in the
+  // background; the moderator reads the platform-user-moderators variant from that cache.
+  const features = await createFeaturesComponent({ config, logs, fetch: tracedFetch }, serviceBaseUrl, {
+    apps: [ApplicationName.DAPPS]
+  })
 
   const userModerationDb = createUserModerationDBComponent({ database, logs })
-  const moderator = await createModeratorComponent({ featureFlags, logs, config })
+  const moderator = await createModeratorComponent({ features, logs, config })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
@@ -320,7 +322,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     userModerationDb,
     userModeration,
     moderator,
-    features,
-    featureFlags
+    features
   }
 }

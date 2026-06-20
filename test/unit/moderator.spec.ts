@@ -1,18 +1,19 @@
-import { FeatureFlag, IFeatureFlagsAdapter } from '../../src/adapters/feature-flags'
-import { createModeratorComponent } from '../../src/logic/moderator/component'
+import { ApplicationName, IFeaturesComponent } from '@dcl/features-component'
+import { createModeratorComponent, PLATFORM_USER_MODERATORS_FLAG } from '../../src/logic/moderator/component'
 import { IModeratorComponent } from '../../src/logic/moderator/types'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 
 describe('moderator-component', () => {
   let mockLogs: any
-  let mockFeatureFlags: jest.Mocked<IFeatureFlagsAdapter>
+  let mockFeatures: jest.Mocked<IFeaturesComponent>
   let mockConfig: any
 
   beforeEach(() => {
     mockLogs = createLoggerMockedComponent()
-    mockFeatureFlags = {
-      isEnabled: jest.fn(),
-      getVariants: jest.fn()
+    mockFeatures = {
+      getEnvFeature: jest.fn(),
+      getIsFeatureEnabled: jest.fn(),
+      getFeatureVariant: jest.fn()
     } as any
     mockConfig = {
       getString: jest.fn().mockResolvedValue(undefined),
@@ -42,9 +43,13 @@ describe('moderator-component', () => {
     } as any
   }
 
-  function createMockFeatureFlags(addresses: string[]): jest.Mocked<IFeatureFlagsAdapter> {
-    mockFeatureFlags.getVariants.mockResolvedValue(addresses)
-    return mockFeatureFlags
+  function createMockFeatures(addresses: string[]): jest.Mocked<IFeaturesComponent> {
+    mockFeatures.getFeatureVariant.mockResolvedValue({
+      name: PLATFORM_USER_MODERATORS_FLAG,
+      enabled: true,
+      payload: { type: 'string', value: addresses.join(',') }
+    })
+    return mockFeatures
   }
 
   describe('when moderatorRequired is true', () => {
@@ -56,7 +61,7 @@ describe('moderator-component', () => {
       beforeEach(async () => {
         moderatorAddress = '0x1234567890abcdef1234567890abcdef12345678'
         component = await createModeratorComponent({
-          featureFlags: createMockFeatureFlags([moderatorAddress]),
+          features: createMockFeatures([moderatorAddress]),
           logs: mockLogs,
           config: mockConfig
         })
@@ -67,7 +72,10 @@ describe('moderator-component', () => {
         const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
         const result = await middleware(createMockContext(moderatorAddress), next)
 
-        expect(mockFeatureFlags.getVariants).toHaveBeenCalledWith(FeatureFlag.PLATFORM_USER_MODERATORS)
+        expect(mockFeatures.getFeatureVariant).toHaveBeenCalledWith(
+          ApplicationName.DAPPS,
+          PLATFORM_USER_MODERATORS_FLAG
+        )
         expect(next).toHaveBeenCalled()
         expect(result).toEqual({ status: 200, body: { ok: true } })
       })
@@ -79,7 +87,7 @@ describe('moderator-component', () => {
 
       beforeEach(async () => {
         component = await createModeratorComponent({
-          featureFlags: createMockFeatureFlags(['0x1234567890abcdef1234567890abcdef12345678']),
+          features: createMockFeatures(['0x1234567890abcdef1234567890abcdef12345678']),
           logs: mockLogs,
           config: mockConfig
         })
@@ -88,10 +96,7 @@ describe('moderator-component', () => {
 
       it('should respond with a 401 and the unauthorized error', async () => {
         const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
-        const result = await middleware(
-          createMockContext('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-          next
-        )
+        const result = await middleware(createMockContext('0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'), next)
 
         expect(next).not.toHaveBeenCalled()
         expect(result).toEqual({
@@ -108,7 +113,7 @@ describe('moderator-component', () => {
 
         beforeEach(async () => {
           component = await createModeratorComponent({
-            featureFlags: createMockFeatureFlags(['0x1234567890abcdef1234567890abcdef12345678']),
+            features: createMockFeatures(['0x1234567890abcdef1234567890abcdef12345678']),
             logs: mockLogs,
             config: mockConfig
           })
@@ -117,10 +122,7 @@ describe('moderator-component', () => {
 
         it('should pass the request through', async () => {
           const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
-          const result = await middleware(
-            createMockContext('0x1234567890ABCDEF1234567890ABCDEF12345678'),
-            next
-          )
+          const result = await middleware(createMockContext('0x1234567890ABCDEF1234567890ABCDEF12345678'), next)
 
           expect(next).toHaveBeenCalled()
           expect(result).toEqual({ status: 200, body: { ok: true } })
@@ -133,7 +135,7 @@ describe('moderator-component', () => {
 
         beforeEach(async () => {
           component = await createModeratorComponent({
-            featureFlags: createMockFeatureFlags(['0x1234567890ABCDEF1234567890ABCDEF12345678']),
+            features: createMockFeatures(['0x1234567890ABCDEF1234567890ABCDEF12345678']),
             logs: mockLogs,
             config: mockConfig
           })
@@ -142,10 +144,7 @@ describe('moderator-component', () => {
 
         it('should pass the request through', async () => {
           const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
-          const result = await middleware(
-            createMockContext('0x1234567890abcdef1234567890abcdef12345678'),
-            next
-          )
+          const result = await middleware(createMockContext('0x1234567890abcdef1234567890abcdef12345678'), next)
 
           expect(next).toHaveBeenCalled()
           expect(result).toEqual({ status: 200, body: { ok: true } })
@@ -159,7 +158,7 @@ describe('moderator-component', () => {
 
       beforeEach(async () => {
         component = await createModeratorComponent({
-          featureFlags: createMockFeatureFlags([]),
+          features: createMockFeatures([]),
           logs: mockLogs,
           config: mockConfig
         })
@@ -168,10 +167,7 @@ describe('moderator-component', () => {
 
       it('should respond with a 401 and the unauthorized error', async () => {
         const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
-        const result = await middleware(
-          createMockContext('0x1234567890abcdef1234567890abcdef12345678'),
-          next
-        )
+        const result = await middleware(createMockContext('0x1234567890abcdef1234567890abcdef12345678'), next)
 
         expect(next).not.toHaveBeenCalled()
         expect(result).toEqual({
@@ -186,9 +182,9 @@ describe('moderator-component', () => {
       let next: jest.Mock
 
       beforeEach(async () => {
-        mockFeatureFlags.getVariants.mockResolvedValue(undefined)
+        mockFeatures.getFeatureVariant.mockResolvedValue(null)
         component = await createModeratorComponent({
-          featureFlags: mockFeatureFlags,
+          features: mockFeatures,
           logs: mockLogs,
           config: mockConfig
         })
@@ -197,10 +193,7 @@ describe('moderator-component', () => {
 
       it('should respond with a 401 and the unauthorized error', async () => {
         const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
-        const result = await middleware(
-          createMockContext('0x1234567890abcdef1234567890abcdef12345678'),
-          next
-        )
+        const result = await middleware(createMockContext('0x1234567890abcdef1234567890abcdef12345678'), next)
 
         expect(next).not.toHaveBeenCalled()
         expect(result).toEqual({
@@ -216,7 +209,7 @@ describe('moderator-component', () => {
 
       beforeEach(async () => {
         component = await createModeratorComponent({
-          featureFlags: createMockFeatureFlags(['0x1234567890abcdef1234567890abcdef12345678']),
+          features: createMockFeatures(['0x1234567890abcdef1234567890abcdef12345678']),
           logs: mockLogs,
           config: mockConfig
         })
@@ -225,10 +218,7 @@ describe('moderator-component', () => {
 
       it('should respond with a 401 and the unauthorized error', async () => {
         const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
-        const result = await middleware(
-          createMockContext(undefined),
-          next
-        )
+        const result = await middleware(createMockContext(undefined), next)
 
         expect(next).not.toHaveBeenCalled()
         expect(result).toEqual({
@@ -244,7 +234,7 @@ describe('moderator-component', () => {
 
       beforeEach(async () => {
         component = await createModeratorComponent({
-          featureFlags: createMockFeatureFlags(['0x1234567890abcdef1234567890abcdef12345678']),
+          features: createMockFeatures(['0x1234567890abcdef1234567890abcdef12345678']),
           logs: mockLogs,
           config: mockConfig
         })
@@ -272,7 +262,7 @@ describe('moderator-component', () => {
       beforeEach(async () => {
         validAddress = '0x1234567890abcdef1234567890abcdef12345678'
         component = await createModeratorComponent({
-          featureFlags: createMockFeatureFlags([validAddress, 'not-an-address', '']),
+          features: createMockFeatures([validAddress, 'not-an-address', '']),
           logs: mockLogs,
           config: mockConfig
         })
@@ -294,6 +284,31 @@ describe('moderator-component', () => {
         })
       })
     })
+
+    describe('when the variant payload separates addresses with newlines', () => {
+      let component: IModeratorComponent
+      let next: jest.Mock
+      const firstAddress = '0x1111111111111111111111111111111111111111'
+      const secondAddress = '0x2222222222222222222222222222222222222222'
+
+      beforeEach(async () => {
+        mockFeatures.getFeatureVariant.mockResolvedValue({
+          name: PLATFORM_USER_MODERATORS_FLAG,
+          enabled: true,
+          payload: { type: 'string', value: `${firstAddress},\n${secondAddress}` }
+        })
+        component = await createModeratorComponent({ features: mockFeatures, logs: mockLogs, config: mockConfig })
+        next = jest.fn().mockResolvedValue({ status: 200, body: { ok: true } })
+      })
+
+      it('should strip the newlines and allowlist every address', async () => {
+        const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
+        const result = await middleware(createMockContext(secondAddress), next)
+
+        expect(next).toHaveBeenCalled()
+        expect(result).toEqual({ status: 200, body: { ok: true } })
+      })
+    })
   })
 
   describe('when using token-based authentication', () => {
@@ -307,7 +322,7 @@ describe('moderator-component', () => {
         beforeEach(async () => {
           mockConfig.getString.mockResolvedValue(moderatorToken)
           component = await createModeratorComponent({
-            featureFlags: createMockFeatureFlags([]),
+            features: createMockFeatures([]),
             logs: mockLogs,
             config: mockConfig
           })
@@ -336,7 +351,7 @@ describe('moderator-component', () => {
         beforeEach(async () => {
           mockConfig.getString.mockResolvedValue(moderatorToken)
           component = await createModeratorComponent({
-            featureFlags: createMockFeatureFlags([]),
+            features: createMockFeatures([]),
             logs: mockLogs,
             config: mockConfig
           })
@@ -377,7 +392,7 @@ describe('moderator-component', () => {
         beforeEach(async () => {
           mockConfig.getString.mockResolvedValue(moderatorToken)
           component = await createModeratorComponent({
-            featureFlags: createMockFeatureFlags([]),
+            features: createMockFeatures([]),
             logs: mockLogs,
             config: mockConfig
           })
@@ -386,10 +401,7 @@ describe('moderator-component', () => {
 
         it('should respond with a 400 error', async () => {
           const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
-          const context = createMockContext(
-            undefined,
-            { authorization: `Bearer ${moderatorToken}` }
-          )
+          const context = createMockContext(undefined, { authorization: `Bearer ${moderatorToken}` })
           const result = await middleware(context, next)
 
           expect(next).not.toHaveBeenCalled()
@@ -409,7 +421,7 @@ describe('moderator-component', () => {
         beforeEach(async () => {
           mockConfig.getString.mockResolvedValue(moderatorToken)
           component = await createModeratorComponent({
-            featureFlags: createMockFeatureFlags([]),
+            features: createMockFeatures([]),
             logs: mockLogs,
             config: mockConfig
           })
@@ -418,10 +430,7 @@ describe('moderator-component', () => {
 
         it('should call next() without requiring moderator query param', async () => {
           const middleware = component.moderatorAuthMiddleware({ moderatorRequired: false })
-          const context = createMockContext(
-            undefined,
-            { authorization: `Bearer ${moderatorToken}` }
-          )
+          const context = createMockContext(undefined, { authorization: `Bearer ${moderatorToken}` })
           const result = await middleware(context, next)
 
           expect(next).toHaveBeenCalled()
@@ -437,7 +446,7 @@ describe('moderator-component', () => {
       beforeEach(async () => {
         mockConfig.getString.mockResolvedValue(moderatorToken)
         component = await createModeratorComponent({
-          featureFlags: createMockFeatureFlags([]),
+          features: createMockFeatures([]),
           logs: mockLogs,
           config: mockConfig
         })
@@ -446,11 +455,7 @@ describe('moderator-component', () => {
 
       it('should fall through to wallet auth and return 401', async () => {
         const middleware = component.moderatorAuthMiddleware({ moderatorRequired: true })
-        const context = createMockContext(
-          undefined,
-          { authorization: 'Bearer wrong-token' },
-          { moderator: 'John Doe' }
-        )
+        const context = createMockContext(undefined, { authorization: 'Bearer wrong-token' }, { moderator: 'John Doe' })
         const result = await middleware(context, next)
 
         expect(next).not.toHaveBeenCalled()
@@ -468,7 +473,7 @@ describe('moderator-component', () => {
       beforeEach(async () => {
         mockConfig.getString.mockResolvedValue(undefined)
         component = await createModeratorComponent({
-          featureFlags: createMockFeatureFlags([]),
+          features: createMockFeatures([]),
           logs: mockLogs,
           config: mockConfig
         })

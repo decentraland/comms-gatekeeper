@@ -7,8 +7,8 @@ import { TestComponents } from '../src/types'
 import { initComponents as originalInitComponents } from '../src/components'
 import { createDotEnvConfigComponent } from '@well-known-components/env-config-provider'
 import { createUnsafeIdentity } from '@dcl/crypto/dist/crypto'
-import { FeatureFlag, IFeatureFlagsAdapter } from '../src/adapters/feature-flags'
-import { createModeratorComponent } from '../src/logic/moderator'
+import { ApplicationName, IFeaturesComponent } from '@dcl/features-component'
+import { createModeratorComponent, PLATFORM_USER_MODERATORS_FLAG } from '../src/logic/moderator'
 
 export const TEST_MODERATOR_ACCOUNT = createUnsafeIdentity()
 
@@ -29,17 +29,21 @@ async function initComponents(): Promise<TestComponents> {
 
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
 
-  // Override feature flags to return the test moderator account address
-  const moderatorFeatureFlags: IFeatureFlagsAdapter = {
-    ...components.featureFlags,
-    getVariants: async <T>(feature: FeatureFlag): Promise<T | undefined> => {
-      if (feature === FeatureFlag.PLATFORM_USER_MODERATORS) {
-        return [TEST_MODERATOR_ACCOUNT.address] as T
+  // Override the moderators feature flag variant to return the test moderator account address
+  const moderatorFeatures: IFeaturesComponent = {
+    ...components.features,
+    getFeatureVariant: async (app, feature) => {
+      if (app === ApplicationName.DAPPS && feature === PLATFORM_USER_MODERATORS_FLAG) {
+        return {
+          name: PLATFORM_USER_MODERATORS_FLAG,
+          enabled: true,
+          payload: { type: 'string', value: TEST_MODERATOR_ACCOUNT.address }
+        }
       }
-      return components.featureFlags.getVariants<T>(feature)
+      return components.features.getFeatureVariant(app, feature)
     }
   }
-  const moderator = await createModeratorComponent({ featureFlags: moderatorFeatureFlags, logs: components.logs, config })
+  const moderator = await createModeratorComponent({ features: moderatorFeatures, logs: components.logs, config })
 
   return {
     ...components,
