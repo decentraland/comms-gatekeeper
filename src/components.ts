@@ -9,10 +9,11 @@ import {
 import { createLogComponent } from '@well-known-components/logger'
 import { createMetricsComponent } from '@dcl/metrics'
 import { createTracerComponent } from '@well-known-components/tracer-component'
-import { instrumentHttpServerWithRequestLogger } from './logic/http-requests-logger'
+import { instrumentHttpServerWithRequestLogger } from '@well-known-components/http-requests-logger-component'
 import { createSchemaValidatorComponent } from '@dcl/schema-validator-component'
 import { createHttpTracerComponent } from '@dcl/http-tracer-component'
 import { createPgComponent } from '@well-known-components/pg-component'
+import type { IHttpServerComponent as IWkcHttpServerComponent } from '@well-known-components/interfaces'
 import { AppComponents, GlobalContext } from './types'
 import { metricDeclarations } from './metrics'
 import { createLivekitComponent } from './adapters/livekit'
@@ -82,7 +83,11 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   createHttpTracerComponent({ server, tracer })
   await instrumentHttpServerWithPromClientRegistry({ server, config, metrics, registry: metrics.registry })
-  instrumentHttpServerWithRequestLogger({ server, logger: logs })
+
+  // @well-known-components/http-requests-logger-component is still typed against the interfaces
+  // IHttpServerComponent (node-fetch); the @dcl/http-server v2 server is structurally compatible at
+  // runtime, so bridge the type for this single call.
+  instrumentHttpServerWithRequestLogger({ server: server as unknown as IWkcHttpServerComponent<object>, logger: logs })
 
   const livekit = await createLivekitComponent({ config, logs })
 
