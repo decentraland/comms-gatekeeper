@@ -1,4 +1,4 @@
-import { DecentralandSignatureData, verify } from '@dcl/platform-crypto-middleware'
+import { DecentralandSignatureData, verify } from '@dcl/crypto-middleware'
 import { HandlerContextWithPath, AuthData } from '../types'
 import { UnauthorizedError } from '../types/errors'
 import { PlaceAttributes } from '../types/places.type'
@@ -16,7 +16,7 @@ export async function oldValidate<T extends string>(
   const path = new URL(baseUrl + context.url.pathname)
   let verification: DecentralandSignatureData<AuthData>
   try {
-    verification = await verify(context.request.method, path.pathname, context.request.headers.raw(), {
+    verification = await verify(context.request.method, path.pathname, Object.fromEntries(context.request.headers), {
       fetcher: fetch
     })
   } catch (e) {
@@ -51,7 +51,7 @@ export async function validate<T extends string>(
   let verification: DecentralandSignatureData<AuthData>
 
   try {
-    verification = await verify(context.request.method, path.pathname, context.request.headers.raw(), {
+    verification = await verify(context.request.method, path.pathname, Object.fromEntries(context.request.headers), {
       fetcher: fetch
     })
   } catch (e) {

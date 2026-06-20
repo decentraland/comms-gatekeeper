@@ -1,14 +1,14 @@
 import type {
   IConfigComponent,
   ILoggerComponent,
-  IHttpServerComponent,
   IBaseComponent,
   IMetricsComponent,
   ITracerComponent,
-  IFetchComponent
+  IFetchComponent as IWkcFetchComponent
 } from '@well-known-components/interfaces'
+import type { ICacheStorageComponent, IFetchComponent, IHttpServerComponent } from '@dcl/core-commons'
 import { IAnalyticsComponent } from '@dcl/analytics-component'
-import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
+import { DecentralandSignatureContext } from '@dcl/crypto-middleware'
 import { metricDeclarations } from './metrics'
 import { IDenyListComponent } from './adapters/denylist'
 import { IPgComponent } from '@well-known-components/pg-component'
@@ -27,7 +27,6 @@ import { IVoiceDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
 import { ISceneBansComponent } from './logic/scene-bans/types'
 import { IRoomMetadataSyncComponent } from './logic/room-metadata-sync/types'
-import { ICacheStorageComponent } from '@dcl/core-commons'
 import { ICronJobComponent } from './logic/cron-job/types'
 import { ILivekitWebhookComponent } from './logic/livekit-webhook'
 import { ICastComponent } from './logic/cast'
@@ -38,8 +37,7 @@ import { ISchemaValidatorComponent } from '@dcl/schema-validator-component'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { IUserModerationComponent, IUserModerationDatabaseComponent } from './logic/user-moderation/types'
 import { IModeratorComponent } from './logic/moderator'
-import { IFeaturesComponent } from '@well-known-components/features-component'
-import { IFeatureFlagsAdapter } from './adapters/feature-flags'
+import { IFeaturesComponent } from '@dcl/features-component'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -89,7 +87,6 @@ export type BaseComponents = {
   userModeration: IUserModerationComponent
   moderator: IModeratorComponent
   features: IFeaturesComponent
-  featureFlags: IFeatureFlagsAdapter
 }
 
 export type AppComponents = BaseComponents & {
@@ -97,7 +94,9 @@ export type AppComponents = BaseComponents & {
 }
 
 export type TestComponents = BaseComponents & {
-  localFetch: IFetchComponent
+  // createLocalFetchCompoment from @well-known-components/test-helpers returns the node-fetch-based
+  // interfaces IFetchComponent, so localFetch stays interfaces-typed (unlike components.fetch).
+  localFetch: IWkcFetchComponent
   statusChecks: IBaseComponent
 }
 

@@ -1,7 +1,7 @@
-import { DecentralandSignatureContext } from '@dcl/platform-crypto-middleware'
+import { DecentralandSignatureContext } from '@dcl/crypto-middleware'
 import { HandlerContextWithPath } from '../../types'
 import { WebhookEvent } from 'livekit-server-sdk'
-import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { IHttpServerComponent } from '@dcl/core-commons'
 import { InvalidRequestError } from '../../types/errors'
 
 export async function livekitWebhookHandler(

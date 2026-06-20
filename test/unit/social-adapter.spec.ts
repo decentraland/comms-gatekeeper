@@ -1,4 +1,5 @@
-import { IConfigComponent, ILoggerComponent, IFetchComponent } from '@well-known-components/interfaces'
+import { IConfigComponent, ILoggerComponent } from '@well-known-components/interfaces'
+import { IFetchComponent } from '@dcl/core-commons'
 import { createSocialComponent } from '../../src/adapters/social'
 import { ISocialComponent } from '../../src/types/social.type'
 

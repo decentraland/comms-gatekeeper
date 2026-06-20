@@ -1,5 +1,5 @@
 import { AuthChain, AuthIdentity, AuthLinkType, Authenticator, IdentityType } from '@dcl/crypto'
-import { AUTH_CHAIN_HEADER_PREFIX, AUTH_METADATA_HEADER, AUTH_TIMESTAMP_HEADER } from '@dcl/platform-crypto-middleware'
+import { AUTH_CHAIN_HEADER_PREFIX, AUTH_METADATA_HEADER, AUTH_TIMESTAMP_HEADER } from '@dcl/crypto-middleware'
 import { createUnsafeIdentity } from '@dcl/crypto/dist/crypto'
 
 export const owner: AuthIdentity = {
@@ -154,9 +154,7 @@ export async function getIdentity(): Promise<AuthIdentity> {
   return authChain
 }
 
-export async function getIdentityForAccount(
-  account: ReturnType<typeof createUnsafeIdentity>
-): Promise<AuthIdentity> {
+export async function getIdentityForAccount(account: ReturnType<typeof createUnsafeIdentity>): Promise<AuthIdentity> {
   const ephemeralIdentity = createUnsafeIdentity()
 
   return Authenticator.initializeAuthChain(account.address, ephemeralIdentity, 10, async (message) =>

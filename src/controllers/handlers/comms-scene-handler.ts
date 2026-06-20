@@ -1,4 +1,4 @@
-import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { oldValidate } from '../../logic/utils'

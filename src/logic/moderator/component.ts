@@ -1,22 +1,32 @@
 import { EthAddress } from '@dcl/schemas'
-import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { FeatureFlag } from '../../adapters/feature-flags'
+import { IHttpServerComponent } from '@dcl/core-commons'
+import { ApplicationName } from '@dcl/features-component'
 import { IModeratorComponent, ModeratorAuthOptions } from './types'
 import { AppComponents } from '../../types'
 import { timingSafeCompare, sanitizeModeratorName } from './utils'
 
+// Feature flag (dapps app) whose variant payload is a comma-separated list of moderator wallet addresses.
+export const PLATFORM_USER_MODERATORS_FLAG = 'platform_user_moderators'
+
 export async function createModeratorComponent({
-  featureFlags,
+  features,
   logs,
   config
-}: Pick<AppComponents, 'featureFlags' | 'logs' | 'config'>): Promise<IModeratorComponent> {
+}: Pick<AppComponents, 'features' | 'logs' | 'config'>): Promise<IModeratorComponent> {
   const logger = logs.getLogger('moderator-component')
   const moderatorToken = await config.getString('MODERATOR_TOKEN')
 
   async function getModeratorAddresses(): Promise<string[]> {
-    const addresses = (await featureFlags.getVariants<string[]>(FeatureFlag.PLATFORM_USER_MODERATORS)) || []
+    const variant = await features.getFeatureVariant(ApplicationName.DAPPS, PLATFORM_USER_MODERATORS_FLAG)
+    // A disabled flag grants no moderators, even if it still carries a payload value.
+    if (!variant?.enabled || !variant.payload?.value) {
+      return []
+    }
 
-    const trimmedAddresses = addresses.map((address) => address.trim().toLowerCase())
+    const trimmedAddresses = variant.payload.value
+      .replace(/\n/g, '')
+      .split(',')
+      .map((address) => address.trim().toLowerCase())
 
     for (const address of trimmedAddresses) {
       if (address.length > 0 && !EthAddress.validate(address)) {

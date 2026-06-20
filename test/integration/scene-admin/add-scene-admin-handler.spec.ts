@@ -529,7 +529,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   })
 
   describe('when authentication has invalid signature', () => {
-    it('should return 401', async () => {
+    it('should return 400 for a malformed auth chain', async () => {
       const { localFetch } = components
 
       const response = await makeRequest(
@@ -543,7 +543,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
         { ...owner, authChain: [...owner.authChain, { type: AuthLinkType.SIGNER, payload: 'invalid-signature' }] }
       )
 
-      expect(response.status).toBe(401)
+      expect(response.status).toBe(400)
     })
   })
 

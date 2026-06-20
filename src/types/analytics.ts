@@ -22,7 +22,9 @@ export type AnalyticsEventPayload = {
   }
   [AnalyticsEvent.END_CALL]: {
     call_id: string
-    user_id: string
+    // Optional: private calls end per-user (the leaving user), while community calls end at the
+    // room level (last moderator left) and carry no single user.
+    user_id?: string
   }
   [AnalyticsEvent.SCENE_BAN_ADDED]: {
     place_id: string

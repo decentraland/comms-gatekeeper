@@ -71,8 +71,8 @@ export function createVoiceComponent(
     } else if (disconnectReason === DisconnectReason.ROOM_DELETED) {
       // If the room was deleted, remove the room from the database to prevent the room from being re-created.
       analytics.fireEvent(AnalyticsEvent.END_CALL, {
-        room: livekit.getCallIdFromRoomName(roomName),
-        address: userAddress
+        call_id: livekit.getCallIdFromRoomName(roomName),
+        user_id: userAddress
       })
       logger.debug(
         `User ${userAddress} left a private room ${roomName} because the room was deleted, deleting private voice chat`
