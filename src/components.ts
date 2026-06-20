@@ -7,7 +7,7 @@ import {
   instrumentHttpServerWithPromClientRegistry
 } from '@dcl/http-server'
 import { createLogComponent } from '@well-known-components/logger'
-import { createMetricsComponent } from '@well-known-components/metrics'
+import { createMetricsComponent } from '@dcl/metrics'
 import { createTracerComponent } from '@well-known-components/tracer-component'
 import { instrumentHttpServerWithRequestLogger } from '@well-known-components/http-requests-logger-component'
 import { createSchemaValidatorComponent } from '@dcl/schema-validator-component'

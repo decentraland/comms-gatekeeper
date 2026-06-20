@@ -557,7 +557,7 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
   })
 
   describe('when authentication is invalid', () => {
-    it('should return 401 for invalid auth chain', async () => {
+    it('should return 400 for a malformed auth chain', async () => {
       const { localFetch } = components
 
       const response = await makeRequest(
@@ -571,7 +571,7 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
         { ...owner, authChain: [...owner.authChain, { type: AuthLinkType.SIGNER, payload: 'invalid-signature' }] }
       )
 
-      expect(response.status).toBe(401)
+      expect(response.status).toBe(400)
     })
 
     it('should return 400 when no authentication is provided', async () => {
