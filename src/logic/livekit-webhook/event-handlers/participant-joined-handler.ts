@@ -65,7 +65,7 @@ export function createParticipantJoinedHandler(
 
     if (isVoiceChatRoom(webhookEvent)) {
       logger.debug(`Participant ${address} joined voice chat room ${room.name}`)
-      await voice.handleParticipantJoined(address, room.name)
+      await voice.handleParticipantJoined(address, room.name, webhookEvent.participant?.sid)
     }
   }
 

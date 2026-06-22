@@ -130,7 +130,9 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
             callerAddress,
             webhookEvent.room.name,
-            DisconnectReason.DUPLICATE_IDENTITY
+            DisconnectReason.DUPLICATE_IDENTITY,
+            undefined,
+            expect.any(Number)
           )
 
           // Verify that the user's status wasn't changed in the database (no side effects)
@@ -571,7 +573,9 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
           memberAddress,
           webhookEvent.room.name,
-          DisconnectReason.CLIENT_INITIATED
+          DisconnectReason.CLIENT_INITIATED,
+          undefined,
+          expect.any(Number)
         )
 
         // Verify the database was updated correctly
@@ -601,7 +605,9 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
             moderatorAddress,
             webhookEvent.room.name,
-            DisconnectReason.CLIENT_INITIATED
+            DisconnectReason.CLIENT_INITIATED,
+            undefined,
+            expect.any(Number)
           )
 
           // Verify the room was destroyed in the database since no other moderators
@@ -635,7 +641,9 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
             moderatorAddress,
             webhookEvent.room.name,
-            DisconnectReason.CLIENT_INITIATED
+            DisconnectReason.CLIENT_INITIATED,
+            undefined,
+            expect.any(Number)
           )
 
           // Verify the room was NOT destroyed since there's another active moderator
@@ -676,7 +684,9 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           expect(handleParticipantLeftSpy).toHaveBeenCalledWith(
             memberAddress,
             webhookEvent.room.name,
-            DisconnectReason.MIGRATION
+            DisconnectReason.MIGRATION,
+            undefined,
+            expect.any(Number)
           )
 
           // Verify the database was updated correctly
@@ -706,7 +716,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(memberAddress, webhookEvent.room.name)
+        expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(memberAddress, webhookEvent.room.name, undefined)
 
         // Verify the database was updated correctly
         const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)
@@ -731,7 +741,7 @@ test('POST /livekit-webhook', ({ components, spyComponents }) => {
           })
 
           expect(response.status).toBe(200)
-          expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(moderatorAddress, webhookEvent.room.name)
+          expect(handleParticipantJoinedSpy).toHaveBeenCalledWith(moderatorAddress, webhookEvent.room.name, undefined)
 
           // Verify the database was updated correctly
           const usersInRoom = await components.voiceDB.getCommunityUsersInRoom(webhookEvent.room.name)

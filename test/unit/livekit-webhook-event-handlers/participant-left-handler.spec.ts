@@ -82,7 +82,8 @@ describe('Participant Left Handler', () => {
         },
         participant: {
           identity: userAddress,
-          disconnectReason
+          disconnectReason,
+          sid: 'PA_left_session'
         }
       } as WebhookEvent
       getRoomMetadataFromRoomNameMock.mockReturnValueOnce(roomMetadata)
@@ -108,7 +109,13 @@ describe('Participant Left Handler', () => {
         it('should call the participant left handler and log the debug message', async () => {
           await handler.handle(webhookEvent)
 
-          expect(handleParticipantLeftMock).toHaveBeenCalledWith(userAddress, roomName, disconnectReason)
+          expect(handleParticipantLeftMock).toHaveBeenCalledWith(
+            userAddress,
+            roomName,
+            disconnectReason,
+            'PA_left_session',
+            expect.any(Number)
+          )
         })
       })
 
@@ -206,7 +213,13 @@ describe('Participant Left Handler', () => {
         it('should call the participant left handler for community voice chat rooms', async () => {
           await handler.handle(webhookEvent)
 
-          expect(handleParticipantLeftMock).toHaveBeenCalledWith(userAddress, webhookEvent.room!.name, disconnectReason)
+          expect(handleParticipantLeftMock).toHaveBeenCalledWith(
+            userAddress,
+            webhookEvent.room!.name,
+            disconnectReason,
+            'PA_left_session',
+            expect.any(Number)
+          )
         })
       })
 
@@ -406,7 +419,13 @@ describe('Participant Left Handler', () => {
           address: userAddress,
           reason: disconnectReason.toString()
         })
-        expect(handleParticipantLeftMock).toHaveBeenCalledWith(userAddress, roomName, disconnectReason)
+        expect(handleParticipantLeftMock).toHaveBeenCalledWith(
+          userAddress,
+          roomName,
+          disconnectReason,
+          'PA_left_session',
+          expect.any(Number)
+        )
       })
     })
 

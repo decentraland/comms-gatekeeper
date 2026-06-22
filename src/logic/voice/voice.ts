@@ -8,6 +8,13 @@ import { CommunityVoiceChatAction } from '../../types/community-voice'
 import { isErrorWithMessage } from '../errors'
 import { Events, CommunityStreamingEndedEvent } from '@dcl/schemas'
 
+// Tolerance for the stale-leave timestamp guard. LiveKit event timestamps have
+// second precision (and come from a different clock), so we only treat the user's
+// state as "newer than the leave" when it is newer by more than this margin. This
+// biases towards processing genuine leaves (a real rejoin moves the state by much
+// more than a second) instead of leaving rooms/users stuck active.
+const STALE_LEAVE_SKEW_MS = 1000
+
 export function createVoiceComponent(
   components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit' | 'analytics' | 'publisher'>
 ): IVoiceComponent {
@@ -89,11 +96,18 @@ export function createVoiceComponent(
    * Handles the event when a participant joins a COMMUNITY voice chat room.
    * @param userAddress - The address of the user that joined the room.
    * @param roomName - The name of the room the user joined.
+   * @param sid - The LiveKit session id of the joining connection.
    */
-  async function handleCommunityParticipantJoined(userAddress: string, roomName: string): Promise<void> {
-    logger.debug(`Community participant joined: ${userAddress} in room ${roomName}`)
-    // Simply update the user status to connected
-    await voiceDB.updateCommunityUserStatus(userAddress, roomName, VoiceChatUserStatus.Connected)
+  async function handleCommunityParticipantJoined(userAddress: string, roomName: string, sid?: string): Promise<void> {
+    logger.debug(`Community participant joined: ${userAddress} in room ${roomName} (sid: ${sid ?? 'unknown'})`)
+    if (!sid) {
+      // Without a session id the stale-leave session guard cannot work for this user and
+      // they fall back to the weaker timestamp guard. LiveKit normally always sends it.
+      logger.warn(`Community participant ${userAddress} joined room ${roomName} without a session id`)
+    }
+    // Update the user status to connected and record the session id so that a later
+    // "left" event coming from a previous session can be recognized as stale.
+    await voiceDB.updateCommunityUserStatus(userAddress, roomName, VoiceChatUserStatus.Connected, sid)
   }
 
   /**
@@ -138,11 +152,15 @@ export function createVoiceComponent(
    * @param userAddress - The address of the user that left the room.
    * @param roomName - The name of the room the user left.
    * @param disconnectReason - The reason the user left the room.
+   * @param sid - The LiveKit session id of the connection that left.
+   * @param leaveEventTimeMs - When the leave actually happened (LiveKit event time), in ms.
    */
   async function handleCommunityParticipantLeft(
     userAddress: string,
     roomName: string,
-    disconnectReason: DisconnectReason
+    disconnectReason: DisconnectReason,
+    sid?: string,
+    leaveEventTimeMs?: number
   ): Promise<void> {
     logger.debug(`Community participant left: ${userAddress} in room ${roomName}, reason: ${disconnectReason}`)
 
@@ -161,13 +179,36 @@ export function createVoiceComponent(
 
     // Update user status based on disconnect reason
     if (disconnectReason === DisconnectReason.CLIENT_INITIATED) {
-      await voiceDB.updateCommunityUserStatus(userAddress, roomName, VoiceChatUserStatus.Disconnected)
-
-      // Only check for room destruction when a moderator leaves voluntarily
-      // Get all users to check if the leaving user was a moderator
+      // Read the current room state before mutating it so we can detect stale events.
       const usersInRoom = await voiceDB.getCommunityUsersInRoom(roomName)
       const leavingUser = usersInRoom.find((user) => user.address === userAddress)
 
+      // Stale-event guards: a "left" webhook can arrive AFTER the user already left and
+      // rejoined with a brand new LiveKit session (e.g. leaving a stream and immediately
+      // rejoining). Acting on it would disconnect the user (or tear down the room they
+      // just reconnected to), leaving the client stuck on "Connecting".
+      if (leavingUser) {
+        // 1) Session guard: the room already tracks a different (newer) session for this user.
+        const isFromPreviousSession = !!sid && !!leavingUser.sid && leavingUser.sid !== sid
+        // 2) Timestamp guard (fallback while the new session has not registered its sid yet):
+        //    the user's state changed (well) after this leave actually happened => they rejoined.
+        const userStateIsNewerThanLeave =
+          !leavingUser.sid &&
+          leaveEventTimeMs !== undefined &&
+          leavingUser.statusUpdatedAt > leaveEventTimeMs + STALE_LEAVE_SKEW_MS
+
+        if (isFromPreviousSession || userStateIsNewerThanLeave) {
+          logger.info(
+            `Ignoring stale participant_left for ${userAddress} in room ${roomName}: a newer session is active ` +
+              `(leaving sid: ${sid ?? 'unknown'}, current sid: ${leavingUser.sid ?? 'none'})`
+          )
+          return
+        }
+      }
+
+      await voiceDB.updateCommunityUserStatus(userAddress, roomName, VoiceChatUserStatus.Disconnected)
+
+      // Only check for room destruction when a moderator leaves voluntarily.
       if (leavingUser?.isModerator) {
         logger.debug(`Moderator ${userAddress} left voluntarily, checking if room should be destroyed`)
 
@@ -204,12 +245,13 @@ export function createVoiceComponent(
    * Main handler that routes to private or community handlers based on room name.
    * @param userAddress - The address of the user that joined the room.
    * @param roomName - The name of the room the user joined.
+   * @param sid - The LiveKit session id of the joining connection.
    */
-  async function handleParticipantJoined(userAddress: string, roomName: string): Promise<void> {
+  async function handleParticipantJoined(userAddress: string, roomName: string, sid?: string): Promise<void> {
     if (roomName.startsWith('voice-chat-private-')) {
       await handlePrivateParticipantJoined(userAddress, roomName)
     } else if (roomName.startsWith('voice-chat-community-')) {
-      await handleCommunityParticipantJoined(userAddress, roomName)
+      await handleCommunityParticipantJoined(userAddress, roomName, sid)
     } else {
       logger.warn(`Unknown room type for participant joined: ${roomName}`)
     }
@@ -220,16 +262,20 @@ export function createVoiceComponent(
    * @param userAddress - The address of the user that left the room.
    * @param roomName - The name of the room the user left.
    * @param disconnectReason - The reason the user left the room.
+   * @param sid - The LiveKit session id of the connection that left.
+   * @param leaveEventTimeMs - When the leave actually happened (LiveKit event time), in ms.
    */
   async function handleParticipantLeft(
     userAddress: string,
     roomName: string,
-    disconnectReason: DisconnectReason
+    disconnectReason: DisconnectReason,
+    sid?: string,
+    leaveEventTimeMs?: number
   ): Promise<void> {
     if (roomName.startsWith('voice-chat-private-')) {
       await handlePrivateParticipantLeft(userAddress, roomName, disconnectReason)
     } else if (roomName.startsWith('voice-chat-community-')) {
-      await handleCommunityParticipantLeft(userAddress, roomName, disconnectReason)
+      await handleCommunityParticipantLeft(userAddress, roomName, disconnectReason, sid, leaveEventTimeMs)
     } else {
       logger.warn(`Unknown room type for participant left: ${roomName}`)
     }
