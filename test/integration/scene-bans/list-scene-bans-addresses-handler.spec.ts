@@ -65,8 +65,8 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
       hasLandLease: true
     }
 
-    stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
-    stubComponents.places.getWorldScenePlace.resolves(mockedWorldPlace)
+    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
+    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
   })
 
   afterEach(async () => {
@@ -75,8 +75,8 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
   describe('when user is scene owner', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
     })
 
     it('should successfully list banned addresses for a scene', async () => {
@@ -227,8 +227,8 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
   describe('when user is world owner', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
     })
 
     it('should successfully list banned addresses for a world', async () => {
@@ -273,8 +273,8 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
   describe('when user lacks permissions', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
     })
 
     it('should return 401 when user is not owner or admin', async () => {

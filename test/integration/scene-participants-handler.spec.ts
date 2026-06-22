@@ -25,7 +25,7 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
       }
 
       spyComponents.contentClient.fetchEntitiesByPointers.mockResolvedValue([mockEntity])
-      stubComponents.livekit.getSceneRoomName.returns(`scene-${realmName}:${sceneId}`)
+      stubComponents.livekit.getSceneRoomName.mockReturnValue(`scene-${realmName}:${sceneId}`)
     })
 
     afterEach(() => {
@@ -34,8 +34,8 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
 
     describe('when room exists with participants', () => {
       beforeEach(() => {
-        stubComponents.livekit.getRoomInfo.resolves({ name: `scene-${realmName}:${sceneId}` } as any)
-        stubComponents.livekit.listRoomParticipants.resolves(mockParticipants)
+        stubComponents.livekit.getRoomInfo.mockResolvedValue({ name: `scene-${realmName}:${sceneId}` } as any)
+        stubComponents.livekit.listRoomParticipants.mockResolvedValue(mockParticipants)
       })
 
       it('should return list of participant addresses', async () => {
@@ -49,21 +49,18 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
         expect(body).toEqual({
           ok: true,
           data: {
-            addresses: [
-              '0x1234567890abcdef1234567890abcdef12345678',
-              '0xabcdef1234567890abcdef1234567890abcdef12'
-            ]
+            addresses: ['0x1234567890abcdef1234567890abcdef12345678', '0xabcdef1234567890abcdef1234567890abcdef12']
           }
         })
         expect(spyComponents.contentClient.fetchEntitiesByPointers).toHaveBeenCalledWith([pointer])
-        expect(stubComponents.livekit.getSceneRoomName.calledWith(realmName, sceneId)).toBe(true)
-        expect(stubComponents.livekit.listRoomParticipants.called).toBe(true)
+        expect(stubComponents.livekit.getSceneRoomName).toHaveBeenCalledWith(realmName, sceneId)
+        expect(stubComponents.livekit.listRoomParticipants).toHaveBeenCalled()
       })
     })
 
     describe('when room does not exist', () => {
       beforeEach(() => {
-        stubComponents.livekit.getRoomInfo.resolves(null)
+        stubComponents.livekit.getRoomInfo.mockResolvedValue(null)
       })
 
       it('should return empty addresses array', async () => {
@@ -85,8 +82,8 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
 
     describe('when room exists but has no participants', () => {
       beforeEach(() => {
-        stubComponents.livekit.getRoomInfo.resolves({ name: `scene-${realmName}:${sceneId}` } as any)
-        stubComponents.livekit.listRoomParticipants.resolves([])
+        stubComponents.livekit.getRoomInfo.mockResolvedValue({ name: `scene-${realmName}:${sceneId}` } as any)
+        stubComponents.livekit.listRoomParticipants.mockResolvedValue([])
       })
 
       it('should return empty addresses array', async () => {
@@ -151,9 +148,9 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
       }
 
       spyComponents.contentClient.fetchEntitiesByPointers.mockResolvedValue([mockEntity])
-      stubComponents.livekit.getSceneRoomName.returns(`scene-main:${sceneId}`)
-      stubComponents.livekit.getRoomInfo.resolves({ name: `scene-main:${sceneId}` } as any)
-      stubComponents.livekit.listRoomParticipants.resolves([])
+      stubComponents.livekit.getSceneRoomName.mockReturnValue(`scene-main:${sceneId}`)
+      stubComponents.livekit.getRoomInfo.mockResolvedValue({ name: `scene-main:${sceneId}` } as any)
+      stubComponents.livekit.listRoomParticipants.mockResolvedValue([])
     })
 
     afterEach(() => {
@@ -165,7 +162,7 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
 
       expect(response.status).toBe(200)
       expect(spyComponents.contentClient.fetchEntitiesByPointers).toHaveBeenCalledWith([pointer])
-      expect(stubComponents.livekit.getSceneRoomName.calledWith('main', sceneId)).toBe(true)
+      expect(stubComponents.livekit.getSceneRoomName).toHaveBeenCalledWith('main', sceneId)
     })
   })
 
@@ -183,13 +180,13 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
             entityId: worldSceneId,
             parcels: [pointer]
           })
-          stubComponents.livekit.getWorldSceneRoomName.returns(
+          stubComponents.livekit.getWorldSceneRoomName.mockReturnValue(
             `world-prod-scene-room-${worldName}-${worldSceneId}`
           )
-          stubComponents.livekit.getRoomInfo.resolves({
+          stubComponents.livekit.getRoomInfo.mockResolvedValue({
             name: `world-prod-scene-room-${worldName}-${worldSceneId}`
           } as any)
-          stubComponents.livekit.listRoomParticipants.resolves(mockParticipants)
+          stubComponents.livekit.listRoomParticipants.mockResolvedValue(mockParticipants)
         })
 
         afterEach(() => {
@@ -207,15 +204,12 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
           expect(body).toEqual({
             ok: true,
             data: {
-              addresses: [
-                '0x1234567890abcdef1234567890abcdef12345678',
-                '0xabcdef1234567890abcdef1234567890abcdef12'
-              ]
+              addresses: ['0x1234567890abcdef1234567890abcdef12345678', '0xabcdef1234567890abcdef1234567890abcdef12']
             }
           })
           expect(spyComponents.worlds.fetchWorldSceneByPointer).toHaveBeenCalledWith(worldName, pointer)
-          expect(stubComponents.livekit.getWorldSceneRoomName.calledWith(worldName, worldSceneId)).toBe(true)
-          expect(stubComponents.livekit.listRoomParticipants.called).toBe(true)
+          expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(worldName, worldSceneId)
+          expect(stubComponents.livekit.listRoomParticipants).toHaveBeenCalled()
         })
 
         describe('and no scene is found for the pointer', () => {
@@ -238,11 +232,11 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
 
       describe('and only realm_name is provided (world room)', () => {
         beforeEach(() => {
-          stubComponents.livekit.getWorldRoomName.returns(`world-prod-scene-room-${worldName}`)
-          stubComponents.livekit.getRoomInfo.resolves({
+          stubComponents.livekit.getWorldRoomName.mockReturnValue(`world-prod-scene-room-${worldName}`)
+          stubComponents.livekit.getRoomInfo.mockResolvedValue({
             name: `world-prod-scene-room-${worldName}`
           } as any)
-          stubComponents.livekit.listRoomParticipants.resolves(mockParticipants)
+          stubComponents.livekit.listRoomParticipants.mockResolvedValue(mockParticipants)
         })
 
         it('should get the world room and return participants', async () => {
@@ -254,21 +248,18 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
           expect(body).toEqual({
             ok: true,
             data: {
-              addresses: [
-                '0x1234567890abcdef1234567890abcdef12345678',
-                '0xabcdef1234567890abcdef1234567890abcdef12'
-              ]
+              addresses: ['0x1234567890abcdef1234567890abcdef12345678', '0xabcdef1234567890abcdef1234567890abcdef12']
             }
           })
-          expect(stubComponents.livekit.getWorldRoomName.calledWith(worldName)).toBe(true)
-          expect(stubComponents.livekit.listRoomParticipants.called).toBe(true)
+          expect(stubComponents.livekit.getWorldRoomName).toHaveBeenCalledWith(worldName)
+          expect(stubComponents.livekit.listRoomParticipants).toHaveBeenCalled()
         })
       })
 
       describe('and room does not exist', () => {
         beforeEach(() => {
-          stubComponents.livekit.getWorldRoomName.returns(`world-prod-scene-room-${worldName}`)
-          stubComponents.livekit.getRoomInfo.resolves(null)
+          stubComponents.livekit.getWorldRoomName.mockReturnValue(`world-prod-scene-room-${worldName}`)
+          stubComponents.livekit.getRoomInfo.mockResolvedValue(null)
         })
 
         it('should return empty addresses array', async () => {
@@ -291,11 +282,11 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
       const ethWorldName = 'mycoolworld.eth'
 
       beforeEach(() => {
-        stubComponents.livekit.getWorldRoomName.returns(`world-prod-scene-room-${ethWorldName}`)
-        stubComponents.livekit.getRoomInfo.resolves({
+        stubComponents.livekit.getWorldRoomName.mockReturnValue(`world-prod-scene-room-${ethWorldName}`)
+        stubComponents.livekit.getRoomInfo.mockResolvedValue({
           name: `world-prod-scene-room-${ethWorldName}`
         } as any)
-        stubComponents.livekit.listRoomParticipants.resolves(mockParticipants)
+        stubComponents.livekit.listRoomParticipants.mockResolvedValue(mockParticipants)
       })
 
       it('should accept .eth realm_name as a world name', async () => {
@@ -307,13 +298,10 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
         expect(body).toEqual({
           ok: true,
           data: {
-            addresses: [
-              '0x1234567890abcdef1234567890abcdef12345678',
-              '0xabcdef1234567890abcdef1234567890abcdef12'
-            ]
+            addresses: ['0x1234567890abcdef1234567890abcdef12345678', '0xabcdef1234567890abcdef1234567890abcdef12']
           }
         })
-        expect(stubComponents.livekit.getWorldRoomName.calledWith(ethWorldName)).toBe(true)
+        expect(stubComponents.livekit.getWorldRoomName).toHaveBeenCalledWith(ethWorldName)
       })
     })
 

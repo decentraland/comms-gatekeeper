@@ -81,31 +81,31 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
-    stubComponents.places.getWorldScenePlace.resolves(mockedWorldPlace)
+    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
+    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
 
-    stubComponents.lands.getLandPermissions.resolves({
+    stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: true,
       operator: false,
       updateOperator: false,
       updateManager: false,
       approvedForAll: false
     })
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: false,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
-    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.isSceneOwner.resolves(false)
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+    stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(false)
+    stubComponents.worlds.hasWorldStreamingPermission.mockResolvedValue(false)
+    stubComponents.worlds.hasWorldDeployPermission.mockResolvedValue(false)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(false)
+    stubComponents.sceneManager.isSceneOwner.mockResolvedValue(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
 
-    stubComponents.sceneAdminManager.addAdmin.resolves()
-    stubComponents.sceneAdminManager.listActiveAdmins.resolves([
+    stubComponents.sceneAdminManager.addAdmin.mockResolvedValue(undefined)
+    stubComponents.sceneAdminManager.listActiveAdmins.mockResolvedValue([
       {
         id: 'test-admin-id',
         place_id: testPlaceId,
@@ -115,9 +115,9 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
         created_at: Date.now()
       }
     ])
-    stubComponents.names.getNameOwner.resolves(null)
-    stubComponents.sceneBans.isUserBanned.resolves(false)
-    stubComponents.roomMetadataSync.addAdmin.resolves()
+    stubComponents.names.getNameOwner.mockResolvedValue(null)
+    stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
+    stubComponents.roomMetadataSync.addAdmin.mockResolvedValue(undefined)
   })
 
   afterEach(async () => {
@@ -127,8 +127,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   describe('when user is land owner', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
@@ -153,9 +153,9 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(response.status).toBe(204)
-      expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
-      expect(stubComponents.roomMetadataSync.addAdmin.calledOnce).toBe(true)
-      expect(stubComponents.roomMetadataSync.addAdmin.firstCall.args[1]).toBe(admin.authChain[0].payload.toLowerCase())
+      expect(stubComponents.sceneAdminManager.addAdmin).toHaveBeenCalledTimes(1)
+      expect(stubComponents.roomMetadataSync.addAdmin).toHaveBeenCalledTimes(1)
+      expect(stubComponents.roomMetadataSync.addAdmin.mock.calls[0][1]).toBe(admin.authChain[0].payload.toLowerCase())
 
       const result = await components.sceneAdminManager.listActiveAdmins({
         place_id: testPlaceId,
@@ -174,8 +174,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   describe('when user has world streaming permission', () => {
     beforeEach(() => {
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataWorld)
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
@@ -200,7 +200,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(response.status).toBe(204)
-      expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
+      expect(stubComponents.sceneAdminManager.addAdmin).toHaveBeenCalledTimes(1)
 
       const result = await components.sceneAdminManager.listActiveAdmins({
         place_id: testPlaceId,
@@ -218,15 +218,15 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   describe('when user has land operator permission', () => {
     beforeEach(() => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: true,
         updateOperator: false,
         updateManager: false,
         approvedForAll: false
       })
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
@@ -251,28 +251,28 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(response.status).toBe(204)
-      expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
+      expect(stubComponents.sceneAdminManager.addAdmin).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('when user lacks permissions', () => {
     beforeEach(() => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: false,
         updateOperator: false,
         updateManager: false,
         approvedForAll: false
       })
-      stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-      stubComponents.sceneAdminManager.isAdmin.resolves(false)
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(false)
+      stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(false)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
         hasLandLease: false
       })
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
     })
 
     it('should return 401 for unauthorized user', async () => {
@@ -297,17 +297,15 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   describe('when trying to add an admin who is already an admin', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
       stubComponents.sceneManager.getUserScenePermissions
-        .onFirstCall()
-        .resolves({
+        .mockResolvedValueOnce({
           owner: false,
           admin: true,
           hasExtendedPermissions: false,
           hasLandLease: false
         })
-        .onSecondCall()
-        .resolves({
+        .mockResolvedValueOnce({
           owner: false,
           admin: true,
           hasExtendedPermissions: false,
@@ -337,17 +335,15 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   describe('when trying to add a scene owner as admin', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
       stubComponents.sceneManager.getUserScenePermissions
-        .onFirstCall()
-        .resolves({
+        .mockResolvedValueOnce({
           owner: true,
           admin: false,
           hasExtendedPermissions: false,
           hasLandLease: false
         })
-        .onSecondCall()
-        .resolves({
+        .mockResolvedValueOnce({
           owner: true,
           admin: false,
           hasExtendedPermissions: false,
@@ -377,8 +373,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   describe('when adding admin by Decentraland name', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
@@ -392,8 +388,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       const testName = 'test-name.dcl.eth'
       const nameOwnerAddress = admin.authChain[0].payload
 
-      stubComponents.names.getNameOwner.resolves(nameOwnerAddress)
-      stubComponents.sceneAdminManager.listActiveAdmins.resolves([
+      stubComponents.names.getNameOwner.mockResolvedValue(nameOwnerAddress)
+      stubComponents.sceneAdminManager.listActiveAdmins.mockResolvedValue([
         {
           id: 'test-admin-id',
           place_id: testPlaceId,
@@ -418,8 +414,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(response.status).toBe(204)
-      expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
-      expect(stubComponents.names.getNameOwner.calledWith(testName)).toBe(true)
+      expect(stubComponents.sceneAdminManager.addAdmin).toHaveBeenCalledTimes(1)
+      expect(stubComponents.names.getNameOwner).toHaveBeenCalledWith(testName)
 
       const result = await components.sceneAdminManager.listActiveAdmins({
         place_id: testPlaceId,
@@ -437,14 +433,14 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   describe('when adding admin by name that does not exist', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
         hasLandLease: false
       })
-      stubComponents.names.getNameOwner.resolves(null)
+      stubComponents.names.getNameOwner.mockResolvedValue(null)
     })
 
     it('should return 404', async () => {
@@ -466,15 +462,15 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(response.status).toBe(404)
-      expect(stubComponents.names.getNameOwner.calledWith(testName)).toBe(true)
-      expect(stubComponents.sceneAdminManager.addAdmin.called).toBe(false)
+      expect(stubComponents.names.getNameOwner).toHaveBeenCalledWith(testName)
+      expect(stubComponents.sceneAdminManager.addAdmin).not.toHaveBeenCalled()
     })
   })
 
   describe('when both admin address and name are provided', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
@@ -485,7 +481,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
     it('should return 204 and prioritize admin address', async () => {
       const { localFetch } = components
 
-      stubComponents.sceneAdminManager.listActiveAdmins.resolves([
+      stubComponents.sceneAdminManager.listActiveAdmins.mockResolvedValue([
         {
           id: 'test-admin-id',
           place_id: testPlaceId,
@@ -511,8 +507,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(response.status).toBe(204)
-      expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
-      expect(stubComponents.names.getNameOwner.called).toBe(false) // Should not call names service since admin is prioritized
+      expect(stubComponents.sceneAdminManager.addAdmin).toHaveBeenCalledTimes(1)
+      expect(stubComponents.names.getNameOwner).not.toHaveBeenCalled() // Should not call names service since admin is prioritized
 
       const result = await components.sceneAdminManager.listActiveAdmins({
         place_id: testPlaceId,
@@ -561,14 +557,14 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   describe('when trying to add a banned user as admin', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
         hasLandLease: false
       })
-      stubComponents.sceneBans.isUserBanned.resolves(true)
+      stubComponents.sceneBans.isUserBanned.mockResolvedValue(true)
     })
 
     it('should return 400 when admin is banned from the scene', async () => {
@@ -588,8 +584,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(response.status).toBe(400)
-      expect(stubComponents.sceneBans.isUserBanned.calledOnce).toBe(true)
-      expect(stubComponents.sceneAdminManager.addAdmin.called).toBe(false)
+      expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledTimes(1)
+      expect(stubComponents.sceneAdminManager.addAdmin).not.toHaveBeenCalled()
     })
 
     it('should return 400 when admin by name is banned from the scene', async () => {
@@ -598,8 +594,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       const testName = 'banned-user.dcl.eth'
       const nameOwnerAddress = admin.authChain[0].payload
 
-      stubComponents.names.getNameOwner.resolves(nameOwnerAddress)
-      stubComponents.sceneBans.isUserBanned.resolves(true)
+      stubComponents.names.getNameOwner.mockResolvedValue(nameOwnerAddress)
+      stubComponents.sceneBans.isUserBanned.mockResolvedValue(true)
 
       const response = await makeRequest(
         localFetch,
@@ -615,9 +611,9 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(response.status).toBe(400)
-      expect(stubComponents.names.getNameOwner.calledWith(testName)).toBe(true)
-      expect(stubComponents.sceneBans.isUserBanned.calledOnce).toBe(true)
-      expect(stubComponents.sceneAdminManager.addAdmin.called).toBe(false)
+      expect(stubComponents.names.getNameOwner).toHaveBeenCalledWith(testName)
+      expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledTimes(1)
+      expect(stubComponents.sceneAdminManager.addAdmin).not.toHaveBeenCalled()
     })
 
     it('should check ban status with correct parameters for land scene', async () => {
@@ -636,14 +632,12 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
         owner
       )
 
-      expect(
-        stubComponents.sceneBans.isUserBanned.calledWith(admin.authChain[0].payload.toLowerCase(), {
-          sceneId: metadataLand.sceneId,
-          parcel: metadataLand.parcel,
-          realmName: metadataLand.realm.serverName,
-          isWorld: false
-        })
-      ).toBe(true)
+      expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledWith(admin.authChain[0].payload.toLowerCase(), {
+        sceneId: metadataLand.sceneId,
+        parcel: metadataLand.parcel,
+        realmName: metadataLand.realm.serverName,
+        isWorld: false
+      })
     })
 
     it('should check ban status with correct parameters for world scene', async () => {
@@ -664,28 +658,26 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
         owner
       )
 
-      expect(
-        stubComponents.sceneBans.isUserBanned.calledWith(admin.authChain[0].payload.toLowerCase(), {
-          sceneId: metadataWorld.sceneId,
-          parcel: metadataWorld.parcel,
-          realmName: metadataWorld.realm.serverName,
-          isWorld: true
-        })
-      ).toBe(true)
+      expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledWith(admin.authChain[0].payload.toLowerCase(), {
+        sceneId: metadataWorld.sceneId,
+        parcel: metadataWorld.parcel,
+        realmName: metadataWorld.realm.serverName,
+        isWorld: true
+      })
     })
   })
 
   describe('when trying to add a non-banned user as admin', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
         hasLandLease: false
       })
-      stubComponents.sceneBans.isUserBanned.resolves(false)
-      stubComponents.sceneAdminManager.listActiveAdmins.resolves([
+      stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
+      stubComponents.sceneAdminManager.listActiveAdmins.mockResolvedValue([
         {
           id: 'test-admin-id',
           place_id: testPlaceId,
@@ -714,8 +706,8 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(response.status).toBe(204)
-      expect(stubComponents.sceneBans.isUserBanned.calledOnce).toBe(true)
-      expect(stubComponents.sceneAdminManager.addAdmin.calledOnce).toBe(true)
+      expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledTimes(1)
+      expect(stubComponents.sceneAdminManager.addAdmin).toHaveBeenCalledTimes(1)
 
       const result = await components.sceneAdminManager.listActiveAdmins({
         place_id: testPlaceId,
@@ -733,7 +725,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   describe('when request payload has invalid admin address', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
     })
 
     it('should return 400', async () => {
@@ -758,7 +750,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
   describe('when request payload has neither admin address nor name', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
     })
 
     it('should return 400', async () => {

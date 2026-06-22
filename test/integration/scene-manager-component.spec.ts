@@ -12,19 +12,19 @@ test('SceneManagerComponent', ({ stubComponents }) => {
   let worldPlace: PlaceAttributes
 
   beforeEach(async () => {
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
-    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
-    stubComponents.worlds.getWorldParcelPermissions.resolves([])
-    stubComponents.lands.getLandPermissions.resolves({
+    stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(false)
+    stubComponents.worlds.hasWorldStreamingPermission.mockResolvedValue(false)
+    stubComponents.worlds.hasWorldDeployPermission.mockResolvedValue(false)
+    stubComponents.worlds.getWorldParcelPermissions.mockResolvedValue([])
+    stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: false,
       operator: false,
       updateOperator: false,
       updateManager: false,
       approvedForAll: false
     })
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.lands.hasLandLease.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(false)
+    stubComponents.lands.hasLandLease.mockResolvedValue(false)
 
     sceneManager = await createSceneManagerComponent({
       worlds: stubComponents.worlds,
@@ -48,13 +48,13 @@ test('SceneManagerComponent', ({ stubComponents }) => {
 
   describe('isSceneOwner', () => {
     it('should return true when user has world owner permission', async () => {
-      stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
+      stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(true)
       const result = await sceneManager.isSceneOwner(worldPlace, testAddress)
       expect(result).toBe(true)
     })
 
     it('should return true when user has land owner permission', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: true,
         operator: false,
         updateOperator: false,
@@ -73,7 +73,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
 
   describe('getUserScenePermissions', () => {
     it('should return owner=true if user is the owner of a world', async () => {
-      stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
+      stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(true)
       const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
       expect(result).toEqual({
         owner: true,
@@ -84,7 +84,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return admin=true if user is an admin of a world', async () => {
-      stubComponents.sceneAdminManager.isAdmin.resolves(true)
+      stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(true)
       const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
       expect(result).toEqual({
         owner: false,
@@ -95,7 +95,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return hasExtendedPermissions=true if user has streaming permission for a world', async () => {
-      stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
+      stubComponents.worlds.hasWorldStreamingPermission.mockResolvedValue(true)
       const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
       expect(result).toEqual({
         owner: false,
@@ -106,7 +106,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return hasExtendedPermissions=true if user has deploy permission for a world', async () => {
-      stubComponents.worlds.hasWorldDeployPermission.resolves(true)
+      stubComponents.worlds.hasWorldDeployPermission.mockResolvedValue(true)
       const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
       expect(result).toEqual({
         owner: false,
@@ -117,7 +117,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return hasExtendedPermissions as true if user is an operator of a scene', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: true,
         updateOperator: false,
@@ -135,7 +135,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return hasExtendedPermissions as true if user is an update operator of a scene', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: false,
         updateOperator: true,
@@ -153,7 +153,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return hasExtendedPermissions as true if user is an update manager of a scene', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: false,
         updateOperator: false,
@@ -171,7 +171,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return hasExtendedPermissions as true if user is approved for all of a scene', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: false,
         updateOperator: false,
@@ -189,7 +189,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return all false if user has no privileges for a scene', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: false,
         updateOperator: false,
@@ -217,7 +217,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return all false when getWorldParcelPermissions returns undefined (no permissions set, e.g. 404)', async () => {
-      stubComponents.worlds.getWorldParcelPermissions.resolves(undefined)
+      stubComponents.worlds.getWorldParcelPermissions.mockResolvedValue(undefined)
       const result = await sceneManager.getUserScenePermissions(worldPlace, testAddress)
       expect(result).toEqual({
         owner: false,
@@ -230,7 +230,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
 
   describe('isSceneOwnerOrAdmin', () => {
     it('should return true when user is owner', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: true,
         operator: false,
         updateOperator: false,
@@ -242,19 +242,19 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return true when user is admin', async () => {
-      stubComponents.sceneAdminManager.isAdmin.resolves(true)
+      stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(true)
       const result = await sceneManager.isSceneOwnerOrAdmin(scenePlace, testAddress)
       expect(result).toBe(true)
     })
 
     it('should return true when user has extended permissions from having world streaming permission', async () => {
-      stubComponents.worlds.hasWorldStreamingPermission.resolves(true)
+      stubComponents.worlds.hasWorldStreamingPermission.mockResolvedValue(true)
       const result = await sceneManager.isSceneOwnerOrAdmin(worldPlace, testAddress)
       expect(result).toBe(true)
     })
 
     it('should return true when user has extended permissions from having update manager permission', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: false,
         updateOperator: false,
@@ -266,7 +266,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return true when user has extended permissions from having operator permission', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: true,
         updateOperator: false,
@@ -278,7 +278,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return true when user has extended permissions from having update operator permission', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: false,
         updateOperator: true,
@@ -290,7 +290,7 @@ test('SceneManagerComponent', ({ stubComponents }) => {
     })
 
     it('should return true when user has extended permissions from having approved for all permission', async () => {
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: false,
         updateOperator: false,

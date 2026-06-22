@@ -28,16 +28,12 @@ test('GET /worlds/:worldName/parcels/:baseParcel/users/:address/ban-status', ({ 
     })
 
     it('should respond with a 401 and a message saying that the token is invalid', async () => {
-      const response = await makeRequest(
-        components.localFetch,
-        endpoint,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+      const response = await makeRequest(components.localFetch, endpoint, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-      )
+      })
 
       expect(response.status).toBe(401)
       expect(response.json()).resolves.toEqual({ error: 'Invalid authorization header' })
@@ -52,7 +48,7 @@ test('GET /worlds/:worldName/parcels/:baseParcel/users/:address/ban-status', ({ 
       token = 'aToken'
       worldPlaceId = worldName
 
-      stubComponents.places.getWorldScenePlace.resolves(
+      stubComponents.places.getWorldScenePlace.mockResolvedValue(
         createMockedWorldPlace({
           id: worldPlaceId,
           world_name: worldName,
@@ -76,16 +72,12 @@ test('GET /worlds/:worldName/parcels/:baseParcel/users/:address/ban-status', ({ 
       })
 
       it('should respond with a 200 and isBanned as true', async () => {
-        const response = await makeRequest(
-          components.localFetch,
-          endpoint,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
+        const response = await makeRequest(components.localFetch, endpoint, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`
           }
-        )
+        })
 
         expect(response.status).toBe(200)
         const body = await response.json()
@@ -95,16 +87,12 @@ test('GET /worlds/:worldName/parcels/:baseParcel/users/:address/ban-status', ({ 
 
     describe('and the user is not banned from the world', () => {
       it('should respond with a 200 and isBanned as false', async () => {
-        const response = await makeRequest(
-          components.localFetch,
-          endpoint,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
+        const response = await makeRequest(components.localFetch, endpoint, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`
           }
-        )
+        })
 
         expect(response.status).toBe(200)
         const body = await response.json()
@@ -114,20 +102,16 @@ test('GET /worlds/:worldName/parcels/:baseParcel/users/:address/ban-status', ({ 
 
     describe('and the places component throws an error', () => {
       beforeEach(() => {
-        stubComponents.places.getWorldScenePlace.rejects(new Error('Database error'))
+        stubComponents.places.getWorldScenePlace.mockRejectedValue(new Error('Database error'))
       })
 
       it('should respond with a 200 and isBanned as false (fail open)', async () => {
-        const response = await makeRequest(
-          components.localFetch,
-          endpoint,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
+        const response = await makeRequest(components.localFetch, endpoint, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`
           }
-        )
+        })
 
         expect(response.status).toBe(200)
         const body = await response.json()

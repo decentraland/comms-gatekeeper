@@ -70,33 +70,33 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       sceneId: 'test-scene',
       isWorld: false
     })
-    stubComponents.places.getPlaceByParcel.resolves({
+    stubComponents.places.getPlaceByParcel.mockResolvedValue({
       id: placeId,
       positions: ['10,20'],
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
-    stubComponents.lands.getLandPermissions.resolves({
+    stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: true,
       operator: false,
       updateOperator: false,
       updateManager: false,
       approvedForAll: false
     })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(false)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(false)
+    stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: true,
       admin: false,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
   })
 
   it('returns 200 with streaming access when user has land permission', async () => {
@@ -137,19 +137,19 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       sceneId: 'test-scene',
       isWorld: true
     })
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeWorldId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
-    stubComponents.lands.getLandPermissions.resolves({
+    stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: false,
       operator: false,
       updateOperator: false,
       updateManager: false,
       approvedForAll: false
     })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(true)
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: true,
       admin: false,
       hasExtendedPermissions: false,
@@ -180,16 +180,16 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
   it('returns 200 with streaming access when user is an admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandPermissions.resolves({
+    stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: false,
       operator: false,
       updateOperator: false,
       updateManager: false,
       approvedForAll: false
     })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(false)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(true)
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: true,
       hasExtendedPermissions: false,
@@ -220,22 +220,22 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandPermissions.resolves({
+    stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: false,
       operator: false,
       updateOperator: false,
       updateManager: false,
       approvedForAll: false
     })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(false)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(false)
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: false,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
 
     const response = await makeRequest(
       localFetch,
@@ -286,7 +286,9 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
   it('returns 400 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.rejects(new InvalidRequestError('Could not find scene information'))
+    stubComponents.places.getPlaceByParcel.mockRejectedValue(
+      new InvalidRequestError('Could not find scene information')
+    )
 
     const response = await makeRequest(
       localFetch,
@@ -318,7 +320,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
   it('returns 404 when streaming access is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneStreamAccessManager.getAccess.rejects(
+    stubComponents.sceneStreamAccessManager.getAccess.mockRejectedValue(
       new StreamingAccessNotFoundError('Streaming access not found')
     )
 

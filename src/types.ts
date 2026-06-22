@@ -3,8 +3,7 @@ import type {
   ILoggerComponent,
   IBaseComponent,
   IMetricsComponent,
-  ITracerComponent,
-  IFetchComponent as IWkcFetchComponent
+  ITracerComponent
 } from '@well-known-components/interfaces'
 import type { ICacheStorageComponent, IFetchComponent, IHttpServerComponent } from '@dcl/core-commons'
 import { IAnalyticsComponent } from '@dcl/analytics-component'
@@ -94,9 +93,9 @@ export type AppComponents = BaseComponents & {
 }
 
 export type TestComponents = BaseComponents & {
-  // createLocalFetchCompoment from @well-known-components/test-helpers returns the node-fetch-based
-  // interfaces IFetchComponent, so localFetch stays interfaces-typed (unlike components.fetch).
-  localFetch: IWkcFetchComponent
+  // createLocalFetchComponent from @dcl/test-helpers returns the @dcl/core-commons (native-fetch)
+  // IFetchComponent, matching components.fetch.
+  localFetch: IFetchComponent
   statusChecks: IBaseComponent
 }
 
