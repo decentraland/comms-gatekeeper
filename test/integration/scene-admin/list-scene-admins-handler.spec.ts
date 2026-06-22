@@ -104,27 +104,27 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    stubComponents.places.getPlaceByParcel.resolves({
+    stubComponents.places.getPlaceByParcel.mockResolvedValue({
       id: placeId,
       positions: ['10,20'],
       world: false
     } as PlaceAttributes)
 
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
     } as PlaceAttributes)
 
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
 
-    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
       admins: new Set(allAdminResults.filter((admin) => admin.canBeRemoved && 'id' in admin && 'place_id' in admin)),
       extraAddresses: new Set(allAdminResults.filter((admin) => !admin.canBeRemoved).map((admin) => admin.admin)),
       addresses: new Set(allAdminResults.map((admin) => admin.admin))
     })
 
-    stubComponents.names.getNamesFromAddresses.resolves({
+    stubComponents.names.getNamesFromAddresses.mockResolvedValue({
       [admin.authChain[0].payload]: '',
       [nonOwner.authChain[0].payload]: 'SirTest'
     })
@@ -158,7 +158,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -184,7 +184,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByParcel.resolves({
+    stubComponents.places.getPlaceByParcel.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -210,7 +210,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -286,7 +286,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 404 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.rejects(new PlaceNotFoundError('Could not find scene information'))
+    stubComponents.places.getPlaceByParcel.mockRejectedValue(new PlaceNotFoundError('Could not find scene information'))
 
     const response = await makeRequest(
       localFetch,
@@ -315,7 +315,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataLand)
-    stubComponents.places.getPlaceByParcel.resolves({
+    stubComponents.places.getPlaceByParcel.mockResolvedValue({
       id: placeId,
       positions: ['10,20']
     } as PlaceAttributes)
@@ -340,7 +340,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
@@ -364,7 +364,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 404 when the scene is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.rejects(new PlaceNotFoundError('Could not find scene information'))
+    stubComponents.places.getPlaceByParcel.mockRejectedValue(new PlaceNotFoundError('Could not find scene information'))
 
     const response = await makeRequest(
       localFetch,
@@ -383,7 +383,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -409,7 +409,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -455,13 +455,13 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     const expectedAdmins = [mockAdmin1, mockAdmin2]
 
-    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
       admins: new Set([mockAdmin1]),
       extraAddresses: new Set([mockAdmin2.admin]),
       addresses: new Set([mockAdmin1.admin, mockAdmin2.admin])
     })
 
-    stubComponents.names.getNamesFromAddresses.resolves({
+    stubComponents.names.getNamesFromAddresses.mockResolvedValue({
       [admin.authChain[0].payload]: 'TestUser#1234',
       [nonOwner.authChain[0].payload]: 'SirTest'
     })
@@ -489,13 +489,13 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const extraAddress2 = '0x2222222222222222222222222222222222222222'
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
     } as PlaceAttributes)
 
-    stubComponents.names.getNamesFromAddresses.resolves({
+    stubComponents.names.getNamesFromAddresses.mockResolvedValue({
       [admin.authChain[0].payload]: '',
       [nonOwner.authChain[0].payload]: 'SirTest',
       [extraAddress1]: 'ExtraUser1',
@@ -524,7 +524,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       }
     ]
 
-    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
       admins: new Set(
         expectedAdmins.filter((admin) => 'id' in admin && 'place_id' in admin) as unknown as Set<SceneAdmin>
       ),
@@ -551,7 +551,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -578,12 +578,12 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     const expectedAdmins = [mockAdmin1, mockAdmin2]
 
-    stubComponents.names.getNamesFromAddresses.resolves({
+    stubComponents.names.getNamesFromAddresses.mockResolvedValue({
       [admin.authChain[0].payload]: 'TestUser#1234',
       [nonOwner.authChain[0].payload]: 'SirTest'
     })
 
-    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
       admins: new Set([mockAdmin1]),
       extraAddresses: new Set([mockAdmin2.admin]),
       addresses: new Set([mockAdmin1.admin, mockAdmin2.admin])
@@ -608,7 +608,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 200 with a list of scene admins including land operators', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
       admins: new Set([]),
       extraAddresses: new Set(['0xOwnerAddress', '0xOperatorAddress']),
       addresses: new Set([admin.authChain[0].payload, '0xOwnerAddress', '0xOperatorAddress'])
@@ -631,13 +631,13 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       { admin: '0xOwnerAddress', canBeRemoved: false, name: '' },
       { admin: '0xOperatorAddress', canBeRemoved: false, name: '' }
     ])
-    expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses.calledOnce).toBe(true)
+    expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses).toHaveBeenCalledTimes(1)
   })
 
   it('returns 200 with a list of scene admins including only land owner when no operator exists', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
       admins: new Set([]),
       extraAddresses: new Set(['0xOwnerAddress']),
       addresses: new Set([admin.authChain[0].payload, '0xOwnerAddress'])
@@ -663,7 +663,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         name: ''
       }
     ])
-    expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses.calledOnce).toBe(true)
+    expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses).toHaveBeenCalledTimes(1)
   })
 
   it('returns 200 with empty names when no profiles are found for any admin', async () => {
@@ -682,13 +682,13 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       name: ''
     }
 
-    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
       admins: new Set([mockAdmin]),
       extraAddresses: new Set(),
       addresses: new Set([mockAdmin.admin])
     })
 
-    stubComponents.names.getNamesFromAddresses.resolves({})
+    stubComponents.names.getNamesFromAddresses.mockResolvedValue({})
 
     const response = await makeRequest(
       localFetch,
@@ -709,7 +709,9 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 500 when getAdminsAndExtraAddresses request fails', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.rejects(new Error('Failed to get admins and extra addresses'))
+    stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockRejectedValue(
+      new Error('Failed to get admins and extra addresses')
+    )
 
     const response = await makeRequest(
       localFetch,
@@ -722,7 +724,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     )
 
     expect(response.status).toBe(500)
-    expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses.calledOnce).toBe(true)
+    expect(stubComponents.sceneAdmins.getAdminsAndExtraAddresses).toHaveBeenCalledTimes(1)
   })
 
   describe('when the user has land lease permission', () => {
@@ -745,14 +747,14 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLandLease)
 
-      stubComponents.places.getPlaceByParcel.resolves({
+      stubComponents.places.getPlaceByParcel.mockResolvedValue({
         positions: [metadataLandLease.parcel],
         id: testPlaceId,
         world: false
       } as PlaceAttributes)
 
       // User is not owner, admin, or has extended permissions
-      stubComponents.lands.getLandPermissions.resolves({
+      stubComponents.lands.getLandPermissions.mockResolvedValue({
         owner: false,
         operator: false,
         updateOperator: false,
@@ -760,23 +762,23 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         approvedForAll: false
       })
 
-      stubComponents.sceneManager.getUserScenePermissions.resolves({
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
         owner: false,
         admin: false,
         hasExtendedPermissions: false,
         hasLandLease: true // User has land lease
       })
 
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true) // Should be true due to land lease
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true) // Should be true due to land lease
 
-      stubComponents.sceneAdminManager.isAdmin.resolves(false)
-      stubComponents.sceneManager.isSceneOwner.resolves(false)
+      stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(false)
+      stubComponents.sceneManager.isSceneOwner.mockResolvedValue(false)
 
       // Mock land lease component to return true for this user and parcel
-      stubComponents.lands.hasLandLease.resolves(true)
+      stubComponents.lands.hasLandLease.mockResolvedValue(true)
 
       // Mock getAuthorizations to return authorizations for the test parcel
-      stubComponents.lands.getAuthorizations.resolves({
+      stubComponents.lands.getAuthorizations.mockResolvedValue({
         authorizations: [
           {
             name: 'Test Land Lease',
@@ -788,7 +790,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         ]
       })
 
-      stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+      stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
         admins: new Set([
           {
             id: 'test-admin-id',
@@ -803,7 +805,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         addresses: new Set(['0x1234567890123456789012345678901234567890'])
       })
 
-      stubComponents.names.getNamesFromAddresses.resolves({
+      stubComponents.names.getNamesFromAddresses.mockResolvedValue({
         '0x1234567890123456789012345678901234567890': 'Test User'
       })
     })
@@ -849,29 +851,31 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataServer)
 
       // Mock config to return the server public key (admin's address)
-      stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey)
+      stubComponents.config.getString.mockImplementation(async (name: string) =>
+        name === 'AUTHORITATIVE_SERVER_ADDRESS' ? serverPublicKey : undefined
+      )
 
-      stubComponents.places.getPlaceByParcel.resolves({
+      stubComponents.places.getPlaceByParcel.mockResolvedValue({
         id: placeId,
         positions: ['10,20'],
         world: false
       } as PlaceAttributes)
 
       // Server is NOT owner/admin (this should be bypassed for server identity)
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
 
-      stubComponents.sceneAdmins.getAdminsAndExtraAddresses.resolves({
+      stubComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
         admins: new Set(allAdminResults.filter((a) => a.canBeRemoved && 'id' in a && 'place_id' in a)),
         extraAddresses: new Set(allAdminResults.filter((a) => !a.canBeRemoved).map((a) => a.admin)),
         addresses: new Set(allAdminResults.map((a) => a.admin))
       })
 
-      stubComponents.names.getNamesFromAddresses.resolves({
+      stubComponents.names.getNamesFromAddresses.mockResolvedValue({
         [admin.authChain[0].payload]: '',
         [nonOwner.authChain[0].payload]: 'SirTest'
       })
 
-      stubComponents.lands.getAuthorizations.resolves({ authorizations: [] })
+      stubComponents.lands.getAuthorizations.mockResolvedValue({ authorizations: [] })
     })
 
     it('should return 200 with scene admins without checking owner/admin permissions', async () => {
@@ -894,7 +898,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
       const body = await response.json()
       expect(Array.isArray(body)).toBe(true)
       // Verify isSceneOwnerOrAdmin was NOT called since server identity bypasses this check
-      expect(stubComponents.sceneManager.isSceneOwnerOrAdmin.called).toBe(false)
+      expect(stubComponents.sceneManager.isSceneOwnerOrAdmin).not.toHaveBeenCalled()
     })
 
     describe('and server identity matches case-insensitively', () => {
@@ -902,7 +906,9 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
       beforeEach(async () => {
         // Mock config to return uppercase server address
-        stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey.toUpperCase())
+        stubComponents.config.getString.mockImplementation(async (name: string) =>
+          name === 'AUTHORITATIVE_SERVER_ADDRESS' ? serverPublicKey.toUpperCase() : undefined
+        )
 
         metadataServerUpper = {
           ...metadataServer,
@@ -930,7 +936,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
         expect(response.status).toBe(200)
         // Verify isSceneOwnerOrAdmin was NOT called
-        expect(stubComponents.sceneManager.isSceneOwnerOrAdmin.called).toBe(false)
+        expect(stubComponents.sceneManager.isSceneOwnerOrAdmin).not.toHaveBeenCalled()
       })
     })
   })
@@ -941,13 +947,15 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
     beforeEach(async () => {
       // Mock config to return the server public key
-      stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(serverPublicKey)
+      stubComponents.config.getString.mockImplementation(async (name: string) =>
+        name === 'AUTHORITATIVE_SERVER_ADDRESS' ? serverPublicKey : undefined
+      )
     })
 
     it('should return 200 even for non-server non-admin users (endpoint is public)', async () => {
       const { localFetch } = components
 
-      stubComponents.lands.getAuthorizations.resolves({ authorizations: [] })
+      stubComponents.lands.getAuthorizations.mockResolvedValue({ authorizations: [] })
 
       const response = await makeRequest(
         localFetch,

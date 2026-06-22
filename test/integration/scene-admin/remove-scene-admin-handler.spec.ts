@@ -91,13 +91,13 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    stubComponents.places.getPlaceByParcel.resolves({
+    stubComponents.places.getPlaceByParcel.mockResolvedValue({
       id: placeId,
       positions: ['10,20'],
       owner: ownerAddress
     } as PlaceAttributes)
 
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeId,
       positions: [],
       world_name: 'test-world',
@@ -105,27 +105,27 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
       owner: ownerAddress
     } as PlaceAttributes)
 
-    stubComponents.lands.getLandPermissions.resolves({
+    stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: false,
       operator: false,
       updateOperator: false,
       updateManager: false,
       approvedForAll: false
     })
-    stubComponents.worlds.hasWorldStreamingPermission.resolves(false)
-    stubComponents.worlds.hasWorldDeployPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.worlds.hasWorldStreamingPermission.mockResolvedValue(false)
+    stubComponents.worlds.hasWorldDeployPermission.mockResolvedValue(false)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(false)
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: false,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
-    stubComponents.sceneManager.isSceneOwner.resolves(false)
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+    stubComponents.sceneManager.isSceneOwner.mockResolvedValue(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
 
-    stubComponents.sceneAdminManager.removeAdmin.resolves()
-    stubComponents.roomMetadataSync.removeAdmin.resolves()
+    stubComponents.sceneAdminManager.removeAdmin.mockResolvedValue(undefined)
+    stubComponents.roomMetadataSync.removeAdmin.mockResolvedValue(undefined)
   })
 
   afterEach(async () => {
@@ -136,14 +136,14 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 204 when successfully deactivating a scene admin', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: true,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
 
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(true)
 
     const response = await makeRequest(
       localFetch,
@@ -159,21 +159,21 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     )
 
     expect(response.status).toBe(204)
-    expect(stubComponents.roomMetadataSync.removeAdmin.calledOnce).toBe(true)
-    expect(stubComponents.roomMetadataSync.removeAdmin.firstCall.args[1]).toBe(adminAddress.toLowerCase())
+    expect(stubComponents.roomMetadataSync.removeAdmin).toHaveBeenCalledTimes(1)
+    expect(stubComponents.roomMetadataSync.removeAdmin.mock.calls[0][1]).toBe(adminAddress.toLowerCase())
   })
 
   it('returns 204 when an admin removes another admin', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: true,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
 
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(true)
 
     const response = await makeRequest(
       localFetch,
@@ -194,14 +194,14 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when trying to remove a non-existent admin', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: false,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
 
-    stubComponents.sceneAdminManager.isAdmin.resolves(false)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(false)
 
     const response = await makeRequest(
       localFetch,
@@ -222,7 +222,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when trying to remove the owner', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: true,
       admin: false,
       hasExtendedPermissions: false,
@@ -248,13 +248,13 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 401 when non-owner/non-admin tries to remove an admin', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: false,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
 
     const response = await makeRequest(
       localFetch,
@@ -275,7 +275,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when scene is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.resolves(null)
+    stubComponents.places.getPlaceByParcel.mockResolvedValue(null)
 
     const response = await makeRequest(
       localFetch,
@@ -316,22 +316,20 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     const { localFetch } = components
 
     stubComponents.sceneManager.getUserScenePermissions
-      .onFirstCall()
-      .resolves({
+      .mockResolvedValueOnce({
         owner: true,
         admin: false,
         hasExtendedPermissions: false,
         hasLandLease: false
       })
-      .onSecondCall()
-      .resolves({
+      .mockResolvedValueOnce({
         owner: true,
         admin: false,
         hasExtendedPermissions: false,
         hasLandLease: false
       })
 
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(true)
 
     const response = await makeRequest(
       localFetch,
@@ -356,15 +354,13 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     const { localFetch } = components
 
     stubComponents.sceneManager.getUserScenePermissions
-      .onFirstCall()
-      .resolves({
+      .mockResolvedValueOnce({
         owner: true,
         admin: false,
         hasExtendedPermissions: false,
         hasLandLease: false
       })
-      .onSecondCall()
-      .resolves({
+      .mockResolvedValueOnce({
         owner: false,
         admin: false,
         hasExtendedPermissions: true,
@@ -392,14 +388,14 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
 
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: true,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
 
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(true)
 
     const response = await makeRequest(
       localFetch,

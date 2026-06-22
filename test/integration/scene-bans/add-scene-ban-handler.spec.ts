@@ -81,12 +81,12 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       owner: owner.authChain[0].payload
     })
 
-    stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
-    stubComponents.places.getWorldScenePlace.resolves(mockedWorldPlace)
+    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
+    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
 
-    stubComponents.livekit.removeParticipant.resolves()
-    stubComponents.livekit.getRoomName.returns('test-room-name')
-    stubComponents.livekit.updateRoomMetadata.resolves()
+    stubComponents.livekit.removeParticipant.mockResolvedValue(undefined)
+    stubComponents.livekit.getRoomName.mockReturnValue('test-room-name')
+    stubComponents.livekit.updateRoomMetadata.mockResolvedValue(undefined)
   })
 
   afterEach(async () => {
@@ -95,8 +95,8 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
 
   describe('when user is land owner', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
     })
 
     it('should successfully ban a user from a land scene', async () => {
@@ -146,8 +146,8 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
         cleanup.trackInsert('scene_admin', { id: adminResult.rows[0].id })
       }
 
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
     })
 
     it('should successfully ban a user from a land scene', async () => {
@@ -182,8 +182,8 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
 
   describe('when user has land operator permission', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
     })
 
     it('should successfully ban a user from a land scene', async () => {
@@ -218,8 +218,8 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
 
   describe('when user is world owner', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
     })
 
     it('should successfully ban a user from a world', async () => {
@@ -254,8 +254,8 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
 
   describe('when user lacks permissions', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
     })
 
     it('should return 401 for unauthorized user', async () => {
@@ -284,8 +284,8 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
 
   describe('when trying to ban an already banned user', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
 
       const response = await makeRequest(
         components.localFetch,
@@ -337,9 +337,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
 
   describe('when room metadata update fails', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
-      stubComponents.livekit.updateRoomMetadata.rejects(new Error('Room metadata update failed'))
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+      stubComponents.livekit.updateRoomMetadata.mockRejectedValue(new Error('Room metadata update failed'))
     })
 
     it('should still save the ban in the database', async () => {
@@ -389,9 +389,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
         cleanup.trackInsert('scene_admin', { id: adminResult.rows[0].id })
       }
 
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
       userScenePermissions.admin = true
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
     })
 
     it('should return 400 when trying to ban an admin', async () => {
@@ -422,9 +422,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
 
   describe('when banning by name', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
-      stubComponents.names.getNameOwner.resolves(admin.authChain[0].payload)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+      stubComponents.names.getNameOwner.mockResolvedValue(admin.authChain[0].payload)
     })
 
     describe('from a land scene', () => {
@@ -493,8 +493,8 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       it('should prioritize banned_address', async () => {
         const { localFetch } = components
 
-        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-        stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+        stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
 
         const response = await makeRequest(
           localFetch,
@@ -527,9 +527,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
 
   describe('when name lookup fails', () => {
     beforeEach(() => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.sceneManager.getUserScenePermissions.resolves(userScenePermissions)
-      stubComponents.names.getNameOwner.resolves(null)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+      stubComponents.names.getNameOwner.mockResolvedValue(null)
     })
 
     it('should return 404 when trying to ban a non-existent name', async () => {

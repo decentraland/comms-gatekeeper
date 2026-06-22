@@ -76,29 +76,29 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlaceByParcel.resolves({
+    stubComponents.places.getPlaceByParcel.mockResolvedValue({
       id: placeId,
       positions: ['10,20'],
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.places.getWorldScenePlace.resolves({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeWorldId,
       world_name: 'name.dcl.eth',
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.sceneStreamAccessManager.getAccess.resolves(mockSceneStreamAccess)
-    stubComponents.sceneStreamAccessManager.removeAccess.resolves()
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
+    stubComponents.sceneStreamAccessManager.removeAccess.mockResolvedValue(undefined)
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: true,
       admin: false,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-    stubComponents.livekit.removeIngress.resolves(mockIngress)
-    stubComponents.notifications.sendNotificationType.resolves()
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+    stubComponents.livekit.removeIngress.mockResolvedValue(mockIngress)
+    stubComponents.notifications.sendNotificationType.mockResolvedValue(undefined)
   })
 
   afterEach(async () => {
@@ -120,10 +120,10 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
     )
 
     expect(response.status).toBe(204)
-    expect(stubComponents.sceneStreamAccessManager.removeAccess.calledOnce).toBe(true)
-    expect(stubComponents.sceneStreamAccessManager.removeAccess.calledWith(placeId)).toBe(true)
-    expect(stubComponents.livekit.removeIngress.calledOnce).toBe(true)
-    expect(stubComponents.livekit.removeIngress.calledWith(mockSceneStreamAccess.ingress_id)).toBe(true)
+    expect(stubComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledTimes(1)
+    expect(stubComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith(placeId)
+    expect(stubComponents.livekit.removeIngress).toHaveBeenCalledTimes(1)
+    expect(stubComponents.livekit.removeIngress).toHaveBeenCalledWith(mockSceneStreamAccess.ingress_id)
   })
 
   it('returns 204 when user has world permission and successfully removes streaming access', async () => {
@@ -147,16 +147,16 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
   it('returns 204 when user is an admin and successfully removes streaming access', async () => {
     const { localFetch } = components
 
-    stubComponents.lands.getLandPermissions.resolves({
+    stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: false,
       operator: false,
       updateOperator: false,
       updateManager: false,
       approvedForAll: false
     })
-    stubComponents.worlds.hasWorldOwnerPermission.resolves(false)
-    stubComponents.sceneAdminManager.isAdmin.resolves(true)
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.worlds.hasWorldOwnerPermission.mockResolvedValue(false)
+    stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(true)
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: true,
       hasExtendedPermissions: false,
@@ -179,13 +179,13 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
   it('returns 401 when user is not owner or admin', async () => {
     const { localFetch } = components
 
-    stubComponents.sceneManager.getUserScenePermissions.resolves({
+    stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: false,
       admin: false,
       hasExtendedPermissions: false,
       hasLandLease: false
     })
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
 
     const response = await makeRequest(
       localFetch,
@@ -236,7 +236,9 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
   it('returns 400 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.rejects(new InvalidRequestError('Could not find scene information'))
+    stubComponents.places.getPlaceByParcel.mockRejectedValue(
+      new InvalidRequestError('Could not find scene information')
+    )
 
     const response = await makeRequest(
       localFetch,

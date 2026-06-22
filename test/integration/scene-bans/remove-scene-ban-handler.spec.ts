@@ -73,13 +73,13 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
       owner: owner.authChain[0].payload
     })
 
-    stubComponents.places.getPlaceByParcel.resolves(mockedPlace)
-    stubComponents.places.getWorldScenePlace.resolves(mockedWorldPlace)
-    stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-    stubComponents.sceneBanManager.removeBan.resolves()
-    stubComponents.livekit.getRoomName.returns('test-room-name')
-    stubComponents.livekit.updateRoomMetadata.resolves()
-    stubComponents.sceneBanManager.listBannedAddresses.resolves([])
+    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
+    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
+    stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+    stubComponents.sceneBanManager.removeBan.mockResolvedValue(undefined)
+    stubComponents.livekit.getRoomName.mockReturnValue('test-room-name')
+    stubComponents.livekit.updateRoomMetadata.mockResolvedValue(undefined)
+    stubComponents.sceneBanManager.listBannedAddresses.mockResolvedValue([])
   })
 
   afterEach(async () => {
@@ -88,7 +88,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
 
   describe('when user is an owner or admin', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
     })
 
     describe('and is trying to unban a user from a land scene', () => {
@@ -167,7 +167,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
 
     describe('when room metadata update fails', () => {
       beforeEach(async () => {
-        stubComponents.livekit.updateRoomMetadata.rejects(new Error('Room metadata update failed'))
+        stubComponents.livekit.updateRoomMetadata.mockRejectedValue(new Error('Room metadata update failed'))
       })
 
       it('should not return error to avoid breaking the client flow', async () => {
@@ -193,7 +193,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
 
   describe('when user is not owner or admin', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(false)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
     })
 
     it('should return 401', async () => {
@@ -218,7 +218,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
 
   describe('when handling invalid requests', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
     })
 
     it('should return 400 for invalid banned_address', async () => {
@@ -290,7 +290,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
 
   describe('when unbanning a non-existent ban', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
     })
 
     it('should still return 204 (idempotent operation)', async () => {
@@ -316,8 +316,8 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
 
   describe('when unbanning by name', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.names.getNameOwner.resolves(nonOwner.authChain[0].payload)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.names.getNameOwner.mockResolvedValue(nonOwner.authChain[0].payload)
     })
 
     describe('from a land scene', () => {
@@ -408,7 +408,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
       it('should prioritize banned_address when both are provided', async () => {
         const { localFetch } = components
 
-        stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
 
         // First, add a ban to remove
         await components.sceneBanManager.addBan(newBan)
@@ -437,8 +437,8 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
 
   describe('when name lookup fails during unban', () => {
     beforeEach(async () => {
-      stubComponents.sceneManager.isSceneOwnerOrAdmin.resolves(true)
-      stubComponents.names.getNameOwner.resolves(null)
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      stubComponents.names.getNameOwner.mockResolvedValue(null)
     })
 
     it('should return 404 when trying to unban a non-existent name', async () => {

@@ -31,16 +31,18 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
 
     // Set up component mocks
-    stubComponents.config.getString.withArgs('AUTHORITATIVE_SERVER_ADDRESS').resolves(mockServerPublicKey)
-    stubComponents.denyList.isDenylisted.resolves(false)
-    stubComponents.livekit.isLocalPreview.returns(false)
-    stubComponents.livekit.getSceneRoomName.resolves('scene-room-name')
-    stubComponents.livekit.getWorldRoomName.resolves('world-room-name')
-    stubComponents.livekit.generateCredentials.resolves({
+    stubComponents.config.getString.mockImplementation(async (name: string) =>
+      name === 'AUTHORITATIVE_SERVER_ADDRESS' ? mockServerPublicKey : undefined
+    )
+    stubComponents.denyList.isDenylisted.mockResolvedValue(false)
+    stubComponents.livekit.isLocalPreview.mockReturnValue(false)
+    stubComponents.livekit.getSceneRoomName.mockReturnValue('scene-room-name')
+    stubComponents.livekit.getWorldRoomName.mockReturnValue('world-room-name')
+    stubComponents.livekit.generateCredentials.mockResolvedValue({
       url: 'wss://livekit.example.com',
       token: 'mock-token'
     })
-    stubComponents.livekit.buildConnectionUrl.returns('wss://livekit.example.com?token=mock-token')
+    stubComponents.livekit.buildConnectionUrl.mockReturnValue('wss://livekit.example.com?token=mock-token')
   })
 
   afterEach(() => {
@@ -50,7 +52,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
 
   describe('when user is blacklisted', () => {
     beforeEach(() => {
-      stubComponents.denyList.isDenylisted.resolves(true)
+      stubComponents.denyList.isDenylisted.mockResolvedValue(true)
     })
 
     it('should respond with 401 unauthorized', async () => {
@@ -159,7 +161,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
       validateResult.identity = 'any-identity'
       validateResult.realm.serverName = 'LocalPreview'
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
-      stubComponents.livekit.isLocalPreview.returns(true)
+      stubComponents.livekit.isLocalPreview.mockReturnValue(true)
     })
 
     it('should allow any identity for LocalPreview realm', async () => {
@@ -197,7 +199,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
 
   describe('when livekit generateCredentials fails', () => {
     beforeEach(() => {
-      stubComponents.livekit.generateCredentials.rejects(new Error('Livekit connection failed'))
+      stubComponents.livekit.generateCredentials.mockRejectedValue(new Error('Livekit connection failed'))
     })
 
     it('should respond with 500 error', async () => {
