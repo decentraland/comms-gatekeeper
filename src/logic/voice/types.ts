@@ -15,15 +15,24 @@ export interface IVoiceComponent {
    * @param userAddress - The address of the user that left the room.
    * @param roomName - The name of the room the user left.
    * @param disconnectReason - The reason the user left the room.
+   * @param sid - The LiveKit session id of the connection that left.
+   * @param leaveEventTimeMs - When the leave actually happened (LiveKit event time), in ms.
    */
-  handleParticipantLeft(userAddress: string, roomName: string, disconnectReason: DisconnectReason): Promise<void>
+  handleParticipantLeft(
+    userAddress: string,
+    roomName: string,
+    disconnectReason: DisconnectReason,
+    sid?: string,
+    leaveEventTimeMs?: number
+  ): Promise<void>
 
   /**
    * Handles the event when a participant joins a room.
    * @param userAddress - The address of the user that joined the room.
    * @param roomName - The name of the room the user joined.
+   * @param sid - The LiveKit session id of the joining connection.
    */
-  handleParticipantJoined(userAddress: string, roomName: string): Promise<void>
+  handleParticipantJoined(userAddress: string, roomName: string, sid?: string): Promise<void>
 
   /**
    * Generates credentials for a private voice chat room.

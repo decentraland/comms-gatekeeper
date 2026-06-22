@@ -24,6 +24,9 @@ export interface CommunityVoiceChatUser {
   isModerator: boolean
   joinedAt: number
   statusUpdatedAt: number
+  // The LiveKit participant session id of the user's current connection.
+  // Null while the user has not connected yet (or is reconnecting after a rejoin).
+  sid?: string | null
 }
 
 export interface IVoiceDBComponent {
@@ -123,8 +126,14 @@ export interface IVoiceDBComponent {
    * @param userAddress - The address of the user to update the status for.
    * @param roomName - The name of the community room.
    * @param status - The new status of the user.
+   * @param sid - The LiveKit session id to record for the user (optional).
    */
-  updateCommunityUserStatus: (userAddress: string, roomName: string, status: VoiceChatUserStatus) => Promise<void>
+  updateCommunityUserStatus: (
+    userAddress: string,
+    roomName: string,
+    status: VoiceChatUserStatus,
+    sid?: string
+  ) => Promise<void>
 
   /**
    * Gets users in a community voice chat room.

@@ -348,10 +348,15 @@ describe('Voice Logic Component', () => {
       voiceDB.updateCommunityUserStatus = updateCommunityUserStatusMock
     })
 
-    it('should update user status to connected', async () => {
-      await voiceComponent.handleParticipantJoined(userAddress, roomName)
+    it('should update user status to connected and record the session id', async () => {
+      await voiceComponent.handleParticipantJoined(userAddress, roomName, 'PA_session_1')
 
-      expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(userAddress, roomName, VoiceChatUserStatus.Connected)
+      expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
+        userAddress,
+        roomName,
+        VoiceChatUserStatus.Connected,
+        'PA_session_1'
+      )
     })
   })
 
@@ -388,6 +393,151 @@ describe('Voice Logic Component', () => {
         expect(getCommunityUsersInRoomMock).not.toHaveBeenCalled()
         expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
         expect(deleteRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('when the left event comes from a previous session (stale by sid)', () => {
+      beforeEach(() => {
+        // The user already left and rejoined: the room tracks a new session id, different
+        // from the one reported by this delayed leave event.
+        getCommunityUsersInRoomMock.mockResolvedValue([
+          {
+            address: userAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now(),
+            sid: 'PA_new_session'
+          }
+        ])
+      })
+
+      it('should ignore the stale leave without disconnecting the user or destroying the room', async () => {
+        await voiceComponent.handleParticipantLeft(
+          userAddress,
+          roomName,
+          DisconnectReason.CLIENT_INITIATED,
+          'PA_old_session',
+          Date.now()
+        )
+
+        expect(updateCommunityUserStatusMock).not.toHaveBeenCalled()
+        expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('when the user state changed after the leave happened (stale by timestamp)', () => {
+      let leaveEventTimeMs: number
+
+      beforeEach(() => {
+        leaveEventTimeMs = 1_000_000
+        // The user rejoined (new session sid not registered yet) and their status was
+        // updated AFTER the moment this leave actually happened.
+        getCommunityUsersInRoomMock.mockResolvedValue([
+          {
+            address: userAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.NotConnected,
+            joinedAt: leaveEventTimeMs + 5_000,
+            statusUpdatedAt: leaveEventTimeMs + 5_000,
+            sid: null
+          }
+        ])
+      })
+
+      it('should ignore the stale leave without disconnecting the user or destroying the room', async () => {
+        await voiceComponent.handleParticipantLeft(
+          userAddress,
+          roomName,
+          DisconnectReason.CLIENT_INITIATED,
+          undefined,
+          leaveEventTimeMs
+        )
+
+        expect(updateCommunityUserStatusMock).not.toHaveBeenCalled()
+        expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('when the user left within the timestamp skew window (genuine immediate leave)', () => {
+      let leaveEventTimeMs: number
+
+      beforeEach(() => {
+        leaveEventTimeMs = 1_000_000
+        // sid not registered and the state was last updated just before the leave (within
+        // the skew tolerance): this is a genuine leave, not a stale event, so it must be
+        // processed normally rather than ignored.
+        getCommunityUsersInRoomMock.mockResolvedValue([
+          {
+            address: userAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: leaveEventTimeMs - 5_000,
+            statusUpdatedAt: leaveEventTimeMs - 5_000,
+            sid: null
+          }
+        ])
+        getCommunityVoiceChatParticipantCountMock.mockResolvedValue(1)
+        publishMessageMock.mockResolvedValue(undefined)
+      })
+
+      it('should process the leave and destroy the room when the last moderator leaves', async () => {
+        await voiceComponent.handleParticipantLeft(
+          userAddress,
+          roomName,
+          DisconnectReason.CLIENT_INITIATED,
+          undefined,
+          leaveEventTimeMs
+        )
+
+        expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
+          userAddress,
+          roomName,
+          VoiceChatUserStatus.Disconnected
+        )
+        expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+        expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
+      })
+    })
+
+    describe('when the left event matches the current session (not stale)', () => {
+      beforeEach(() => {
+        getCommunityUsersInRoomMock.mockResolvedValue([
+          {
+            address: userAddress,
+            roomName,
+            isModerator: true,
+            status: VoiceChatUserStatus.Connected,
+            joinedAt: Date.now(),
+            statusUpdatedAt: Date.now(),
+            sid: 'PA_current_session'
+          }
+        ])
+        getCommunityVoiceChatParticipantCountMock.mockResolvedValue(1)
+        publishMessageMock.mockResolvedValue(undefined)
+      })
+
+      it('should disconnect the user and destroy the room when the last moderator leaves', async () => {
+        await voiceComponent.handleParticipantLeft(
+          userAddress,
+          roomName,
+          DisconnectReason.CLIENT_INITIATED,
+          'PA_current_session',
+          Date.now()
+        )
+
+        expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
+          userAddress,
+          roomName,
+          VoiceChatUserStatus.Disconnected
+        )
+        expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+        expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
       })
     })
 

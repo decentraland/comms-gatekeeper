@@ -82,7 +82,8 @@ describe('Participant Joined Handler', () => {
           name: roomName
         },
         participant: {
-          identity: userAddress
+          identity: userAddress,
+          sid: 'PA_joined_session'
         }
       } as unknown as WebhookEvent
     })
@@ -110,7 +111,7 @@ describe('Participant Joined Handler', () => {
       it('should call the participant joined handler', async () => {
         await handler.handle(webhookEvent)
 
-        expect(handleParticipantJoinedMock).toHaveBeenCalledWith(userAddress, roomName)
+        expect(handleParticipantJoinedMock).toHaveBeenCalledWith(userAddress, roomName, 'PA_joined_session')
       })
 
       it('should call roomMetadataSync.updateRoomMetadataForRoom', async () => {
@@ -361,7 +362,11 @@ describe('Participant Joined Handler', () => {
       it('should call the voice handler for community voice chat rooms', async () => {
         await handler.handle(webhookEvent)
 
-        expect(handleParticipantJoinedMock).toHaveBeenCalledWith(userAddress, webhookEvent.room!.name)
+        expect(handleParticipantJoinedMock).toHaveBeenCalledWith(
+          userAddress,
+          webhookEvent.room!.name,
+          'PA_joined_session'
+        )
       })
     })
 
@@ -570,7 +575,7 @@ describe('Participant Joined Handler', () => {
           room: roomName,
           address: userAddress
         })
-        expect(handleParticipantJoinedMock).toHaveBeenCalledWith(userAddress, roomName)
+        expect(handleParticipantJoinedMock).toHaveBeenCalledWith(userAddress, roomName, 'PA_joined_session')
       })
     })
 

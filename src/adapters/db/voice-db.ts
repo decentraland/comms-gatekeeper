@@ -288,29 +288,41 @@ export async function createVoiceDBComponent({
   ): Promise<void> {
     const now = Date.now()
 
-    // Use ON CONFLICT to handle insert or update in a single query
+    // Use ON CONFLICT to handle insert or update in a single query.
+    // sid is reset to NULL: this represents a brand new (pending) LiveKit session. It is
+    // filled in once the participant_joined webhook arrives for the new connection, which
+    // lets later "left" webhooks from the previous session be detected as stale.
     const query = SQL`
-      INSERT INTO community_voice_chat_users (address, room_name, is_moderator, status, joined_at, status_updated_at) 
-      VALUES (${userAddress}, ${roomName}, ${isModerator}, ${VoiceChatUserStatus.NotConnected}, ${now}, ${now}) 
-      ON CONFLICT (address, room_name) DO UPDATE SET 
-        status = ${VoiceChatUserStatus.NotConnected}, 
-        status_updated_at = ${now}, 
-        is_moderator = ${isModerator}
+      INSERT INTO community_voice_chat_users (address, room_name, is_moderator, status, joined_at, status_updated_at, sid)
+      VALUES (${userAddress}, ${roomName}, ${isModerator}, ${VoiceChatUserStatus.NotConnected}, ${now}, ${now}, ${null})
+      ON CONFLICT (address, room_name) DO UPDATE SET
+        status = ${VoiceChatUserStatus.NotConnected},
+        status_updated_at = ${now},
+        is_moderator = ${isModerator},
+        sid = ${null}
     `
     await database.query(query)
   }
 
   /**
    * Updates the status of a user in a community room.
+   * When a sid is provided, the user's current session id is updated as well (used when
+   * a participant_joined webhook confirms the connection for a given LiveKit session).
    */
   async function updateCommunityUserStatus(
     userAddress: string,
     roomName: string,
-    status: VoiceChatUserStatus
+    status: VoiceChatUserStatus,
+    sid?: string
   ): Promise<void> {
     const now = Date.now()
-    const query = SQL`UPDATE community_voice_chat_users 
-                      SET status = ${status}, status_updated_at = ${now} 
+    const query =
+      sid !== undefined
+        ? SQL`UPDATE community_voice_chat_users
+                      SET status = ${status}, status_updated_at = ${now}, sid = ${sid}
+                      WHERE address = ${userAddress} AND room_name = ${roomName}`
+        : SQL`UPDATE community_voice_chat_users
+                      SET status = ${status}, status_updated_at = ${now}
                       WHERE address = ${userAddress} AND room_name = ${roomName}`
     await database.query(query)
   }
@@ -327,7 +339,8 @@ export async function createVoiceDBComponent({
       isModerator: row.is_moderator,
       status: row.status,
       joinedAt: Number(row.joined_at),
-      statusUpdatedAt: Number(row.status_updated_at)
+      statusUpdatedAt: Number(row.status_updated_at),
+      sid: row.sid ?? null
     }))
   }
 
