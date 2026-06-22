@@ -99,9 +99,36 @@ export async function createLivekitComponent(
       canPublishSources
     })
 
+    const jwt = await token.toJwt()
+
+    if (roomId.startsWith(COMMUNITY_VOICE_CHAT_ROOM_PREFIX)) {
+      try {
+        const encodedPayload = jwt.split('.')[1]
+        const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as {
+          nbf?: number
+          exp?: number
+        }
+
+        logger.info('Generated community voice chat token', {
+          identity,
+          roomId,
+          nbf: payload.nbf,
+          exp: payload.exp,
+          canPublish: String(permissions.canPublish ?? true),
+          forPreview: String(forPreview)
+        })
+      } catch (error) {
+        logger.warn('Failed to inspect generated community voice chat token timestamps', {
+          identity,
+          roomId,
+          error: isErrorWithMessage(error) ? error.message : 'Unknown error'
+        })
+      }
+    }
+
     return {
       url: settings.host,
-      token: await token.toJwt()
+      token: jwt
     }
   }
 

@@ -1080,10 +1080,15 @@
   resolved "https://registry.npmjs.org/@bcoe/v8-coverage/-/v8-coverage-0.2.3.tgz"
   integrity sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==
 
-"@bufbuild/protobuf@^1.10.0", "@bufbuild/protobuf@^1.7.2":
+"@bufbuild/protobuf@^1.10.0":
   version "1.10.0"
   resolved "https://registry.npmjs.org/@bufbuild/protobuf/-/protobuf-1.10.0.tgz"
   integrity sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==
+
+"@bufbuild/protobuf@^1.10.1":
+  version "1.10.1"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protobuf/-/protobuf-1.10.1.tgz#1d76d15290c0212076c15ede94d15157ba0c6344"
+  integrity sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==
 
 "@cspotcode/source-map-support@^0.8.0":
   version "0.8.1"
@@ -1609,10 +1614,10 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@livekit/protocol@^1.36.1":
-  version "1.36.1"
-  resolved "https://registry.npmjs.org/@livekit/protocol/-/protocol-1.36.1.tgz"
-  integrity sha512-nN3QnITAQ5yXk7UKfotH7CRWIlEozNWeKVyFJ0/+dtSzvWP/ib+10l1DDnRYi3A1yICJOGAKFgJ5d6kmi1HCUA==
+"@livekit/protocol@^1.46.3":
+  version "1.48.0"
+  resolved "https://registry.yarnpkg.com/@livekit/protocol/-/protocol-1.48.0.tgz#74d44d65fb049e33c927a6ed46b673cb0386b9ab"
+  integrity sha512-fYHYgltH6YavAsokl3qsHLkBdQeKCl4UORVTub5crS3t8JtKFZ0uinHDFQ+XXdNKS6Ub9gcOjV+UHcDiqnWXoQ==
   dependencies:
     "@bufbuild/protobuf" "^1.10.0"
 
@@ -4614,13 +4619,13 @@ lines-and-columns@^1.1.6:
   resolved "https://registry.npmjs.org/lines-and-columns/-/lines-and-columns-1.2.4.tgz"
   integrity sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg==
 
-livekit-server-sdk@^2.12.0:
-  version "2.12.0"
-  resolved "https://registry.npmjs.org/livekit-server-sdk/-/livekit-server-sdk-2.12.0.tgz"
-  integrity sha512-6i2l0Ja1yhYvCXqU9wZ3SlWPEm1pYXpSJbpmT3sN0UWS61+jF6qkVY4AeSRQ53w5zrgzLBIyDwooBEMxz7XyMw==
+livekit-server-sdk@2.15.4:
+  version "2.15.4"
+  resolved "https://registry.yarnpkg.com/livekit-server-sdk/-/livekit-server-sdk-2.15.4.tgz#01dcbd4fe79ce822f536bd1f876c2f6f9d8d7d01"
+  integrity sha512-L/Ynu5zH1Qjfifmk3LnymL2JpvtisMFCM2wf7iM6H42WZRx6yvRECXa0hiK9/zi7br8d1x/a7fQIw1yJ/bneOA==
   dependencies:
-    "@bufbuild/protobuf" "^1.7.2"
-    "@livekit/protocol" "^1.36.1"
+    "@bufbuild/protobuf" "^1.10.1"
+    "@livekit/protocol" "^1.46.3"
     camelcase-keys "^9.0.0"
     jose "^5.1.2"
 

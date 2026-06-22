@@ -1,5 +1,12 @@
-import { RoomServiceClient, Room, AccessToken, IngressClient, WebhookReceiver, ParticipantInfo } from 'livekit-server-sdk'
-import { createLivekitComponent } from '../../src/adapters/livekit'
+import {
+  RoomServiceClient,
+  Room,
+  AccessToken,
+  IngressClient,
+  WebhookReceiver,
+  ParticipantInfo
+} from 'livekit-server-sdk'
+import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX, createLivekitComponent } from '../../src/adapters/livekit'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 
 let livekitComponent: ILivekitComponent
@@ -521,6 +528,43 @@ describe('when generating credentials', () => {
       expect(result.token).toBe('mock-jwt-token')
       expect(accessTokenToJwtSpy).toHaveBeenCalled()
     })
+
+    it('should generate tokens whose nbf matches their issuance time', async () => {
+      accessTokenToJwtSpy.mockRestore()
+      const beforeIssuance = Math.floor(Date.now() / 1000)
+
+      const result = await livekitComponent.generateCredentials(identity, roomId, permissions, false)
+      const afterIssuance = Math.floor(Date.now() / 1000)
+      const payload = JSON.parse(Buffer.from(result.token.split('.')[1], 'base64url').toString('utf8')) as {
+        nbf?: number
+      }
+
+      expect(payload.nbf).toBeGreaterThanOrEqual(beforeIssuance)
+      expect(payload.nbf).toBeLessThanOrEqual(afterIssuance)
+    })
+
+    it('should log community token timestamps without exposing the token', async () => {
+      const now = Math.floor(Date.now() / 1000)
+      const payload = Buffer.from(JSON.stringify({ nbf: now, exp: now + 300 })).toString('base64url')
+      accessTokenToJwtSpy.mockResolvedValue(`header.${payload}.signature`)
+
+      await livekitComponent.generateCredentials(
+        identity,
+        `${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-community-id`,
+        permissions,
+        false
+      )
+
+      expect(loggerInfoSpy).toHaveBeenCalledWith('Generated community voice chat token', {
+        identity,
+        roomId: `${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-community-id`,
+        nbf: now,
+        exp: now + 300,
+        canPublish: 'true',
+        forPreview: 'false'
+      })
+      expect(JSON.stringify(loggerInfoSpy.mock.calls)).not.toContain('signature')
+    })
   })
 
   describe('for preview environment', () => {
@@ -1041,10 +1085,7 @@ describe('when removing a participant from all rooms', () => {
 
   describe('when no room contains the target participant', () => {
     beforeEach(() => {
-      listRoomsSpy.mockResolvedValue([
-        { name: 'scene-realm1:scene1' } as Room,
-        { name: 'island-island1' } as Room
-      ])
+      listRoomsSpy.mockResolvedValue([{ name: 'scene-realm1:scene1' } as Room, { name: 'island-island1' } as Room])
       // Both rooms have other participants but not the target one.
       listParticipantsSpy.mockResolvedValue([{ identity: '0xsomeoneelse' } as ParticipantInfo])
     })
