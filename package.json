@@ -58,7 +58,7 @@
     "@dcl/analytics-component": "^1.0.3",
     "@dcl/core-commons": "^0.10.1",
     "@dcl/crypto": "^3.4.5",
-    "@dcl/crypto-middleware": "^4.0.0",
+    "@dcl/crypto-middleware": "^4.1.0",
     "@dcl/features-component": "^1.0.1",
     "@dcl/http-commons": "^2.0.0",
     "@dcl/http-requests-logger-component": "^1.0.0",
