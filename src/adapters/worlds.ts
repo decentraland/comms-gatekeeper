@@ -40,6 +40,7 @@ export async function createWorldsComponent(
     })
 
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
       logger.warn(`Failed to fetch world scene for ${worldName} at pointer ${pointer}: HTTP ${response.status}`)
       return undefined
     }
@@ -123,6 +124,7 @@ export async function createWorldsComponent(
     const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/permissions/${permissionName}/address/${address.toLowerCase()}/parcels`
     const response = await fetch.fetch(url)
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
       if (response.status === 404) {
         return undefined
       }
@@ -153,6 +155,7 @@ export async function createWorldsComponent(
     })
 
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
       throw new Error(`Failed to fetch parcel permission addresses: HTTP ${response.status}`)
     }
 
@@ -170,6 +173,7 @@ export async function createWorldsComponent(
     const response = await fetch.fetch(url)
 
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
       throw new InvalidRequestError(`Failed to fetch world about for ${worldName}: HTTP ${response.status}`)
     }
 

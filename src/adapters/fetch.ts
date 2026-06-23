@@ -27,6 +27,9 @@ export async function cachedFetchComponent(
           const response = await fetch.fetch(url)
 
           if (!response.ok) {
+            // Release the undici response body before discarding it on the error path,
+            // otherwise the socket stays checked out of the pool with its bytes buffered.
+            await response.body?.cancel().catch(() => undefined)
             throw new Error(`Error getting ${url}, status: ${response.status}`)
           }
 

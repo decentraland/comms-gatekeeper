@@ -16,6 +16,7 @@ export async function createSocialComponent(
   async function getUserPrivacySettings(address: string): Promise<PrivacySettings> {
     const response = await fetch(`${socialServiceUrl}/v1/users/${address}/privacy-settings`)
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
       logger.error(`Failed to fetch privacy settings for ${address}. Status: ${response.status}`)
       throw new Error(`Failed to fetch privacy settings for ${address}.`)
     }

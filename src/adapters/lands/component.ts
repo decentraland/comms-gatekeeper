@@ -74,6 +74,7 @@ export async function createLandsComponent(
   async function fetchAuthorizationsFromUpstream(): Promise<LandLeaseAuthorizations> {
     const response = await fetch.fetch(LEASE_AUTHORIZATIONS_URL)
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
       throw new Error(`Failed to fetch authorizations: ${response.status} ${response.statusText}`)
     }
 

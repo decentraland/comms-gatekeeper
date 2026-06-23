@@ -19,7 +19,7 @@ export async function createNotificationsComponent({
 
   async function sendNotifications(notifications: Notification[]): Promise<void> {
     logger.info(`Sending notifications to ${notifications.map((notification) => notification.address).join(', ')}`)
-    await fetch.fetch(`${notificationServiceUrl}/notifications`, {
+    const response = await fetch.fetch(`${notificationServiceUrl}/notifications`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -27,6 +27,9 @@ export async function createNotificationsComponent({
       },
       body: JSON.stringify(notifications)
     })
+    // Fire-and-forget: the response body is never read, so release it to avoid
+    // leaving the undici socket checked out of the pool with its bytes buffered.
+    await response.body?.cancel().catch(() => undefined)
   }
 
   async function sendNotificationType(

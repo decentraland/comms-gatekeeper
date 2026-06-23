@@ -136,3 +136,23 @@ describe('when the response is not ok', () => {
     })
   })
 })
+
+describe('when the response is not ok and exposes a cancellable body', () => {
+  let cancelMock: jest.Mock
+
+  beforeEach(() => {
+    cancelMock = jest.fn().mockResolvedValue(undefined)
+    mockNodeFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      body: { cancel: cancelMock }
+    })
+  })
+
+  it('should release the response body before throwing', async () => {
+    await expect(cachedFunction.fetch(fetchingUrl)).rejects.toThrow(`Error getting ${fetchingUrl}`)
+
+    expect(cancelMock).toHaveBeenCalledTimes(1)
+  })
+})

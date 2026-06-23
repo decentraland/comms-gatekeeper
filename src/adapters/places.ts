@@ -52,6 +52,7 @@ export async function createPlacesComponent(
     const response = await fetch.fetch(`${placesApiUrl}/worlds/${worldId}`)
 
     if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined)
       logger.info(`No world found with name ${worldName}`)
       throw new PlaceNotFoundError(`No world found with name ${worldName}`)
     }
