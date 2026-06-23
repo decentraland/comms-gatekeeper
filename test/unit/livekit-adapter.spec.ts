@@ -268,6 +268,59 @@ describe('when checking if a realm is a local preview', () => {
   })
 })
 
+describe('when checking if a realm name is a preview realm', () => {
+  it('should return true for LocalPreview', () => {
+    expect(livekitComponent.isPreviewRealmName('LocalPreview')).toBe(true)
+  })
+
+  it('should return true for localpreview (lowercase)', () => {
+    expect(livekitComponent.isPreviewRealmName('localpreview')).toBe(true)
+  })
+
+  it('should return true for preview', () => {
+    expect(livekitComponent.isPreviewRealmName('preview')).toBe(true)
+  })
+
+  it('should return true for Preview (mixed case)', () => {
+    expect(livekitComponent.isPreviewRealmName('Preview')).toBe(true)
+  })
+
+  it('should return false for a production realm', () => {
+    expect(livekitComponent.isPreviewRealmName('hela')).toBe(false)
+  })
+
+  it('should return false for undefined', () => {
+    expect(livekitComponent.isPreviewRealmName(undefined)).toBe(false)
+  })
+
+  it('should return false for an empty string', () => {
+    expect(livekitComponent.isPreviewRealmName('')).toBe(false)
+  })
+
+  it('should return false for a string containing preview', () => {
+    expect(livekitComponent.isPreviewRealmName('preview-something')).toBe(false)
+  })
+
+  it('should return true even when ALLOW_LOCAL_PREVIEW is not enabled', async () => {
+    const componentWithoutPreview = await createLivekitComponent({
+      config: {
+        requireString: jest.fn().mockResolvedValue('test'),
+        getString: jest.fn().mockReturnValue(''),
+        getNumber: jest.fn().mockReturnValue(0),
+        requireNumber: jest.fn().mockResolvedValue(0)
+      },
+      logs: {
+        getLogger: jest.fn().mockReturnValue({
+          info: jest.fn(),
+          warn: jest.fn(),
+          error: jest.fn()
+        })
+      }
+    })
+    expect(componentWithoutPreview.isPreviewRealmName('localpreview')).toBe(true)
+  })
+})
+
 describe('when getting a world room name', () => {
   it('should return world room name with prefix and world name', () => {
     const worldName = 'test-world'
