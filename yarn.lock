@@ -1183,10 +1183,10 @@
     "@dcl/core-commons" "0.10.1"
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/fetch-component@1.1.0":
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/@dcl/fetch-component/-/fetch-component-1.1.0.tgz#cc16300374e789fb920b8d7d11e6445fe4f20ee0"
-  integrity sha512-WDri8jx8EN90P+0EE9NII/oMV5GDcpMMIrUGFq9OT3EW9xeRkyiUyRYwSqI9rjjG+2wNJcpDnkCVlMq+kva6fg==
+"@dcl/fetch-component@1.1.1":
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/@dcl/fetch-component/-/fetch-component-1.1.1.tgz#8f089f216150bab23d4cb798311796943243bc0b"
+  integrity sha512-Q1d/By58NRFIF7h5oMSSFNFGtcJmoKKY6V3kOo314soCgSH0IETydwaD8Hu2zPWK9TZQVx+eDJppViyKVpt91Q==
   dependencies:
     "@dcl/core-commons" "0.10.1"
 
@@ -1219,10 +1219,10 @@
     "@dcl/core-commons" "0.10.1"
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/http-server@^2.0.2":
-  version "2.0.2"
-  resolved "https://registry.yarnpkg.com/@dcl/http-server/-/http-server-2.0.2.tgz#9909d0e423489b4a7f76b6a9111a79029f4153a9"
-  integrity sha512-tzzBrW0JtexwwZNB7yYLiKVhG8LysWf7Sy2xrLBrqF8BAsCWqeLvPqftKrLBHNkxAd66zHsi5P3Mg5I9GdvdRA==
+"@dcl/http-server@2.1.0":
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/@dcl/http-server/-/http-server-2.1.0.tgz#5385ba3319356d32d468365a84530f24e245fa65"
+  integrity sha512-UqIFIo18JeKklM/RM0wEJ0u/DCGjikBHtQ1LzuQKjDK6SP9XgeVhukgCg5BmdW0D3Qzlql2i5CGpW4EdyfUiWQ==
   dependencies:
     "@dcl/core-commons" "0.10.1"
     "@well-known-components/interfaces" "^1.5.1"
@@ -1336,13 +1336,13 @@
     "@dcl/crypto-middleware" "^4.0.0"
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/traced-fetch-component@^1.0.7":
-  version "1.0.7"
-  resolved "https://registry.yarnpkg.com/@dcl/traced-fetch-component/-/traced-fetch-component-1.0.7.tgz#8028fd6252d3d12ff1654dc5b8903e7561d4ba0e"
-  integrity sha512-WwqeN1LcOWVdEYYWeq63gumK7ClaGrQwtRVLPqpSPZ94LvFfvDyFyJfZRde9W2ji2Qu/ugI1/WuYIxKL0e3VGg==
+"@dcl/traced-fetch-component@1.0.8":
+  version "1.0.8"
+  resolved "https://registry.yarnpkg.com/@dcl/traced-fetch-component/-/traced-fetch-component-1.0.8.tgz#901745e0e43b52fcde6971fc802417750accb215"
+  integrity sha512-JHcWjPgblHE5S/nlfDf+fmjK8ZQqWlIcmbbfznYWPMrObATFOExx73qGuU2fQ80JaceKKpsXvASTsxhxvlL+zA==
   dependencies:
     "@dcl/core-commons" "0.10.1"
-    "@dcl/fetch-component" "1.1.0"
+    "@dcl/fetch-component" "1.1.1"
     "@well-known-components/interfaces" "^1.5.2"
 
 "@eslint-community/eslint-utils@^4.2.0", "@eslint-community/eslint-utils@^4.4.0":
