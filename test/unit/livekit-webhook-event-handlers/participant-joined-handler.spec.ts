@@ -525,6 +525,34 @@ describe('Participant Joined Handler', () => {
       })
     })
 
+    describe('and room is a preview realm but local preview support is disabled (production)', () => {
+      beforeEach(() => {
+        // Reproduce production: ALLOW_LOCAL_PREVIEW is off, so the gated isLocalPreview
+        // check returns false. Suppression must still happen based on the realm name alone.
+        livekit.isLocalPreview.mockReturnValue(false)
+        livekit.isPreviewRealmName.mockReturnValue(true)
+        webhookEvent.room!.name = 'preview-scene-room'
+        getRoomMetadataFromRoomNameMock.mockReturnValue({
+          sceneId: 'scene-789',
+          worldName: undefined,
+          realmName: 'LocalPreview',
+          roomType: RoomType.SCENE
+        })
+      })
+
+      it('should not publish UserJoinedRoomEvent based on the realm name alone', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(publishMessagesMock).not.toHaveBeenCalled()
+      })
+
+      it('should detect the preview realm without relying on the gated isLocalPreview check', async () => {
+        await handler.handle(webhookEvent)
+
+        expect(livekit.isPreviewRealmName).toHaveBeenCalledWith('LocalPreview')
+      })
+    })
+
     describe('and message publishing fails', () => {
       let publishError: Error
       let sceneId: string

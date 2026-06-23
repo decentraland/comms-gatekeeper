@@ -36,6 +36,7 @@ export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
 
 export type ILivekitComponent = IBaseComponent & {
   isLocalPreview: (realmName: string | undefined) => boolean
+  isPreviewRealmName: (realmName: string | undefined) => boolean
   deleteRoom: (roomName: string) => Promise<void>
   buildConnectionUrl: (url: string, token: string) => string
   generateCredentials: (

@@ -135,13 +135,34 @@ export async function createLivekitComponent(
   const LOCAL_PREVIEW_REALM_NAMES = ['localpreview', 'preview']
 
   /**
-   * Checks if the given realm name indicates a local preview environment.
-   * Returns false when the ALLOW_LOCAL_PREVIEW config flag is not enabled.
+   * Checks if the given realm name is a local preview realm, based on its name alone.
+   *
+   * Unlike {@link isLocalPreview}, this does NOT consult the ALLOW_LOCAL_PREVIEW
+   * config flag, so it returns the same answer in every environment. Use it where
+   * a preview realm must be recognized regardless of configuration — e.g. to skip
+   * publishing analytics events for Creator Hub / local development sessions, which
+   * connect to the production comms infrastructure and therefore reach this service
+   * with ALLOW_LOCAL_PREVIEW disabled. It grants no access or privileges, so it is
+   * safe to evaluate even when local preview support is turned off.
+   */
+  function isPreviewRealmName(realmName: string | undefined): boolean {
+    if (!realmName) return false
+    return LOCAL_PREVIEW_REALM_NAMES.includes(realmName.toLowerCase())
+  }
+
+  /**
+   * Checks if the given realm name indicates a local preview environment AND local
+   * preview support is enabled for this service.
+   *
+   * Returns false when the ALLOW_LOCAL_PREVIEW config flag is not set to 'true'. This
+   * gate is a security control: callers use it to bypass authentication, scene-ban
+   * enforcement and authorization checks for preview realms, so it MUST stay disabled
+   * in production. For preview detection that must work in production (e.g. suppressing
+   * events), use {@link isPreviewRealmName} instead.
    */
   function isLocalPreview(realmName: string | undefined): boolean {
     if (allowLocalPreview !== 'true') return false
-    if (!realmName) return false
-    return LOCAL_PREVIEW_REALM_NAMES.includes(realmName.toLowerCase())
+    return isPreviewRealmName(realmName)
   }
 
   /**
@@ -567,6 +588,7 @@ export async function createLivekitComponent(
     buildConnectionUrl,
     deleteRoom,
     isLocalPreview,
+    isPreviewRealmName,
     updateParticipantMetadata,
     updateParticipantPermissions,
     updateRoomMetadata,

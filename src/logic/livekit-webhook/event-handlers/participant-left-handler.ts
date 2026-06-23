@@ -27,8 +27,11 @@ export function createParticipantLeftHandler(
         return
       }
 
-      // Do not publish events for preview realms (Creator Hub, local development)
-      if (components.livekit.isLocalPreview(realmName) || components.livekit.isLocalPreview(worldName)) {
+      // Do not publish events for preview realms (Creator Hub, local development).
+      // Detection is by realm name only and intentionally independent of the
+      // ALLOW_LOCAL_PREVIEW flag: preview sessions connect to production comms, so this
+      // must suppress events even though that flag is disabled in production.
+      if (components.livekit.isPreviewRealmName(realmName) || components.livekit.isPreviewRealmName(worldName)) {
         logger.debug(`Skipping UserLeftRoomEvent for preview realm: ${realmName ?? worldName}`)
         return
       }
