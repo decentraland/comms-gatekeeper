@@ -44,14 +44,23 @@ describe('when getting the privacy settings for a user', () => {
   })
 
   describe('and the request fails due to a non-200 status code', () => {
+    let cancelMock: jest.Mock
+
     beforeEach(() => {
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 404 } as Response)
+      cancelMock = jest.fn().mockResolvedValue(undefined)
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 404, body: { cancel: cancelMock } } as unknown as Response)
     })
 
     it('should reject, propagating the error', async () => {
       await expect(social.getUserPrivacySettings('0x123')).rejects.toThrow(
         'Failed to fetch privacy settings for 0x123.'
       )
+    })
+
+    it('should release the undici response body', async () => {
+      await expect(social.getUserPrivacySettings('0x123')).rejects.toThrow()
+
+      expect(cancelMock).toHaveBeenCalledTimes(1)
     })
   })
 

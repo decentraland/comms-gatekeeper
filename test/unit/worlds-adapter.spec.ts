@@ -131,11 +131,14 @@ describe('worlds adapter', () => {
 
     describe('and the request fails', () => {
       let result: WorldScene | undefined
+      let cancelMock: jest.Mock
 
       beforeEach(async () => {
+        cancelMock = jest.fn().mockResolvedValue(undefined)
         mockFetch.fetch.mockResolvedValue({
           ok: false,
-          status: 500
+          status: 500,
+          body: { cancel: cancelMock }
         })
 
         result = await worldsComponent.fetchWorldSceneByPointer(worldName, pointer)
@@ -143,6 +146,10 @@ describe('worlds adapter', () => {
 
       it('should return undefined', () => {
         expect(result).toBeUndefined()
+      })
+
+      it('should release the undici response body', () => {
+        expect(cancelMock).toHaveBeenCalledTimes(1)
       })
     })
 
