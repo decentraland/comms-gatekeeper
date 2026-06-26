@@ -60,8 +60,7 @@ export async function commsSceneHandler(
   try {
     const { isBanned: isPlatformBanned } = await userModeration.getActiveBanForConnection({
       address: identity,
-      deviceId: deviceIdentifier,
-      ip: ipAddress
+      deviceId: deviceIdentifier
     })
     if (isPlatformBanned) {
       logger.warn(`Rejected connection from platform-banned user: ${identity}`)

@@ -84,7 +84,6 @@ describe('user-moderation-component', () => {
           reason: 'Violation',
           customMessage: undefined,
           bannedDeviceId: null,
-          bannedIp: null,
           expiresAt: undefined
         })
       })
@@ -208,28 +207,14 @@ describe('user-moderation-component', () => {
         })
       })
 
-      it('should always ban the recorded device id while leaving the IP unset', async () => {
+      it('should ban the recorded device id', async () => {
         await component.banPlayer('0xABC', '0xADMIN', 'Violation')
 
         expect(mockUserModerationDb.createBan).toHaveBeenCalledWith(
           expect.objectContaining({
-            bannedDeviceId: 'device-123',
-            bannedIp: null
+            bannedDeviceId: 'device-123'
           })
         )
-      })
-
-      describe('and banIp is true', () => {
-        it('should also ban the recorded IP address', async () => {
-          await component.banPlayer('0xABC', '0xADMIN', 'Violation', undefined, undefined, true)
-
-          expect(mockUserModerationDb.createBan).toHaveBeenCalledWith(
-            expect.objectContaining({
-              bannedDeviceId: 'device-123',
-              bannedIp: '1.2.3.4'
-            })
-          )
-        })
       })
     })
 
@@ -243,14 +228,13 @@ describe('user-moderation-component', () => {
         mockPlayerConnectionDb.getByAddress.mockRejectedValueOnce(new Error('db error'))
       })
 
-      it('should still ban by address with no device id or IP', async () => {
+      it('should still ban by address with no device id', async () => {
         const result = await component.banPlayer('0xABC', '0xADMIN', 'Violation')
 
         expect(result).toEqual(ban)
         expect(mockUserModerationDb.createBan).toHaveBeenCalledWith(
           expect.objectContaining({
-            bannedDeviceId: null,
-            bannedIp: null
+            bannedDeviceId: null
           })
         )
       })
@@ -534,18 +518,17 @@ describe('user-moderation-component', () => {
       })
 
       it('should return isBanned true with the ban record', async () => {
-        const result = await component.getActiveBanForConnection({ address: '0xABC', deviceId: 'd', ip: '1.2.3.4' })
+        const result = await component.getActiveBanForConnection({ address: '0xABC', deviceId: 'd' })
 
         expect(result).toEqual({ isBanned: true, ban })
       })
 
       it('should delegate to the adapter with the address normalized to lowercase', async () => {
-        await component.getActiveBanForConnection({ address: '0xABC', deviceId: 'd', ip: '1.2.3.4' })
+        await component.getActiveBanForConnection({ address: '0xABC', deviceId: 'd' })
 
         expect(mockUserModerationDb.getActiveBanForConnection).toHaveBeenCalledWith({
           address: '0xabc',
-          deviceId: 'd',
-          ip: '1.2.3.4'
+          deviceId: 'd'
         })
       })
     })

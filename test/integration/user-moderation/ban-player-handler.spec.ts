@@ -167,77 +167,33 @@ test('POST /users/:address/bans', ({ components }) => {
           const deviceId = 'device-abc'
           const ipAddress = '4.3.2.1'
           const evaderAddress = '0x0000000000000000000000000000000000000002'
+          let body: { data: { bannedDeviceId: string | null } }
 
           beforeEach(async () => {
             await components.playerConnectionDb.upsertPlayerConnection({ address: targetAddress, ipAddress, deviceId })
+            const response = await makeRequest(
+              components.localFetch,
+              `/users/${targetAddress}/bans`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Evasion' }),
+                metadata: { signer: 'dcl:moderator' }
+              },
+              moderatorIdentity
+            )
+            body = await response.json()
           })
 
-          describe('and the IP is not opted in', () => {
-            let body: { data: { bannedDeviceId: string | null; bannedIp: string | null } }
-
-            beforeEach(async () => {
-              const response = await makeRequest(
-                components.localFetch,
-                `/users/${targetAddress}/bans`,
-                {
-                  method: 'POST',
-                  body: JSON.stringify({ reason: 'Evasion' }),
-                  metadata: { signer: 'dcl:moderator' }
-                },
-                moderatorIdentity
-              )
-              body = await response.json()
-            })
-
-            it('should capture the recorded device id on the ban and leave the IP unset', () => {
-              expect(body.data).toMatchObject({ bannedDeviceId: deviceId, bannedIp: null })
-            })
-
-            it('should report a different wallet connecting from the banned device as banned', async () => {
-              const status = await components.userModerationDb.getActiveBanForConnection({
-                address: evaderAddress,
-                deviceId
-              })
-              expect(status.isBanned).toBe(true)
-            })
-
-            it('should not report a different wallet connecting from the same IP as banned', async () => {
-              const status = await components.userModerationDb.getActiveBanForConnection({
-                address: evaderAddress,
-                ip: ipAddress
-              })
-              expect(status.isBanned).toBe(false)
-            })
+          it('should capture the recorded device id on the ban', () => {
+            expect(body.data).toMatchObject({ bannedDeviceId: deviceId })
           })
 
-          describe('and the IP is opted in via banIp', () => {
-            let body: { data: { bannedDeviceId: string | null; bannedIp: string | null } }
-
-            beforeEach(async () => {
-              const response = await makeRequest(
-                components.localFetch,
-                `/users/${targetAddress}/bans`,
-                {
-                  method: 'POST',
-                  body: JSON.stringify({ reason: 'Evasion', banIp: true }),
-                  metadata: { signer: 'dcl:moderator' }
-                },
-                moderatorIdentity
-              )
-              body = await response.json()
+          it('should report a different wallet connecting from the banned device as banned', async () => {
+            const status = await components.userModerationDb.getActiveBanForConnection({
+              address: evaderAddress,
+              deviceId
             })
-
-            it('should capture both the recorded device id and IP on the ban', () => {
-              expect(body.data).toMatchObject({ bannedDeviceId: deviceId, bannedIp: ipAddress })
-            })
-
-            it('should report a different wallet connecting from the banned IP as banned', async () => {
-              const status = await components.userModerationDb.getActiveBanForConnection({
-                address: evaderAddress,
-                ip: ipAddress
-              })
-              expect(status.isBanned).toBe(true)
-            })
+            expect(status.isBanned).toBe(true)
           })
         })
       })

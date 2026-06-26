@@ -6,11 +6,10 @@ export interface UserBan {
   bannedBy: string
   reason: string
   customMessage: string | null
-  // Device id / IP captured from the player's connection info at ban time, used to reject
-  // a banned player who reconnects under a different wallet. Null when unavailable or, for
-  // the IP, when the moderator did not opt in.
+  // Device id captured from the player's connection info at ban time, used to reject a
+  // banned player who reconnects from the same device under a different wallet. Null when
+  // the player had no recorded connection info.
   bannedDeviceId: string | null
-  bannedIp: string | null
   bannedAt: Date
   expiresAt: Date | null
   liftedAt: Date | null
@@ -35,14 +34,12 @@ export type CreateBanInput = {
   reason: string
   customMessage?: string
   bannedDeviceId?: string | null
-  bannedIp?: string | null
   expiresAt?: Date
 }
 
 export type ConnectionBanQuery = {
   address: string
   deviceId?: string | null
-  ip?: string | null
 }
 
 export type CreateWarningInput = {
@@ -57,8 +54,7 @@ export interface IUserModerationComponent {
     bannedBy: string,
     reason: string,
     duration?: number,
-    customMessage?: string,
-    banIp?: boolean
+    customMessage?: string
   ): Promise<UserBan>
   liftBan(address: string, liftedBy: string): Promise<void>
   warnPlayer(address: string, reason: string, warnedBy: string): Promise<UserWarning>

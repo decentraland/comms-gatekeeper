@@ -52,8 +52,7 @@ export function createUserModerationComponent(
       bannedBy: string,
       reason: string,
       duration?: number,
-      customMessage?: string,
-      banIp?: boolean
+      customMessage?: string
     ): Promise<UserBan> {
       const normalizedAddress = normalizeAddress(address)
       const normalizedBannedBy = normalizeAddress(bannedBy)
@@ -65,18 +64,13 @@ export function createUserModerationComponent(
 
       const expiresAt = duration ? new Date(Date.now() + duration) : undefined
 
-      // Snapshot the player's recorded device id (always) and IP (only when opted in) so the
-      // ban also covers reconnections from the same device/IP under a different wallet.
-      // Best-effort: a player with no recorded connection info is banned by address only.
+      // Snapshot the player's recorded device id so the ban also covers reconnections from the
+      // same device under a different wallet. Best-effort: a player with no recorded connection
+      // info is banned by address only. Empty strings are treated as absent.
       let bannedDeviceId: string | null = null
-      let bannedIp: string | null = null
       try {
         const connectionInfo = await playerConnectionDb.getByAddress(normalizedAddress)
-        // Treat empty strings as absent so a ban never captures an unmatchable identifier.
         bannedDeviceId = connectionInfo?.deviceId || null
-        if (banIp) {
-          bannedIp = connectionInfo?.ipAddress || null
-        }
       } catch (error: any) {
         logger.warn(`Failed to load connection info for ${normalizedAddress}: ${error.message}`)
       }
@@ -89,7 +83,6 @@ export function createUserModerationComponent(
         reason,
         customMessage,
         bannedDeviceId,
-        bannedIp,
         expiresAt
       })
 
@@ -135,8 +128,8 @@ export function createUserModerationComponent(
       return userModerationDb.isPlayerBanned(normalizedAddress)
     },
 
-    async getActiveBanForConnection({ address, deviceId, ip }: ConnectionBanQuery): Promise<BanStatus> {
-      return userModerationDb.getActiveBanForConnection({ address: normalizeAddress(address), deviceId, ip })
+    async getActiveBanForConnection({ address, deviceId }: ConnectionBanQuery): Promise<BanStatus> {
+      return userModerationDb.getActiveBanForConnection({ address: normalizeAddress(address), deviceId })
     },
 
     async getActiveBans(): Promise<UserBan[]> {

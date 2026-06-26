@@ -39,8 +39,7 @@ export async function getPrivateMessagesTokenHandler(
 
   const { isBanned } = await userModeration.getActiveBanForConnection({
     address: identity,
-    deviceId: deviceIdentifier,
-    ip: ipAddress
+    deviceId: deviceIdentifier
   })
   if (isBanned) {
     logger.warn(`Rejected connection from platform-banned user: ${identity}`)

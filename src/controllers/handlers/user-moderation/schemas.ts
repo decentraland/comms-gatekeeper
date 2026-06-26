@@ -4,7 +4,6 @@ export type BanPlayerRequestBody = {
   reason: string
   duration?: number
   customMessage?: string
-  banIp?: boolean
 }
 
 export type WarnPlayerRequestBody = {
@@ -26,9 +25,6 @@ export const BanPlayerSchema: Schema = {
     },
     customMessage: {
       type: 'string'
-    },
-    banIp: {
-      type: 'boolean'
     }
   }
 }

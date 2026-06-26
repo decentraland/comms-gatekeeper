@@ -9,7 +9,7 @@ test('user moderation connection bans', ({ components }) => {
     await components.database.query('DELETE FROM user_bans')
   })
 
-  describe('when an active ban recorded a device id and an IP', () => {
+  describe('when an active ban recorded a device id', () => {
     beforeEach(async () => {
       bannedAddress = '0x0000000000000000000000000000000000000001'
       otherAddress = '0x0000000000000000000000000000000000000002'
@@ -17,8 +17,7 @@ test('user moderation connection bans', ({ components }) => {
         bannedAddress,
         bannedBy,
         reason: 'Evasion',
-        bannedDeviceId: 'device-1',
-        bannedIp: '1.2.3.4'
+        bannedDeviceId: 'device-1'
       })
     })
 
@@ -33,30 +32,18 @@ test('user moderation connection bans', ({ components }) => {
       })
     })
 
-    describe('and querying with a different address but the banned IP', () => {
-      it('should report the connection as banned', async () => {
-        const status = await components.userModerationDb.getActiveBanForConnection({
-          address: otherAddress,
-          ip: '1.2.3.4'
-        })
-
-        expect(status.isBanned).toBe(true)
-      })
-    })
-
-    describe('and querying with an unrelated address, device id and IP', () => {
+    describe('and querying with an unrelated address and device id', () => {
       it('should report the connection as not banned', async () => {
         const status = await components.userModerationDb.getActiveBanForConnection({
           address: otherAddress,
-          deviceId: 'other-device',
-          ip: '9.9.9.9'
+          deviceId: 'other-device'
         })
 
         expect(status.isBanned).toBe(false)
       })
     })
 
-    describe('and querying with the banned address and no device id or IP', () => {
+    describe('and querying with the banned address and no device id', () => {
       it('should report the connection as banned', async () => {
         const status = await components.userModerationDb.getActiveBanForConnection({ address: bannedAddress })
 
@@ -65,11 +52,11 @@ test('user moderation connection bans', ({ components }) => {
     })
 
     describe('and listing active bans', () => {
-      it('should include the banned device id and IP on the record', async () => {
+      it('should include the banned device id on the record', async () => {
         const bans = await components.userModeration.getActiveBans()
 
         expect(bans).toHaveLength(1)
-        expect(bans[0]).toMatchObject({ bannedDeviceId: 'device-1', bannedIp: '1.2.3.4' })
+        expect(bans[0]).toMatchObject({ bannedDeviceId: 'device-1' })
       })
     })
   })

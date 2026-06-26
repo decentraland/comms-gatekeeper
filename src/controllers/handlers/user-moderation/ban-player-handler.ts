@@ -21,14 +21,7 @@ export async function banPlayerHandler(
     const body = (await request.json()) as BanPlayerRequestBody
     const bannedBy = verification!.auth
 
-    const ban = await userModeration.banPlayer(
-      address,
-      bannedBy,
-      body.reason,
-      body.duration,
-      body.customMessage,
-      body.banIp
-    )
+    const ban = await userModeration.banPlayer(address, bannedBy, body.reason, body.duration, body.customMessage)
 
     return {
       status: 201,
