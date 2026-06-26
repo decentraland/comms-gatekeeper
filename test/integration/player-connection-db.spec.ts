@@ -1,3 +1,4 @@
+import SQL from 'sql-template-strings'
 import { test } from '../components'
 
 test('player connection DB component', ({ components }) => {
@@ -53,7 +54,7 @@ test('player connection DB component', ({ components }) => {
 
     it('should keep exactly one row for the address', async () => {
       const result = await components.database.query(
-        `SELECT * FROM player_connection_info WHERE address = '${address}'`
+        SQL`SELECT * FROM player_connection_info WHERE address = ${address}`
       )
 
       expect(result.rows).toHaveLength(1)
