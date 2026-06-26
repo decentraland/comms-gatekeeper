@@ -117,6 +117,18 @@ components:
           type: string
           nullable: true
           description: Optional message shown to the player on rejection
+        bannedDeviceId:
+          type: string
+          nullable: true
+          description: >-
+            Device id captured from the player's connection info at ban time. The ban also
+            rejects this device (under any wallet). Null when no device id was recorded.
+        bannedIp:
+          type: string
+          nullable: true
+          description: >-
+            IP address captured from the player's connection info at ban time, only set when
+            the ban request opted in via banIp. The ban also rejects this IP. Null otherwise.
         bannedAt:
           type: string
           format: date-time
@@ -1697,6 +1709,10 @@ paths:
 
         The ban can be permanent (no `duration`) or timed. An optional `customMessage`
         is surfaced to the player at rejection time.
+
+        The player's recorded device id (from their connection info) is always banned
+        alongside the address, so the ban follows the device across wallets. Set `banIp:
+        true` to additionally ban their recorded IP address.
       security:
         - SignedFetch: []
       parameters:
@@ -1728,6 +1744,11 @@ paths:
                 customMessage:
                   type: string
                   description: Optional message shown to the player on rejection
+                banIp:
+                  type: boolean
+                  description: >-
+                    When true, also ban the IP address recorded for this player. The device
+                    id is always banned regardless of this flag.
       responses:
         '201':
           description: Ban created successfully

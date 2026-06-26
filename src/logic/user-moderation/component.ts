@@ -1,4 +1,11 @@
-import { IUserModerationComponent, UserBan, UserWarning, BanStatus, UserModerationEvent } from './types'
+import {
+  IUserModerationComponent,
+  UserBan,
+  UserWarning,
+  BanStatus,
+  ConnectionBanQuery,
+  UserModerationEvent
+} from './types'
 import { PlayerAlreadyBannedError, BanNotFoundError } from './errors'
 import { createBanEvent, createBanLiftedEvent, createWarningEvent } from './events'
 import { AppComponents } from '../../types'
@@ -9,9 +16,9 @@ function normalizeAddress(address: string): string {
 }
 
 export function createUserModerationComponent(
-  components: Pick<AppComponents, 'userModerationDb' | 'logs' | 'publisher' | 'livekit'>
+  components: Pick<AppComponents, 'userModerationDb' | 'playerConnectionDb' | 'logs' | 'publisher' | 'livekit'>
 ): IUserModerationComponent {
-  const { userModerationDb, logs, publisher, livekit } = components
+  const { userModerationDb, playerConnectionDb, logs, publisher, livekit } = components
   const logger = logs.getLogger('user-moderation')
 
   async function removeParticipantFromAllRooms(address: string): Promise<void> {
@@ -45,7 +52,8 @@ export function createUserModerationComponent(
       bannedBy: string,
       reason: string,
       duration?: number,
-      customMessage?: string
+      customMessage?: string,
+      banIp?: boolean
     ): Promise<UserBan> {
       const normalizedAddress = normalizeAddress(address)
       const normalizedBannedBy = normalizeAddress(bannedBy)
@@ -57,6 +65,22 @@ export function createUserModerationComponent(
 
       const expiresAt = duration ? new Date(Date.now() + duration) : undefined
 
+      // Snapshot the player's recorded device id (always) and IP (only when opted in) so the
+      // ban also covers reconnections from the same device/IP under a different wallet.
+      // Best-effort: a player with no recorded connection info is banned by address only.
+      let bannedDeviceId: string | null = null
+      let bannedIp: string | null = null
+      try {
+        const connectionInfo = await playerConnectionDb.getByAddress(normalizedAddress)
+        // Treat empty strings as absent so a ban never captures an unmatchable identifier.
+        bannedDeviceId = connectionInfo?.deviceId || null
+        if (banIp) {
+          bannedIp = connectionInfo?.ipAddress || null
+        }
+      } catch (error: any) {
+        logger.warn(`Failed to load connection info for ${normalizedAddress}: ${error.message}`)
+      }
+
       logger.info(`Banning player ${normalizedAddress} by ${normalizedBannedBy}`)
 
       const ban = await userModerationDb.createBan({
@@ -64,6 +88,8 @@ export function createUserModerationComponent(
         bannedBy: normalizedBannedBy,
         reason,
         customMessage,
+        bannedDeviceId,
+        bannedIp,
         expiresAt
       })
 
@@ -107,6 +133,10 @@ export function createUserModerationComponent(
     async isPlayerBanned(address: string): Promise<BanStatus> {
       const normalizedAddress = normalizeAddress(address)
       return userModerationDb.isPlayerBanned(normalizedAddress)
+    },
+
+    async getActiveBanForConnection({ address, deviceId, ip }: ConnectionBanQuery): Promise<BanStatus> {
+      return userModerationDb.getActiveBanForConnection({ address: normalizeAddress(address), deviceId, ip })
     },
 
     async getActiveBans(): Promise<UserBan[]> {

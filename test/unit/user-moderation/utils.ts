@@ -6,6 +6,8 @@ export const makeBan = (overrides: Partial<UserBan> = {}): UserBan => ({
   bannedBy: '0xadmin',
   reason: 'Violation',
   customMessage: null,
+  bannedDeviceId: null,
+  bannedIp: null,
   bannedAt: new Date('2025-01-01'),
   expiresAt: null,
   liftedAt: null,

@@ -69,6 +69,7 @@ The database contains the following tables:
 3. **`scene_bans`** - Tracks users banned from specific scenes
 4. **`voice_chat_users`** - Tracks participants in private voice chat rooms
 5. **`community_voice_chat_users`** - Tracks participants in community voice chat rooms with moderation
+6. **`player_connection_info`** - Stores each player's latest IP address and device id, captured on token requests
 
 ## Table: `scene_admin`
 
@@ -228,6 +229,32 @@ Tracks participants in community voice chat rooms with moderation capabilities.
 3. Moderators can manage speakers and requests-to-speak
 4. Timestamps stored in milliseconds (BIGINT) for `joined_at` and `status_updated_at`
 5. `created_at` uses TIMESTAMPTZ for debugging purposes
+
+---
+
+## Table: `player_connection_info`
+
+Stores the latest connection information for each player, captured (best-effort) whenever a LiveKit token is requested on `/get-scene-adapter` or `/private-messages/token`. One row per player; each request upserts the most recent values.
+
+### Columns
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| `address` | VARCHAR(42) | NOT NULL | **Primary Key**. Ethereum address of the player. |
+| `ip_address` | VARCHAR(45) | NULL | Client IP from the Cloudflare `cf-connecting-ip` header. Null when absent. |
+| `device_id` | TEXT | NULL | Device id from the signed-fetch auth metadata (`deviceIdentifier`). Null for older clients. |
+| `created_at` | BIGINT | NOT NULL | Timestamp (in milliseconds) when the row was first created. |
+| `updated_at` | BIGINT | NOT NULL | Timestamp (in milliseconds) of the most recent update. |
+
+### Indexes
+
+- **Primary Key**: `address` - One row per player
+
+### Business Rules
+
+1. One row per player (address as primary key); each token request upserts the latest IP and device id.
+2. Capture is best-effort: missing IP/device id or a write failure never blocks token issuance.
+3. Consumed by user moderation: on ban, the player's `device_id` (and optionally `ip_address`) is snapshotted into `user_bans` (`banned_device_id` / `banned_ip`) to reject reconnections from the same device/IP under a different wallet.
 
 ---
 

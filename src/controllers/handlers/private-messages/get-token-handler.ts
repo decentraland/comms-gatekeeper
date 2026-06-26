@@ -1,15 +1,16 @@
 import { HandlerContextWithPath } from '../../../types'
-import { UnauthorizedError } from '../../../types/errors'
+import { ForbiddenError, UnauthorizedError } from '../../../types/errors'
 import { PrivateMessagesPrivacy } from '../../../types/social.type'
+import { getRequestIp } from '../../../logic/utils'
 
 export async function getPrivateMessagesTokenHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'livekit' | 'logs' | 'denyList' | 'social' | 'config',
+    'fetch' | 'livekit' | 'logs' | 'denyList' | 'social' | 'config' | 'userModeration' | 'playerConnectionDb',
     '/private-messages/token'
   >
 ) {
   const {
-    components: { livekit, logs, denyList, config, social }
+    components: { livekit, logs, denyList, config, social, userModeration, playerConnectionDb }
   } = context
 
   const identity: string | undefined = context.verification?.auth.toLowerCase()
@@ -20,10 +21,30 @@ export async function getPrivateMessagesTokenHandler(
   const logger = logs.getLogger('get-private-messages-token-handler')
   const PRIVATE_MESSAGES_ROOM_ID = await config.requireString('PRIVATE_MESSAGES_ROOM_ID')
 
+  const deviceIdentifier: string | undefined = context.verification?.authMetadata?.deviceIdentifier
+  const ipAddress = getRequestIp(context.request.headers)
+
+  // Best-effort: record the player's latest IP and device id. Never block token issuance.
+  try {
+    await playerConnectionDb.upsertPlayerConnection({ address: identity, ipAddress, deviceId: deviceIdentifier })
+  } catch (error) {
+    logger.warn(`Failed to store player connection info for ${identity}: ${error}`)
+  }
+
   const isDenylisted = await denyList.isDenylisted(identity)
   if (isDenylisted) {
     logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
     throw new UnauthorizedError('Access denied, deny-listed wallet')
+  }
+
+  const { isBanned } = await userModeration.getActiveBanForConnection({
+    address: identity,
+    deviceId: deviceIdentifier,
+    ip: ipAddress
+  })
+  if (isBanned) {
+    logger.warn(`Rejected connection from platform-banned user: ${identity}`)
+    throw new ForbiddenError('Access denied, platform-banned user')
   }
 
   let userPrivacySettings: { private_messages_privacy: string }

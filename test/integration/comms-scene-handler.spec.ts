@@ -29,13 +29,13 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
     } as PlaceAttributes)
 
     stubComponents.denyList.isDenylisted.mockResolvedValue(false)
-    stubComponents.userModeration.isPlayerBanned.mockResolvedValue({ isBanned: false })
+    stubComponents.userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
     stubComponents.livekit.getSceneRoomName.mockReturnValue(`test-realm:test-scene`)
   })
 
   describe('when user is platform-banned', () => {
     beforeEach(() => {
-      stubComponents.userModeration.isPlayerBanned.mockResolvedValue({ isBanned: true })
+      stubComponents.userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: true })
     })
 
     it('should reject access returning 403', async () => {
@@ -60,7 +60,9 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
   describe('when the platform ban check fails', () => {
     beforeEach(() => {
-      stubComponents.userModeration.isPlayerBanned.mockRejectedValue(new Error('moderation service unavailable'))
+      stubComponents.userModeration.getActiveBanForConnection.mockRejectedValue(
+        new Error('moderation service unavailable')
+      )
       stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
       stubComponents.livekit.generateCredentials.mockResolvedValue({
         url: 'wss://test-livekit-url',

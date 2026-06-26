@@ -3,6 +3,13 @@ import { test } from '../../components'
 import { makeRequest } from '../../utils'
 
 test('GET /private-messages/token', ({ components, spyComponents }) => {
+  // The handler records connection info and checks device/IP bans on every request, both
+  // against the real database. Clean both tables between tests.
+  afterEach(async () => {
+    await components.database.query('DELETE FROM user_bans')
+    await components.database.query('DELETE FROM player_connection_info')
+  })
+
   describe('when the user is in the denyList', () => {
     beforeEach(() => {
       spyComponents.denyList.isDenylisted.mockResolvedValueOnce(true)
@@ -113,6 +120,55 @@ test('GET /private-messages/token', ({ components, spyComponents }) => {
           )
         })
       })
+    })
+  })
+
+  describe('when the request includes a device id and a Cloudflare IP header', () => {
+    const identityAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
+
+    beforeEach(() => {
+      spyComponents.denyList.isDenylisted.mockResolvedValueOnce(false)
+      spyComponents.social.getUserPrivacySettings.mockResolvedValueOnce({
+        private_messages_privacy: PrivateMessagesPrivacy.ALL
+      })
+      spyComponents.livekit.generateCredentials.mockResolvedValueOnce({
+        token: 'valid-token',
+        url: 'wss://dcl.livekit.cloud'
+      })
+    })
+
+    it('should store the player IP address and device id', async () => {
+      const response = await makeRequest(components.localFetch, '/private-messages/token', {
+        metadata: { signer: 'dcl:explorer', deviceIdentifier: 'device-xyz' },
+        headers: { 'cf-connecting-ip': '9.9.9.9' }
+      })
+
+      expect(response.status).toBe(200)
+      const info = await components.playerConnectionDb.getByAddress(identityAddress)
+      expect(info).toMatchObject({ ipAddress: '9.9.9.9', deviceId: 'device-xyz' })
+    })
+  })
+
+  describe('when the request comes from a banned device under a different wallet', () => {
+    beforeEach(async () => {
+      spyComponents.denyList.isDenylisted.mockResolvedValueOnce(false)
+      // A ban on a different wallet that captured this device id.
+      await components.userModerationDb.createBan({
+        bannedAddress: '0x0000000000000000000000000000000000000099',
+        bannedBy: '0x0000000000000000000000000000000000000098',
+        reason: 'Evasion',
+        bannedDeviceId: 'banned-device'
+      })
+    })
+
+    it('should respond with a 403 and the platform-banned error', async () => {
+      const response = await makeRequest(components.localFetch, '/private-messages/token', {
+        metadata: { signer: 'dcl:explorer', deviceIdentifier: 'banned-device' },
+        headers: { 'cf-connecting-ip': '9.9.9.9' }
+      })
+
+      expect(response.status).toBe(403)
+      expect(response.json()).resolves.toEqual({ error: 'Access denied, platform-banned user' })
     })
   })
 })

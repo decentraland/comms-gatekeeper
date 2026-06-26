@@ -1,7 +1,7 @@
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../types/errors'
-import { oldValidate } from '../../logic/utils'
+import { getRequestIp, oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
@@ -15,17 +15,38 @@ export async function commsSceneHandler(
     | 'places'
     | 'worlds'
     | 'userModeration'
+    | 'playerConnectionDb'
     | 'sceneManager'
     | 'sceneStreamAccessManager',
     '/get-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { cast, livekit, logs, denyList, sceneBans, worlds, userModeration, sceneManager, places }
+    components: {
+      cast,
+      livekit,
+      logs,
+      denyList,
+      sceneBans,
+      worlds,
+      userModeration,
+      playerConnectionDb,
+      sceneManager,
+      places
+    }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
-  const { sceneId, identity, parcel, realmName } = await oldValidate(context)
+  const { sceneId, identity, parcel, realmName, deviceIdentifier } = await oldValidate(context)
+
+  const ipAddress = getRequestIp(context.request.headers)
+
+  // Best-effort: record the player's latest IP and device id. Never block token issuance.
+  try {
+    await playerConnectionDb.upsertPlayerConnection({ address: identity, ipAddress, deviceId: deviceIdentifier })
+  } catch (error) {
+    logger.warn(`Failed to store player connection info for ${identity}: ${error}`)
+  }
 
   const isLocalPreview = livekit.isLocalPreview(realmName)
 
@@ -37,7 +58,11 @@ export async function commsSceneHandler(
   }
 
   try {
-    const { isBanned: isPlatformBanned } = await userModeration.isPlayerBanned(identity)
+    const { isBanned: isPlatformBanned } = await userModeration.getActiveBanForConnection({
+      address: identity,
+      deviceId: deviceIdentifier,
+      ip: ipAddress
+    })
     if (isPlatformBanned) {
       logger.warn(`Rejected connection from platform-banned user: ${identity}`)
       throw new ForbiddenError('Access denied, platform-banned user')

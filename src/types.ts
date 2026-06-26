@@ -22,7 +22,7 @@ import { IPlaceChecker, IStreamingChecker, IStreamingKeyChecker } from './types/
 import { ILivekitComponent } from './types/livekit.type'
 import { INotifications } from './types/notification.type'
 import { ISceneAdmins } from './types/scene.type'
-import { IVoiceDBComponent } from './adapters/db/types'
+import { IVoiceDBComponent, IPlayerConnectionDBComponent } from './adapters/db/types'
 import { IVoiceComponent } from './logic/voice/types'
 import { ISceneBansComponent } from './logic/scene-bans/types'
 import { IRoomMetadataSyncComponent } from './logic/room-metadata-sync/types'
@@ -71,6 +71,7 @@ export type BaseComponents = {
   streamingTTLChecker: IStreamingChecker
   streamingKeyTTLChecker: IStreamingKeyChecker
   voiceDB: IVoiceDBComponent
+  playerConnectionDb: IPlayerConnectionDBComponent
   voice: IVoiceComponent
   analytics: IAnalyticsComponent<AnalyticsEventPayload>
   publisher: IPublisherComponent
@@ -162,6 +163,9 @@ export type AuthData = {
   realm: RealmAuthMetadata
   realmName: string
   isWorld: boolean
+  // Device identifier sent by the client in the signed-fetch auth metadata. Optional:
+  // older clients do not send it.
+  deviceIdentifier?: string
 }
 
 export type SceneAdmin = {

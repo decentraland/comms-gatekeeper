@@ -4,8 +4,14 @@ import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createPublisherMockedComponent } from '../../mocks/publisher-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createUserModerationComponent } from '../../../src/logic/user-moderation/component'
-import { IUserModerationComponent, IUserModerationDatabaseComponent, UserBan, UserWarning } from '../../../src/logic/user-moderation/types'
+import {
+  IUserModerationComponent,
+  IUserModerationDatabaseComponent,
+  UserBan,
+  UserWarning
+} from '../../../src/logic/user-moderation/types'
 import { PlayerAlreadyBannedError, BanNotFoundError } from '../../../src/logic/user-moderation/errors'
+import { IPlayerConnectionDBComponent } from '../../../src/adapters/db/types'
 import { ILivekitComponent } from '../../../src/types/livekit.type'
 import { makeBan, makeWarning } from './utils'
 
@@ -13,6 +19,7 @@ const flushPromises = () => new Promise(setImmediate)
 
 describe('user-moderation-component', () => {
   let mockUserModerationDb: jest.Mocked<IUserModerationDatabaseComponent>
+  let mockPlayerConnectionDb: jest.Mocked<IPlayerConnectionDBComponent>
   let mockPublisher: jest.Mocked<IPublisherComponent>
   let mockLogs: jest.Mocked<ILoggerComponent>
   let mockLivekit: jest.Mocked<Pick<ILivekitComponent, 'removeParticipantFromAllRooms'>>
@@ -23,10 +30,17 @@ describe('user-moderation-component', () => {
       createBan: jest.fn(),
       liftBan: jest.fn(),
       isPlayerBanned: jest.fn(),
+      getActiveBanForConnection: jest.fn(),
       getActiveBans: jest.fn(),
       createWarning: jest.fn(),
       getPlayerWarnings: jest.fn(),
       getBanHistory: jest.fn()
+    }
+
+    // By default the player has no recorded connection info, so bans capture no device/IP.
+    mockPlayerConnectionDb = {
+      upsertPlayerConnection: jest.fn().mockResolvedValue(undefined),
+      getByAddress: jest.fn().mockResolvedValue(null)
     }
 
     mockPublisher = createPublisherMockedComponent({})
@@ -39,6 +53,7 @@ describe('user-moderation-component', () => {
 
     component = createUserModerationComponent({
       userModerationDb: mockUserModerationDb,
+      playerConnectionDb: mockPlayerConnectionDb,
       logs: mockLogs,
       publisher: mockPublisher,
       livekit: mockLivekit
@@ -68,6 +83,8 @@ describe('user-moderation-component', () => {
           bannedBy: '0xadmin',
           reason: 'Violation',
           customMessage: undefined,
+          bannedDeviceId: null,
+          bannedIp: null,
           expiresAt: undefined
         })
       })
@@ -170,6 +187,70 @@ describe('user-moderation-component', () => {
             metadata: expect.objectContaining({
               customMessage: 'You have been banned'
             })
+          })
+        )
+      })
+    })
+
+    describe('and the player has recorded connection info', () => {
+      let ban: UserBan
+
+      beforeEach(() => {
+        ban = makeBan()
+        mockUserModerationDb.isPlayerBanned.mockResolvedValueOnce({ isBanned: false })
+        mockUserModerationDb.createBan.mockResolvedValueOnce(ban)
+        mockPlayerConnectionDb.getByAddress.mockResolvedValueOnce({
+          address: '0xabc',
+          ipAddress: '1.2.3.4',
+          deviceId: 'device-123',
+          createdAt: 1,
+          updatedAt: 2
+        })
+      })
+
+      it('should always ban the recorded device id while leaving the IP unset', async () => {
+        await component.banPlayer('0xABC', '0xADMIN', 'Violation')
+
+        expect(mockUserModerationDb.createBan).toHaveBeenCalledWith(
+          expect.objectContaining({
+            bannedDeviceId: 'device-123',
+            bannedIp: null
+          })
+        )
+      })
+
+      describe('and banIp is true', () => {
+        it('should also ban the recorded IP address', async () => {
+          await component.banPlayer('0xABC', '0xADMIN', 'Violation', undefined, undefined, true)
+
+          expect(mockUserModerationDb.createBan).toHaveBeenCalledWith(
+            expect.objectContaining({
+              bannedDeviceId: 'device-123',
+              bannedIp: '1.2.3.4'
+            })
+          )
+        })
+      })
+    })
+
+    describe('and loading the connection info fails', () => {
+      let ban: UserBan
+
+      beforeEach(() => {
+        ban = makeBan()
+        mockUserModerationDb.isPlayerBanned.mockResolvedValueOnce({ isBanned: false })
+        mockUserModerationDb.createBan.mockResolvedValueOnce(ban)
+        mockPlayerConnectionDb.getByAddress.mockRejectedValueOnce(new Error('db error'))
+      })
+
+      it('should still ban by address with no device id or IP', async () => {
+        const result = await component.banPlayer('0xABC', '0xADMIN', 'Violation')
+
+        expect(result).toEqual(ban)
+        expect(mockUserModerationDb.createBan).toHaveBeenCalledWith(
+          expect.objectContaining({
+            bannedDeviceId: null,
+            bannedIp: null
           })
         )
       })
@@ -439,6 +520,45 @@ describe('user-moderation-component', () => {
         await component.isPlayerBanned('0xABC')
 
         expect(mockUserModerationDb.isPlayerBanned).toHaveBeenCalledWith('0xabc')
+      })
+    })
+  })
+
+  describe('when getting an active ban for a connection', () => {
+    describe('and a matching active ban exists', () => {
+      let ban: UserBan
+
+      beforeEach(() => {
+        ban = makeBan()
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValueOnce({ isBanned: true, ban })
+      })
+
+      it('should return isBanned true with the ban record', async () => {
+        const result = await component.getActiveBanForConnection({ address: '0xABC', deviceId: 'd', ip: '1.2.3.4' })
+
+        expect(result).toEqual({ isBanned: true, ban })
+      })
+
+      it('should delegate to the adapter with the address normalized to lowercase', async () => {
+        await component.getActiveBanForConnection({ address: '0xABC', deviceId: 'd', ip: '1.2.3.4' })
+
+        expect(mockUserModerationDb.getActiveBanForConnection).toHaveBeenCalledWith({
+          address: '0xabc',
+          deviceId: 'd',
+          ip: '1.2.3.4'
+        })
+      })
+    })
+
+    describe('and no matching active ban exists', () => {
+      beforeEach(() => {
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValueOnce({ isBanned: false })
+      })
+
+      it('should return isBanned false', async () => {
+        const result = await component.getActiveBanForConnection({ address: '0xABC' })
+
+        expect(result).toEqual({ isBanned: false })
       })
     })
   })
