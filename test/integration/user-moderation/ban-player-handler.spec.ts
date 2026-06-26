@@ -6,6 +6,7 @@ test('POST /users/:address/bans', ({ components }) => {
   afterEach(async () => {
     await components.database.query('DELETE FROM user_warnings')
     await components.database.query('DELETE FROM user_bans')
+    await components.database.query('DELETE FROM player_connection_info')
   })
 
   describe('when banning a player', () => {
@@ -80,10 +81,7 @@ test('POST /users/:address/bans', ({ components }) => {
             })
             expect(body.data.id).toBeDefined()
 
-            const statusResponse = await components.localFetch.fetch(
-              `/users/${targetAddress}/bans`,
-              { method: 'GET' }
-            )
+            const statusResponse = await components.localFetch.fetch(`/users/${targetAddress}/bans`, { method: 'GET' })
             expect(statusResponse.status).toBe(200)
             const statusBody = await statusResponse.json()
             expect(statusBody.data.isBanned).toBe(true)
@@ -98,7 +96,11 @@ test('POST /users/:address/bans', ({ components }) => {
               `/users/${targetAddress}/bans`,
               {
                 method: 'POST',
-                body: JSON.stringify({ reason: 'Temporary ban', duration: 3600000, customMessage: 'You have been temporarily banned' }),
+                body: JSON.stringify({
+                  reason: 'Temporary ban',
+                  duration: 3600000,
+                  customMessage: 'You have been temporarily banned'
+                }),
                 metadata: { signer: 'dcl:moderator' }
               },
               moderatorIdentity
@@ -158,6 +160,84 @@ test('POST /users/:address/bans', ({ components }) => {
               moderatorIdentity
             )
             expect(response.status).toBe(400)
+          })
+        })
+
+        describe('and the player has recorded connection info', () => {
+          const deviceId = 'device-abc'
+          const ipAddress = '4.3.2.1'
+          const evaderAddress = '0x0000000000000000000000000000000000000002'
+
+          beforeEach(async () => {
+            await components.playerConnectionDb.upsertPlayerConnection({ address: targetAddress, ipAddress, deviceId })
+          })
+
+          describe('and the IP is not opted in', () => {
+            let body: { data: { bannedDeviceId: string | null; bannedIp: string | null } }
+
+            beforeEach(async () => {
+              const response = await makeRequest(
+                components.localFetch,
+                `/users/${targetAddress}/bans`,
+                {
+                  method: 'POST',
+                  body: JSON.stringify({ reason: 'Evasion' }),
+                  metadata: { signer: 'dcl:moderator' }
+                },
+                moderatorIdentity
+              )
+              body = await response.json()
+            })
+
+            it('should capture the recorded device id on the ban and leave the IP unset', () => {
+              expect(body.data).toMatchObject({ bannedDeviceId: deviceId, bannedIp: null })
+            })
+
+            it('should report a different wallet connecting from the banned device as banned', async () => {
+              const status = await components.userModerationDb.getActiveBanForConnection({
+                address: evaderAddress,
+                deviceId
+              })
+              expect(status.isBanned).toBe(true)
+            })
+
+            it('should not report a different wallet connecting from the same IP as banned', async () => {
+              const status = await components.userModerationDb.getActiveBanForConnection({
+                address: evaderAddress,
+                ip: ipAddress
+              })
+              expect(status.isBanned).toBe(false)
+            })
+          })
+
+          describe('and the IP is opted in via banIp', () => {
+            let body: { data: { bannedDeviceId: string | null; bannedIp: string | null } }
+
+            beforeEach(async () => {
+              const response = await makeRequest(
+                components.localFetch,
+                `/users/${targetAddress}/bans`,
+                {
+                  method: 'POST',
+                  body: JSON.stringify({ reason: 'Evasion', banIp: true }),
+                  metadata: { signer: 'dcl:moderator' }
+                },
+                moderatorIdentity
+              )
+              body = await response.json()
+            })
+
+            it('should capture both the recorded device id and IP on the ban', () => {
+              expect(body.data).toMatchObject({ bannedDeviceId: deviceId, bannedIp: ipAddress })
+            })
+
+            it('should report a different wallet connecting from the banned IP as banned', async () => {
+              const status = await components.userModerationDb.getActiveBanForConnection({
+                address: evaderAddress,
+                ip: ipAddress
+              })
+              expect(status.isBanned).toBe(true)
+            })
           })
         })
       })

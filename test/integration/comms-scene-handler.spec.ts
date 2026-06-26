@@ -150,6 +150,41 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
     })
   })
 
+  describe('when the request includes a device id and a Cloudflare IP header', () => {
+    beforeEach(() => {
+      // Accessing the stub here installs the jest spy (test-helpers wraps methods lazily on
+      // first access) so the handler's call is recorded.
+      stubComponents.playerConnectionDb.upsertPlayerConnection.mockResolvedValue(undefined)
+      stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
+      stubComponents.livekit.generateCredentials.mockResolvedValue({
+        url: 'wss://test-livekit-url',
+        token: 'test-token'
+      })
+      stubComponents.livekit.buildConnectionUrl.mockReturnValue(
+        'livekit:wss://test-livekit-url?access_token=test-token'
+      )
+    })
+
+    it('should record the player connection info with the IP and device id', async () => {
+      await makeRequest(
+        components.localFetch,
+        '/get-scene-adapter',
+        {
+          method: 'POST',
+          metadata: { ...metadata, deviceIdentifier: 'device-77' },
+          headers: { 'cf-connecting-ip': '7.7.7.7' }
+        },
+        owner
+      )
+
+      expect(stubComponents.playerConnectionDb.upsertPlayerConnection).toHaveBeenCalledWith({
+        address: owner.authChain[0].payload.toLowerCase(),
+        ipAddress: '7.7.7.7',
+        deviceId: 'device-77'
+      })
+    })
+  })
+
   describe('when accessing a world', () => {
     let worldMetadata: Metadata
 
