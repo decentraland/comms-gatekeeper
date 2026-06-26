@@ -56,6 +56,14 @@ test('user moderation connection bans', ({ components }) => {
       })
     })
 
+    describe('and querying with the banned address and no device id or IP', () => {
+      it('should report the connection as banned', async () => {
+        const status = await components.userModerationDb.getActiveBanForConnection({ address: bannedAddress })
+
+        expect(status.isBanned).toBe(true)
+      })
+    })
+
     describe('and listing active bans', () => {
       it('should include the banned device id and IP on the record', async () => {
         const bans = await components.userModeration.getActiveBans()
@@ -82,6 +90,34 @@ test('user moderation connection bans', ({ components }) => {
     it('should no longer report a connection from the banned device as banned', async () => {
       const status = await components.userModerationDb.getActiveBanForConnection({
         address: otherAddress,
+        deviceId: 'device-1'
+      })
+
+      expect(status.isBanned).toBe(false)
+    })
+  })
+
+  describe('when a ban that recorded a device id has expired', () => {
+    beforeEach(async () => {
+      bannedAddress = '0x0000000000000000000000000000000000000001'
+      await components.userModerationDb.createBan({
+        bannedAddress,
+        bannedBy,
+        reason: 'Evasion',
+        bannedDeviceId: 'device-1',
+        expiresAt: new Date(Date.now() - 1000)
+      })
+    })
+
+    it('should not report the banned address as banned', async () => {
+      const status = await components.userModerationDb.getActiveBanForConnection({ address: bannedAddress })
+
+      expect(status.isBanned).toBe(false)
+    })
+
+    it('should not report a connection from the banned device as banned', async () => {
+      const status = await components.userModerationDb.getActiveBanForConnection({
+        address: '0x0000000000000000000000000000000000000002',
         deviceId: 'device-1'
       })
 
