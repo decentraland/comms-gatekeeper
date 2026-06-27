@@ -6,6 +6,10 @@ export interface UserBan {
   bannedBy: string
   reason: string
   customMessage: string | null
+  // Device id captured from the player's connection info at ban time, used to reject a
+  // banned player who reconnects from the same device under a different wallet. Null when
+  // the player had no recorded connection info.
+  bannedDeviceId: string | null
   bannedAt: Date
   expiresAt: Date | null
   liftedAt: Date | null
@@ -29,7 +33,13 @@ export type CreateBanInput = {
   bannedBy: string
   reason: string
   customMessage?: string
+  bannedDeviceId?: string | null
   expiresAt?: Date
+}
+
+export type ConnectionBanQuery = {
+  address: string
+  deviceId?: string | null
 }
 
 export type CreateWarningInput = {
@@ -49,6 +59,7 @@ export interface IUserModerationComponent {
   liftBan(address: string, liftedBy: string): Promise<void>
   warnPlayer(address: string, reason: string, warnedBy: string): Promise<UserWarning>
   isPlayerBanned(address: string): Promise<BanStatus>
+  getActiveBanForConnection(query: ConnectionBanQuery): Promise<BanStatus>
   getActiveBans(): Promise<UserBan[]>
   getPlayerWarnings(address: string): Promise<UserWarning[]>
 }
@@ -57,6 +68,7 @@ export interface IUserModerationDatabaseComponent {
   createBan(input: CreateBanInput): Promise<UserBan>
   liftBan(address: string, liftedBy: string): Promise<UserBan | null>
   isPlayerBanned(address: string): Promise<BanStatus>
+  getActiveBanForConnection(query: ConnectionBanQuery): Promise<BanStatus>
   getActiveBans(): Promise<UserBan[]>
   createWarning(input: CreateWarningInput): Promise<UserWarning>
   getPlayerWarnings(address: string): Promise<UserWarning[]>

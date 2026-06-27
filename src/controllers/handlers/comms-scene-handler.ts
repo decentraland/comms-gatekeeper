@@ -1,7 +1,7 @@
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../types/errors'
-import { oldValidate } from '../../logic/utils'
+import { getRequestIp, oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
@@ -15,17 +15,58 @@ export async function commsSceneHandler(
     | 'places'
     | 'worlds'
     | 'userModeration'
+    | 'playerConnectionDb'
     | 'sceneManager'
     | 'sceneStreamAccessManager',
     '/get-scene-adapter'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { cast, livekit, logs, denyList, sceneBans, worlds, userModeration, sceneManager, places }
+    components: {
+      cast,
+      livekit,
+      logs,
+      denyList,
+      sceneBans,
+      worlds,
+      userModeration,
+      playerConnectionDb,
+      sceneManager,
+      places
+    }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
-  const { sceneId, identity, parcel, realmName } = await oldValidate(context)
+  const { sceneId, identity, parcel, realmName, deviceIdentifier } = await oldValidate(context)
+
+  const ipAddress = getRequestIp(context.request.headers)
+
+  // These checks only depend on the resolved identity, so run them concurrently to save a DB
+  // round-trip on the hot path. Each is isolated to keep its current behavior: the
+  // connection-info upsert is best-effort (never blocks token issuance) and the platform-ban
+  // check fails open on error. Gate precedence (platform ban → deny list) is preserved below.
+  const [, banStatus, isDenylisted] = await Promise.all([
+    playerConnectionDb
+      .upsertPlayerConnection({ address: identity, ipAddress, deviceId: deviceIdentifier })
+      .catch((error) => {
+        logger.warn(`Failed to store player connection info for ${identity}: ${error}`)
+      }),
+    userModeration.getActiveBanForConnection({ address: identity, deviceId: deviceIdentifier }).catch((error) => {
+      logger.warn(`Error checking platform ban status for ${identity}: ${error}`)
+      return { isBanned: false }
+    }),
+    denyList.isDenylisted(identity)
+  ])
+
+  if (banStatus.isBanned) {
+    logger.warn(`Rejected connection from platform-banned user: ${identity}`)
+    throw new ForbiddenError('Access denied, platform-banned user')
+  }
+
+  if (isDenylisted) {
+    logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
+    throw new UnauthorizedError('Access denied, deny-listed wallet')
+  }
 
   const isLocalPreview = livekit.isLocalPreview(realmName)
 
@@ -34,25 +75,6 @@ export async function commsSceneHandler(
   const permissions: Permissions = {
     cast: [],
     mute: []
-  }
-
-  try {
-    const { isBanned: isPlatformBanned } = await userModeration.isPlayerBanned(identity)
-    if (isPlatformBanned) {
-      logger.warn(`Rejected connection from platform-banned user: ${identity}`)
-      throw new ForbiddenError('Access denied, platform-banned user')
-    }
-  } catch (error) {
-    if (error instanceof ForbiddenError) {
-      throw error
-    }
-    logger.warn(`Error checking platform ban status for ${identity}: ${error}`)
-  }
-
-  const isDenylisted = await denyList.isDenylisted(identity)
-  if (isDenylisted) {
-    logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
-    throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
 
   const isWorld = realmName.endsWith('.eth')

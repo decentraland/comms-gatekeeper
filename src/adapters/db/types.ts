@@ -29,6 +29,41 @@ export interface CommunityVoiceChatUser {
   sid?: string | null
 }
 
+export interface PlayerConnectionInfo {
+  address: string
+  ipAddress: string | null
+  deviceId: string | null
+  // Milliseconds since epoch.
+  createdAt: number
+  // Milliseconds since epoch.
+  updatedAt: number
+}
+
+export type UpsertPlayerConnectionInput = {
+  address: string
+  ipAddress?: string | null
+  deviceId?: string | null
+}
+
+export interface IPlayerConnectionDBComponent {
+  /**
+   * Stores (or updates) the latest connection information for a player. One row per
+   * address: subsequent calls overwrite the IP, device id and updated_at timestamp.
+   * The address is stored verbatim, so callers must pass it already lowercased to keep
+   * it consistent with how it is later looked up.
+   * @param input - The address and the (optional) IP address and device id to store.
+   */
+  upsertPlayerConnection(input: UpsertPlayerConnectionInput): Promise<void>
+
+  /**
+   * Gets the latest stored connection information for a player. The lookup is exact, so
+   * the address must already be lowercased to match how it was stored.
+   * @param address - The lowercased address of the player.
+   * @returns The stored connection info, or null if the player has none yet.
+   */
+  getByAddress(address: string): Promise<PlayerConnectionInfo | null>
+}
+
 export interface IVoiceDBComponent {
   /**
    * Checks if a private room is active. A private room is active if:

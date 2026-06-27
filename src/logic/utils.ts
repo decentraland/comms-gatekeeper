@@ -23,7 +23,7 @@ export async function oldValidate<T extends string>(
     throw new UnauthorizedError('Access denied, invalid signed-fetch request')
   }
 
-  const { sceneId, parcel, realmName } = verification.authMetadata
+  const { sceneId, parcel, realmName, deviceIdentifier } = verification.authMetadata
   if (!realmName) {
     throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realmName')
   }
@@ -36,7 +36,8 @@ export async function oldValidate<T extends string>(
     identity,
     sceneId,
     parcel,
-    realmName
+    realmName,
+    deviceIdentifier
   }
 }
 
@@ -58,7 +59,7 @@ export async function validate<T extends string>(
     throw new UnauthorizedError('Access denied, invalid signed-fetch request')
   }
 
-  const { realm, sceneId, parcel } = verification.authMetadata
+  const { realm, sceneId, parcel, deviceIdentifier } = verification.authMetadata
 
   if (!realm) {
     throw new UnauthorizedError('Access denied, invalid signed-fetch request, no realm')
@@ -71,8 +72,27 @@ export async function validate<T extends string>(
     sceneId,
     parcel,
     realm,
-    isWorld: !!realm.hostname?.includes('worlds-content-server')
+    isWorld: !!realm.hostname?.includes('worlds-content-server'),
+    deviceIdentifier
   }
+}
+
+/**
+ * Reads the client IP address from the Cloudflare `cf-connecting-ip` header.
+ *
+ * Trusting this header is only safe because the service runs strictly behind
+ * Cloudflare, which sets `cf-connecting-ip` to the real client IP and strips any
+ * client-supplied value. If the service were ever reachable without going through
+ * Cloudflare, this header could be spoofed.
+ *
+ * Returns undefined for a missing or empty header so callers never persist an empty
+ * string (which would be stored but never match a ban).
+ *
+ * @param headers - The request headers.
+ * @returns The client IP, or undefined when the header is absent or empty.
+ */
+export function getRequestIp(headers: Headers): string | undefined {
+  return headers.get('cf-connecting-ip') || undefined
 }
 
 export function ensureSlashAtTheEnd(url: string): string | undefined {

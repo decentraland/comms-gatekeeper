@@ -29,13 +29,13 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
     } as PlaceAttributes)
 
     stubComponents.denyList.isDenylisted.mockResolvedValue(false)
-    stubComponents.userModeration.isPlayerBanned.mockResolvedValue({ isBanned: false })
+    stubComponents.userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
     stubComponents.livekit.getSceneRoomName.mockReturnValue(`test-realm:test-scene`)
   })
 
   describe('when user is platform-banned', () => {
     beforeEach(() => {
-      stubComponents.userModeration.isPlayerBanned.mockResolvedValue({ isBanned: true })
+      stubComponents.userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: true })
     })
 
     it('should reject access returning 403', async () => {
@@ -60,7 +60,9 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
   describe('when the platform ban check fails', () => {
     beforeEach(() => {
-      stubComponents.userModeration.isPlayerBanned.mockRejectedValue(new Error('moderation service unavailable'))
+      stubComponents.userModeration.getActiveBanForConnection.mockRejectedValue(
+        new Error('moderation service unavailable')
+      )
       stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
       stubComponents.livekit.generateCredentials.mockResolvedValue({
         url: 'wss://test-livekit-url',
@@ -144,6 +146,41 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       const body = await response.json()
       expect(body).toEqual({
         adapter: 'livekit:wss://test-livekit-url?access_token=test-token'
+      })
+    })
+  })
+
+  describe('when the request includes a device id and a Cloudflare IP header', () => {
+    beforeEach(() => {
+      // Accessing the stub here installs the jest spy (test-helpers wraps methods lazily on
+      // first access) so the handler's call is recorded.
+      stubComponents.playerConnectionDb.upsertPlayerConnection.mockResolvedValue(undefined)
+      stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
+      stubComponents.livekit.generateCredentials.mockResolvedValue({
+        url: 'wss://test-livekit-url',
+        token: 'test-token'
+      })
+      stubComponents.livekit.buildConnectionUrl.mockReturnValue(
+        'livekit:wss://test-livekit-url?access_token=test-token'
+      )
+    })
+
+    it('should record the player connection info with the IP and device id', async () => {
+      await makeRequest(
+        components.localFetch,
+        '/get-scene-adapter',
+        {
+          method: 'POST',
+          metadata: { ...metadata, deviceIdentifier: 'device-77' },
+          headers: { 'cf-connecting-ip': '7.7.7.7' }
+        },
+        owner
+      )
+
+      expect(stubComponents.playerConnectionDb.upsertPlayerConnection).toHaveBeenCalledWith({
+        address: owner.authChain[0].payload.toLowerCase(),
+        ipAddress: '7.7.7.7',
+        deviceId: 'device-77'
       })
     })
   })

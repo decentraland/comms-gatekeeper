@@ -14,7 +14,7 @@ erDiagram
         BIGINT created_at "Creation timestamp"
         BOOLEAN active "Active status"
     }
-    
+
     scene_stream_access {
         UUID id PK "Stream access ID"
         TEXT place_id "Scene/place identifier"
@@ -29,7 +29,7 @@ erDiagram
         BIGINT streaming_start_time "Streaming start time"
         BOOLEAN active "Active status"
     }
-    
+
     scene_bans {
         UUID id PK "Ban record ID"
         TEXT place_id "Scene/place identifier"
@@ -37,7 +37,7 @@ erDiagram
         TEXT banned_by "Who issued the ban"
         BIGINT banned_at "Ban timestamp"
     }
-    
+
     voice_chat_users {
         VARCHAR address PK "User address"
         VARCHAR room_name PK "Voice chat room name"
@@ -45,7 +45,7 @@ erDiagram
         BIGINT joined_at "Join timestamp"
         BIGINT status_updated_at "Status update timestamp"
     }
-    
+
     community_voice_chat_users {
         TEXT address PK "User address"
         TEXT room_name PK "Voice chat room name"
@@ -55,7 +55,7 @@ erDiagram
         BIGINT status_updated_at "Status update timestamp"
         TIMESTAMPTZ created_at "Creation timestamp"
     }
-    
+
     scene_admin ||--o{ scene_stream_access : "manages"
     scene_admin ||--o{ scene_bans : "issues"
 ```
@@ -69,6 +69,7 @@ The database contains the following tables:
 3. **`scene_bans`** - Tracks users banned from specific scenes
 4. **`voice_chat_users`** - Tracks participants in private voice chat rooms
 5. **`community_voice_chat_users`** - Tracks participants in community voice chat rooms with moderation
+6. **`player_connection_info`** - Stores each player's latest IP address and device id, captured on token requests
 
 ## Table: `scene_admin`
 
@@ -76,14 +77,14 @@ Stores scene administrators who have management privileges for specific scenes.
 
 ### Columns
 
-| Column | Type | Nullable | Description |
-|--------|------|----------|-------------|
-| `id` | UUID | NOT NULL | **Primary Key**. Unique admin record identifier. |
-| `place_id` | TEXT | NOT NULL | Scene/place identifier. |
-| `admin` | TEXT | NOT NULL | Ethereum address of the admin. |
-| `added_by` | TEXT | NOT NULL | Ethereum address of who added this admin. |
-| `created_at` | BIGINT | NOT NULL | Timestamp (in milliseconds) when the admin was added. |
-| `active` | BOOLEAN | NOT NULL | Active status. Defaults to `true`. |
+| Column       | Type    | Nullable | Description                                           |
+| ------------ | ------- | -------- | ----------------------------------------------------- |
+| `id`         | UUID    | NOT NULL | **Primary Key**. Unique admin record identifier.      |
+| `place_id`   | TEXT    | NOT NULL | Scene/place identifier.                               |
+| `admin`      | TEXT    | NOT NULL | Ethereum address of the admin.                        |
+| `added_by`   | TEXT    | NOT NULL | Ethereum address of who added this admin.             |
+| `created_at` | BIGINT  | NOT NULL | Timestamp (in milliseconds) when the admin was added. |
+| `active`     | BOOLEAN | NOT NULL | Active status. Defaults to `true`.                    |
 
 ### Indexes
 
@@ -104,20 +105,20 @@ Manages RTMP streaming URLs and keys for content creators to broadcast to scenes
 
 ### Columns
 
-| Column | Type | Nullable | Description |
-|--------|------|----------|-------------|
-| `id` | UUID | NOT NULL | **Primary Key**. Unique stream access identifier. |
-| `place_id` | TEXT | NOT NULL | Scene/place identifier. |
-| `streaming_url` | TEXT | NOT NULL | RTMP streaming URL for the stream. |
-| `streaming_key` | TEXT | NOT NULL | Streaming key for authentication. |
-| `ingress_id` | TEXT | NOT NULL | LiveKit ingress ID (can be empty for Cast 2.0). |
-| `room_id` | TEXT | NULL | LiveKit room ID (e.g., `scene:realm:sceneId`). |
-| `generated_by` | TEXT | NULL | Ethereum address of who generated the stream link. |
-| `created_at` | BIGINT | NOT NULL | Timestamp (in milliseconds) when the stream access was created. |
-| `expiration_time` | BIGINT | NULL | Timestamp (in milliseconds) when the stream access expires. |
-| `streaming` | BOOLEAN | NOT NULL | Whether the stream is currently active. Defaults to `false`. |
-| `streaming_start_time` | BIGINT | NULL | Timestamp (in milliseconds) when streaming started. |
-| `active` | BOOLEAN | NOT NULL | Active status. Defaults to `true`. |
+| Column                 | Type    | Nullable | Description                                                     |
+| ---------------------- | ------- | -------- | --------------------------------------------------------------- |
+| `id`                   | UUID    | NOT NULL | **Primary Key**. Unique stream access identifier.               |
+| `place_id`             | TEXT    | NOT NULL | Scene/place identifier.                                         |
+| `streaming_url`        | TEXT    | NOT NULL | RTMP streaming URL for the stream.                              |
+| `streaming_key`        | TEXT    | NOT NULL | Streaming key for authentication.                               |
+| `ingress_id`           | TEXT    | NOT NULL | LiveKit ingress ID (can be empty for Cast 2.0).                 |
+| `room_id`              | TEXT    | NULL     | LiveKit room ID (e.g., `scene:realm:sceneId`).                  |
+| `generated_by`         | TEXT    | NULL     | Ethereum address of who generated the stream link.              |
+| `created_at`           | BIGINT  | NOT NULL | Timestamp (in milliseconds) when the stream access was created. |
+| `expiration_time`      | BIGINT  | NULL     | Timestamp (in milliseconds) when the stream access expires.     |
+| `streaming`            | BOOLEAN | NOT NULL | Whether the stream is currently active. Defaults to `false`.    |
+| `streaming_start_time` | BIGINT  | NULL     | Timestamp (in milliseconds) when streaming started.             |
+| `active`               | BOOLEAN | NOT NULL | Active status. Defaults to `true`.                              |
 
 ### Indexes
 
@@ -145,13 +146,13 @@ Tracks users who have been banned from specific scenes.
 
 ### Columns
 
-| Column | Type | Nullable | Description |
-|--------|------|----------|-------------|
-| `id` | UUID | NOT NULL | **Primary Key**. Unique ban record identifier. |
-| `place_id` | TEXT | NOT NULL | Scene/place identifier. |
-| `banned_address` | TEXT | NOT NULL | Ethereum address of the banned user. |
-| `banned_by` | TEXT | NOT NULL | Ethereum address of who issued the ban. |
-| `banned_at` | BIGINT | NOT NULL | Timestamp (in milliseconds) when the ban was issued. |
+| Column           | Type   | Nullable | Description                                          |
+| ---------------- | ------ | -------- | ---------------------------------------------------- |
+| `id`             | UUID   | NOT NULL | **Primary Key**. Unique ban record identifier.       |
+| `place_id`       | TEXT   | NOT NULL | Scene/place identifier.                              |
+| `banned_address` | TEXT   | NOT NULL | Ethereum address of the banned user.                 |
+| `banned_by`      | TEXT   | NOT NULL | Ethereum address of who issued the ban.              |
+| `banned_at`      | BIGINT | NOT NULL | Timestamp (in milliseconds) when the ban was issued. |
 
 ### Indexes
 
@@ -172,13 +173,13 @@ Tracks participants in private voice chat rooms.
 
 ### Columns
 
-| Column | Type | Nullable | Description |
-|--------|------|----------|-------------|
-| `address` | VARCHAR(42) | NOT NULL | **Primary Key (part 1)**. Ethereum address of the user. |
-| `room_name` | VARCHAR | NOT NULL | **Primary Key (part 2)**. Voice chat room name. |
-| `status` | VARCHAR | NOT NULL | Connection status: `'connected'`, `'connection_interrupted'`, or `'disconnected'`. |
-| `joined_at` | BIGINT | NOT NULL | Timestamp (in milliseconds) when the user joined. |
-| `status_updated_at` | BIGINT | NOT NULL | Timestamp (in milliseconds) when the status was last updated. |
+| Column              | Type        | Nullable | Description                                                                        |
+| ------------------- | ----------- | -------- | ---------------------------------------------------------------------------------- |
+| `address`           | VARCHAR(42) | NOT NULL | **Primary Key (part 1)**. Ethereum address of the user.                            |
+| `room_name`         | VARCHAR     | NOT NULL | **Primary Key (part 2)**. Voice chat room name.                                    |
+| `status`            | VARCHAR     | NOT NULL | Connection status: `'connected'`, `'connection_interrupted'`, or `'disconnected'`. |
+| `joined_at`         | BIGINT      | NOT NULL | Timestamp (in milliseconds) when the user joined.                                  |
+| `status_updated_at` | BIGINT      | NOT NULL | Timestamp (in milliseconds) when the status was last updated.                      |
 
 ### Indexes
 
@@ -200,15 +201,15 @@ Tracks participants in community voice chat rooms with moderation capabilities.
 
 ### Columns
 
-| Column | Type | Nullable | Description |
-|--------|------|----------|-------------|
-| `address` | TEXT | NOT NULL | **Primary Key (part 1)**. Ethereum address of the user. |
-| `room_name` | TEXT | NOT NULL | **Primary Key (part 2)**. Voice chat room name. |
-| `is_moderator` | BOOLEAN | NOT NULL | Whether the user is a moderator. Defaults to `false`. |
-| `status` | TEXT | NOT NULL | Connection status: `'connected'`, `'connection_interrupted'`, `'disconnected'`, or `'not_connected'`. |
-| `joined_at` | BIGINT | NOT NULL | Timestamp (in milliseconds) when the user joined. |
-| `status_updated_at` | BIGINT | NOT NULL | Timestamp (in milliseconds) when the status was last updated. |
-| `created_at` | TIMESTAMPTZ | NOT NULL | Timestamp when the record was created. Defaults to `now()`. |
+| Column              | Type        | Nullable | Description                                                                                           |
+| ------------------- | ----------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `address`           | TEXT        | NOT NULL | **Primary Key (part 1)**. Ethereum address of the user.                                               |
+| `room_name`         | TEXT        | NOT NULL | **Primary Key (part 2)**. Voice chat room name.                                                       |
+| `is_moderator`      | BOOLEAN     | NOT NULL | Whether the user is a moderator. Defaults to `false`.                                                 |
+| `status`            | TEXT        | NOT NULL | Connection status: `'connected'`, `'connection_interrupted'`, `'disconnected'`, or `'not_connected'`. |
+| `joined_at`         | BIGINT      | NOT NULL | Timestamp (in milliseconds) when the user joined.                                                     |
+| `status_updated_at` | BIGINT      | NOT NULL | Timestamp (in milliseconds) when the status was last updated.                                         |
+| `created_at`        | TIMESTAMPTZ | NOT NULL | Timestamp when the record was created. Defaults to `now()`.                                           |
 
 ### Indexes
 
@@ -231,9 +232,34 @@ Tracks participants in community voice chat rooms with moderation capabilities.
 
 ---
 
+## Table: `player_connection_info`
+
+Stores the latest connection information for each player, captured (best-effort) whenever a LiveKit token is requested on `/get-scene-adapter` or `/private-messages/token`. One row per player; each request upserts the most recent values.
+
+### Columns
+
+| Column       | Type        | Nullable | Description                                                                                 |
+| ------------ | ----------- | -------- | ------------------------------------------------------------------------------------------- |
+| `address`    | VARCHAR(42) | NOT NULL | **Primary Key**. Ethereum address of the player.                                            |
+| `ip_address` | VARCHAR(45) | NULL     | Client IP from the Cloudflare `cf-connecting-ip` header. Null when absent.                  |
+| `device_id`  | TEXT        | NULL     | Device id from the signed-fetch auth metadata (`deviceIdentifier`). Null for older clients. |
+| `created_at` | BIGINT      | NOT NULL | Timestamp (in milliseconds) when the row was first created.                                 |
+| `updated_at` | BIGINT      | NOT NULL | Timestamp (in milliseconds) of the most recent update.                                      |
+
+### Indexes
+
+- **Primary Key**: `address` - One row per player
+
+### Business Rules
+
+1. One row per player (address as primary key); each token request upserts the latest IP and device id.
+2. Capture is best-effort: missing IP/device id or a write failure never blocks token issuance.
+3. Consumed by user moderation: on ban, the player's `device_id` is snapshotted into `user_bans` (`banned_device_id`) to reject reconnections from the same device under a different wallet. The `ip_address` is logged here but is not used for banning.
+
+---
+
 ## Related Code
 
 - **Migrations**: `src/migrations/`
 - **Database Adapters**: `src/adapters/db/`
 - **Types**: `src/types/`
-

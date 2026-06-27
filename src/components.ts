@@ -35,6 +35,7 @@ import { createSnsComponent } from '@dcl/sns-component'
 import { createNotificationsComponent } from './adapters/notifications'
 import { createSceneAdminsComponent } from './adapters/scene-admins'
 import { createVoiceDBComponent } from './adapters/db/voice-db'
+import { createPlayerConnectionDBComponent } from './adapters/db/player-connection-db'
 import { createVoiceComponent } from './logic/voice/voice'
 import { createSceneBansComponent } from './logic/scene-bans'
 import { createRoomMetadataSyncComponent } from './logic/room-metadata-sync'
@@ -135,6 +136,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   })
 
   const userModerationDb = createUserModerationDBComponent({ database, logs })
+  const playerConnectionDb = createPlayerConnectionDBComponent({ database, logs })
   const moderator = await createModeratorComponent({ features, logs, config })
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
@@ -170,7 +172,13 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const publisher = await createSnsComponent({ config })
 
-  const userModeration = createUserModerationComponent({ userModerationDb, logs, publisher, livekit })
+  const userModeration = createUserModerationComponent({
+    userModerationDb,
+    playerConnectionDb,
+    logs,
+    publisher,
+    livekit
+  })
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
@@ -297,6 +305,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     livekit,
     database,
     voiceDB,
+    playerConnectionDb,
     voice,
     sceneAdminManager,
     sceneBanManager,
