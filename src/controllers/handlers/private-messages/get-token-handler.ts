@@ -24,24 +24,26 @@ export async function getPrivateMessagesTokenHandler(
   const deviceIdentifier: string | undefined = context.verification?.authMetadata?.deviceIdentifier
   const ipAddress = getRequestIp(context.request.headers)
 
-  // Best-effort: record the player's latest IP and device id. Never block token issuance.
-  try {
-    await playerConnectionDb.upsertPlayerConnection({ address: identity, ipAddress, deviceId: deviceIdentifier })
-  } catch (error) {
-    logger.warn(`Failed to store player connection info for ${identity}: ${error}`)
-  }
+  // These checks only depend on the resolved identity, so run them concurrently to save a DB
+  // round-trip on the hot path. The connection-info upsert is best-effort (never blocks token
+  // issuance); the deny-list and ban checks keep their current behavior. Gate precedence (deny
+  // list → platform ban) is preserved below.
+  const [, isDenylisted, banStatus] = await Promise.all([
+    playerConnectionDb
+      .upsertPlayerConnection({ address: identity, ipAddress, deviceId: deviceIdentifier })
+      .catch((error) => {
+        logger.warn(`Failed to store player connection info for ${identity}: ${error}`)
+      }),
+    denyList.isDenylisted(identity),
+    userModeration.getActiveBanForConnection({ address: identity, deviceId: deviceIdentifier })
+  ])
 
-  const isDenylisted = await denyList.isDenylisted(identity)
   if (isDenylisted) {
     logger.warn(`Rejected connection from deny-listed wallet: ${identity}`)
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
 
-  const { isBanned } = await userModeration.getActiveBanForConnection({
-    address: identity,
-    deviceId: deviceIdentifier
-  })
-  if (isBanned) {
+  if (banStatus.isBanned) {
     logger.warn(`Rejected connection from platform-banned user: ${identity}`)
     throw new ForbiddenError('Access denied, platform-banned user')
   }
