@@ -61,6 +61,60 @@ test('player connection DB component', ({ components }) => {
     })
   })
 
+  describe('when upserting over an existing row without an ip address or device id', () => {
+    beforeEach(async () => {
+      address = '0x0000000000000000000000000000000000000abc'
+      await components.playerConnectionDb.upsertPlayerConnection({
+        address,
+        ipAddress: '1.2.3.4',
+        deviceId: 'device-1'
+      })
+      await components.playerConnectionDb.upsertPlayerConnection({ address })
+    })
+
+    it('should preserve the previously stored ip address and device id', async () => {
+      const info = await components.playerConnectionDb.getByAddress(address)
+
+      expect(info).toMatchObject({ address, ipAddress: '1.2.3.4', deviceId: 'device-1' })
+    })
+  })
+
+  describe('when upserting over an existing row with empty ip address and device id', () => {
+    beforeEach(async () => {
+      address = '0x0000000000000000000000000000000000000abc'
+      await components.playerConnectionDb.upsertPlayerConnection({
+        address,
+        ipAddress: '1.2.3.4',
+        deviceId: 'device-1'
+      })
+      await components.playerConnectionDb.upsertPlayerConnection({ address, ipAddress: '', deviceId: '' })
+    })
+
+    it('should preserve the previously stored ip address and device id', async () => {
+      const info = await components.playerConnectionDb.getByAddress(address)
+
+      expect(info).toMatchObject({ address, ipAddress: '1.2.3.4', deviceId: 'device-1' })
+    })
+  })
+
+  describe('when upserting over an existing row with a new ip address but no device id', () => {
+    beforeEach(async () => {
+      address = '0x0000000000000000000000000000000000000abc'
+      await components.playerConnectionDb.upsertPlayerConnection({
+        address,
+        ipAddress: '1.2.3.4',
+        deviceId: 'device-1'
+      })
+      await components.playerConnectionDb.upsertPlayerConnection({ address, ipAddress: '5.6.7.8' })
+    })
+
+    it('should update the ip address and preserve the existing device id', async () => {
+      const info = await components.playerConnectionDb.getByAddress(address)
+
+      expect(info).toMatchObject({ address, ipAddress: '5.6.7.8', deviceId: 'device-1' })
+    })
+  })
+
   describe('when upserting without an ip address or device id', () => {
     beforeEach(async () => {
       address = '0x0000000000000000000000000000000000000abc'
