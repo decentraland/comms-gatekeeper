@@ -16,12 +16,18 @@ export function createPlayerConnectionDBComponent(
       // Store empty strings as null so the IP/device columns are either a usable value or
       // absent. An empty string would be persisted yet never match a ban (enforcement only
       // matches truthy identifiers), leaving inconsistent dead data.
+      //
+      // On conflict, COALESCE keeps the previously stored value when the incoming one is null:
+      // requests reach this upsert from several paths (scene-comms, private-messages) and not all
+      // carry an IP/device on every call. A null must never clobber a known identifier, or a
+      // single info-less request would erase the value a later ban relies on. A non-null incoming
+      // value still overwrites, and each column is preserved independently.
       const query = SQL`
         INSERT INTO player_connection_info (address, ip_address, device_id, created_at, updated_at)
         VALUES (${address}, ${ipAddress || null}, ${deviceId || null}, ${now}, ${now})
         ON CONFLICT (address) DO UPDATE SET
-          ip_address = EXCLUDED.ip_address,
-          device_id = EXCLUDED.device_id,
+          ip_address = COALESCE(EXCLUDED.ip_address, player_connection_info.ip_address),
+          device_id = COALESCE(EXCLUDED.device_id, player_connection_info.device_id),
           updated_at = EXCLUDED.updated_at`
       await database.query(query)
     },
