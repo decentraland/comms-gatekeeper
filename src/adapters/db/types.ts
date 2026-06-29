@@ -48,9 +48,11 @@ export type UpsertPlayerConnectionInput = {
 export interface IPlayerConnectionDBComponent {
   /**
    * Stores (or updates) the latest connection information for a player. One row per
-   * address: subsequent calls overwrite the IP, device id and updated_at timestamp.
-   * The address is stored verbatim, so callers must pass it already lowercased to keep
-   * it consistent with how it is later looked up.
+   * address: subsequent calls update the IP and device id only when a non-null value is
+   * provided, preserving the previously stored value otherwise (each column independently)
+   * so an info-less request never clears an identifier a later ban relies on. The
+   * updated_at timestamp always advances. The address is stored verbatim, so callers must
+   * pass it already lowercased to keep it consistent with how it is later looked up.
    * @param input - The address and the (optional) IP address and device id to store.
    */
   upsertPlayerConnection(input: UpsertPlayerConnectionInput): Promise<void>
