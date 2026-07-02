@@ -1,3 +1,4 @@
+import SQL from 'sql-template-strings'
 import { test } from '../../components'
 
 test('GET /users/:address/bans', ({ components }) => {
@@ -65,7 +66,7 @@ test('GET /users/:address/bans', ({ components }) => {
         expect(rejected).toHaveLength(1)
 
         const rows = await components.database.query(
-          `SELECT id FROM user_bans WHERE banned_address = '${targetAddress}' AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at > now())`
+          SQL`SELECT id FROM user_bans WHERE banned_address = ${targetAddress} AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at > now())`
         )
         expect(rows.rowCount).toBe(1)
       })

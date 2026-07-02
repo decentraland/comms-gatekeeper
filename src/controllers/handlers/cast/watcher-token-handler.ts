@@ -1,6 +1,6 @@
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../../types'
-import { UnauthorizedError } from '../../../types/errors'
+import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { WatcherTokenRequestBody } from './schemas'
 
 export async function watcherTokenHandler(
@@ -23,7 +23,15 @@ export async function watcherTokenHandler(
   }
   const watcherAddress = verification.auth.toLowerCase()
 
-  const body: WatcherTokenRequestBody = await request.json()
+  // The schema-validator middleware normally rejects a malformed body first; guard here too so
+  // the handler doesn't surface a 500 if it is ever wired without that middleware (matches
+  // remove-scene-admin-handler).
+  let body: WatcherTokenRequestBody
+  try {
+    body = await request.json()
+  } catch {
+    throw new InvalidRequestError('Invalid request body')
+  }
 
   const credentials = await cast.generateWatcherCredentialsByLocation(
     body.location,
