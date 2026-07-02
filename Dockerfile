@@ -35,6 +35,10 @@ COPY --from=builderenv /app /app
 
 RUN echo "" > /app/.env
 
+# Drop root: the official node image ships an unprivileged `node` user (uid 1000). The app
+# only reads its bundle and talks to the DB/LiveKit over the network, so it does not need root.
+USER node
+
 ENTRYPOINT ["/sbin/tini", "--"]
 # Run the program under Tini
 CMD [ "/usr/local/bin/node", "--trace-warnings", "--abort-on-uncaught-exception", "--unhandled-rejections=strict", "dist/index.js" ]

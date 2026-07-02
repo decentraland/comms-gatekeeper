@@ -168,25 +168,25 @@ export async function createSceneStreamAccessManagerComponent({
   async function startStreaming(ingressId: string): Promise<void> {
     const now = Date.now()
     const query = SQL`
-      UPDATE scene_stream_access 
+      UPDATE scene_stream_access
       SET streaming = true, streaming_start_time = ${now}
-      WHERE ingress_id = ${ingressId} AND active = true
+      WHERE ingress_id = ${ingressId} AND ingress_id != '' AND active = true
     `
     await database.query(query)
   }
 
   async function stopStreaming(ingressId: string): Promise<void> {
     const query = SQL`
-      UPDATE scene_stream_access 
+      UPDATE scene_stream_access
       SET streaming = false
-      WHERE ingress_id = ${ingressId} AND active = true
+      WHERE ingress_id = ${ingressId} AND ingress_id != '' AND active = true
     `
     await database.query(query)
   }
 
   async function isStreaming(ingressId: string): Promise<boolean> {
     const result = await database.query<SceneStreamAccess>(
-      SQL`SELECT streaming FROM scene_stream_access WHERE ingress_id = ${ingressId} AND active = true LIMIT 1`
+      SQL`SELECT streaming FROM scene_stream_access WHERE ingress_id = ${ingressId} AND ingress_id != '' AND active = true LIMIT 1`
     )
     return result.rowCount > 0 && result.rows[0].streaming
   }
@@ -207,10 +207,12 @@ export async function createSceneStreamAccessManagerComponent({
   }
 
   async function killStreaming(ingressId: string): Promise<void> {
+    // Guard against ingress_id = '' (used by Cast 2.0 WebRTC rows): without it, a single call
+    // with an empty id would deactivate every active Cast 2.0 stream access platform-wide.
     const query = SQL`
-      UPDATE scene_stream_access 
+      UPDATE scene_stream_access
       SET active = false, streaming = false
-      WHERE ingress_id = ${ingressId} AND active = true
+      WHERE ingress_id = ${ingressId} AND ingress_id != '' AND active = true
     `
     await database.query(query)
   }

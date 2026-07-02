@@ -17,6 +17,7 @@ export async function commsSceneHandler(
     | 'userModeration'
     | 'playerConnectionDb'
     | 'sceneManager'
+    | 'contentClient'
     | 'sceneStreamAccessManager',
     '/get-scene-adapter'
   >
@@ -32,6 +33,7 @@ export async function commsSceneHandler(
       userModeration,
       playerConnectionDb,
       sceneManager,
+      contentClient,
       places
     }
   } = context
@@ -98,10 +100,12 @@ export async function commsSceneHandler(
   // Check if user is banned from the scene (skip for local preview)
   if (!isLocalPreview) {
     try {
+      // Pass only the resolved sceneId (not parcel): the room this connection joins is derived
+      // from sceneId, so the ban must be evaluated against that exact scene. Supplying parcel
+      // here would let a banned user dodge the check with a mismatched-but-benign parcel.
       const isBanned = await sceneBans.isUserBanned(identity, {
         sceneId: resolvedSceneId,
         realmName,
-        parcel,
         isWorld
       })
 
@@ -140,7 +144,9 @@ export async function commsSceneHandler(
 
     room = livekit.getWorldSceneRoomName(realmName, resolvedSceneId)
   } else {
-    room = livekit.getSceneRoomName(realmName, sceneId)
+    // Use resolvedSceneId uniformly (equal to sceneId for non-world scenes) so all three
+    // branches key the room off the same identifier.
+    room = livekit.getSceneRoomName(realmName, resolvedSceneId)
   }
 
   // Add scene admins as presenters in room metadata
@@ -148,7 +154,20 @@ export async function commsSceneHandler(
     if (isLocalPreview) {
       await cast.addPresenter(room, identity)
     } else {
-      const place = isWorld ? await places.getWorldByName(realmName) : await places.getPlaceByParcel(parcel)
+      // Resolve the place from the SAME sceneId used to build `room`, not from the
+      // separately-supplied `parcel`. Otherwise an admin of an unrelated place could be
+      // added as a presenter in this scene's room by mismatching parcel and sceneId.
+      let place
+      if (isWorld) {
+        place = await places.getWorldScenePlaceByEntityId(realmName, resolvedSceneId)
+      } else {
+        const entity = await contentClient.fetchEntityById(resolvedSceneId)
+        const base = entity?.metadata?.scene?.base
+        if (!base) {
+          throw new InvalidRequestError(`Could not resolve scene entity ${resolvedSceneId}`)
+        }
+        place = await places.getPlaceByParcel(base)
+      }
       const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, identity)
       if (isAdmin) {
         await cast.addPresenter(room, identity)

@@ -27,9 +27,17 @@ export async function removeSceneAdminHandler(
     throw new UnauthorizedError('Authentication required')
   }
 
-  const payload = await request.json()
+  let payload: { admin?: string }
+  try {
+    payload = await request.json()
+  } catch {
+    // A missing or malformed body would otherwise surface as an unhandled 500.
+    throw new InvalidRequestError('Invalid payload')
+  }
 
-  if (!payload.admin) {
+  // Guard non-object bodies too (e.g. a literal `null`, number, or string are all valid JSON
+  // but would make the `.admin` access below throw a TypeError → unhandled 500).
+  if (!payload || typeof payload !== 'object' || !payload.admin) {
     logger.warn(`Invalid scene admin payload`, payload)
     throw new InvalidRequestError(`Invalid payload`)
   }

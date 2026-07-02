@@ -11,6 +11,7 @@ import {
   CreateWarningInput,
   ConnectionBanQuery
 } from '../logic/user-moderation/types'
+import { PlayerAlreadyBannedError } from '../logic/user-moderation/errors'
 
 const BAN_SELECT_FIELDS = `id, banned_address as "bannedAddress", banned_by as "bannedBy", reason,
                custom_message as "customMessage", banned_device_id as "bannedDeviceId",
@@ -33,16 +34,44 @@ export function createUserModerationDBComponent(components: {
   return {
     async createBan(input: CreateBanInput): Promise<UserBan> {
       const id = randomUUID()
-
       const now = new Date()
 
-      const query = SQL`
+      // There is no DB-level uniqueness constraint on active bans (a partial unique index on
+      // `lifted_at IS NULL` would wrongly block re-banning a user whose previous ban expired),
+      // so guard the check-then-insert with a transaction-scoped advisory lock keyed on the
+      // address. This serializes concurrent bans for the same address cluster-wide and prevents
+      // two moderators from creating duplicate active-ban rows via a TOCTOU race.
+      const pool = database.getPool()
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        await client.query(SQL`SELECT pg_advisory_xact_lock(hashtext(${input.bannedAddress}))`)
+
+        const existing = await client.query<UserBan>(
+          SQL`SELECT id FROM user_bans WHERE banned_address = ${input.bannedAddress} AND `.append(activeBanFilter(now))
+        )
+        if (existing.rows.length > 0) {
+          // Throw without committing: the ROLLBACK in catch cleanly ends this write-free
+          // transaction and releases the advisory lock (a COMMIT-then-throw would leave the
+          // catch issuing a ROLLBACK against an already-finished transaction).
+          throw new PlayerAlreadyBannedError(input.bannedAddress)
+        }
+
+        const result = await client.query<UserBan>(
+          SQL`
         INSERT INTO user_bans (id, banned_address, banned_by, reason, custom_message, banned_device_id, banned_at, expires_at, created_at)
         VALUES (${id}, ${input.bannedAddress}, ${input.bannedBy}, ${input.reason}, ${input.customMessage ?? null}, ${input.bannedDeviceId ?? null}, ${now}, ${input.expiresAt ?? null}, ${now})
         RETURNING `.append(BAN_SELECT_FIELDS)
+        )
 
-      const result = await database.query<UserBan>(query)
-      return result.rows[0]
+        await client.query('COMMIT')
+        return result.rows[0]
+      } catch (error) {
+        await client.query('ROLLBACK')
+        throw error
+      } finally {
+        client.release()
+      }
     },
 
     async liftBan(address: string, liftedBy: string): Promise<UserBan | null> {

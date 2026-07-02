@@ -6,6 +6,8 @@ import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
+import { createContentClientMockedComponent } from '../../mocks/content-client-mock'
+import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
 
 describe('when generating watcher credentials', () => {
   let castComponent: ICastComponent
@@ -63,7 +65,9 @@ describe('when generating watcher credentials', () => {
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: mockSceneManager,
       places: mockPlaces,
-      config: mockConfig
+      config: mockConfig,
+      contentClient: createContentClientMockedComponent(),
+      sceneBanManager: createSceneBanManagerMockedComponent()
     })
   })
 

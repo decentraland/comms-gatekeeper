@@ -73,7 +73,7 @@ describe('PlacesComponent', () => {
 
       const result = await placesComponent.getPlaceByParcel('1,2')
       expect(result).toBe(mockPlaceResponse.data[0])
-      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places?positions=1,2')
+      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places?positions=1%2C2')
     })
 
     it('should throw error when no place found for parcel', async () => {
@@ -81,7 +81,7 @@ describe('PlacesComponent', () => {
       mockFetch.mockResolvedValueOnce(mockEmptyResponse)
 
       await expect(placesComponent.getPlaceByParcel('10,20')).rejects.toThrow('No place found with parcel 10,20')
-      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places?positions=10,20')
+      expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places?positions=10%2C20')
     })
   })
 
@@ -164,7 +164,7 @@ describe('PlacesComponent', () => {
       const result = await placesComponent.getWorldScenePlace('test-world', '10,20')
       expect(result).toBe(mockPlaceResponse.data[0])
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://places.decentraland.org/api/places?positions=10,20&names=test-world'
+        'https://places.decentraland.org/api/places?positions=10%2C20&names=test-world'
       )
     })
 
@@ -187,7 +187,7 @@ describe('PlacesComponent', () => {
       const result = await placesComponent.getWorldScenePlace('Test-World', '10,20')
       expect(result).toBe(mockPlaceResponse.data[0])
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://places.decentraland.org/api/places?positions=10,20&names=test-world'
+        'https://places.decentraland.org/api/places?positions=10%2C20&names=test-world'
       )
     })
 
@@ -239,7 +239,7 @@ describe('PlacesComponent', () => {
 
       it('should query the places API with the base parcel and world name', () => {
         expect(mockFetch).toHaveBeenCalledWith(
-          'https://places.decentraland.org/api/places?positions=10,20&names=test-world'
+          'https://places.decentraland.org/api/places?positions=10%2C20&names=test-world'
         )
       })
 

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { AppComponents } from '../../types'
 import { PlaceAttributes } from '../../types/places.type'
+import { ForbiddenError, PlaceNotFoundError } from '../../types/errors'
 import {
   InvalidStreamingKeyError,
   ExpiredStreamingKeyError,
@@ -49,11 +50,44 @@ export function buildStreamLinks(
 export function createCastComponent(
   components: Pick<
     AppComponents,
-    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config'
+    | 'livekit'
+    | 'logs'
+    | 'sceneStreamAccessManager'
+    | 'sceneManager'
+    | 'places'
+    | 'config'
+    | 'contentClient'
+    | 'sceneBanManager'
   >
 ): ICastComponent {
-  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config } = components
+  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, contentClient, sceneBanManager } =
+    components
   const logger = logs.getLogger('cast')
+
+  /**
+   * Resolves the Place that owns the scene identified by `sceneId`, using the SAME scene
+   * identity that the LiveKit room name is derived from. This is the security-critical
+   * counterpart to room naming: resolving the place from a separately-supplied `parcel`
+   * would let a caller prove admin over one place while minting a key for a different
+   * scene's room. Both worldName and parcel here are only used to locate the scene entity.
+   *
+   * @throws {PlaceNotFoundError} If the scene entity or its place cannot be resolved.
+   */
+  async function getPlaceForScene(
+    sceneId: string,
+    worldName: string | undefined,
+    realmName: string
+  ): Promise<PlaceAttributes> {
+    if (worldName) {
+      return places.getWorldScenePlaceByEntityId(worldName, sceneId)
+    }
+    const entity = await contentClient.fetchEntityById(sceneId)
+    const base = entity?.metadata?.scene?.base
+    if (!base) {
+      throw new PlaceNotFoundError(`No scene entity found for scene ID ${sceneId} in realm ${realmName}`)
+    }
+    return places.getPlaceByParcel(base)
+  }
 
   /** Minimal place fields needed by createStreamAccess. */
   type StreamAccessPlace = Pick<PlaceAttributes, 'id' | 'title'> &
@@ -146,13 +180,16 @@ export function createCastComponent(
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, parcel, sceneId, realmName } = params
+    const { walletAddress, worldName, sceneId, realmName } = params
 
     const roomId = worldName
       ? livekit.getWorldSceneRoomName(worldName, sceneId)
       : livekit.getSceneRoomName(realmName, sceneId)
 
-    const place = worldName ? await places.getWorldScenePlace(worldName, parcel) : await places.getPlaceByParcel(parcel)
+    // Resolve the place from the SAME sceneId that the room is derived from. Using the
+    // caller-supplied `parcel` here (as before) would let an admin of any one place mint a
+    // streamer key for a different scene's room.
+    const place = await getPlaceForScene(sceneId, worldName, realmName)
 
     const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
     if (!isAdmin) {
@@ -320,6 +357,7 @@ export function createCastComponent(
   async function generateWatcherCredentialsByLocation(
     location: string,
     identity: string,
+    watcherAddress: string,
     parcel?: string
   ): Promise<GenerateWatcherCredentialsResult> {
     const isWorldName = location.endsWith('.eth')
@@ -332,6 +370,15 @@ export function createCastComponent(
       place = await places.getWorldByName(location)
     } else {
       place = await places.getPlaceByParcel(location)
+    }
+
+    // Watchers join the scene's real comms room (streamAccess.room_id), so a scene-banned user
+    // must not be able to rejoin as a viewer and subscribe to participants' audio. Enforce the
+    // ban against the authenticated wallet before issuing any credentials.
+    const isBanned = await sceneBanManager.isBanned(place.id, watcherAddress.toLowerCase())
+    if (isBanned) {
+      logger.warn(`Rejected watcher token for banned user ${watcherAddress} at place ${place.id}`)
+      throw new ForbiddenError('You are banned from this scene')
     }
 
     // Get the most recent stream access for this place

@@ -1605,6 +1605,8 @@ describe('SceneBanComponent', () => {
             sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
           })
 
+          // When both parcel and sceneId are present, parcel takes precedence (the sceneId-only
+          // path is exercised by get-scene-adapter, covered in its own describe below).
           it('should get place by parcel, check ban status, and return true', async () => {
             const result = await sceneBanComponent.isUserBanned(testAddress, params)
 

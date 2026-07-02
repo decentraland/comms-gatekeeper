@@ -25,12 +25,14 @@ export async function createWorldsComponent(
   const namesCache = cachedFetch.cache<NamesResponse>()
 
   async function fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined> {
-    const response = await permissionsCache.fetch(`${worldContentUrl}/world/${worldName.toLowerCase()}/permissions`)
+    const response = await permissionsCache.fetch(
+      `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions`
+    )
     return response
   }
 
   async function fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined> {
-    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/scenes`
+    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes`
     logger.debug(`Fetching world scene for ${worldName} at pointer ${pointer}`)
 
     const response = await fetch.fetch(url, {
@@ -58,7 +60,7 @@ export async function createWorldsComponent(
   }
 
   async function fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined> {
-    const url = `${worldContentUrl}/contents/${entityId}`
+    const url = `${worldContentUrl}/contents/${encodeURIComponent(entityId)}`
     logger.debug(`Fetching world scene entity metadata for ${entityId}`)
 
     const result = await sceneEntityMetadataCache.fetch(url)
@@ -121,7 +123,7 @@ export async function createWorldsComponent(
     worldName: string,
     permissionName: string
   ): Promise<string[] | undefined> {
-    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/permissions/${permissionName}/address/${address.toLowerCase()}/parcels`
+    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions/${encodeURIComponent(permissionName)}/address/${address.toLowerCase()}/parcels`
     const response = await fetch.fetch(url)
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined)
@@ -147,7 +149,7 @@ export async function createWorldsComponent(
       return []
     }
 
-    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/permissions/${permissionName}/parcels`
+    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions/${encodeURIComponent(permissionName)}/parcels`
     const response = await fetch.fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -169,7 +171,7 @@ export async function createWorldsComponent(
    * @throws InvalidRequestError if the request fails, no scenes exist, or the URN format is invalid.
    */
   async function fetchWorldSceneId(worldName: string): Promise<string> {
-    const url = `${worldContentUrl}/world/${worldName.toLowerCase()}/about`
+    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/about`
     const response = await fetch.fetch(url)
 
     if (!response.ok) {

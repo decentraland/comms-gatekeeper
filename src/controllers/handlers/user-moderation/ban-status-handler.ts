@@ -14,10 +14,22 @@ export async function banStatusHandler(
   try {
     const banStatus = await userModeration.isPlayerBanned(address)
 
+    // This route is unauthenticated so the client can render a "you are banned" screen. Only
+    // expose fields that are safe to show the banned user; never leak moderation internals
+    // (moderator identity `bannedBy`, the captured device fingerprint `bannedDeviceId`, the
+    // internal `reason`/ids), which would otherwise be harvestable for any enumerated address.
+    const data = banStatus.isBanned
+      ? {
+          isBanned: true as const,
+          expiresAt: banStatus.ban?.expiresAt ?? null,
+          customMessage: banStatus.ban?.customMessage ?? null
+        }
+      : { isBanned: false as const }
+
     return {
       status: 200,
       body: {
-        data: banStatus
+        data
       }
     }
   } catch (error) {

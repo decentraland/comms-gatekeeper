@@ -49,6 +49,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(
         validLocation,
         identity,
+        expect.any(String),
         undefined
       )
     })
@@ -73,6 +74,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(
         validWorldName,
         identity,
+        expect.any(String),
         undefined
       )
     })
@@ -101,6 +103,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(
         validLocation,
         customIdentity,
+        expect.any(String),
         undefined
       )
     })
@@ -167,6 +170,22 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       })
 
       expect(response.status).toBe(400)
+    })
+  })
+
+  describe('when the request is not authenticated', () => {
+    it('should reject an unsigned request so scene bans can be enforced on the viewer', async () => {
+      // Bypass makeRequest (which signs); send a raw request with no signed-fetch headers.
+      const response = await components.localFetch.fetch('/cast/watcher-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location: validLocation, identity: 'anon' })
+      })
+
+      // The crypto middleware rejects a missing/malformed auth chain (400) before the handler
+      // runs. What matters is that the request never reaches credential generation.
+      expect(response.status).not.toBe(200)
+      expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
     })
   })
 

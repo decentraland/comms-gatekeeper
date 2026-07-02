@@ -46,7 +46,8 @@ describe('StreamingTTLChecker', () => {
       },
       sceneStreamAccessManager: {
         getExpiredStreamAccesses: jest.fn(),
-        killStreaming: jest.fn()
+        killStreaming: jest.fn(),
+        removeAccess: jest.fn()
       },
       livekit: {
         removeIngress: jest.fn()
@@ -135,10 +136,28 @@ describe('StreamingTTLChecker', () => {
       )
 
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
-        'Ingress ingress1 revoked correctly from LiveKit and streaming killed'
+        'Streaming killed for place place1 (ingress ingress1 revoked)'
       )
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith(
-        'Ingress ingress2 revoked correctly from LiveKit and streaming killed'
+        'Streaming killed for place place2 (ingress ingress2 revoked)'
+      )
+    })
+
+    it('should deactivate an expired streaming with an empty ingress id by place, without calling removeIngress/killStreaming', async () => {
+      const now = Date.now()
+      // A row with no ingress id (killStreaming is guarded against '') must not loop forever.
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValue([
+        { ingress_id: '', created_at: now - 1000 * 60 * 60 * 5, place_id: 'place1' }
+      ])
+
+      await executeOnTick(streamingChecker, startOptions)
+
+      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('place1')
+      expect(mockedComponents.livekit.removeIngress).not.toHaveBeenCalled()
+      expect(mockedComponents.sceneStreamAccessManager.killStreaming).not.toHaveBeenCalled()
+      expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
+        NotificationStreamingType.STREAMING_TIME_EXCEEDED,
+        { id: 'place1' }
       )
     })
 

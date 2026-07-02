@@ -7,6 +7,8 @@ import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
+import { createContentClientMockedComponent } from '../../mocks/content-client-mock'
+import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
 
 describe('when generating a presentation bot token', () => {
   let castComponent: ICastComponent
@@ -48,7 +50,9 @@ describe('when generating a presentation bot token', () => {
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: createSceneManagerMockedComponent(),
       places: createPlacesMockedComponent(),
-      config: createConfigMockedComponent()
+      config: createConfigMockedComponent(),
+      contentClient: createContentClientMockedComponent(),
+      sceneBanManager: createSceneBanManagerMockedComponent()
     })
   })
 

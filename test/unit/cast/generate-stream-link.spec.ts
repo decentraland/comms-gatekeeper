@@ -8,6 +8,8 @@ import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
+import { createContentClientMockedComponent } from '../../mocks/content-client-mock'
+import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
 
 describe('when generating a stream link', () => {
   let castComponent: ICastComponent
@@ -17,6 +19,8 @@ describe('when generating a stream link', () => {
   let mockSceneManager: ReturnType<typeof createSceneManagerMockedComponent>
   let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
   let mockConfig: ReturnType<typeof createConfigMockedComponent>
+  let mockContentClient: ReturnType<typeof createContentClientMockedComponent>
+  let mockSceneBanManager: ReturnType<typeof createSceneBanManagerMockedComponent>
   let mockPlace: PlaceAttributes
   let mockWorldScenePlace: PlaceAttributes
 
@@ -70,11 +74,22 @@ describe('when generating a stream link', () => {
 
     mockPlaces = createPlacesMockedComponent({
       getWorldScenePlace: jest.fn().mockResolvedValue(mockWorldScenePlace),
+      getWorldScenePlaceByEntityId: jest.fn().mockResolvedValue(mockWorldScenePlace),
       getPlaceByParcel: jest.fn().mockResolvedValue(mockPlace)
     })
 
     mockConfig = createConfigMockedComponent({
       getString: jest.fn().mockResolvedValue('https://cast2.decentraland.org')
+    })
+
+    // The place is resolved from the sceneId (via the content entity's base parcel for genesis),
+    // not from the caller-supplied parcel, so stub the entity lookup accordingly.
+    mockContentClient = createContentClientMockedComponent({
+      fetchEntityById: jest.fn().mockResolvedValue({ metadata: { scene: { base: '10,20' } } })
+    })
+
+    mockSceneBanManager = createSceneBanManagerMockedComponent({
+      isBanned: jest.fn().mockResolvedValue(false)
     })
 
     castComponent = createCastComponent({
@@ -83,7 +98,9 @@ describe('when generating a stream link', () => {
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: mockSceneManager,
       places: mockPlaces,
-      config: mockConfig
+      config: mockConfig,
+      contentClient: mockContentClient,
+      sceneBanManager: mockSceneBanManager
     })
   })
 
@@ -96,7 +113,6 @@ describe('when generating a stream link', () => {
     it('should get the scene room name with the realm and scene id', async () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
-        parcel: '10,20',
         sceneId: 'bafkreiscene123',
         realmName: 'test-realm'
       })
@@ -107,7 +123,6 @@ describe('when generating a stream link', () => {
     it('should return the place id from the parcel lookup', async () => {
       const result = await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
-        parcel: '10,20',
         sceneId: 'bafkreiscene123',
         realmName: 'test-realm'
       })
@@ -118,7 +133,6 @@ describe('when generating a stream link', () => {
     it('should create a new stream access entry', async () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
-        parcel: '10,20',
         sceneId: 'bafkreiscene123',
         realmName: 'test-realm'
       })
@@ -143,7 +157,6 @@ describe('when generating a stream link', () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })
@@ -151,23 +164,21 @@ describe('when generating a stream link', () => {
       expect(mockLivekit.getWorldSceneRoomName).toHaveBeenCalledWith('test-world.dcl.eth', 'bafkreiscene123')
     })
 
-    it('should get the world scene place with world name and parcel', async () => {
+    it('should resolve the world scene place from the world name and scene id', async () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })
 
-      expect(mockPlaces.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', '0,0')
+      expect(mockPlaces.getWorldScenePlaceByEntityId).toHaveBeenCalledWith('test-world.dcl.eth', 'bafkreiscene123')
     })
 
     it('should check admin permissions using the world scene place', async () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })
@@ -179,7 +190,6 @@ describe('when generating a stream link', () => {
       const result = await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })
@@ -199,7 +209,6 @@ describe('when generating a stream link', () => {
         castComponent.generateStreamLink({
           walletAddress: '0xrandomuser',
           worldName: 'test-world.dcl.eth',
-          parcel: '0,0',
           sceneId: 'bafkreiscene123',
           realmName: 'test-world.dcl.eth'
         })
@@ -232,7 +241,6 @@ describe('when generating a stream link', () => {
         const result = await castComponent.generateStreamLink({
           walletAddress: '0xowner123',
           worldName: 'test-world.dcl.eth',
-          parcel: '0,0',
           sceneId: 'bafkreiscene123',
           realmName: 'test-world.dcl.eth'
         })
@@ -266,7 +274,6 @@ describe('when generating a stream link', () => {
         const result = await castComponent.generateStreamLink({
           walletAddress: '0xowner123',
           worldName: 'test-world.dcl.eth',
-          parcel: '0,0',
           sceneId: 'bafkreiscene123',
           realmName: 'test-world.dcl.eth'
         })
@@ -300,7 +307,6 @@ describe('when generating a stream link', () => {
         await castComponent.generateStreamLink({
           walletAddress: '0xowner123',
           worldName: 'test-world.dcl.eth',
-          parcel: '0,0',
           sceneId: 'bafkreiscene123',
           realmName: 'test-world.dcl.eth'
         })
@@ -320,7 +326,6 @@ describe('when generating a stream link', () => {
       const result = await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })

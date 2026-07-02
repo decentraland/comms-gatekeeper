@@ -10,6 +10,8 @@ import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent, createMockedPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
+import { createContentClientMockedComponent } from '../../mocks/content-client-mock'
+import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
 
 function createRoomWithPresenters(presenters: string[]): Room {
   return new Room({ metadata: JSON.stringify({ presenters }) })
@@ -59,7 +61,9 @@ describe('when managing presenters', () => {
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: mockSceneManager,
       places: mockPlaces,
-      config: createConfigMockedComponent()
+      config: createConfigMockedComponent(),
+      contentClient: createContentClientMockedComponent(),
+      sceneBanManager: createSceneBanManagerMockedComponent()
     })
   })
 

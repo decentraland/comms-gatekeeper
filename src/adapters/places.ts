@@ -14,7 +14,7 @@ export async function createPlacesComponent(
   const fetchFromCache = cachedFetch.cache<PlaceResponse>()
 
   async function getPlaceByParcel(parcel: string): Promise<PlaceAttributes> {
-    const response = await fetchFromCache.fetch(`${placesApiUrl}/places?positions=${parcel}`)
+    const response = await fetchFromCache.fetch(`${placesApiUrl}/places?positions=${encodeURIComponent(parcel)}`)
 
     if (!response?.data?.length) {
       logger.info(`No place found with parcel ${parcel}`)
@@ -32,7 +32,7 @@ export async function createPlacesComponent(
   async function getWorldScenePlace(worldName: string, position: string): Promise<PlaceAttributes> {
     const lowercasedWorldName = worldName.toLowerCase()
     const response = await fetchFromCache.fetch(
-      `${placesApiUrl}/places?positions=${position}&names=${lowercasedWorldName}`
+      `${placesApiUrl}/places?positions=${encodeURIComponent(position)}&names=${encodeURIComponent(lowercasedWorldName)}`
     )
 
     if (!response?.data?.length) {
@@ -49,7 +49,7 @@ export async function createPlacesComponent(
    */
   async function getWorldByName(worldName: string): Promise<PlaceAttributes> {
     const worldId = worldName.toLowerCase()
-    const response = await fetch.fetch(`${placesApiUrl}/worlds/${worldId}`)
+    const response = await fetch.fetch(`${placesApiUrl}/worlds/${encodeURIComponent(worldId)}`)
 
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined)

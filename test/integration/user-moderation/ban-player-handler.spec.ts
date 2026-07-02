@@ -84,8 +84,9 @@ test('POST /users/:address/bans', ({ components }) => {
             const statusResponse = await components.localFetch.fetch(`/users/${targetAddress}/bans`, { method: 'GET' })
             expect(statusResponse.status).toBe(200)
             const statusBody = await statusResponse.json()
+            // The public status endpoint only reports the boolean (and user-facing message);
+            // the full record with its id is returned solely by the authenticated create call.
             expect(statusBody.data.isBanned).toBe(true)
-            expect(statusBody.data.ban.id).toBe(body.data.id)
           })
         })
 

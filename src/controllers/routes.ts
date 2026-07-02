@@ -105,6 +105,13 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'dcl:explorer'
   })
 
+  // Watcher (stream viewer) tokens: require a verified wallet so scene bans can be enforced
+  // against the viewer. Any signed-fetch signer is accepted (viewers are not scenes).
+  const authWatcher = authVerificationMiddleware({
+    fetcher: components.fetch,
+    optional: false
+  })
+
   router.get('/ping', pingHandler)
   router.get('/status', statusHandler)
 
@@ -220,6 +227,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   )
   router.post(
     '/cast/watcher-token',
+    authWatcher,
     schemaValidator.withSchemaValidatorMiddleware(WatcherTokenRequestSchema),
     watcherTokenHandler
   )

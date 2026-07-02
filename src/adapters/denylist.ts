@@ -20,6 +20,9 @@ export async function createDenyListComponent(
       return new Set(cachedDenylist.users.map((user: { wallet: string }) => user.wallet.toLowerCase()))
     }
 
+    // Fail open on a missing/malformed payload (return an empty set) to preserve availability,
+    // consistent with the fetch-failure path. The stale-cache-on-rejection fetcher backing this
+    // component keeps serving the last good list across transient upstream errors.
     logger.warn(`Failed get the deny list, did not get an array of users`)
     return new Set()
   }
