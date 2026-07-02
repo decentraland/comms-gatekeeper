@@ -53,7 +53,7 @@ import {
 } from './handlers/cast'
 import { getStreamInfoHandler } from './handlers/cast/get-stream-info-handler'
 import { AddSceneBanRequestSchema } from './handlers/scene-ban-handlers/schemas'
-import { AddSceneAdminRequestSchema } from './handlers/scene-admin-handlers/schemas'
+import { AddSceneAdminRequestSchema, RemoveSceneAdminRequestSchema } from './handlers/scene-admin-handlers/schemas'
 import { PrivateVoiceChatRequestSchema } from './handlers/voice-chat/schemas'
 import {
   CommunityVoiceChatRequestSchema,
@@ -105,11 +105,13 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'dcl:explorer'
   })
 
-  // Watcher (stream viewer) tokens: require a verified wallet so scene bans can be enforced
-  // against the viewer. Any signed-fetch signer is accepted (viewers are not scenes).
+  // Watcher (stream viewer) tokens: require a verified wallet (optional: false rejects
+  // unidentified requests at the middleware) so scene bans can be enforced against the viewer.
+  // Viewers are end users, not scenes, so a kernel-scene-signed request is rejected.
   const authWatcher = authVerificationMiddleware({
     fetcher: components.fetch,
-    optional: false
+    optional: false,
+    metadataValidator: (metadata: Record<string, any>) => metadata.signer !== 'decentraland-kernel-scene'
   })
 
   router.get('/ping', pingHandler)
@@ -131,7 +133,12 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     schemaValidator.withSchemaValidatorMiddleware(AddSceneAdminRequestSchema),
     addSceneAdminHandler
   )
-  router.delete('/scene-admin', auth, removeSceneAdminHandler)
+  router.delete(
+    '/scene-admin',
+    auth,
+    schemaValidator.withSchemaValidatorMiddleware(RemoveSceneAdminRequestSchema),
+    removeSceneAdminHandler
+  )
 
   // Scene ban routes
   router.get('/scene-bans', auth, listSceneBansHandler)

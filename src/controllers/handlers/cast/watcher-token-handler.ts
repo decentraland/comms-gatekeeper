@@ -1,6 +1,5 @@
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { WatcherTokenRequestBody } from './schemas'
 
 export async function watcherTokenHandler(
@@ -17,21 +16,12 @@ export async function watcherTokenHandler(
 
   const logger = logs.getLogger('watcher-token-handler')
 
-  // The route is guarded by signed-fetch auth so we can enforce scene bans on the viewer.
-  if (!verification?.auth) {
-    throw new UnauthorizedError('Authentication required')
-  }
-  const watcherAddress = verification.auth.toLowerCase()
+  // Auth is enforced by the authWatcher route middleware (optional: false rejects unidentified
+  // requests), so verification is guaranteed here. Scene bans are enforced against this wallet
+  // inside the cast component. Body shape is enforced by the WatcherTokenRequestSchema validator.
+  const watcherAddress = verification!.auth.toLowerCase()
 
-  // The schema-validator middleware normally rejects a malformed body first; guard here too so
-  // the handler doesn't surface a 500 if it is ever wired without that middleware (matches
-  // remove-scene-admin-handler).
-  let body: WatcherTokenRequestBody
-  try {
-    body = await request.json()
-  } catch {
-    throw new InvalidRequestError('Invalid request body')
-  }
+  const body: WatcherTokenRequestBody = await request.json()
 
   const credentials = await cast.generateWatcherCredentialsByLocation(
     body.location,

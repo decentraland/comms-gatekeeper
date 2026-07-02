@@ -35,6 +35,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity })
       })
 
@@ -60,6 +61,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validWorldName, identity })
       })
 
@@ -91,6 +93,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({
           location: validLocation,
           identity: customIdentity
@@ -114,6 +117,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ identity: 'test-user' })
       })
 
@@ -126,6 +130,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation })
       })
 
@@ -138,6 +143,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity: '' })
       })
 
@@ -148,6 +154,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity: '   ' })
       })
 
@@ -166,6 +173,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity: 'test-user' })
       })
 
@@ -189,11 +197,26 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
     })
   })
 
+  describe('when the request is signed by a scene', () => {
+    it('should reject a decentraland-kernel-scene signer — watcher tokens are for viewers, not scenes', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'decentraland-kernel-scene' },
+        body: JSON.stringify({ location: validLocation, identity: 'scene-signed' })
+      })
+
+      expect(response.status).not.toBe(200)
+      expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
+    })
+  })
+
   describe('when credentials are generated', () => {
     it('should return proper scene room credentials with place name', async () => {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity: 'happy-penguin' })
       })
 

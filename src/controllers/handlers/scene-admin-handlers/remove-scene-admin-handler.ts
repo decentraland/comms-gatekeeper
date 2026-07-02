@@ -1,8 +1,8 @@
-import { EthAddress } from '@dcl/schemas'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate } from '../../../logic/utils'
 import { PlaceAttributes } from '../../../types/places.type'
+import { RemoveSceneAdminRequestBody } from './schemas'
 
 export async function removeSceneAdminHandler(
   ctx: Pick<
@@ -27,24 +27,9 @@ export async function removeSceneAdminHandler(
     throw new UnauthorizedError('Authentication required')
   }
 
-  let payload: { admin?: string }
-  try {
-    payload = await request.json()
-  } catch {
-    // A missing or malformed body would otherwise surface as an unhandled 500.
-    throw new InvalidRequestError('Invalid payload')
-  }
-
-  // Guard non-object bodies too (e.g. a literal `null`, number, or string are all valid JSON
-  // but would make the `.admin` access below throw a TypeError → unhandled 500).
-  if (!payload || typeof payload !== 'object' || !payload.admin) {
-    logger.warn(`Invalid scene admin payload`, payload)
-    throw new InvalidRequestError(`Invalid payload`)
-  }
-
-  if (!EthAddress.validate(payload.admin)) {
-    throw new UnauthorizedError('Invalid admin address')
-  }
+  // Body shape (presence + address format of `admin`) is enforced by the
+  // RemoveSceneAdminRequestSchema validator on the route, so the payload is trusted here.
+  const payload: RemoveSceneAdminRequestBody = await request.json()
 
   // Normalize once: the scene_admin table and the LiveKit metadata `sceneAdmins`
   // array both store lowercase addresses, but the request can arrive checksum-cased.
