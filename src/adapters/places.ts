@@ -3,9 +3,9 @@ import { PlaceNotFoundError } from '../types/errors'
 import { IPlacesComponent, PlaceAttributes, PlaceResponse } from '../types/places.type'
 
 export async function createPlacesComponent(
-  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs' | 'fetch' | 'worlds'>
+  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs' | 'fetch' | 'worlds' | 'contentClient'>
 ): Promise<IPlacesComponent> {
-  const { config, cachedFetch, logs, fetch, worlds } = components
+  const { config, cachedFetch, logs, fetch, worlds, contentClient } = components
 
   const logger = logs.getLogger('places-component')
 
@@ -103,10 +103,32 @@ export async function createPlacesComponent(
     return getWorldScenePlace(worldName, metadata.scene.base)
   }
 
+  /**
+   * Resolves the place that owns the scene identified by `sceneId`, using the SAME scene identity
+   * the LiveKit room name is derived from. Resolving from a separately-supplied parcel would let a
+   * caller prove rights over one place while acting on a different scene's room. World scenes and
+   * Genesis City scenes live on different content servers, so each uses its own entity lookup.
+   */
+  async function getPlaceBySceneId(sceneId: string, worldName?: string): Promise<PlaceAttributes> {
+    if (worldName) {
+      return getWorldScenePlaceByEntityId(worldName, sceneId)
+    }
+
+    const entity = await contentClient.fetchEntityById(sceneId)
+    const base = entity?.metadata?.scene?.base
+    if (!base) {
+      logger.info(`No scene entity found for scene ID ${sceneId}`)
+      throw new PlaceNotFoundError(`No scene entity found for scene ID ${sceneId}`)
+    }
+
+    return getPlaceByParcel(base)
+  }
+
   return {
     getPlaceByParcel,
     getWorldScenePlace,
     getWorldScenePlaceByEntityId,
+    getPlaceBySceneId,
     getWorldByName,
     getPlaceStatusByIds
   }

@@ -18,6 +18,17 @@ export type IPlacesComponent = IBaseComponent & {
    */
   getWorldScenePlaceByEntityId(worldName: string, entityId: string): Promise<PlaceAttributes>
   /**
+   * Resolves the place that owns the scene identified by `sceneId`. This is the counterpart to
+   * LiveKit room naming (also keyed by `sceneId`), so admin/ban checks resolve the same place the
+   * room belongs to. For world scenes the world content server maps the entity to its base parcel;
+   * for Genesis City scenes the catalyst content entity's base parcel is resolved, then the Places
+   * API returns the place there.
+   * @param sceneId - The scene entity id (authoritative — the room is keyed by it).
+   * @param worldName - The world name for world scenes; omit for Genesis City scenes.
+   * @throws {PlaceNotFoundError} If the scene entity or its base parcel cannot be resolved.
+   */
+  getPlaceBySceneId(sceneId: string, worldName?: string): Promise<PlaceAttributes>
+  /**
    * @deprecated Use getWorldScenePlace instead. Kept only for backwards compatibility
    * with legacy rooms that lack a sceneId.
    * Gets a world by its name.

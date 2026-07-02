@@ -2,7 +2,6 @@ import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../types/errors'
 import { getRequestIp, oldValidate } from '../../logic/utils'
-import { resolvePlaceBySceneId } from '../../logic/scene-place'
 
 export async function commsSceneHandler(
   context: HandlerContextWithPath<
@@ -18,7 +17,6 @@ export async function commsSceneHandler(
     | 'userModeration'
     | 'playerConnectionDb'
     | 'sceneManager'
-    | 'contentClient'
     | 'sceneStreamAccessManager',
     '/get-scene-adapter'
   >
@@ -34,7 +32,6 @@ export async function commsSceneHandler(
       userModeration,
       playerConnectionDb,
       sceneManager,
-      contentClient,
       places
     }
   } = context
@@ -158,10 +155,7 @@ export async function commsSceneHandler(
       // Resolve the place from the SAME sceneId used to build `room`, not from the
       // separately-supplied `parcel`. Otherwise an admin of an unrelated place could be
       // added as a presenter in this scene's room by mismatching parcel and sceneId.
-      const place = await resolvePlaceBySceneId(
-        { contentClient, places },
-        { sceneId: resolvedSceneId, worldName: isWorld ? realmName : undefined }
-      )
+      const place = await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined)
       const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, identity)
       if (isAdmin) {
         await cast.addPresenter(room, identity)

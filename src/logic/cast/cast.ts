@@ -2,7 +2,6 @@ import { randomUUID } from 'crypto'
 import { AppComponents } from '../../types'
 import { PlaceAttributes } from '../../types/places.type'
 import { ForbiddenError } from '../../types/errors'
-import { resolvePlaceBySceneId } from '../scene-place'
 import {
   InvalidStreamingKeyError,
   ExpiredStreamingKeyError,
@@ -51,18 +50,10 @@ export function buildStreamLinks(
 export function createCastComponent(
   components: Pick<
     AppComponents,
-    | 'livekit'
-    | 'logs'
-    | 'sceneStreamAccessManager'
-    | 'sceneManager'
-    | 'places'
-    | 'config'
-    | 'contentClient'
-    | 'sceneBanManager'
+    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config' | 'sceneBanManager'
   >
 ): ICastComponent {
-  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, contentClient, sceneBanManager } =
-    components
+  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, sceneBanManager } = components
   const logger = logs.getLogger('cast')
 
   /** Minimal place fields needed by createStreamAccess. */
@@ -165,7 +156,7 @@ export function createCastComponent(
     // Resolve the place from the SAME sceneId that the room is derived from. Using the
     // caller-supplied `parcel` here (as before) would let an admin of any one place mint a
     // streamer key for a different scene's room.
-    const place = await resolvePlaceBySceneId({ contentClient, places }, { sceneId, worldName })
+    const place = await places.getPlaceBySceneId(sceneId, worldName)
 
     const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
     if (!isAdmin) {

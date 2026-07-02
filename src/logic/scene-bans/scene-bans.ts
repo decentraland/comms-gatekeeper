@@ -7,7 +7,6 @@ import {
   IsUserBannedParams
 } from './types'
 import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
-import { resolvePlaceBySceneId } from '../scene-place'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
@@ -23,23 +22,12 @@ export function createSceneBansComponent(
     | 'places'
     | 'analytics'
     | 'names'
-    | 'contentClient'
     | 'publisher'
     | 'roomMetadataSync'
   >
 ): ISceneBansComponent {
-  const {
-    sceneBanManager,
-    livekit,
-    logs,
-    sceneManager,
-    places,
-    analytics,
-    names,
-    contentClient,
-    publisher,
-    roomMetadataSync
-  } = components
+  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, publisher, roomMetadataSync } =
+    components
   const logger = logs.getLogger('scene-bans')
 
   /**
@@ -366,11 +354,11 @@ export function createSceneBansComponent(
     if (isWorld && parcel) {
       place = await places.getWorldScenePlace(realmName, parcel)
     } else if (isWorld && sceneId) {
-      place = await resolvePlaceBySceneId({ contentClient, places }, { sceneId, worldName: realmName })
+      place = await places.getPlaceBySceneId(sceneId, realmName)
     } else if (parcel) {
       place = await places.getPlaceByParcel(parcel)
     } else if (sceneId) {
-      place = await resolvePlaceBySceneId({ contentClient, places }, { sceneId })
+      place = await places.getPlaceBySceneId(sceneId)
     } else {
       throw new InvalidRequestError('No scene ID, world name or parcel provided')
     }

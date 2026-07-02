@@ -6,6 +6,7 @@ describe('PlacesComponent', () => {
   let placesComponent: Awaited<ReturnType<typeof createPlacesComponent>>
   let mockFetch: jest.Mock
   let mockWorlds: any
+  let mockContentClient: any
 
   beforeEach(async () => {
     jest.clearAllMocks()
@@ -45,12 +46,17 @@ describe('PlacesComponent', () => {
       fetchWorldSceneEntityMetadataById: jest.fn()
     }
 
+    mockContentClient = {
+      fetchEntityById: jest.fn()
+    }
+
     placesComponent = await createPlacesComponent({
       config: mockConfig,
       cachedFetch: mockCachedFetch,
       logs: mockLogs,
       fetch: mockFetchComponent,
-      worlds: mockWorlds
+      worlds: mockWorlds,
+      contentClient: mockContentClient
     })
   })
 
@@ -274,6 +280,96 @@ describe('PlacesComponent', () => {
         await expect(placesComponent.getWorldScenePlaceByEntityId(worldName, entityId)).rejects.toThrow(
           PlaceNotFoundError
         )
+      })
+    })
+  })
+
+  describe('getPlaceBySceneId', () => {
+    const sceneId = 'bafkreiscene123'
+
+    describe('and no world name is given (Genesis City scene)', () => {
+      let result: PlaceAttributes
+      let mockPlaceResponse: PlaceResponse
+
+      beforeEach(async () => {
+        mockContentClient.fetchEntityById.mockResolvedValue({
+          metadata: { scene: { base: '10,20', parcels: ['10,20'] } }
+        })
+        mockPlaceResponse = {
+          data: [{ id: 'genesis-place-id', title: 'Genesis Scene', positions: ['10,20'] } as PlaceAttributes],
+          ok: true,
+          total: 1
+        }
+        mockFetch.mockResolvedValueOnce(mockPlaceResponse)
+
+        result = await placesComponent.getPlaceBySceneId(sceneId)
+      })
+
+      it('should resolve the scene entity through the catalyst content client', () => {
+        expect(mockContentClient.fetchEntityById).toHaveBeenCalledWith(sceneId)
+      })
+
+      it("should query the places API with the entity's base parcel", () => {
+        expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places?positions=10%2C20')
+      })
+
+      it('should return the place', () => {
+        expect(result).toBe(mockPlaceResponse.data[0])
+      })
+    })
+
+    describe('and a world name is given (world scene)', () => {
+      const worldName = 'test-world'
+      let result: PlaceAttributes
+      let mockPlaceResponse: PlaceResponse
+
+      beforeEach(async () => {
+        // Multi-scene worlds: each scene has its own entity id and base parcel, so the world
+        // content server maps this sceneId to its specific base parcel, and the Places API
+        // returns the place for that scene within the world.
+        mockWorlds.fetchWorldSceneEntityMetadataById.mockResolvedValue({
+          scene: { base: '5,5', parcels: ['5,5'] }
+        })
+        mockPlaceResponse = {
+          data: [
+            {
+              id: 'world-scene-place',
+              title: 'World Scene B',
+              positions: ['5,5'],
+              world_name: worldName
+            } as PlaceAttributes
+          ],
+          ok: true,
+          total: 1
+        }
+        mockFetch.mockResolvedValueOnce(mockPlaceResponse)
+
+        result = await placesComponent.getPlaceBySceneId(sceneId, worldName)
+      })
+
+      it('should resolve the scene through the worlds content server, not the catalyst content client', () => {
+        expect(mockWorlds.fetchWorldSceneEntityMetadataById).toHaveBeenCalledWith(sceneId)
+        expect(mockContentClient.fetchEntityById).not.toHaveBeenCalled()
+      })
+
+      it("should query the places API scoped to the scene's base parcel and world name", () => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          'https://places.decentraland.org/api/places?positions=5%2C5&names=test-world'
+        )
+      })
+
+      it('should return the specific scene place within the world', () => {
+        expect(result).toBe(mockPlaceResponse.data[0])
+      })
+    })
+
+    describe('and the scene entity cannot be resolved', () => {
+      beforeEach(() => {
+        mockContentClient.fetchEntityById.mockResolvedValue(undefined)
+      })
+
+      it('should throw PlaceNotFoundError', async () => {
+        await expect(placesComponent.getPlaceBySceneId(sceneId)).rejects.toThrow(PlaceNotFoundError)
       })
     })
   })

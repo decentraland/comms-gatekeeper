@@ -8,7 +8,6 @@ import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
-import { createContentClientMockedComponent } from '../../mocks/content-client-mock'
 import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
 import { PlaceAttributes } from '../../../src/types/places.type'
 
@@ -100,7 +99,6 @@ describe('when generating watcher credentials by location', () => {
       sceneManager: mockSceneManager,
       places: mockPlaces,
       config: mockConfig,
-      contentClient: createContentClientMockedComponent(),
       sceneBanManager: mockSceneBanManager
     })
   })
