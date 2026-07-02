@@ -3,6 +3,13 @@ import { AppComponents, AddSceneStreamAccessInput, ISceneStreamAccessManager, Sc
 import { StreamingAccessNotFoundError } from '../types/errors'
 import SQL from 'sql-template-strings'
 
+// Matches an active stream-access row by ingress id, excluding the empty-ingress sentinel that
+// Cast 2.0 rows use. Centralized so this safety-critical guard (a stray '' must never match — and
+// mass-mutate — every active row) stays identical across all ingress-keyed queries.
+function activeIngressCondition(ingressId: string) {
+  return SQL`ingress_id = ${ingressId} AND ingress_id != '' AND active = true`
+}
+
 export async function createSceneStreamAccessManagerComponent({
   database,
   logs
@@ -170,8 +177,7 @@ export async function createSceneStreamAccessManagerComponent({
     const query = SQL`
       UPDATE scene_stream_access
       SET streaming = true, streaming_start_time = ${now}
-      WHERE ingress_id = ${ingressId} AND ingress_id != '' AND active = true
-    `
+      WHERE `.append(activeIngressCondition(ingressId))
     await database.query(query)
   }
 
@@ -179,14 +185,15 @@ export async function createSceneStreamAccessManagerComponent({
     const query = SQL`
       UPDATE scene_stream_access
       SET streaming = false
-      WHERE ingress_id = ${ingressId} AND ingress_id != '' AND active = true
-    `
+      WHERE `.append(activeIngressCondition(ingressId))
     await database.query(query)
   }
 
   async function isStreaming(ingressId: string): Promise<boolean> {
     const result = await database.query<SceneStreamAccess>(
-      SQL`SELECT streaming FROM scene_stream_access WHERE ingress_id = ${ingressId} AND ingress_id != '' AND active = true LIMIT 1`
+      SQL`SELECT streaming FROM scene_stream_access WHERE `
+        .append(activeIngressCondition(ingressId))
+        .append(SQL` LIMIT 1`)
     )
     return result.rowCount > 0 && result.rows[0].streaming
   }
@@ -212,8 +219,7 @@ export async function createSceneStreamAccessManagerComponent({
     const query = SQL`
       UPDATE scene_stream_access
       SET active = false, streaming = false
-      WHERE ingress_id = ${ingressId} AND ingress_id != '' AND active = true
-    `
+      WHERE `.append(activeIngressCondition(ingressId))
     await database.query(query)
   }
 

@@ -6,7 +6,8 @@ import {
   ISceneBansComponent,
   IsUserBannedParams
 } from './types'
-import { InvalidRequestError, NotFoundError, PlaceNotFoundError, UnauthorizedError } from '../../types/errors'
+import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
+import { resolvePlaceBySceneId } from '../scene-place'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
@@ -365,16 +366,11 @@ export function createSceneBansComponent(
     if (isWorld && parcel) {
       place = await places.getWorldScenePlace(realmName, parcel)
     } else if (isWorld && sceneId) {
-      place = await places.getWorldScenePlaceByEntityId(realmName, sceneId)
+      place = await resolvePlaceBySceneId({ contentClient, places }, { sceneId, worldName: realmName })
     } else if (parcel) {
       place = await places.getPlaceByParcel(parcel)
     } else if (sceneId) {
-      const entity = await contentClient.fetchEntityById(sceneId)
-      const base = entity?.metadata?.scene?.base
-      if (!base) {
-        throw new PlaceNotFoundError(`No scene entity found for scene ID ${sceneId}`)
-      }
-      place = await places.getPlaceByParcel(base)
+      place = await resolvePlaceBySceneId({ contentClient, places }, { sceneId })
     } else {
       throw new InvalidRequestError('No scene ID, world name or parcel provided')
     }

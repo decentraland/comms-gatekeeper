@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto'
 import { AppComponents } from '../../types'
 import { PlaceAttributes } from '../../types/places.type'
-import { ForbiddenError, PlaceNotFoundError } from '../../types/errors'
+import { ForbiddenError } from '../../types/errors'
+import { resolvePlaceBySceneId } from '../scene-place'
 import {
   InvalidStreamingKeyError,
   ExpiredStreamingKeyError,
@@ -63,31 +64,6 @@ export function createCastComponent(
   const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, contentClient, sceneBanManager } =
     components
   const logger = logs.getLogger('cast')
-
-  /**
-   * Resolves the Place that owns the scene identified by `sceneId`, using the SAME scene
-   * identity that the LiveKit room name is derived from. This is the security-critical
-   * counterpart to room naming: resolving the place from a separately-supplied `parcel`
-   * would let a caller prove admin over one place while minting a key for a different
-   * scene's room. Both worldName and parcel here are only used to locate the scene entity.
-   *
-   * @throws {PlaceNotFoundError} If the scene entity or its place cannot be resolved.
-   */
-  async function getPlaceForScene(
-    sceneId: string,
-    worldName: string | undefined,
-    realmName: string
-  ): Promise<PlaceAttributes> {
-    if (worldName) {
-      return places.getWorldScenePlaceByEntityId(worldName, sceneId)
-    }
-    const entity = await contentClient.fetchEntityById(sceneId)
-    const base = entity?.metadata?.scene?.base
-    if (!base) {
-      throw new PlaceNotFoundError(`No scene entity found for scene ID ${sceneId} in realm ${realmName}`)
-    }
-    return places.getPlaceByParcel(base)
-  }
 
   /** Minimal place fields needed by createStreamAccess. */
   type StreamAccessPlace = Pick<PlaceAttributes, 'id' | 'title'> &
@@ -189,7 +165,7 @@ export function createCastComponent(
     // Resolve the place from the SAME sceneId that the room is derived from. Using the
     // caller-supplied `parcel` here (as before) would let an admin of any one place mint a
     // streamer key for a different scene's room.
-    const place = await getPlaceForScene(sceneId, worldName, realmName)
+    const place = await resolvePlaceBySceneId({ contentClient, places }, { sceneId, worldName })
 
     const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
     if (!isAdmin) {

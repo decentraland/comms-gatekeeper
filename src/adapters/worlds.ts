@@ -91,7 +91,9 @@ export async function createWorldsComponent(
       throw new Error('Lambdas URL is not set')
     }
 
-    const namesResponse = await namesCache.fetch(`${baseUrl}users/${authAddress.toLowerCase()}/names`)
+    const namesResponse = await namesCache.fetch(
+      `${baseUrl}users/${encodeURIComponent(authAddress.toLowerCase())}/names`
+    )
 
     if (!namesResponse?.elements?.length) return false
 
@@ -123,7 +125,7 @@ export async function createWorldsComponent(
     worldName: string,
     permissionName: string
   ): Promise<string[] | undefined> {
-    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions/${encodeURIComponent(permissionName)}/address/${address.toLowerCase()}/parcels`
+    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions/${encodeURIComponent(permissionName)}/address/${encodeURIComponent(address.toLowerCase())}/parcels`
     const response = await fetch.fetch(url)
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined)
