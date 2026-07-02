@@ -98,6 +98,19 @@ describe('StreamingKeyTTLChecker', () => {
       )
     })
 
+    it('should skip removeIngress but still remove access for an expired key with an empty ingress id', async () => {
+      // Cast 2.0 rows have ingress_id ''. removeIngress('') would throw and skip removeAccess,
+      // leaving the row active to re-error every tick.
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValue([
+        { place_id: 'test-place', ingress_id: '' }
+      ])
+
+      await executeOnTick(streamingKeyChecker, startOptions)
+
+      expect(mockedComponents.livekit.removeIngress).not.toHaveBeenCalled()
+      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('test-place')
+    })
+
     describe('and the place is not found for the expired key', () => {
       beforeEach(async () => {
         mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValue([

@@ -51,7 +51,6 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
     expect(body.expiresInDays).toBe(4)
     expect(spyComponents.cast.generateStreamLink).toHaveBeenCalledWith({
       walletAddress: owner.authChain[0].payload,
-      parcel: '10,20',
       worldName: undefined,
       sceneId: 'bafytest123',
       realmName: 'fenrir'
@@ -233,7 +232,6 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
     expect(spyComponents.cast.generateStreamLink).toHaveBeenCalledWith({
       walletAddress: owner.authChain[0].payload,
       worldName: 'myworld.dcl.eth',
-      parcel: undefined,
       sceneId: 'bafytest456',
       realmName: 'myworld.dcl.eth'
     })

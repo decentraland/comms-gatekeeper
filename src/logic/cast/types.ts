@@ -49,14 +49,17 @@ export interface ICastComponent {
    * Generates watcher credentials by resolving a location to a room.
    * @param location - Parcel coordinates or world name
    * @param identity - Display name for the watcher
+   * @param watcherAddress - Authenticated wallet of the watcher; scene bans are enforced against it
    * @param parcel - Optional parcel to resolve a specific scene within a world
    * @returns LiveKit credentials with place name
    * @throws {NoActiveStreamError} If no active stream exists for the location
    * @throws {ExpiredStreamAccessError} If the stream access has expired
+   * @throws {ForbiddenError} If the watcher is banned from the scene
    */
   generateWatcherCredentialsByLocation(
     location: string,
     identity: string,
+    watcherAddress: string,
     parcel?: string
   ): Promise<GenerateWatcherCredentialsResult>
 
@@ -103,7 +106,6 @@ export interface ICastComponent {
 export interface GenerateStreamLinkParams {
   walletAddress: string
   worldName?: string
-  parcel: string
   sceneId: string
   realmName: string
 }

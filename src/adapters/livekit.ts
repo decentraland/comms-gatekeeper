@@ -375,7 +375,13 @@ export async function createLivekitComponent(
       ingress = ingresses[0]
     } else {
       ingress = await ingressClient.createIngress(IngressInput.RTMP_INPUT, ingressOptions)
-      logger.info(`Ingress created for room ${roomName}.`, { ingress: JSON.stringify(ingress) })
+      // Do not log the full IngressInfo: it contains `streamKey` (the RTMP push credential)
+      // and the ingest `url`, which together grant publish access to the room. Log only
+      // non-sensitive identifiers.
+      logger.info(`Ingress created for room ${roomName}.`, {
+        ingressId: ingress.ingressId || 'none',
+        participantIdentity
+      })
     }
 
     return ingress

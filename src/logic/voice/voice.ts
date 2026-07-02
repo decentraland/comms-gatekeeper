@@ -287,7 +287,9 @@ export function createVoiceComponent(
    * @returns True if the user is in a voice chat, false otherwise.
    */
   async function isUserInVoiceChat(userAddress: string): Promise<boolean> {
-    const roomUserIsIn = await voiceDB.getRoomUserIsIn(userAddress)
+    // Private-voice rows are always stored lowercased, and the lookup is case-sensitive, so
+    // normalize here to avoid false negatives when a checksummed address is passed in.
+    const roomUserIsIn = await voiceDB.getRoomUserIsIn(userAddress.toLowerCase())
     return roomUserIsIn !== null
   }
 

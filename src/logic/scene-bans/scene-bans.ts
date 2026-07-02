@@ -22,23 +22,12 @@ export function createSceneBansComponent(
     | 'places'
     | 'analytics'
     | 'names'
-    | 'contentClient'
     | 'publisher'
     | 'roomMetadataSync'
   >
 ): ISceneBansComponent {
-  const {
-    sceneBanManager,
-    livekit,
-    logs,
-    sceneManager,
-    places,
-    analytics,
-    names,
-    contentClient,
-    publisher,
-    roomMetadataSync
-  } = components
+  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, publisher, roomMetadataSync } =
+    components
   const logger = logs.getLogger('scene-bans')
 
   /**
@@ -127,12 +116,16 @@ export function createSceneBansComponent(
       throw new UnauthorizedError('You do not have permission to ban users from this place')
     }
 
-    // Check if the user to be banned is a protected user
+    // Check if the user to be banned is a protected user. Land-lease holders are treated as
+    // admins by isSceneOwnerOrAdmin (and written into the room's sceneAdmins metadata), so they
+    // must be protected here too — otherwise a lease tenant could be simultaneously banned and
+    // listed as an admin.
     const userToBanScenePermissions = await sceneManager.getUserScenePermissions(place, userAddressToBan)
     if (
       userToBanScenePermissions.owner ||
       userToBanScenePermissions.admin ||
-      userToBanScenePermissions.hasExtendedPermissions
+      userToBanScenePermissions.hasExtendedPermissions ||
+      userToBanScenePermissions.hasLandLease
     ) {
       throw new InvalidRequestError('Cannot ban this address')
     }
@@ -355,15 +348,17 @@ export function createSceneBansComponent(
 
     let place: PlaceAttributes
 
+    // Callers decide which identifier is authoritative by which they pass. get-scene-adapter
+    // passes only sceneId (so the ban is checked against the exact scene whose room is joined,
+    // closing the parcel/sceneId mismatch bypass); world-ban-check and admin flows pass a parcel.
     if (isWorld && parcel) {
       place = await places.getWorldScenePlace(realmName, parcel)
     } else if (isWorld && sceneId) {
-      place = await places.getWorldScenePlaceByEntityId(realmName, sceneId)
+      place = await places.getPlaceBySceneId(sceneId, realmName)
     } else if (parcel) {
       place = await places.getPlaceByParcel(parcel)
     } else if (sceneId) {
-      const entity = await contentClient.fetchEntityById(sceneId)
-      place = await places.getPlaceByParcel(entity.metadata.scene.base)
+      place = await places.getPlaceBySceneId(sceneId)
     } else {
       throw new InvalidRequestError('No scene ID, world name or parcel provided')
     }

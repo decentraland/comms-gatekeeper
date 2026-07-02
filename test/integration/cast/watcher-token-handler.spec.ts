@@ -35,6 +35,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity })
       })
 
@@ -49,6 +50,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(
         validLocation,
         identity,
+        expect.any(String),
         undefined
       )
     })
@@ -59,6 +61,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validWorldName, identity })
       })
 
@@ -73,6 +76,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(
         validWorldName,
         identity,
+        expect.any(String),
         undefined
       )
     })
@@ -89,6 +93,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({
           location: validLocation,
           identity: customIdentity
@@ -101,6 +106,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).toHaveBeenCalledWith(
         validLocation,
         customIdentity,
+        expect.any(String),
         undefined
       )
     })
@@ -111,6 +117,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ identity: 'test-user' })
       })
 
@@ -123,6 +130,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation })
       })
 
@@ -135,6 +143,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity: '' })
       })
 
@@ -145,6 +154,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity: '   ' })
       })
 
@@ -163,10 +173,41 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity: 'test-user' })
       })
 
       expect(response.status).toBe(400)
+    })
+  })
+
+  describe('when the request is not authenticated', () => {
+    it('should reject an unsigned request so scene bans can be enforced on the viewer', async () => {
+      // Bypass makeRequest (which signs); send a raw request with no signed-fetch headers.
+      const response = await components.localFetch.fetch('/cast/watcher-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location: validLocation, identity: 'anon' })
+      })
+
+      // The crypto middleware rejects a missing/malformed auth chain (400) before the handler
+      // runs. What matters is that the request never reaches credential generation.
+      expect(response.status).not.toBe(200)
+      expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when the request is signed by a scene', () => {
+    it('should reject a decentraland-kernel-scene signer — watcher tokens are for viewers, not scenes', async () => {
+      const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'decentraland-kernel-scene' },
+        body: JSON.stringify({ location: validLocation, identity: 'scene-signed' })
+      })
+
+      expect(response.status).not.toBe(200)
+      expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
     })
   })
 
@@ -175,6 +216,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       const response = await makeRequest(components.localFetch, '/cast/watcher-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        metadata: { signer: 'dcl:explorer' },
         body: JSON.stringify({ location: validLocation, identity: 'happy-penguin' })
       })
 

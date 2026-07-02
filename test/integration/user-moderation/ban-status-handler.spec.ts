@@ -1,3 +1,4 @@
+import SQL from 'sql-template-strings'
 import { test } from '../../components'
 
 test('GET /users/:address/bans', ({ components }) => {
@@ -41,6 +42,33 @@ test('GET /users/:address/bans', ({ components }) => {
         expect(response.status).toBe(200)
         const body = await response.json()
         expect(body.data.isBanned).toBe(false)
+      })
+    })
+
+    describe('and two bans are created concurrently for the same address', () => {
+      it('should persist exactly one active ban and reject the duplicate', async () => {
+        const results = await Promise.allSettled([
+          components.userModerationDb.createBan({
+            bannedAddress: targetAddress,
+            bannedBy: '0x0000000000000000000000000000000000000099',
+            reason: 'First'
+          }),
+          components.userModerationDb.createBan({
+            bannedAddress: targetAddress,
+            bannedBy: '0x00000000000000000000000000000000000000aa',
+            reason: 'Second'
+          })
+        ])
+
+        const fulfilled = results.filter((r) => r.status === 'fulfilled')
+        const rejected = results.filter((r) => r.status === 'rejected')
+        expect(fulfilled).toHaveLength(1)
+        expect(rejected).toHaveLength(1)
+
+        const rows = await components.database.query(
+          SQL`SELECT id FROM user_bans WHERE banned_address = ${targetAddress} AND lifted_at IS NULL AND (expires_at IS NULL OR expires_at > now())`
+        )
+        expect(rows.rowCount).toBe(1)
       })
     })
 

@@ -5,6 +5,7 @@ module.exports = {
   },
   coverageDirectory: 'coverage',
   collectCoverageFrom: ['src/**/*.ts'],
+  setupFiles: ['<rootDir>/test/setup-env.ts'],
   testMatch: ['**/*.spec.(ts)'],
   testEnvironment: 'node',
   // Fix for ES modules like uuid

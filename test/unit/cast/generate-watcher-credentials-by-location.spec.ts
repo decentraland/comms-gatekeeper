@@ -1,13 +1,17 @@
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
 import { NoActiveStreamError, ExpiredStreamAccessError } from '../../../src/logic/cast/errors'
+import { ForbiddenError } from '../../../src/types/errors'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene-stream-access-manager-mock'
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
+import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
 import { PlaceAttributes } from '../../../src/types/places.type'
+
+const WATCHER_ADDRESS = '0xwatcher00000000000000000000000000000abc'
 
 describe('when generating watcher credentials by location', () => {
   let castComponent: ICastComponent
@@ -17,6 +21,7 @@ describe('when generating watcher credentials by location', () => {
   let mockSceneManager: ReturnType<typeof createSceneManagerMockedComponent>
   let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
   let mockConfig: ReturnType<typeof createConfigMockedComponent>
+  let mockSceneBanManager: ReturnType<typeof createSceneBanManagerMockedComponent>
   let mockPlace: PlaceAttributes
   let mockWorldPlace: PlaceAttributes
 
@@ -83,13 +88,18 @@ describe('when generating watcher credentials by location', () => {
       getString: jest.fn().mockResolvedValue('https://cast2.decentraland.org')
     })
 
+    mockSceneBanManager = createSceneBanManagerMockedComponent({
+      isBanned: jest.fn().mockResolvedValue(false)
+    })
+
     castComponent = createCastComponent({
       livekit: mockLivekit,
       logs: mockLogs,
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: mockSceneManager,
       places: mockPlaces,
-      config: mockConfig
+      config: mockConfig,
+      sceneBanManager: mockSceneBanManager
     })
   })
 
@@ -117,7 +127,7 @@ describe('when generating watcher credentials by location', () => {
     })
 
     it('should look up the world by name and stream access by place id', async () => {
-      await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity)
+      await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity, WATCHER_ADDRESS)
 
       expect(mockPlaces.getWorldByName).toHaveBeenCalledWith(worldLocation)
       expect(mockPlaces.getPlaceByParcel).not.toHaveBeenCalled()
@@ -125,7 +135,7 @@ describe('when generating watcher credentials by location', () => {
     })
 
     it('should return the place name', async () => {
-      const result = await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity)
+      const result = await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity, WATCHER_ADDRESS)
 
       expect(result.placeName).toBe('Test World Place')
     })
@@ -155,7 +165,7 @@ describe('when generating watcher credentials by location', () => {
     })
 
     it('should look up the place by parcel and stream access by place id', async () => {
-      await castComponent.generateWatcherCredentialsByLocation(parcelLocation, identity)
+      await castComponent.generateWatcherCredentialsByLocation(parcelLocation, identity, WATCHER_ADDRESS)
 
       expect(mockPlaces.getPlaceByParcel).toHaveBeenCalledWith(parcelLocation)
       expect(mockPlaces.getWorldByName).not.toHaveBeenCalled()
@@ -163,7 +173,7 @@ describe('when generating watcher credentials by location', () => {
     })
 
     it('should return the place name', async () => {
-      const result = await castComponent.generateWatcherCredentialsByLocation(parcelLocation, identity)
+      const result = await castComponent.generateWatcherCredentialsByLocation(parcelLocation, identity, WATCHER_ADDRESS)
 
       expect(result.placeName).toBe('Test Place')
     })
@@ -179,9 +189,9 @@ describe('when generating watcher credentials by location', () => {
     })
 
     it('should throw a NoActiveStreamError', async () => {
-      await expect(castComponent.generateWatcherCredentialsByLocation(location, identity)).rejects.toThrow(
-        NoActiveStreamError
-      )
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+      ).rejects.toThrow(NoActiveStreamError)
     })
   })
 
@@ -209,9 +219,9 @@ describe('when generating watcher credentials by location', () => {
     })
 
     it('should throw an ExpiredStreamAccessError', async () => {
-      await expect(castComponent.generateWatcherCredentialsByLocation(location, identity)).rejects.toThrow(
-        ExpiredStreamAccessError
-      )
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+      ).rejects.toThrow(ExpiredStreamAccessError)
     })
   })
 
@@ -239,7 +249,7 @@ describe('when generating watcher credentials by location', () => {
     })
 
     it('should return the LiveKit credentials and room information', async () => {
-      const result = await castComponent.generateWatcherCredentialsByLocation(location, identity)
+      const result = await castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
 
       expect(result.url).toBe('wss://test-livekit-url')
       expect(result.token).toBe('test-token')
@@ -279,7 +289,7 @@ describe('when generating watcher credentials by location', () => {
     })
 
     it('should use the world name as place name', async () => {
-      const result = await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity)
+      const result = await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity, WATCHER_ADDRESS)
 
       expect(result.placeName).toBe('unnamed-world.dcl.eth')
     })
@@ -316,9 +326,35 @@ describe('when generating watcher credentials by location', () => {
     })
 
     it('should use the location as place name', async () => {
-      const result = await castComponent.generateWatcherCredentialsByLocation(parcelLocation, identity)
+      const result = await castComponent.generateWatcherCredentialsByLocation(parcelLocation, identity, WATCHER_ADDRESS)
 
       expect(result.placeName).toBe('50,60')
+    })
+  })
+
+  describe('and the watcher is banned from the scene', () => {
+    const location = '10,20'
+    const identity = 'watcher-identity'
+
+    beforeEach(() => {
+      mockPlaces.getPlaceByParcel.mockResolvedValue(mockPlace)
+      mockSceneBanManager.isBanned.mockResolvedValue(true)
+    })
+
+    it('should check the ban against the resolved place and the watcher address', async () => {
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+      ).rejects.toThrow(ForbiddenError)
+
+      expect(mockSceneBanManager.isBanned).toHaveBeenCalledWith('place-123', WATCHER_ADDRESS.toLowerCase())
+    })
+
+    it('should not issue any LiveKit credentials', async () => {
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+      ).rejects.toThrow(ForbiddenError)
+
+      expect(mockLivekit.generateCredentials).not.toHaveBeenCalled()
     })
   })
 })

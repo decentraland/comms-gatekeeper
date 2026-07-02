@@ -3,18 +3,32 @@ import { HandlerContextWithPath } from '../../../types'
 import { WatcherTokenRequestBody } from './schemas'
 
 export async function watcherTokenHandler(
-  context: HandlerContextWithPath<'logs' | 'cast', '/cast/watcher-token'>
+  context: Pick<
+    HandlerContextWithPath<'logs' | 'cast', '/cast/watcher-token'>,
+    'components' | 'request' | 'verification'
+  >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
     components: { logs, cast },
-    request
+    request,
+    verification
   } = context
 
   const logger = logs.getLogger('watcher-token-handler')
 
+  // Auth is enforced by the authWatcher route middleware (optional: false rejects unidentified
+  // requests), so verification is guaranteed here. Scene bans are enforced against this wallet
+  // inside the cast component. Body shape is enforced by the WatcherTokenRequestSchema validator.
+  const watcherAddress = verification!.auth.toLowerCase()
+
   const body: WatcherTokenRequestBody = await request.json()
 
-  const credentials = await cast.generateWatcherCredentialsByLocation(body.location, body.identity, body.parcel)
+  const credentials = await cast.generateWatcherCredentialsByLocation(
+    body.location,
+    body.identity,
+    watcherAddress,
+    body.parcel
+  )
 
   logger.info(`Watcher credentials generated for location ${body.location}`)
 

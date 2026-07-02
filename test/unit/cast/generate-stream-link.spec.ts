@@ -8,6 +8,7 @@ import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene
 import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-mock'
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
+import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
 
 describe('when generating a stream link', () => {
   let castComponent: ICastComponent
@@ -17,6 +18,7 @@ describe('when generating a stream link', () => {
   let mockSceneManager: ReturnType<typeof createSceneManagerMockedComponent>
   let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
   let mockConfig: ReturnType<typeof createConfigMockedComponent>
+  let mockSceneBanManager: ReturnType<typeof createSceneBanManagerMockedComponent>
   let mockPlace: PlaceAttributes
   let mockWorldScenePlace: PlaceAttributes
 
@@ -68,13 +70,20 @@ describe('when generating a stream link', () => {
       isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(true)
     })
 
+    // The place is resolved from the sceneId via places.getPlaceBySceneId, which internally uses
+    // the content entity's base parcel (genesis) or the world content server (worlds). The cast
+    // component only calls getPlaceBySceneId, so stub that; it defaults to the genesis place.
     mockPlaces = createPlacesMockedComponent({
-      getWorldScenePlace: jest.fn().mockResolvedValue(mockWorldScenePlace),
+      getPlaceBySceneId: jest.fn().mockResolvedValue(mockPlace),
       getPlaceByParcel: jest.fn().mockResolvedValue(mockPlace)
     })
 
     mockConfig = createConfigMockedComponent({
       getString: jest.fn().mockResolvedValue('https://cast2.decentraland.org')
+    })
+
+    mockSceneBanManager = createSceneBanManagerMockedComponent({
+      isBanned: jest.fn().mockResolvedValue(false)
     })
 
     castComponent = createCastComponent({
@@ -83,7 +92,8 @@ describe('when generating a stream link', () => {
       sceneStreamAccessManager: mockSceneStreamAccessManager,
       sceneManager: mockSceneManager,
       places: mockPlaces,
-      config: mockConfig
+      config: mockConfig,
+      sceneBanManager: mockSceneBanManager
     })
   })
 
@@ -96,7 +106,6 @@ describe('when generating a stream link', () => {
     it('should get the scene room name with the realm and scene id', async () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
-        parcel: '10,20',
         sceneId: 'bafkreiscene123',
         realmName: 'test-realm'
       })
@@ -107,7 +116,6 @@ describe('when generating a stream link', () => {
     it('should return the place id from the parcel lookup', async () => {
       const result = await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
-        parcel: '10,20',
         sceneId: 'bafkreiscene123',
         realmName: 'test-realm'
       })
@@ -118,7 +126,6 @@ describe('when generating a stream link', () => {
     it('should create a new stream access entry', async () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
-        parcel: '10,20',
         sceneId: 'bafkreiscene123',
         realmName: 'test-realm'
       })
@@ -136,14 +143,13 @@ describe('when generating a stream link', () => {
   describe('and the request is for a world', () => {
     beforeEach(() => {
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
-      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldScenePlace)
+      mockPlaces.getPlaceBySceneId.mockResolvedValue(mockWorldScenePlace)
     })
 
     it('should get the world scene room with the scene id', async () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })
@@ -151,23 +157,21 @@ describe('when generating a stream link', () => {
       expect(mockLivekit.getWorldSceneRoomName).toHaveBeenCalledWith('test-world.dcl.eth', 'bafkreiscene123')
     })
 
-    it('should get the world scene place with world name and parcel', async () => {
+    it('should resolve the world scene place from the world name and scene id', async () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })
 
-      expect(mockPlaces.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', '0,0')
+      expect(mockPlaces.getPlaceBySceneId).toHaveBeenCalledWith('bafkreiscene123', 'test-world.dcl.eth')
     })
 
     it('should check admin permissions using the world scene place', async () => {
       await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })
@@ -179,7 +183,6 @@ describe('when generating a stream link', () => {
       const result = await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })
@@ -191,7 +194,7 @@ describe('when generating a stream link', () => {
   describe('and the user is not an admin', () => {
     beforeEach(() => {
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
-      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldScenePlace)
+      mockPlaces.getPlaceBySceneId.mockResolvedValue(mockWorldScenePlace)
     })
 
     it('should throw a NotSceneAdminError', async () => {
@@ -199,7 +202,6 @@ describe('when generating a stream link', () => {
         castComponent.generateStreamLink({
           walletAddress: '0xrandomuser',
           worldName: 'test-world.dcl.eth',
-          parcel: '0,0',
           sceneId: 'bafkreiscene123',
           realmName: 'test-world.dcl.eth'
         })
@@ -232,7 +234,6 @@ describe('when generating a stream link', () => {
         const result = await castComponent.generateStreamLink({
           walletAddress: '0xowner123',
           worldName: 'test-world.dcl.eth',
-          parcel: '0,0',
           sceneId: 'bafkreiscene123',
           realmName: 'test-world.dcl.eth'
         })
@@ -266,7 +267,6 @@ describe('when generating a stream link', () => {
         const result = await castComponent.generateStreamLink({
           walletAddress: '0xowner123',
           worldName: 'test-world.dcl.eth',
-          parcel: '0,0',
           sceneId: 'bafkreiscene123',
           realmName: 'test-world.dcl.eth'
         })
@@ -300,7 +300,6 @@ describe('when generating a stream link', () => {
         await castComponent.generateStreamLink({
           walletAddress: '0xowner123',
           worldName: 'test-world.dcl.eth',
-          parcel: '0,0',
           sceneId: 'bafkreiscene123',
           realmName: 'test-world.dcl.eth'
         })
@@ -313,14 +312,13 @@ describe('when generating a stream link', () => {
   describe('and the stream link is successfully generated', () => {
     beforeEach(() => {
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
-      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldScenePlace)
+      mockPlaces.getPlaceBySceneId.mockResolvedValue(mockWorldScenePlace)
     })
 
     it('should return the stream link details with place name and expiration information', async () => {
       const result = await castComponent.generateStreamLink({
         walletAddress: '0xowner123',
         worldName: 'test-world.dcl.eth',
-        parcel: '0,0',
         sceneId: 'bafkreiscene123',
         realmName: 'test-world.dcl.eth'
       })

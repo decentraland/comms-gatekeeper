@@ -10,11 +10,20 @@ export async function createStreamingKeyTTLChecker(
   const { logs, sceneStreamAccessManager, livekit, places, notifications } = components
   const logger = logs.getLogger(`streaming-key-ttl-checker`)
   let job: CronJob
+  // Guard against overlapping runs: the cron library does not serialize async ticks, so a
+  // slow cycle (large batch / slow Places API) could otherwise start concurrently with the
+  // next tick and double-process the same expired keys.
+  let isProcessing = false
 
   async function start(): Promise<void> {
     job = new CronJob(
       '*/10 * * * *', // every 10 minutes
       async function () {
+        if (isProcessing) {
+          logger.info(`Previous streaming-key expiry run still in progress, skipping this tick.`)
+          return
+        }
+        isProcessing = true
         try {
           logger.info(`Running job to remove expired streaming keys.`)
 
@@ -48,12 +57,19 @@ export async function createStreamingKeyTTLChecker(
             const { ingress_id: ingressId, place_id: placeId } = expiredStreamKey
             const place = placesById[placeId]
             try {
-              await livekit.removeIngress(ingressId)
+              // Cast 2.0 rows carry an empty ingress_id; removeIngress('') would throw and skip
+              // the removeAccess below, leaving the row active to re-error every tick. Only call
+              // removeIngress when there's a real id (mirrors streaming-ttl-checker).
+              if (ingressId) {
+                await livekit.removeIngress(ingressId)
+              }
               await sceneStreamAccessManager.removeAccess(placeId)
               if (place) {
                 await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_EXPIRED, place)
               }
-              logger.info(`Ingress ${ingressId} removed and streaming key expired for place ${placeId}`)
+              logger.info(
+                `Streaming key expired for place ${placeId}${ingressId ? ` (ingress ${ingressId} removed)` : ''}`
+              )
             } catch (error) {
               logger.error(
                 `Error revoking ingress ${ingressId} or removing access for place ${placeId}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
@@ -64,6 +80,8 @@ export async function createStreamingKeyTTLChecker(
           logger.error(
             `Error while removing expired streaming keys: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
           )
+        } finally {
+          isProcessing = false
         }
       },
       null,

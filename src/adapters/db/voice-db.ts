@@ -211,13 +211,22 @@ export async function createVoiceDBComponent({
    */
   async function createVoiceChatRoom(roomName: string, userAddresses: string[]): Promise<void> {
     const now = Date.now()
+    // Dedupe addresses so a request carrying the same wallet twice (e.g. differing only in
+    // checksum casing, which the caller lowercases before this point) does not attempt two
+    // inserts with the same (address, room_name) primary key. On the rare chance a room name is
+    // reused while a stale row lingers, reset that row to the fresh NotConnected state rather
+    // than leaving the previous session's status (this is a room *creation*).
+    const uniqueAddresses = Array.from(new Set(userAddresses))
     const query = SQL`INSERT INTO voice_chat_users (address, room_name, status, joined_at, status_updated_at) VALUES `
-    userAddresses.forEach((userAddress, index) => {
+    uniqueAddresses.forEach((userAddress, index) => {
       query.append(SQL`(${userAddress}, ${roomName}, ${VoiceChatUserStatus.NotConnected}, ${now}, ${now})`)
-      if (index < userAddresses.length - 1) {
+      if (index < uniqueAddresses.length - 1) {
         query.append(SQL`, `)
       }
     })
+    query.append(
+      SQL` ON CONFLICT (address, room_name) DO UPDATE SET status = EXCLUDED.status, joined_at = EXCLUDED.joined_at, status_updated_at = EXCLUDED.status_updated_at`
+    )
 
     await database.query(query)
   }

@@ -14,3 +14,15 @@ export const AddSceneAdminRequestSchema: Schema = {
   anyOf: [{ required: ['admin'] }, { required: ['name'] }],
   additionalProperties: false
 }
+
+export type RemoveSceneAdminRequestBody = {
+  admin: string
+}
+
+export const RemoveSceneAdminRequestSchema: Schema = {
+  type: 'object',
+  properties: {
+    admin: { type: 'string', pattern: '^0x[a-fA-F0-9]{40}$' }
+  },
+  required: ['admin']
+}

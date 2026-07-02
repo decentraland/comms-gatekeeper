@@ -98,10 +98,12 @@ export async function commsSceneHandler(
   // Check if user is banned from the scene (skip for local preview)
   if (!isLocalPreview) {
     try {
+      // Pass only the resolved sceneId (not parcel): the room this connection joins is derived
+      // from sceneId, so the ban must be evaluated against that exact scene. Supplying parcel
+      // here would let a banned user dodge the check with a mismatched-but-benign parcel.
       const isBanned = await sceneBans.isUserBanned(identity, {
         sceneId: resolvedSceneId,
         realmName,
-        parcel,
         isWorld
       })
 
@@ -140,7 +142,9 @@ export async function commsSceneHandler(
 
     room = livekit.getWorldSceneRoomName(realmName, resolvedSceneId)
   } else {
-    room = livekit.getSceneRoomName(realmName, sceneId)
+    // Use resolvedSceneId uniformly (equal to sceneId for non-world scenes) so all three
+    // branches key the room off the same identifier.
+    room = livekit.getSceneRoomName(realmName, resolvedSceneId)
   }
 
   // Add scene admins as presenters in room metadata
@@ -148,7 +152,10 @@ export async function commsSceneHandler(
     if (isLocalPreview) {
       await cast.addPresenter(room, identity)
     } else {
-      const place = isWorld ? await places.getWorldByName(realmName) : await places.getPlaceByParcel(parcel)
+      // Resolve the place from the SAME sceneId used to build `room`, not from the
+      // separately-supplied `parcel`. Otherwise an admin of an unrelated place could be
+      // added as a presenter in this scene's room by mismatching parcel and sceneId.
+      const place = await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined)
       const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, identity)
       if (isAdmin) {
         await cast.addPresenter(room, identity)

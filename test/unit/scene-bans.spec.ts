@@ -17,9 +17,7 @@ import { createAnalyticsMockedComponent } from '../mocks/analytics-mocks'
 import { AnalyticsEvent } from '../../src/types/analytics'
 import { INamesComponent } from '../../src/types/names.type'
 import { createNamesMockedComponent } from '../mocks/names-mock'
-import { createContentClientMockedComponent } from '../mocks/content-client-mock'
 import { IsUserBannedParams } from '../../src/logic/scene-bans/types'
-import { IContentClientComponent } from '../../src/types/content-client.type'
 import { createPublisherMockedComponent } from '../mocks/publisher-mock'
 import { createRoomMetadataSyncMockedComponent } from '../mocks/room-metadata-sync-mock'
 
@@ -32,7 +30,6 @@ describe('SceneBanComponent', () => {
   let logsMockedComponent: jest.Mocked<ILoggerComponent>
   let analyticsMockedComponent: jest.Mocked<IAnalyticsComponent>
   let namesMockedComponent: jest.Mocked<INamesComponent>
-  let contentClientMockedComponent: jest.Mocked<IContentClientComponent>
   let publisherMockedComponent: jest.Mocked<IPublisherComponent>
   let roomMetadataSyncMockedComponent: jest.Mocked<IRoomMetadataSyncComponent>
 
@@ -48,7 +45,6 @@ describe('SceneBanComponent', () => {
     logsMockedComponent = createLoggerMockedComponent()
     analyticsMockedComponent = createAnalyticsMockedComponent()
     namesMockedComponent = createNamesMockedComponent()
-    contentClientMockedComponent = createContentClientMockedComponent()
     publisherMockedComponent = createPublisherMockedComponent()
     roomMetadataSyncMockedComponent = createRoomMetadataSyncMockedComponent()
 
@@ -60,7 +56,6 @@ describe('SceneBanComponent', () => {
       logs: logsMockedComponent,
       analytics: analyticsMockedComponent,
       names: namesMockedComponent,
-      contentClient: contentClientMockedComponent,
       publisher: publisherMockedComponent,
       roomMetadataSync: roomMetadataSyncMockedComponent
     })
@@ -78,6 +73,7 @@ describe('SceneBanComponent', () => {
     placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
     placesMockedComponent.getWorldScenePlace.mockResolvedValue(mockWorldPlace)
     placesMockedComponent.getWorldScenePlaceByEntityId.mockResolvedValue(mockWorldPlace)
+    placesMockedComponent.getPlaceBySceneId.mockResolvedValue(mockPlace)
     placesMockedComponent.getWorldByName.mockResolvedValue(mockWorldPlace)
 
     jest.useFakeTimers()
@@ -1605,6 +1601,8 @@ describe('SceneBanComponent', () => {
             sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
           })
 
+          // When both parcel and sceneId are present, parcel takes precedence (the sceneId-only
+          // path is exercised by get-scene-adapter, covered in its own describe below).
           it('should get place by parcel, check ban status, and return true', async () => {
             const result = await sceneBanComponent.isUserBanned(testAddress, params)
 
@@ -1692,9 +1690,9 @@ describe('SceneBanComponent', () => {
         sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
       })
 
-      describe('and the place lookup by entity ID fails', () => {
+      describe('and the place lookup by sceneId fails', () => {
         beforeEach(() => {
-          placesMockedComponent.getWorldScenePlaceByEntityId.mockRejectedValue(new Error('World scene not found'))
+          placesMockedComponent.getPlaceBySceneId.mockRejectedValue(new Error('World scene not found'))
         })
 
         it('should propagate the error', async () => {
@@ -1702,9 +1700,9 @@ describe('SceneBanComponent', () => {
         })
       })
 
-      describe('and the place lookup by entity ID succeeds', () => {
+      describe('and the place lookup by sceneId succeeds', () => {
         beforeEach(() => {
-          placesMockedComponent.getWorldScenePlaceByEntityId.mockResolvedValue(mockWorldPlace)
+          placesMockedComponent.getPlaceBySceneId.mockResolvedValue(mockWorldPlace)
         })
 
         describe('and the user is banned', () => {
@@ -1712,14 +1710,10 @@ describe('SceneBanComponent', () => {
             sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
           })
 
-          it('should get place by entity ID, check ban status, and return true', async () => {
+          it('should resolve the place by sceneId and world name, check ban status, and return true', async () => {
             const result = await sceneBanComponent.isUserBanned(testAddress, params)
 
-            expect(placesMockedComponent.getWorldScenePlaceByEntityId).toHaveBeenCalledWith(
-              'world-realm',
-              'world-scene-entity-id'
-            )
-            expect(contentClientMockedComponent.fetchEntityById).not.toHaveBeenCalled()
+            expect(placesMockedComponent.getPlaceBySceneId).toHaveBeenCalledWith('world-scene-entity-id', 'world-realm')
             expect(sceneBanManagerMockedComponent.isBanned).toHaveBeenCalledWith('test-place-id', testAddress)
             expect(result).toBe(true)
           })
@@ -1819,73 +1813,43 @@ describe('SceneBanComponent', () => {
         sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
       })
 
-      describe('and the content client fetch fails', () => {
+      describe('and the place lookup by sceneId fails', () => {
         beforeEach(() => {
-          contentClientMockedComponent.fetchEntityById.mockRejectedValue(new Error('Entity not found'))
+          placesMockedComponent.getPlaceBySceneId.mockRejectedValue(new Error('Place not found'))
         })
 
         it('should propagate the error', async () => {
-          await expect(sceneBanComponent.isUserBanned(testAddress, params)).rejects.toThrow('Entity not found')
+          await expect(sceneBanComponent.isUserBanned(testAddress, params)).rejects.toThrow('Place not found')
         })
       })
 
-      describe('and the content client fetch succeeds', () => {
+      describe('and the place lookup by sceneId succeeds', () => {
         beforeEach(() => {
-          contentClientMockedComponent.fetchEntityById.mockResolvedValue({
-            id: 'test-scene-id',
-            type: 'scene' as any,
-            timestamp: 1234567890,
-            version: 'v3',
-            pointers: ['-10,-10'],
-            content: [],
-            metadata: {
-              scene: {
-                base: '-10,-10',
-                parcels: ['-10,-10']
-              }
-            }
+          placesMockedComponent.getPlaceBySceneId.mockResolvedValue(mockPlace)
+        })
+
+        describe('and the user is banned', () => {
+          beforeEach(() => {
+            sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
+          })
+
+          it('should resolve the place by sceneId, check ban status, and return true', async () => {
+            const result = await sceneBanComponent.isUserBanned(testAddress, params)
+
+            expect(placesMockedComponent.getPlaceBySceneId).toHaveBeenCalledWith('test-scene-id')
+            expect(sceneBanManagerMockedComponent.isBanned).toHaveBeenCalledWith('test-place-id', testAddress)
+            expect(result).toBe(true)
           })
         })
 
-        describe('and the place lookup fails', () => {
+        describe('and the user is not banned', () => {
           beforeEach(() => {
-            placesMockedComponent.getPlaceByParcel.mockRejectedValue(new Error('Place not found'))
+            sceneBanManagerMockedComponent.isBanned.mockResolvedValue(false)
           })
 
-          it('should propagate the error', async () => {
-            await expect(sceneBanComponent.isUserBanned(testAddress, params)).rejects.toThrow('Place not found')
-          })
-        })
-
-        describe('and the place lookup succeeds', () => {
-          beforeEach(() => {
-            placesMockedComponent.getPlaceByParcel.mockResolvedValue(mockPlace)
-          })
-
-          describe('and the user is banned', () => {
-            beforeEach(() => {
-              sceneBanManagerMockedComponent.isBanned.mockResolvedValue(true)
-            })
-
-            it('should fetch entity, get place by parcel, check ban status, and return true', async () => {
-              const result = await sceneBanComponent.isUserBanned(testAddress, params)
-
-              expect(contentClientMockedComponent.fetchEntityById).toHaveBeenCalledWith('test-scene-id')
-              expect(placesMockedComponent.getPlaceByParcel).toHaveBeenCalledWith('-10,-10')
-              expect(sceneBanManagerMockedComponent.isBanned).toHaveBeenCalledWith('test-place-id', testAddress)
-              expect(result).toBe(true)
-            })
-          })
-
-          describe('and the user is not banned', () => {
-            beforeEach(() => {
-              sceneBanManagerMockedComponent.isBanned.mockResolvedValue(false)
-            })
-
-            it('should return false', async () => {
-              const result = await sceneBanComponent.isUserBanned(testAddress, params)
-              expect(result).toBe(false)
-            })
+          it('should return false', async () => {
+            const result = await sceneBanComponent.isUserBanned(testAddress, params)
+            expect(result).toBe(false)
           })
         })
       })

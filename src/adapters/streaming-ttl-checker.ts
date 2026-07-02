@@ -55,12 +55,23 @@ export async function createStreamingTTLChecker(
             const { ingress_id: ingressId, place_id: placeId } = expiredStreaming
             const place = placesById[placeId]
             try {
-              await livekit.removeIngress(ingressId)
-              await sceneStreamAccessManager.killStreaming(ingressId)
-              await notifications.sendNotificationType(NotificationStreamingType.STREAMING_TIME_EXCEEDED, place)
-              logger.info(`Ingress ${ingressId} revoked correctly from LiveKit and streaming killed`)
+              if (ingressId) {
+                await livekit.removeIngress(ingressId)
+                await sceneStreamAccessManager.killStreaming(ingressId)
+              } else {
+                // No ingress id (e.g. a legacy Cast 2.0 row): killStreaming is guarded against
+                // an empty id, so deactivate by place instead — otherwise this expired row would
+                // be re-selected and re-notified on every tick.
+                await sceneStreamAccessManager.removeAccess(placeId)
+              }
+              // Guard against a missing Places lookup: without it, sendNotificationType would
+              // throw on `place.id` and turn a normal missing-place into a logged error.
+              if (place) {
+                await notifications.sendNotificationType(NotificationStreamingType.STREAMING_TIME_EXCEEDED, place)
+              }
+              logger.info(`Streaming killed for place ${placeId}${ingressId ? ` (ingress ${ingressId} revoked)` : ''}`)
             } catch (error) {
-              logger.error(`Error revoking ingress ${ingressId} or killing streaming: ${error}`)
+              logger.error(`Error revoking ingress ${ingressId} or killing streaming for place ${placeId}: ${error}`)
             }
           }
 
