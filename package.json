@@ -62,7 +62,7 @@
     "@dcl/features-component": "^1.0.1",
     "@dcl/http-commons": "^2.0.0",
     "@dcl/http-requests-logger-component": "^1.0.0",
-    "@dcl/http-server": "2.1.0",
+    "@dcl/http-server": "2.2.1",
     "@dcl/http-tracer-component": "^2.0.1",
     "@dcl/memory-cache-component": "^2.4.3",
     "@dcl/metrics": "^1.0.1",

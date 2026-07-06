@@ -1110,14 +1110,14 @@
   resolved "https://registry.npmjs.org/@dcl/catalyst-contracts/-/catalyst-contracts-4.4.2.tgz"
   integrity sha512-gJZo3IB8U+jhBJWR0DgoLS+zaUDIb/u79e7Rp+MEM78uH3bvC19S3Dd8lxWEbPXNKlCB0saUptfK/Buw0c1y2Q==
 
-"@dcl/core-commons@0.10.0", "@dcl/core-commons@^0.10.0":
+"@dcl/core-commons@0.10.0":
   version "0.10.0"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.10.0.tgz#cbdcc810f55a1a708b9250ab566b951f312841e2"
   integrity sha512-lcCgnwxkq/MoTbU59wKnspmVaQyEIP8SRRDUCd3Werrwj+nsH6T7xGuVo17cLVEd8D/Hi3NLFtBiq+N7kZAt/A==
   dependencies:
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/core-commons@0.10.1", "@dcl/core-commons@^0.10.1":
+"@dcl/core-commons@0.10.1", "@dcl/core-commons@^0.10.0", "@dcl/core-commons@^0.10.1":
   version "0.10.1"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.10.1.tgz#f6b38fd623a5043a571e80d7ba1ac40e9db41973"
   integrity sha512-iLBpIg15czlzV7No5Wzb3FyreXpqYx8YnVJ8xYKczXpl6C3eqBQoqEA02hRkd/UASbzqcPJeG1wH1wHSxYTmQw==
@@ -1219,10 +1219,10 @@
     "@dcl/core-commons" "0.10.1"
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/http-server@2.1.0":
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/@dcl/http-server/-/http-server-2.1.0.tgz#5385ba3319356d32d468365a84530f24e245fa65"
-  integrity sha512-UqIFIo18JeKklM/RM0wEJ0u/DCGjikBHtQ1LzuQKjDK6SP9XgeVhukgCg5BmdW0D3Qzlql2i5CGpW4EdyfUiWQ==
+"@dcl/http-server@2.2.1":
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/@dcl/http-server/-/http-server-2.2.1.tgz#9b518de3afc54aa7cb9591906a7151375e6d7b5f"
+  integrity sha512-ibhFXABkKpK2X3W83Y1FYM3lShP1NrEzpxE4HtphPZol4oq/GOLNa64Kj7mOR1Rw7Vo5dTjJQFMPq061SvxrwA==
   dependencies:
     "@dcl/core-commons" "0.10.1"
     "@well-known-components/interfaces" "^1.5.1"
