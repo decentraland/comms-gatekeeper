@@ -1930,6 +1930,76 @@ paths:
       tags:
         - Platform Moderation
 
+  /users/{address}/connection-info:
+    post:
+      operationId: recordConnectionInfo
+      summary: Record a connecting player's device and IP
+      description: |
+        Service-to-service endpoint used by Worlds Content Server when it issues a world
+        LiveKit token.
+
+        This service records connection info inline on its own token paths
+        (`/get-scene-adapter`, `/private-messages/token`). World tokens are issued by Worlds
+        Content Server without passing through those, so it reports here instead — otherwise a
+        player who only ever connects to multi-scene worlds would have no recorded device, and
+        a later ban would capture no device id to enforce against.
+
+        The stored row is keyed on the lowercased address, and absent fields are preserved
+        rather than overwritten, so a report that knows only the IP will not erase a
+        previously recorded device id.
+
+        Requires Bearer token authentication (`COMMS_GATEKEEPER_AUTH_TOKEN`). Not intended
+        for direct client use.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Ethereum address of the connecting player
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                deviceId:
+                  type: string
+                  maxLength: 128
+                  description: Device fingerprint reported by the client
+                ipAddress:
+                  type: string
+                  maxLength: 45
+                  description: Client IP observed by the caller
+      responses:
+        '204':
+          description: Connection info recorded
+        '400':
+          description: Bad request — body failed schema validation
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized — invalid or missing Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Platform Moderation
+
   /users/{address}/warnings:
     post:
       operationId: warnPlayer
