@@ -1,6 +1,9 @@
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../../types'
 
+/** Header carrying the connecting client's device fingerprint. */
+export const DEVICE_ID_HEADER = 'x-device-id'
+
 /**
  * Handler for checking whether a connection is platform-banned, by address or by device id.
  *
@@ -9,6 +12,10 @@ import { HandlerContextWithPath } from '../../../types'
  * GET /users/:address/bans, it takes the connection's device id so a ban recorded against a
  * device is enforced even when the caller presents a different wallet, and it returns only a
  * boolean so the recorded device id is never disclosed.
+ *
+ * The device id travels in the X-Device-Id header rather than the query string: the request
+ * logger writes `pathname + search` at INFO, so a query parameter would persist a stable
+ * cross-wallet machine identifier into the logs of every connection.
  *
  * @param context - The handler context with userModeration and logs components.
  * @returns A response with { isBanned: boolean }.
@@ -19,13 +26,13 @@ export async function platformBanCheckHandler(
   const {
     components: { userModeration, logs },
     params: { address },
-    url
+    request
   } = context
 
   const logger = logs.getLogger('platform-ban-check-handler')
 
   // Absent or empty means "no device to match on": the lookup then bans by address only.
-  const deviceId = url.searchParams.get('deviceId')
+  const deviceId = request.headers.get(DEVICE_ID_HEADER)
 
   try {
     const { isBanned } = await userModeration.getActiveBanForConnection({ address, deviceId })

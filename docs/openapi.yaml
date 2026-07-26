@@ -1873,10 +1873,14 @@ paths:
         connection is platform-banned before issuing a world LiveKit token.
 
         Unlike the public `GET /users/{address}/bans`, this endpoint accepts the
-        connection's `deviceId` and matches an active ban on **either** the address or the
+        connection's device id and matches an active ban on **either** the address or the
         recorded device id, so a ban placed on a device is enforced even when the caller
         presents a different wallet. It returns only a boolean, so the recorded device id
         is never disclosed.
+
+        The device id is sent in the `X-Device-Id` header rather than the query string: the
+        request logger records `pathname + search` at INFO level, so a query parameter would
+        persist a stable cross-wallet machine identifier into the logs of every connection.
 
         Requires Bearer token authentication (`COMMS_GATEKEEPER_AUTH_TOKEN`). Not intended
         for direct client use.
@@ -1890,8 +1894,8 @@ paths:
             type: string
             pattern: '^0x[a-fA-F0-9]{40}$'
           description: Ethereum address of the connecting user
-        - name: deviceId
-          in: query
+        - name: X-Device-Id
+          in: header
           required: false
           schema:
             type: string

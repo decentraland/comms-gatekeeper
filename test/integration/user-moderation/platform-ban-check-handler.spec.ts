@@ -11,12 +11,11 @@ test('GET /users/:address/ban-status', ({ components }) => {
   let body: { isBanned: boolean }
 
   async function requestBanStatus(address: string, deviceId: string | undefined, token: string): Promise<Response> {
-    const query = deviceId === undefined ? '' : `?deviceId=${encodeURIComponent(deviceId)}`
-
-    return components.localFetch.fetch(`/users/${address}/ban-status${query}`, {
+    return components.localFetch.fetch(`/users/${address}/ban-status`, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
+        ...(deviceId === undefined ? {} : { 'X-Device-Id': deviceId })
       }
     }) as unknown as Promise<Response>
   }
@@ -121,6 +120,23 @@ test('GET /users/:address/ban-status', ({ components }) => {
       describe('and the connection presents the banned wallet with no device id', () => {
         beforeEach(async () => {
           response = await requestBanStatus(bannedAddress, undefined, validToken)
+          body = await response.json()
+        })
+
+        it('should report the connection as banned', () => {
+          expect(body.isBanned).toBe(true)
+        })
+      })
+
+      describe('and the device id header is sent in lowercase', () => {
+        beforeEach(async () => {
+          response = (await components.localFetch.fetch(`/users/${otherAddress}/ban-status`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${validToken}`,
+              'x-device-id': bannedDeviceId
+            }
+          })) as unknown as Response
           body = await response.json()
         })
 
