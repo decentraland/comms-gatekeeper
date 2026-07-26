@@ -69,6 +69,7 @@ import {
   banPlayerHandler,
   liftBanHandler,
   banStatusHandler,
+  platformBanCheckHandler,
   warnPlayerHandler,
   getWarningsHandler,
   listBansHandler
@@ -260,6 +261,9 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   )
   router.delete('/users/:address/bans', signedFetch, moderatorWrite, liftBanHandler)
   router.get('/users/:address/bans', banStatusHandler)
+  // Platform ban check (service-to-service, used by worlds-content-server). Device-aware via
+  // ?deviceId=, unlike the public GET /users/:address/bans which matches on address only.
+  router.get('/users/:address/ban-status', tokenAuthMiddleware, platformBanCheckHandler)
   router.post(
     '/users/:address/warnings',
     signedFetch,

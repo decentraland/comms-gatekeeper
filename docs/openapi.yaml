@@ -1864,6 +1864,68 @@ paths:
       tags:
         - Platform Moderation
 
+  /users/{address}/ban-status:
+    get:
+      operationId: getPlatformBanStatus
+      summary: Check if a connection is platform-banned (address or device)
+      description: |
+        Service-to-service endpoint used by Worlds Content Server to verify whether a
+        connection is platform-banned before issuing a world LiveKit token.
+
+        Unlike the public `GET /users/{address}/bans`, this endpoint accepts the
+        connection's `deviceId` and matches an active ban on **either** the address or the
+        recorded device id, so a ban placed on a device is enforced even when the caller
+        presents a different wallet. It returns only a boolean, so the recorded device id
+        is never disclosed.
+
+        Requires Bearer token authentication (`COMMS_GATEKEEPER_AUTH_TOKEN`). Not intended
+        for direct client use.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{40}$'
+          description: Ethereum address of the connecting user
+        - name: deviceId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            Device fingerprint reported by the client in its signed-fetch metadata. When
+            omitted or empty, the ban is matched on the address only.
+      responses:
+        '200':
+          description: Ban status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - isBanned
+                properties:
+                  isBanned:
+                    type: boolean
+                    description: true if an active ban matches the address or the device id
+        '401':
+          description: Unauthorized — invalid or missing Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Platform Moderation
+
   /users/{address}/warnings:
     post:
       operationId: warnPlayer
