@@ -1,4 +1,5 @@
 import { test } from '../../components'
+import { DEVICE_ID_HEADER } from '../../../src/controllers/handlers/user-moderation/platform-ban-check-handler'
 
 test('GET /users/:address/ban-status', ({ components }) => {
   const bannedBy = '0x0000000000000000000000000000000000000099'
@@ -15,6 +16,8 @@ test('GET /users/:address/ban-status', ({ components }) => {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${token}`,
+        // Sent with the caller's canonical casing; the header name the handler declares is
+        // exercised verbatim by the lowercase case below.
         ...(deviceId === undefined ? {} : { 'X-Device-Id': deviceId })
       }
     }) as unknown as Promise<Response>
@@ -128,13 +131,13 @@ test('GET /users/:address/ban-status', ({ components }) => {
         })
       })
 
-      describe('and the device id header is sent in lowercase', () => {
+      describe('and the device id is sent under the header name the handler declares', () => {
         beforeEach(async () => {
           response = (await components.localFetch.fetch(`/users/${otherAddress}/ban-status`, {
             method: 'GET',
             headers: {
               Authorization: `Bearer ${validToken}`,
-              'x-device-id': bannedDeviceId
+              [DEVICE_ID_HEADER]: bannedDeviceId
             }
           })) as unknown as Response
           body = await response.json()
