@@ -57,6 +57,8 @@ import { createFeaturesComponent, ApplicationName } from '@dcl/features-componen
 import { createUserModerationDBComponent } from './adapters/user-moderation-db'
 import { createUserModerationComponent } from './logic/user-moderation'
 import { createModeratorComponent } from './logic/moderator'
+import { createNatsComponent } from './adapters/nats'
+import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -87,6 +89,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   instrumentHttpServerWithRequestLogger({ server, logger: logs })
 
   const livekit = await createLivekitComponent({ config, logs })
+  const nats = await createNatsComponent({ config, logs, metrics })
 
   let databaseUrl: string | undefined = await config.getString('PG_COMPONENT_PSQL_CONNECTION_STRING')
   if (!databaseUrl) {
@@ -273,6 +276,17 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     logs
   })
 
+  const clusterSubscriber = await createClusterSubscriberComponent({
+    config,
+    logs,
+    metrics,
+    nats,
+    livekit,
+    userModeration,
+    denyList,
+    playerConnectionDb
+  })
+
   const livekitWebhook = createLivekitWebhookComponent()
 
   livekitWebhook.registerEventHandler(ingressStartedHandler)
@@ -326,6 +340,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     userModerationDb,
     userModeration,
     moderator,
-    features
+    features,
+    nats,
+    clusterSubscriber
   }
 }
