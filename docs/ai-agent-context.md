@@ -130,6 +130,15 @@ feed archipelago-stats, but are deliberately unused here — both retire in iter
 
 **Metrics:** `dcl_gatekeeper_cluster_*_total` and `dcl_gatekeeper_nats_connected`.
 
+**Dependency pin (temporary).** `@dcl/protocol` is pinned to a CDN *branch* tarball
+(`dcl-protocol-1.0.0-30550755753.commit-b0705a3.tgz`) because no npm registry release ships
+`proto/decentraland/pulse/pulse_clusters.proto` (generated as
+`out-js/decentraland/pulse/pulse_clusters.gen`, which the subscriber imports) — newest release
+checked: `1.0.0-30376440685.commit-2726089`. Branch builds are not permanent: the CDN artifact
+can vanish once the source branch is rebuilt or deleted, which is exactly what broke
+archipelago-workers before it moved to a registry pin. Repin to an exact registry version as
+soon as a release containing `pulse_clusters` lands.
+
 **Deliberate choices — do not "fix" these without reading why:**
 
 - **No re-mint suppression.** Publishing again for a repeated same-cluster event is correct.
