@@ -15,7 +15,8 @@
 - Handles user privacy settings and access control
 - Integrates with LiveKit webhooks for real-time event handling
 
-**Communication Pattern:** Synchronous HTTP REST API with Signed Fetch authentication (ADR-44)
+**Communication Pattern:** Synchronous HTTP REST API with Signed Fetch authentication (ADR-44), plus an
+asynchronous NATS subscription that feeds the cluster subscriber (island rooms, see below).
 
 **Technology Stack:**
 
@@ -24,6 +25,7 @@
 - HTTP Framework: @dcl/http-server
 - Database: PostgreSQL (via @well-known-components/pg-component)
 - Communication: LiveKit Server SDK for token generation and room management
+- Messaging: NATS (`nats` client, thin custom adapter) for Pulse's cluster feed, behind `CLUSTER_SUBSCRIBER_ENABLED`
 - Component Architecture: @well-known-components (logger, metrics, http-server, pg-component, env-config-provider)
 
 **External Dependencies:**
@@ -34,6 +36,9 @@
 - **Places API**: Scene and place information
 - **Social Service**: User relationships and social data
 - **AWS SNS**: Event notifications for streaming and communication events
+- **NATS**: Message broker carrying Pulse's cluster feed (`cluster_change`, `engine.islands`) and this service's
+  re-published `island_changed`
+- **Pulse**: Owns peer clustering (replacing Archipelago Core); publishes cluster assignments and topology over NATS
 
 **Key Concepts:**
 
@@ -53,19 +58,19 @@
 The Comms Gatekeeper is the access authority for player-to-player interaction in Genesis City. Specifically:
 
 - **LiveKit token as the mandatory platform credential**: A LiveKit token issued by comms-gatekeeper is the single required credential to enter the Genesis City platform. Without it, a client cannot join any room and cannot see other players, hear voice, or exchange CRDT. There is no alternative path — token issuance by comms-gatekeeper is the gate.
-- **Scene rooms and island rooms**: Controls access to both scene-specific LiveKit rooms (tied to a particular scene/parcel) and island rooms (the dynamic clustering rooms managed by Archipelago). Both require a token from comms-gatekeeper.
+- **Scene rooms and island rooms**: Controls access to both scene-specific LiveKit rooms (tied to a particular scene/parcel) and island rooms (the dynamic clustering rooms; Pulse owns clustering, and this service's cluster subscriber mints the island token). Both require a token from comms-gatekeeper.
 - **The enforcement point for Genesis City interaction**: All ban checks, permission checks, and access-control decisions for real-time Genesis City interaction happen here, synchronously, before a token is issued.
 - **Scoped to Genesis City**: The Comms Gatekeeper's role applies to Genesis City scenes and islands. For Worlds, the access control gatekeeper role is fulfilled by the Worlds Content Server, which may use a separate LiveKit account/cluster.
 
 **Token issuance in the real-time flow:**
 
-There are two token paths in the real-time layer:
+There are two token paths in the real-time layer, and comms-gatekeeper mints both:
 
-1. **Archipelago Core → LiveKit API (direct):** When a player gets an island assignment from Archipelago Core via the WS Connector, the `island_changed` NATS message already includes a LiveKit connection string with an embedded token (`livekit:{host}?access_token={jwt}`). Archipelago Core calls the LiveKit API directly to generate this token. This token grants access to the island room.
+1. **Pulse cluster feed → comms-gatekeeper → LiveKit (NATS):** Pulse owns peer clustering and publishes cluster assignments (`peer.{addr}.cluster_change`) and topology (`engine.islands`) over NATS. This service's cluster subscriber (see below) consumes that feed, mints the LiveKit token itself, and re-publishes the legacy `island_changed` message — `connStr` is a LiveKit connection string with an embedded token (`livekit:{host}?access_token={jwt}`) — on `engine.peer.{addr}.island_changed`, which WS Connector forwards to the client unchanged. This token grants access to the island room. This replaces the hop Archipelago Core used to own; Archipelago Core is being decommissioned.
 
 2. **Client → comms-gatekeeper (signed fetch):** For scene-specific rooms and for Hammurabi bots, the caller explicitly requests a token from comms-gatekeeper. This path is used when the `CommsTransportWrapper` adapter is `comms-gatekeeper` (the default for Genesis City scenes). Hammurabi bots authenticate here using `PROCESS_PRIVATE_KEY`.
 
-The ban enforcement that matters for scene access happens at comms-gatekeeper (path 2). Platform bans are checked synchronously at token issuance time on this path.
+Both paths enforce bans synchronously in this service, before a token is issued. Path 2 checks platform bans at token issuance time. Path 1 (island rooms) has its own gate: wallet plus the device id recorded from that wallet's last HTTP token request, plus the platform deny list — the island room is mic-only voice, so a wallet-only check would make it the weak link versus the HTTP path.
 
 **Database Schema:**
 
@@ -75,7 +80,7 @@ The ban enforcement that matters for scene access happens at comms-gatekeeper (p
 
 **API Specification:** Full OpenAPI 3.0 spec at [docs/openapi.yaml](docs/openapi.yaml). Endpoint groups:
 
-- **Token issuance** (`/scene-adapter`, `/island-adapter`): generate LiveKit tokens for scene and island rooms — the primary entry point to the platform
+- **Token issuance** (`/scene-adapter`): generate LiveKit tokens for scene rooms — the primary entry point to the platform. Island-room tokens are not an HTTP endpoint; they are minted by the cluster subscriber in response to Pulse's NATS feed (see below).
 - **Scene administration** (`/scene-admin`): add/remove scene admins
 - **Moderation** (`/scene-bans`, `/users/{address}/bans`, `/users/{address}/warnings`, `/bans`): ban/unban/warn users at scene scope or platform scope; platform moderation endpoints require the moderator role via Signed Fetch
 - **Streaming** (`/scene-stream-access`): RTMP URL and key lifecycle for content creators
@@ -88,4 +93,52 @@ The ban enforcement that matters for scene access happens at comms-gatekeeper (p
 - Scene-based requests require scene metadata (sceneId, parcel, realmName) in identity headers
 - Explorer-based requests use different identity header format
 - Service-to-service communication uses Bearer tokens
+
+## Cluster subscriber (island rooms)
+
+Replaces the one hop `archipelago-core` owned. Pulse clusters peers; this service turns an
+assignment into a LiveKit connection string. Behind `CLUSTER_SUBSCRIBER_ENABLED`, default off.
+
+**Consumes** (subjects prefixed with `NATS_SUBJECT_PREFIX`, matching Pulse's `Nats:SubjectPrefix`):
+
+| Subject | Payload | Use |
+|---|---|---|
+| `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` | drives minting; queue-grouped so one replica handles each event |
+| `engine.islands` | `kernel.comms.v3.IslandStatusMessage` | cluster sizes for sharding; not queue-grouped, every replica needs it |
+
+**Produces** `engine.peer.{addr}.island_changed` (`IslandChangedMessage`), **unprefixed** —
+WS Connector subscribes to the literal subject and needs no change. `peers` is published
+empty: unity-explorer reads only `connStr`.
+
+**Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
+resolve room → `generateCredentials(wallet, room, { cast: [] }, false)` → publish.
+
+**Room names** are `island-{clusterId}`, or `island-{clusterId}:{shard}` when the cluster
+exceeds `ROOM_SHARD_SIZE` (default 100), sharded by a stable SHA-256 wallet hash. The
+`island-` prefix is required so this service's own webhook handlers classify these rooms as
+`RoomType.ISLAND` rather than misreading them as scene rooms.
+
+**Not consumed:** `peer.*.heartbeat` and `peer.*.disconnect` survive iteration 1 and still
+feed archipelago-stats, but are deliberately unused here — both retire in iteration 2.
+
+**Metrics:** `dcl_gatekeeper_cluster_*_total` and `dcl_gatekeeper_nats_connected`.
+
+**Deliberate choices — do not "fix" these without reading why:**
+
+- **No re-mint suppression.** Publishing again for a repeated same-cluster event is correct.
+  Pulse only re-announces a cluster after forgetting a peer, which means a reconnect that
+  needs a fresh token; suppressing it would leave the returning player with no voice room.
+- **A peer's room reflects the cluster size when it was last assigned**, not the current size.
+  Pulse owns cluster sizing, and this service reacts to assignment events only — it does not
+  re-drive assignments it was not asked about. So peers who joined a cluster before it crossed
+  `ROOM_SHARD_SIZE` stay in the unsharded room until their next genuine reassignment.
+- **Processing is serialized per wallet** (`walletChains` in the component). Without it, two
+  events for one wallet can have their mints resolve out of order, so an older event publishes
+  a superseded room and corrupts the next `fromIslandId`.
+
+**Known limitation.** That serialization is process-local, and queue groups have no per-wallet
+affinity, so two events for one wallet can still race across replicas. Narrow trigger (Pulse's
+dwell debounce spaces a peer's events ~3 s apart) and self-correcting on the next assignment;
+a real fix needs wallet-hash-partitioned consumers. Symptom to watch for: `publish_failed`
+clean, but users report being in a voice room whose members they cannot hear.
 
