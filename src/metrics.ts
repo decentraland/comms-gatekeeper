@@ -14,10 +14,6 @@ export const metricDeclarations = {
     help: 'Total cluster_change events received from Pulse',
     type: IMetricsComponent.CounterType
   },
-  dcl_gatekeeper_cluster_unknown_cluster_total: {
-    help: 'Total cluster_change events naming a cluster absent from the latest engine.islands snapshot',
-    type: IMetricsComponent.CounterType
-  },
   dcl_gatekeeper_cluster_tokens_minted_total: {
     help: 'Total LiveKit tokens minted for cluster rooms',
     type: IMetricsComponent.CounterType

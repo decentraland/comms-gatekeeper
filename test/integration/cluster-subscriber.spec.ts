@@ -1,7 +1,4 @@
-import {
-  IslandChangedMessage,
-  IslandStatusMessage
-} from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
+import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { RoomType } from '@dcl/schemas'
 import { createHmac } from 'crypto'
@@ -186,15 +183,6 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
     throw new Error(`NATS adapter did not report isConnected() within ${timeoutMs}ms`)
   }
 
-  function publishTopology(clusterId: string, peers: string[]): void {
-    publisher.publish(
-      'engine.islands',
-      IslandStatusMessage.encode({
-        data: [{ id: clusterId, peers, maxPeers: 0, center: { x: 0, y: 0, z: 0 }, radius: 0 }]
-      }).finish()
-    )
-  }
-
   function publishClusterChange(wallet: string, clusterId: string): void {
     publisher.publish(`peer.${wallet}.cluster_change`, PeerClusterChange.encode({ clusterId, realm: 'main' }).finish())
   }
@@ -205,8 +193,6 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
         return
       }
 
-      publishTopology('C7', [ALLOWED_WALLET])
-      await new Promise((resolve) => setTimeout(resolve, 150))
       publishClusterChange(ALLOWED_WALLET, 'C7')
 
       const received = await nextIslandChanged(5000)
@@ -247,11 +233,9 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
       }
 
       // Classifies the room name this pipeline actually minted, not a hardcoded literal,
-      // proving the `island-` prefix `resolveRoom` produces is genuinely classifiable by
+      // proving the `island-` prefix `islandRoomName` produces is genuinely classifiable by
       // this service's own webhook path — the real reason that prefix exists.
       const clusterId = 'C9'
-      publishTopology(clusterId, [ALLOWED_WALLET])
-      await new Promise((resolve) => setTimeout(resolve, 150))
       publishClusterChange(ALLOWED_WALLET, clusterId)
 
       const received = await nextIslandChanged(5000)
@@ -272,26 +256,9 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
 
       await components.userModeration.banPlayer(BANNED_WALLET, '0xadmin', 'integration test')
 
-      publishTopology('C8', [BANNED_WALLET])
-      await new Promise((resolve) => setTimeout(resolve, 150))
       publishClusterChange(BANNED_WALLET, 'C8')
 
       expect(await nextIslandChanged(2500)).toBeUndefined()
-    })
-  })
-
-  describe('when the cluster is not in the topology yet', () => {
-    it('should still publish, using the unsharded room name', async () => {
-      if (!brokerAvailable) {
-        return
-      }
-
-      publishClusterChange(ALLOWED_WALLET, 'C404')
-
-      const received = await nextIslandChanged(5000)
-
-      expect(received).toBeDefined()
-      expect(received!.message.islandId).toBe('island-C404')
     })
   })
 })

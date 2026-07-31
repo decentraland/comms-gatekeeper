@@ -110,7 +110,7 @@ describe('nats-adapter', () => {
   describe('when NATS_URL is not set', () => {
     it('should not connect, should report disconnected, and should make subscribe and publish no-ops', async () => {
       const nats = await build(undefined)
-      nats.subscribe('engine.islands', jest.fn())
+      nats.subscribe('some.subject', jest.fn())
       await nats.connect()
 
       expect(natsConnectMock).not.toHaveBeenCalled()
@@ -157,14 +157,14 @@ describe('nats-adapter', () => {
       it('should contain the throw so delivery on other subjects survives', async () => {
         natsConnectMock.mockResolvedValue(buildConnection() as any)
         const nats = await build('localhost:4222')
-        nats.subscribe('engine.islands', () => {
+        nats.subscribe('some.subject', () => {
           throw new Error('boom')
         })
         await nats.connect()
 
         const { callback } = subscribeSpy.mock.calls[0][1]
 
-        expect(() => callback(null, { subject: 'engine.islands', data: new Uint8Array() })).not.toThrow()
+        expect(() => callback(null, { subject: 'some.subject', data: new Uint8Array() })).not.toThrow()
       })
     })
 
@@ -322,7 +322,7 @@ describe('nats-adapter', () => {
         natsConnectMock.mockReturnValue(pendingConnect as any)
 
         const nats = await build('localhost:4222')
-        nats.subscribe('engine.islands', jest.fn())
+        nats.subscribe('some.subject', jest.fn())
 
         const firstConnect = nats.connect()
         const secondConnect = nats.connect()
@@ -346,7 +346,7 @@ describe('nats-adapter', () => {
         natsConnectMock.mockReturnValue(pendingConnect as any)
 
         const nats = await build('localhost:4222')
-        nats.subscribe('engine.islands', jest.fn())
+        nats.subscribe('some.subject', jest.fn())
 
         const connecting = nats.connect()
 

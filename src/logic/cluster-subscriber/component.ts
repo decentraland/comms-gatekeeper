@@ -1,17 +1,12 @@
-import {
-  IslandChangedMessage,
-  IslandStatusMessage
-} from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
+import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { LRUCache } from 'lru-cache'
 import { isErrorWithMessage } from '../errors'
 import { AppComponents } from '../../types'
 import { createPeerStateStore } from './peer-state'
-import { resolveRoom } from './rooms'
-import { createClusterTopology } from './topology'
+import { islandRoomName } from './rooms'
 import { IClusterSubscriberComponent } from './types'
 
-const DEFAULT_ROOM_SHARD_SIZE = 100
 const DEFAULT_PEER_STATE_TTL_MS = 60 * 60 * 1000
 const DEFAULT_PEER_STATE_MAX = 20_000
 const DEFAULT_BAN_CACHE_TTL_MS = 30_000
@@ -34,8 +29,7 @@ export async function createClusterSubscriberComponent(
     config.getString('NATS_SUBJECT_PREFIX'),
     config.getString('NATS_QUEUE_GROUP')
   ])
-  const [shardSizeSetting, peerStateTtlSetting, peerStateMaxSetting, banCacheTtlSetting] = await Promise.all([
-    config.getNumber('ROOM_SHARD_SIZE'),
+  const [peerStateTtlSetting, peerStateMaxSetting, banCacheTtlSetting] = await Promise.all([
     config.getNumber('CLUSTER_PEER_STATE_TTL_MS'),
     config.getNumber('CLUSTER_PEER_STATE_MAX'),
     config.getNumber('CLUSTER_BAN_CACHE_TTL_MS')
@@ -44,11 +38,7 @@ export async function createClusterSubscriberComponent(
   const enabled = enabledFlag === 'true'
   const prefix = subjectPrefix ?? ''
   const queueGroup = queueGroupSetting || DEFAULT_QUEUE_GROUP
-  // Clamped to 1: a zero or negative shard size would make ceil(size / shardSize)
-  // non-finite and every room name garbage.
-  const shardSize = Math.max(1, shardSizeSetting ?? DEFAULT_ROOM_SHARD_SIZE)
 
-  const topology = createClusterTopology()
   const peerState = createPeerStateStore({
     max: peerStateMaxSetting ?? DEFAULT_PEER_STATE_MAX,
     ttl: peerStateTtlSetting ?? DEFAULT_PEER_STATE_TTL_MS
@@ -97,15 +87,7 @@ export async function createClusterSubscriberComponent(
       return
     }
 
-    const size = topology.getSize(clusterId)
-    if (size === undefined) {
-      // Cross-subject ordering is best-effort, so a just-formed cluster can be named
-      // before it appears in the topology snapshot. Not an error.
-      metrics.increment('dcl_gatekeeper_cluster_unknown_cluster_total')
-      logger.warn(`Cluster ${clusterId} is not in the latest topology; using the unsharded room for ${wallet}`)
-    }
-
-    const { room, shard } = resolveRoom(clusterId, wallet, size, shardSize)
+    const room = islandRoomName(clusterId)
 
     // No suppression for a repeat/no-op assignment - Pulse only re-announces a cluster after
     // forgetting a peer, i.e. a reconnect that needs a fresh token (docs/ai-agent-context.md).
@@ -138,7 +120,7 @@ export async function createClusterSubscriberComponent(
       return
     }
 
-    peerState.set(wallet, { clusterId, shard, room, lastSeen: Date.now() })
+    peerState.set(wallet, { clusterId, room, lastSeen: Date.now() })
   }
 
   // Serializes processClusterChange per wallet - an out-of-order mint would publish a
@@ -159,14 +141,6 @@ export async function createClusterSubscriberComponent(
       }
     })
     return result
-  }
-
-  function handleIslands(subject: string, data: Uint8Array): void {
-    try {
-      topology.update(IslandStatusMessage.decode(data))
-    } catch (error) {
-      logger.error(`Cannot process ${subject} message: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`)
-    }
   }
 
   function handleClusterChange(subject: string, data: Uint8Array): void {
@@ -216,8 +190,6 @@ export async function createClusterSubscriberComponent(
       return
     }
 
-    // No queue group: every replica needs the whole-world topology snapshot.
-    nats.subscribe(`${prefix}engine.islands`, handleIslands)
     // Queue-grouped: without it, N replicas would each mint and publish for every event,
     // giving each client N island_changed messages with N different tokens.
     nats.subscribe(`${prefix}peer.*.cluster_change`, handleClusterChange, { queue: queueGroup })
@@ -228,9 +200,7 @@ export async function createClusterSubscriberComponent(
     // would only cost readiness time (src/adapters/nats.ts).
     void nats.connect()
 
-    logger.info(
-      `Cluster subscriber started (prefix: "${prefix}", queue group: ${queueGroup}, shard size: ${shardSize})`
-    )
+    logger.info(`Cluster subscriber started (prefix: "${prefix}", queue group: ${queueGroup})`)
   }
 
   return { start }

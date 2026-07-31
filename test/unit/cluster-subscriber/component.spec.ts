@@ -1,7 +1,4 @@
-import {
-  IslandChangedMessage,
-  IslandStatusMessage
-} from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
+import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { IBaseComponent } from '@well-known-components/interfaces'
 import { createClusterSubscriberComponent } from '../../../src/logic/cluster-subscriber/component'
@@ -91,18 +88,6 @@ describe('cluster-subscriber component', () => {
     return PeerClusterChange.encode({ clusterId, realm }).finish()
   }
 
-  function islands(entries: { id: string; peers: string[] }[]): Uint8Array {
-    return IslandStatusMessage.encode({
-      data: entries.map((entry) => ({
-        id: entry.id,
-        peers: entry.peers,
-        maxPeers: 0,
-        center: { x: 0, y: 0, z: 0 },
-        radius: 0
-      }))
-    }).finish()
-  }
-
   /** Lets a test hold a mocked async call open and resolve it on its own schedule. */
   function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
     let resolve!: (value: T) => void
@@ -141,35 +126,32 @@ describe('cluster-subscriber component', () => {
   })
 
   describe('when enabled', () => {
-    it('should subscribe to both subjects, queue-grouping only cluster_change', async () => {
+    it('should subscribe to cluster_change, queue-grouped, and connect', async () => {
       const component = await build()
 
       await component.start!(startOptions)
 
-      expect(nats.subscribe).toHaveBeenCalledWith('engine.islands', expect.any(Function))
       expect(nats.subscribe).toHaveBeenCalledWith('peer.*.cluster_change', expect.any(Function), {
         queue: 'comms-gatekeeper-cluster'
       })
       expect(nats.connect).toHaveBeenCalled()
     })
 
-    it('should apply the subject prefix to inbound subjects only', async () => {
+    it('should apply the subject prefix to the inbound subject', async () => {
       const component = await build({ NATS_SUBJECT_PREFIX: 'dev.' })
 
       await component.start!(startOptions)
 
-      expect(nats.subscribe).toHaveBeenCalledWith('dev.engine.islands', expect.any(Function))
       expect(nats.subscribe).toHaveBeenCalledWith('dev.peer.*.cluster_change', expect.any(Function), {
         queue: 'comms-gatekeeper-cluster'
       })
     })
 
-    describe('and a cluster_change arrives for a small known cluster', () => {
+    describe('and a cluster_change arrives for a cluster', () => {
       it('should mint a token and publish island_changed on the unprefixed outbound subject', async () => {
         const component = await build({ NATS_SUBJECT_PREFIX: 'dev.' })
         await component.start!(startOptions)
 
-        handlerFor('engine.islands')('dev.engine.islands', islands([{ id: 'C5', peers: [WALLET] }]))
         handlerFor('cluster_change')(`dev.peer.${WALLET}.cluster_change`, clusterChange('C5'))
         await flush()
 
@@ -208,7 +190,6 @@ describe('cluster-subscriber component', () => {
         const component = await build()
         await component.start!(startOptions)
 
-        handlerFor('engine.islands')('engine.islands', islands([{ id: 'C5', peers: [WALLET] }]))
         handlerFor('cluster_change')(`peer.${WALLET.toUpperCase()}.cluster_change`, clusterChange('C5'))
         await flush()
 
@@ -238,60 +219,11 @@ describe('cluster-subscriber component', () => {
       })
     })
 
-    describe('and the cluster is larger than the shard size', () => {
-      it('should publish a sharded room name', async () => {
-        const component = await build()
-        await component.start!(startOptions)
-
-        const peers = Array.from({ length: 250 }, (_, index) => `0xpeer${index}`)
-        handlerFor('engine.islands')('engine.islands', islands([{ id: 'C5', peers }]))
-        handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
-        await flush()
-
-        expect(IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array).islandId).toMatch(
-          /^island-C5:[0-2]$/
-        )
-      })
-    })
-
-    describe('and ROOM_SHARD_SIZE is configured as 0', () => {
-      it('should still clamp to a sane sharded room instead of a raw-digest shard number', async () => {
-        const component = await build({}, { ROOM_SHARD_SIZE: 0 })
-        await component.start!(startOptions)
-
-        const peers = Array.from({ length: 250 }, (_, index) => `0xpeer${index}`)
-        handlerFor('engine.islands')('engine.islands', islands([{ id: 'C5', peers }]))
-        handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
-        await flush()
-
-        const islandId = IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array).islandId
-        const match = islandId.match(/^island-C5:(\d+)$/)
-        expect(match).not.toBeNull()
-        // Without the Math.max(1, ...) clamp, shardSize is 0, ceil(250 / 0) is Infinity, and
-        // digest % Infinity is the raw uint32 digest itself (e.g. island-C5:2829266243). The
-        // shard must instead stay below the peer count, as it does for any real shard size.
-        expect(Number(match![1])).toBeLessThan(250)
-      })
-    })
-
-    describe('and the cluster is absent from the latest topology', () => {
-      it('should fall back to the unsharded room and count the occurrence', async () => {
-        const component = await build()
-        await component.start!(startOptions)
-
-        handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C99'))
-        await flush()
-
-        expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_unknown_cluster_total')
-        expect(IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array).islandId).toBe('island-C99')
-      })
-    })
-
     describe('and the clusterId is empty', () => {
       it('should skip the event instead of minting everyone into the shared "island-" room', async () => {
-        // Protobuf decodes an absent cluster_id as ''. Unguarded, resolveRoom('', ...)
-        // would produce the room `island-`, the same shared room for every wallet whose
-        // payload is malformed this way.
+        // Protobuf decodes an absent cluster_id as ''. Unguarded, islandRoomName('') would
+        // produce the room `island-`, the same shared room for every wallet whose payload
+        // is malformed this way.
         const component = await build()
         await component.start!(startOptions)
 
@@ -308,11 +240,9 @@ describe('cluster-subscriber component', () => {
         const component = await build()
         await component.start!(startOptions)
 
-        handlerFor('engine.islands')('engine.islands', islands([{ id: 'C1', peers: [WALLET] }]))
         handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
         await flush()
 
-        handlerFor('engine.islands')('engine.islands', islands([{ id: 'C2', peers: [WALLET] }]))
         handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C2'))
         await flush()
 
@@ -365,7 +295,6 @@ describe('cluster-subscriber component', () => {
         const component = await build()
         await component.start!(startOptions)
 
-        handlerFor('engine.islands')('engine.islands', islands([{ id: 'C1', peers: [WALLET] }]))
         handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
         await flush()
         handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
@@ -387,7 +316,6 @@ describe('cluster-subscriber component', () => {
         const component = await build({}, { CLUSTER_PEER_STATE_TTL_MS: 100 })
         await component.start!(startOptions)
 
-        handlerFor('engine.islands')('engine.islands', islands([{ id: 'C1', peers: [WALLET] }]))
         handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
         await flush()
 
@@ -523,13 +451,12 @@ describe('cluster-subscriber component', () => {
     })
 
     describe('and the payload is malformed', () => {
-      it('should not throw, so delivery on every subject survives', async () => {
+      it('should not throw, so delivery survives', async () => {
         const component = await build()
         await component.start!(startOptions)
         const garbage = new Uint8Array([0xff, 0xff, 0xff, 0xff])
 
         expect(() => handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, garbage)).not.toThrow()
-        expect(() => handlerFor('engine.islands')('engine.islands', garbage)).not.toThrow()
       })
     })
 

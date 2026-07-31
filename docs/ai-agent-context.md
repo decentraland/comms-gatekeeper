@@ -36,9 +36,11 @@ asynchronous NATS subscription that feeds the cluster subscriber (island rooms, 
 - **Places API**: Scene and place information
 - **Social Service**: User relationships and social data
 - **AWS SNS**: Event notifications for streaming and communication events
-- **NATS**: Message broker carrying Pulse's cluster feed (`cluster_change`, `engine.islands`) and this service's
+- **NATS**: Message broker carrying Pulse's `cluster_change` feed, which this service consumes, and its
   re-published `island_changed`
-- **Pulse**: Owns peer clustering (replacing Archipelago Core); publishes cluster assignments and topology over NATS
+- **Pulse**: Owns peer clustering and cluster sizing (replacing Archipelago Core); publishes per-peer cluster
+  assignments over NATS. It also publishes an `engine.islands` topology snapshot, which this service does
+  not consume — that one feeds archipelago-stats
 
 **Key Concepts:**
 
@@ -66,7 +68,7 @@ The Comms Gatekeeper is the access authority for player-to-player interaction in
 
 There are two token paths in the real-time layer, and comms-gatekeeper mints both:
 
-1. **Pulse cluster feed → comms-gatekeeper → LiveKit (NATS):** Pulse owns peer clustering and publishes cluster assignments (`peer.{addr}.cluster_change`) and topology (`engine.islands`) over NATS. This service's cluster subscriber (see below) consumes that feed, mints the LiveKit token itself, and re-publishes the legacy `island_changed` message — `connStr` is a LiveKit connection string with an embedded token (`livekit:{host}?access_token={jwt}`) — on `engine.peer.{addr}.island_changed`, which WS Connector forwards to the client unchanged. This token grants access to the island room. This replaces the hop Archipelago Core used to own; Archipelago Core is being decommissioned.
+1. **Pulse cluster feed → comms-gatekeeper → LiveKit (NATS):** Pulse owns peer clustering and publishes each peer's cluster assignment on `peer.{addr}.cluster_change`. This service's cluster subscriber (see below) consumes that feed, mints the LiveKit token itself, and re-publishes the legacy `island_changed` message — `connStr` is a LiveKit connection string with an embedded token (`livekit:{host}?access_token={jwt}`) — on `engine.peer.{addr}.island_changed`, which WS Connector forwards to the client unchanged. This token grants access to the island room. This replaces the hop Archipelago Core used to own; Archipelago Core is being decommissioned.
 
 2. **Client → comms-gatekeeper (signed fetch):** For scene-specific rooms and for Hammurabi bots, the caller explicitly requests a token from comms-gatekeeper. This path is used when the `CommsTransportWrapper` adapter is `comms-gatekeeper` (the default for Genesis City scenes). Hammurabi bots authenticate here using `PROCESS_PRIVATE_KEY`.
 
@@ -104,18 +106,16 @@ assignment into a LiveKit connection string. Behind `CLUSTER_SUBSCRIBER_ENABLED`
 | Subject | Payload | Use |
 |---|---|---|
 | `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` | drives minting; queue-grouped so one replica handles each event |
-| `engine.islands` | `kernel.comms.v3.IslandStatusMessage` | cluster sizes for sharding; not queue-grouped, every replica needs it |
 
 **Produces** `engine.peer.{addr}.island_changed` (`IslandChangedMessage`), **unprefixed** —
 WS Connector subscribes to the literal subject and needs no change. `peers` is published
 empty: unity-explorer reads only `connStr`.
 
 **Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
-resolve room → `generateCredentials(wallet, room, { cast: [] }, false)` → publish.
+room name → `generateCredentials(wallet, room, { cast: [] }, false)` → publish.
 
-**Room names** are `island-{clusterId}`, or `island-{clusterId}:{shard}` when the cluster
-exceeds `ROOM_SHARD_SIZE` (default 100), sharded by a stable SHA-256 wallet hash. The
-`island-` prefix is required so this service's own webhook handlers classify these rooms as
+**Room names** are `island-{clusterId}` — one cluster maps to exactly one room. The `island-`
+prefix is required so this service's own webhook handlers classify these rooms as
 `RoomType.ISLAND` rather than misreading them as scene rooms.
 
 **Not consumed:** `peer.*.heartbeat` and `peer.*.disconnect` survive iteration 1 and still
@@ -128,10 +128,11 @@ feed archipelago-stats, but are deliberately unused here — both retire in iter
 - **No re-mint suppression.** Publishing again for a repeated same-cluster event is correct.
   Pulse only re-announces a cluster after forgetting a peer, which means a reconnect that
   needs a fresh token; suppressing it would leave the returning player with no voice room.
-- **A peer's room reflects the cluster size when it was last assigned**, not the current size.
-  Pulse owns cluster sizing, and this service reacts to assignment events only — it does not
-  re-drive assignments it was not asked about. So peers who joined a cluster before it crossed
-  `ROOM_SHARD_SIZE` stay in the unsharded room until their next genuine reassignment.
+- **No room sharding.** One cluster is one room, and this service never subdivides a cluster.
+  Cluster sizing is entirely Pulse's responsibility — it publishes `maxPeers: 0` on
+  `engine.islands` specifically to advertise that clusters are uncapped, so a locally chosen
+  threshold here would contradict the feed. If a cluster grows past what a single LiveKit room
+  can carry, that is Pulse's to solve by capping or splitting clusters.
 - **Processing is serialized per wallet** (`walletChains` in the component). Without it, two
   events for one wallet can have their mints resolve out of order, so an older event publishes
   a superseded room and corrupts the next `fromIslandId`.

@@ -210,11 +210,9 @@ export async function createLivekitComponent(
     // Island room: island-{islandName}. Checked first, ahead of the scene and world
     // branches, because those match on configurable prefixes that are empty by default —
     // `roomName.startsWith('')` is always true, so an empty SCENE_ROOM_PREFIX would
-    // swallow every island room and report it to SNS as a scene with a bogus realm. A
-    // sharded name like `island-C12:3` is worse still: it parses as sceneId `3` and sends
-    // room-metadata-sync off to fetch a nonexistent entity. `island-` is a literal prefix
-    // no other room shape in this service produces, so matching it first cannot
-    // reclassify anything else.
+    // swallow every island room and report it to SNS as a scene with a bogus realm.
+    // `island-` is a literal prefix no other room shape in this service produces, so
+    // matching it first cannot reclassify anything else.
     if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
       const islandName = getIslandNameFromRoomName(roomName)
       return { islandName, roomType: RoomType.ISLAND }
