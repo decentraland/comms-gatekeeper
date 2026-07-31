@@ -6,6 +6,7 @@ import {
   WebhookReceiver,
   ParticipantInfo
 } from 'livekit-server-sdk'
+import { RoomType } from '@dcl/schemas'
 import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX, createLivekitComponent } from '../../src/adapters/livekit'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 
@@ -999,6 +1000,93 @@ describe('when getting room metadata from room name', () => {
 
       expect(result).toEqual({
         roomType: 'unknown'
+      })
+    })
+  })
+})
+
+describe('when parsing room metadata for an island room', () => {
+  describe('and the scene and world prefixes are empty', () => {
+    let componentWithEmptyPrefixes: ILivekitComponent
+
+    beforeEach(async () => {
+      componentWithEmptyPrefixes = await createLivekitComponent({
+        config: {
+          requireString: jest.fn().mockImplementation((key) => {
+            switch (key) {
+              case 'COMMS_ROOM_PREFIX':
+                return Promise.resolve('world-env-')
+              case 'WORLD_ROOM_PREFIX':
+                return Promise.resolve('')
+              case 'SCENE_ROOM_PREFIX':
+                return Promise.resolve('')
+              case 'PRIVATE_MESSAGES_ROOM_ID':
+                return Promise.resolve('private-messages')
+              case 'PROD_LIVEKIT_HOST':
+                return Promise.resolve('prod.livekit.example.com')
+              case 'PROD_LIVEKIT_API_KEY':
+                return Promise.resolve('prod-api-key')
+              case 'PROD_LIVEKIT_API_SECRET':
+                return Promise.resolve('prod-secret')
+              case 'PREVIEW_LIVEKIT_HOST':
+                return Promise.resolve('preview.livekit.example.com')
+              case 'PREVIEW_LIVEKIT_API_KEY':
+                return Promise.resolve('preview-api-key')
+              case 'PREVIEW_LIVEKIT_API_SECRET':
+                return Promise.resolve('preview-secret')
+              default:
+                return Promise.reject(new Error(`Unknown key: ${key}`))
+            }
+          }),
+          getString: jest.fn().mockImplementation((key: string) => {
+            if (key === 'ALLOW_LOCAL_PREVIEW') return 'true'
+            return ''
+          }),
+          getNumber: jest.fn().mockReturnValue(0),
+          requireNumber: jest.fn().mockResolvedValue(0)
+        },
+        logs: {
+          getLogger: jest.fn().mockReturnValue({
+            info: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn()
+          })
+        }
+      })
+    })
+
+    it('should classify an unsharded island room as ISLAND', () => {
+      expect(componentWithEmptyPrefixes.getRoomMetadataFromRoomName('island-C12')).toEqual({
+        islandName: 'C12',
+        roomType: RoomType.ISLAND
+      })
+    })
+
+    it('should classify a sharded island room as ISLAND, keeping the shard in the island name', () => {
+      expect(componentWithEmptyPrefixes.getRoomMetadataFromRoomName('island-C12:3')).toEqual({
+        islandName: 'C12:3',
+        roomType: RoomType.ISLAND
+      })
+    })
+
+    it('should still classify a scene room as SCENE', () => {
+      expect(componentWithEmptyPrefixes.getRoomMetadataFromRoomName('my-realm:bafkscene')).toEqual({
+        realmName: 'my-realm',
+        sceneId: 'bafkscene',
+        roomType: RoomType.SCENE
+      })
+    })
+  })
+
+  describe('and the scene and world prefixes are realistic (non-empty), as in the shared test setup', () => {
+    // Not exercised under empty prefixes: with SCENE_ROOM_PREFIX === '', roomName.startsWith('')
+    // is unconditionally true, so the (out-of-scope, unguarded) scene branch would intercept this
+    // room before the community-voice branch is ever reached, regardless of where the island
+    // branch sits. That pre-existing gap is not something this change touches or fixes.
+    it('should still classify a community voice room as COMMUNITY_VOICE_CHAT', () => {
+      expect(livekitComponent.getRoomMetadataFromRoomName('voice-chat-community-abc')).toEqual({
+        communityId: 'abc',
+        roomType: RoomType.COMMUNITY_VOICE_CHAT
       })
     })
   })
