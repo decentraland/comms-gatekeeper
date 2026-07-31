@@ -37,6 +37,7 @@ export const createLivekitMockedComponent = (
     getCommunityIdFromRoomName: jest
       .fn()
       .mockImplementation((roomName: string) => roomName.replace(`${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-`, '')),
+    getIslandRoomName: jest.fn().mockImplementation((islandName: string) => `${ISLAND_ROOM_PREFIX}${islandName}`),
     getIslandNameFromRoomName: jest
       .fn()
       .mockImplementation((roomName: string) => roomName.replace(ISLAND_ROOM_PREFIX, '')),

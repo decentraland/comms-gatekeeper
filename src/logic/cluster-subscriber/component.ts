@@ -1,37 +1,48 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
+import { START_COMPONENT } from '@well-known-components/interfaces'
 import { LRUCache } from 'lru-cache'
-import { isErrorWithMessage } from '../errors'
+import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
-import { createPeerStateStore } from './peer-state'
-import { islandRoomName } from './rooms'
+import { positiveNumberOr } from '../../utils/config'
 import { IClusterSubscriberComponent } from './types'
 
-const DEFAULT_PEER_STATE_TTL_MS = 60 * 60 * 1000
-const DEFAULT_PEER_STATE_MAX = 20_000
 const DEFAULT_BAN_CACHE_TTL_MS = 30_000
 const BAN_CACHE_MAX = 20_000
 const DEFAULT_QUEUE_GROUP = 'comms-gatekeeper-cluster'
 
-// Translates Pulse's cluster feed into LiveKit connection strings (see docs/ai-agent-context.md).
+/**
+ * Creates the subscriber that translates Pulse's cluster feed into LiveKit connection strings
+ * (see docs/ai-agent-context.md).
+ *
+ * Per inbound `peer.*.cluster_change`:
+ * 1. Extract the wallet from the subject and decode the payload, discarding anything malformed.
+ * 2. Serialize per wallet, then run the platform-access gate, skipping banned or deny-listed peers.
+ * 3. Mint a LiveKit token for the cluster's island room.
+ * 4. Publish `engine.peer.{wallet}.island_changed`, carrying the previous room as `fromIslandId`.
+ * 5. Record the new assignment in peer state.
+ *
+ * Off unless `CLUSTER_SUBSCRIBER_ENABLED` is `'true'` and NATS is configured; when off it
+ * subscribes to nothing and is byte-identical to not having the component at all.
+ *
+ * @param components - The config, logs, metrics, nats, livekit, access gate, player connection
+ * database and peer state components.
+ * @returns The cluster subscriber component. It only exposes a lifecycle hook; everything else
+ * it does is driven by the feed.
+ */
 export async function createClusterSubscriberComponent(
   components: Pick<
     AppComponents,
-    'config' | 'logs' | 'metrics' | 'nats' | 'livekit' | 'userModeration' | 'denyList' | 'playerConnectionDb'
+    'config' | 'logs' | 'metrics' | 'nats' | 'livekit' | 'accessGate' | 'playerConnectionDb' | 'peerState'
   >
 ): Promise<IClusterSubscriberComponent> {
-  const { config, logs, metrics, nats, livekit, userModeration, denyList, playerConnectionDb } = components
+  const { config, logs, metrics, nats, livekit, accessGate, playerConnectionDb, peerState } = components
   const logger = logs.getLogger('cluster-subscriber')
 
-  const [enabledFlag, natsUrl, subjectPrefix, queueGroupSetting] = await Promise.all([
+  const [enabledFlag, subjectPrefix, queueGroupSetting, banCacheTtlSetting] = await Promise.all([
     config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
-    config.getString('NATS_URL'),
     config.getString('NATS_SUBJECT_PREFIX'),
-    config.getString('NATS_QUEUE_GROUP')
-  ])
-  const [peerStateTtlSetting, peerStateMaxSetting, banCacheTtlSetting] = await Promise.all([
-    config.getNumber('CLUSTER_PEER_STATE_TTL_MS'),
-    config.getNumber('CLUSTER_PEER_STATE_MAX'),
+    config.getString('NATS_QUEUE_GROUP'),
     config.getNumber('CLUSTER_BAN_CACHE_TTL_MS')
   ])
 
@@ -39,15 +50,14 @@ export async function createClusterSubscriberComponent(
   const prefix = subjectPrefix ?? ''
   const queueGroup = queueGroupSetting || DEFAULT_QUEUE_GROUP
 
-  const peerState = createPeerStateStore({
-    max: peerStateMaxSetting ?? DEFAULT_PEER_STATE_MAX,
-    ttl: peerStateTtlSetting ?? DEFAULT_PEER_STATE_TTL_MS
-  })
   // First ban cache in this service - the path was two uncached DB reads per event. A stale
   // hit is fine because banning also removes the participant from every live room.
   const banCache = new LRUCache<string, boolean>({
     max: BAN_CACHE_MAX,
-    ttl: banCacheTtlSetting ?? DEFAULT_BAN_CACHE_TTL_MS
+    // Guarded rather than `??`: a configured 0 would mean "never expires" to lru-cache, so a
+    // ban added after a wallet was cached as allowed would not take effect for the process's
+    // whole life.
+    ttl: positiveNumberOr(banCacheTtlSetting, DEFAULT_BAN_CACHE_TTL_MS)
   })
 
   async function isBanned(wallet: string): Promise<boolean> {
@@ -62,17 +72,15 @@ export async function createClusterSubscriberComponent(
       // last HTTP request recorded. Read-only - never call upsertPlayerConnection here; the
       // HTTP path owns the real IP/device data and this would null it out.
       const connectionInfo = await playerConnectionDb.getByAddress(wallet)
-      const [banStatus, denylisted] = await Promise.all([
-        userModeration.getActiveBanForConnection({ address: wallet, deviceId: connectionInfo?.deviceId ?? null }),
-        denyList.isDenylisted(wallet)
-      ])
-      banned = banStatus.isBanned || denylisted
+      const accessState = await accessGate.getAccessState({
+        address: wallet,
+        deviceId: connectionInfo?.deviceId ?? null
+      })
+      banned = accessState.isBanned || accessState.isDenylisted
     } catch (error) {
       // Fails open, like every ban check here - a lookup outage must not stop island formation.
       // Deliberately not cached, so the next event retries instead of being wrong for the full TTL.
-      logger.warn(
-        `Ban check failed for ${wallet}, allowing: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
-      )
+      logger.warn(`Ban check failed for ${wallet}, allowing: ${getErrorMessage(error)}`)
       return false
     }
 
@@ -87,7 +95,7 @@ export async function createClusterSubscriberComponent(
       return
     }
 
-    const room = islandRoomName(clusterId)
+    const room = livekit.getIslandRoomName(clusterId)
 
     // No suppression for a repeat/no-op assignment - Pulse only re-announces a cluster after
     // forgetting a peer, i.e. a reconnect that needs a fresh token (docs/ai-agent-context.md).
@@ -106,20 +114,29 @@ export async function createClusterSubscriberComponent(
       message.fromIslandId = previous.room
     }
 
+    let delivered: boolean
     try {
       // Deliberately unprefixed: WS Connector subscribes to the literal subject (see
       // docs/ai-agent-context.md). Never hoist a shared encoder across the mint's await above
       // - that would corrupt frames.
-      nats.publish(`engine.peer.${wallet}.island_changed`, IslandChangedMessage.encode(message).finish())
-      metrics.increment('dcl_gatekeeper_cluster_published_total')
+      delivered = nats.publish(`engine.peer.${wallet}.island_changed`, IslandChangedMessage.encode(message).finish())
     } catch (error) {
       metrics.increment('dcl_gatekeeper_cluster_publish_failed_total')
-      logger.error(
-        `Failed to publish island_changed for ${wallet}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
-      )
+      logger.error(`Failed to publish island_changed for ${wallet}: ${getErrorMessage(error)}`)
       return
     }
 
+    // A dropped publish does not throw: the connection can go away during the mint above, and
+    // the adapter then discards the write. Counting that as published would make the metrics
+    // lie exactly when the feed is broken, and storing the assignment would point the next
+    // fromIslandId at a room this peer was never told to join.
+    if (!delivered) {
+      metrics.increment('dcl_gatekeeper_cluster_publish_failed_total')
+      logger.error(`Dropped island_changed for ${wallet}: no NATS connection to publish on`)
+      return
+    }
+
+    metrics.increment('dcl_gatekeeper_cluster_published_total')
     peerState.set(wallet, { clusterId, room, lastSeen: Date.now() })
   }
 
@@ -167,16 +184,10 @@ export async function createClusterSubscriberComponent(
       }
 
       void enqueueClusterChange(wallet, change.clusterId).catch((error) => {
-        logger.error(
-          `Cannot process cluster_change for ${wallet}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
-        )
+        logger.error(`Cannot process cluster_change for ${wallet}: ${getErrorMessage(error)}`)
       })
     } catch (error) {
-      logger.error(
-        `Cannot process cluster_change message on ${subject}: ${
-          isErrorWithMessage(error) ? error.message : 'Unknown error'
-        }`
-      )
+      logger.error(`Cannot process cluster_change message on ${subject}: ${getErrorMessage(error)}`)
     }
   }
 
@@ -185,8 +196,8 @@ export async function createClusterSubscriberComponent(
       logger.info('Cluster subscriber is disabled (CLUSTER_SUBSCRIBER_ENABLED is not "true")')
       return
     }
-    if (!natsUrl) {
-      logger.info('Cluster subscriber is enabled but NATS_URL is not set, staying idle')
+    if (!nats.isEnabled()) {
+      logger.info('Cluster subscriber is enabled but NATS is not configured, staying idle')
       return
     }
 
@@ -197,11 +208,11 @@ export async function createClusterSubscriberComponent(
     // Not awaited - well-known-components gates HTTP readiness (/health/ready, /health/startup)
     // on start() resolving, and connect() can stall ~20s per unreachable broker address before
     // giving up. It never throws and retries in the background regardless, so awaiting here
-    // would only cost readiness time (src/adapters/nats.ts).
+    // would only cost readiness time (src/adapters/nats/component.ts).
     void nats.connect()
 
     logger.info(`Cluster subscriber started (prefix: "${prefix}", queue group: ${queueGroup})`)
   }
 
-  return { start }
+  return { [START_COMPONENT]: start }
 }

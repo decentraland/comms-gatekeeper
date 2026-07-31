@@ -1,37 +1,27 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { RoomType } from '@dcl/schemas'
+import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { createHmac } from 'crypto'
 import { connect, NatsConnection } from 'nats'
 import { createNatsComponent } from '../../src/adapters/nats'
 import { createClusterSubscriberComponent } from '../../src/logic/cluster-subscriber'
 import { IClusterSubscriberComponent } from '../../src/logic/cluster-subscriber/types'
-import { INatsComponent } from '../../src/types/nats.type'
+import { INatsComponent } from '../../src/adapters/nats'
 import { test } from '../components'
 
-// This spec is the only one in the suite that exercises the real `livekit` adapter instead
-// of a stub: `generateCredentials` mints a JWT locally via `AccessToken.toJwt()` (HMAC
-// signing, no live LiveKit server contacted), but its constructor throws synchronously on
-// an empty api-key/api-secret. `.env.default` leaves PROD_LIVEKIT_API_KEY/SECRET blank on
-// purpose (real values are a deployment secret), and this environment has no local `.env`
-// override, so without this the mint throws "api-key and api-secret must be set" before
-// ever reaching nats.publish. Same fixture pattern as test/setup-env.ts's
-// COMMS_GATEKEEPER_AUTH_TOKEN, scoped to this file only since no other spec needs it.
-// The host below is a reserved example domain, not a subdomain of the organisation's real
-// *.decentraland.org hosts. Originals are captured here and restored in the `afterAll`
-// below so this mutation of process.env does not outlive this file in the Jest worker.
-const ORIGINAL_ENV = {
-  PROD_LIVEKIT_HOST: process.env.PROD_LIVEKIT_HOST,
-  PROD_LIVEKIT_API_KEY: process.env.PROD_LIVEKIT_API_KEY,
-  PROD_LIVEKIT_API_SECRET: process.env.PROD_LIVEKIT_API_SECRET
-}
-process.env.PROD_LIVEKIT_HOST = process.env.PROD_LIVEKIT_HOST || 'prod.livekit.example.com'
-process.env.PROD_LIVEKIT_API_KEY = process.env.PROD_LIVEKIT_API_KEY || 'test-api-key'
-process.env.PROD_LIVEKIT_API_SECRET = process.env.PROD_LIVEKIT_API_SECRET || 'test-api-secret'
-
+// This spec is the only one in the suite that exercises the real `livekit` adapter instead of
+// a stub: `generateCredentials` mints a JWT locally via `AccessToken.toJwt()` (HMAC signing, no
+// live LiveKit server contacted). The PROD_LIVEKIT_* fixtures that mint needs live in
+// test/setup-env.ts, alongside the other test-only environment defaults.
 const NATS_TEST_URL = 'localhost:4222'
 const BANNED_WALLET = '0x2222222222222222222222222222222222222222'
 const ALLOWED_WALLET = '0x3333333333333333333333333333333333333333'
+// Distinct wallets per scenario: peerState is the app-level component, shared for the whole
+// suite, so reusing one would leak a previous test's assignment into the next fromIslandId.
+const REASSIGNED_WALLET = '0x4444444444444444444444444444444444444444'
+const QUEUE_GROUP_WALLET = '0x5555555555555555555555555555555555555555'
+const DENYLISTED_WALLET = '0x6666666666666666666666666666666666666666'
 
 const startOptions = {
   started: () => true,
@@ -67,7 +57,7 @@ function verifiesWithSecret(jwt: string, secret: string): boolean {
 // 15000 ms leaves every poll ceiling in this file (<= 5000 ms) a comfortable, non-adjacent margin.
 jest.setTimeout(15000)
 
-test('cluster subscriber against a real NATS broker', ({ components }) => {
+test('cluster subscriber against a real NATS broker', ({ components, stubComponents }) => {
   let brokerAvailable = false
   let publisher: NatsConnection
   let nats: INatsComponent
@@ -81,19 +71,6 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
       // this suite is skipped there rather than failing the build. It must be run locally
       // with `docker-compose up -d nats`.
       console.warn(`NATS is not reachable at ${NATS_TEST_URL}; skipping cluster subscriber integration tests`)
-    }
-  })
-
-  afterAll(() => {
-    // Deletes keys that were originally absent instead of leaving them set to 'undefined',
-    // so a later spec in this Jest worker sees the same process.env shape it would have
-    // without this file ever having run.
-    for (const [key, original] of Object.entries(ORIGINAL_ENV)) {
-      if (original === undefined) {
-        delete process.env[key]
-      } else {
-        process.env[key] = original
-      }
     }
   })
 
@@ -115,7 +92,32 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
         received.push({ subject: message.subject, message: IslandChangedMessage.decode(message.data) })
       }
     })
+    ;({ nats, subscriber } = await buildReplica())
 
+    await subscriber[START_COMPONENT]!(startOptions)
+    // start() fires connect() without awaiting it - the connection is established in the
+    // background so it can't gate HTTP readiness (src/logic/cluster-subscriber/component.ts) -
+    // so a fixed sleep here was a guess, not a guarantee the subscriptions were live before a
+    // test publishes to them. Poll the adapter's own readiness instead: fast in the common case,
+    // and a clear failure if it never connects.
+    await waitForConnected(nats, 2000)
+  })
+
+  afterEach(async () => {
+    if (!brokerAvailable) {
+      return
+    }
+    await nats[STOP_COMPONENT]!()
+    await publisher.drain()
+    await components.database.query('DELETE FROM user_bans')
+  })
+
+  /**
+   * Builds one subscriber replica against the real broker. Every replica shares the same queue
+   * group, exactly as N deployed pods would, so a test can stand up a second one and observe
+   * how the group divides work between them.
+   */
+  async function buildReplica(): Promise<{ nats: INatsComponent; subscriber: IClusterSubscriberComponent }> {
     const config = {
       getString: async (key: string) =>
         ({
@@ -129,35 +131,22 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
       requireNumber: async () => 0
     } as any
 
-    nats = await createNatsComponent({ config, logs: components.logs, metrics: components.metrics })
-    subscriber = await createClusterSubscriberComponent({
-      config,
-      logs: components.logs,
-      metrics: components.metrics,
-      nats,
-      livekit: components.livekit,
-      userModeration: components.userModeration,
-      denyList: components.denyList,
-      playerConnectionDb: components.playerConnectionDb
-    })
+    const replicaNats = await createNatsComponent({ config, logs: components.logs, metrics: components.metrics })
 
-    await subscriber.start!(startOptions)
-    // start() fires connect() without awaiting it - the connection is established in the
-    // background so it can't gate HTTP readiness (src/logic/cluster-subscriber/component.ts) -
-    // so a fixed sleep here was a guess, not a guarantee the subscriptions were live before a
-    // test publishes to them. Poll the adapter's own readiness instead: fast in the common case,
-    // and a clear failure if it never connects.
-    await waitForNatsConnected(2000)
-  })
-
-  afterEach(async () => {
-    if (!brokerAvailable) {
-      return
+    return {
+      nats: replicaNats,
+      subscriber: await createClusterSubscriberComponent({
+        config,
+        logs: components.logs,
+        metrics: components.metrics,
+        nats: replicaNats,
+        livekit: components.livekit,
+        accessGate: components.accessGate,
+        playerConnectionDb: components.playerConnectionDb,
+        peerState: components.peerState
+      })
     }
-    await nats.stop!()
-    await publisher.drain()
-    await components.database.query('DELETE FROM user_bans')
-  })
+  }
 
   async function nextIslandChanged(
     timeoutMs: number
@@ -172,10 +161,10 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
     return undefined
   }
 
-  async function waitForNatsConnected(timeoutMs: number): Promise<void> {
+  async function waitForConnected(component: INatsComponent, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
-      if (nats.isConnected()) {
+      if (component.isConnected()) {
         return
       }
       await new Promise((resolve) => setTimeout(resolve, 20))
@@ -233,7 +222,7 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
       }
 
       // Classifies the room name this pipeline actually minted, not a hardcoded literal,
-      // proving the `island-` prefix `islandRoomName` produces is genuinely classifiable by
+      // proving the `island-` prefix `getIslandRoomName` produces is genuinely classifiable by
       // this service's own webhook path — the real reason that prefix exists.
       const clusterId = 'C9'
       publishClusterChange(ALLOWED_WALLET, clusterId)
@@ -248,6 +237,100 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
     })
   })
 
+  describe('when the same wallet is reassigned to a different cluster', () => {
+    // Only ever asserted against a mocked store before. Here the assignment round-trips
+    // through the real adapter, real protobuf encoding and the real peer state component,
+    // which is the combination that actually ships.
+    let first: { subject: string; message: IslandChangedMessage } | undefined
+    let second: { subject: string; message: IslandChangedMessage } | undefined
+
+    beforeEach(async () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      publishClusterChange(REASSIGNED_WALLET, 'C20')
+      first = await nextIslandChanged(5000)
+
+      publishClusterChange(REASSIGNED_WALLET, 'C21')
+      second = await nextIslandChanged(5000)
+    })
+
+    it('should announce the first room with no previous one', () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      expect(first?.message.islandId).toBe('island-C20')
+      expect(first?.message.fromIslandId).toBeUndefined()
+    })
+
+    it('should announce the second room', () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      expect(second?.message.islandId).toBe('island-C21')
+    })
+
+    it('should chain the second island_changed off the first room', () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      expect(second?.message.fromIslandId).toBe('island-C20')
+    })
+  })
+
+  describe('when a second replica is subscribed in the same queue group', () => {
+    let secondNats: INatsComponent
+    let secondSubscriber: IClusterSubscriberComponent
+
+    beforeEach(async () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      ;({ nats: secondNats, subscriber: secondSubscriber } = await buildReplica())
+      await secondSubscriber[START_COMPONENT]!(startOptions)
+      await waitForConnected(secondNats, 2000)
+    })
+
+    afterEach(async () => {
+      if (!brokerAvailable) {
+        return
+      }
+      await secondNats[STOP_COMPONENT]!()
+    })
+
+    it('should have exactly one replica mint and publish, not both', async () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      // The property the queue group exists for, and the one a unit test cannot reach: it can
+      // assert the `{ queue }` option was passed, but only a real broker proves the group
+      // actually divides the work. Without it every replica mints, and the client receives N
+      // island_changed messages carrying N different tokens for one assignment.
+      publishClusterChange(QUEUE_GROUP_WALLET, 'C30')
+
+      expect(await nextIslandChanged(5000)).toBeDefined()
+      expect(await nextIslandChanged(1500)).toBeUndefined()
+    })
+  })
+
+  describe('when the clusterId is empty', () => {
+    it('should publish nothing rather than minting into a shared "island-" room', async () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      publishClusterChange(ALLOWED_WALLET, '')
+
+      expect(await nextIslandChanged(2500)).toBeUndefined()
+    })
+  })
+
   describe('when the wallet is platform banned', () => {
     it('should publish nothing at all', async () => {
       if (!brokerAvailable) {
@@ -257,6 +340,27 @@ test('cluster subscriber against a real NATS broker', ({ components }) => {
       await components.userModeration.banPlayer(BANNED_WALLET, '0xadmin', 'integration test')
 
       publishClusterChange(BANNED_WALLET, 'C8')
+
+      expect(await nextIslandChanged(2500)).toBeUndefined()
+    })
+  })
+
+  describe('when the wallet is deny-listed', () => {
+    beforeEach(() => {
+      if (!brokerAvailable) {
+        return
+      }
+      // The deny list is a remote JSON feed, so it is stubbed rather than seeded. The gate it
+      // feeds is the real access-gate component, reached through the real subscriber.
+      stubComponents.denyList.isDenylisted.mockResolvedValue(true)
+    })
+
+    it('should publish nothing at all', async () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      publishClusterChange(DENYLISTED_WALLET, 'C40')
 
       expect(await nextIslandChanged(2500)).toBeUndefined()
     })

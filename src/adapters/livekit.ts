@@ -202,6 +202,10 @@ export async function createLivekitComponent(
     return roomName.replace(`${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-`, '')
   }
 
+  function getIslandRoomName(islandName: string): string {
+    return `${ISLAND_ROOM_PREFIX}${islandName}`
+  }
+
   function getIslandNameFromRoomName(roomName: string): string {
     return roomName.replace(ISLAND_ROOM_PREFIX, '')
   }
@@ -615,6 +619,7 @@ export async function createLivekitComponent(
     getCallIdFromRoomName,
     getCommunityVoiceChatRoomName,
     getCommunityIdFromRoomName,
+    getIslandRoomName,
     getIslandNameFromRoomName,
     getRoomMetadataFromRoomName,
     getRoomName,

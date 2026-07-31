@@ -26,6 +26,46 @@ let webhookReceiverSpy: jest.SpyInstance
 let loggerInfoSpy: jest.Mock
 let loggerWarnSpy: jest.Mock
 
+const DEFAULT_LIVEKIT_CONFIG: Record<string, string> = {
+  COMMS_ROOM_PREFIX: 'world-env-',
+  WORLD_ROOM_PREFIX: 'world-prod-scene-room-',
+  SCENE_ROOM_PREFIX: 'scene-',
+  PRIVATE_MESSAGES_ROOM_ID: 'private-messages',
+  PROD_LIVEKIT_HOST: 'prod.livekit.example.com',
+  PROD_LIVEKIT_API_KEY: 'prod-api-key',
+  PROD_LIVEKIT_API_SECRET: 'prod-secret',
+  PREVIEW_LIVEKIT_HOST: 'preview.livekit.example.com',
+  PREVIEW_LIVEKIT_API_KEY: 'preview-api-key',
+  PREVIEW_LIVEKIT_API_SECRET: 'preview-secret'
+}
+
+async function buildLivekitComponent(
+  configOverrides: Record<string, string> = {},
+  logger: { info: jest.Mock; warn: jest.Mock; error: jest.Mock } = {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn()
+  }
+): Promise<ILivekitComponent> {
+  const values: Record<string, string> = { ...DEFAULT_LIVEKIT_CONFIG, ...configOverrides }
+
+  return createLivekitComponent({
+    config: {
+      requireString: jest
+        .fn()
+        .mockImplementation((key: string) =>
+          key in values ? Promise.resolve(values[key]) : Promise.reject(new Error(`Unknown key: ${key}`))
+        ),
+      getString: jest.fn().mockImplementation((key: string) => (key === 'ALLOW_LOCAL_PREVIEW' ? 'true' : '')),
+      getNumber: jest.fn().mockReturnValue(0),
+      requireNumber: jest.fn().mockResolvedValue(0)
+    },
+    logs: {
+      getLogger: jest.fn().mockReturnValue(logger)
+    }
+  })
+}
+
 beforeEach(async () => {
   deleteRoomSpy = jest.spyOn(RoomServiceClient.prototype, 'deleteRoom')
   listRoomsSpy = jest.spyOn(RoomServiceClient.prototype, 'listRooms')
@@ -42,49 +82,7 @@ beforeEach(async () => {
   loggerInfoSpy = jest.fn()
   loggerWarnSpy = jest.fn()
 
-  livekitComponent = await createLivekitComponent({
-    config: {
-      requireString: jest.fn().mockImplementation((key) => {
-        switch (key) {
-          case 'COMMS_ROOM_PREFIX':
-            return Promise.resolve('world-env-')
-          case 'WORLD_ROOM_PREFIX':
-            return Promise.resolve('world-prod-scene-room-')
-          case 'SCENE_ROOM_PREFIX':
-            return Promise.resolve('scene-')
-          case 'PRIVATE_MESSAGES_ROOM_ID':
-            return Promise.resolve('private-messages')
-          case 'PROD_LIVEKIT_HOST':
-            return Promise.resolve('prod.livekit.example.com')
-          case 'PROD_LIVEKIT_API_KEY':
-            return Promise.resolve('prod-api-key')
-          case 'PROD_LIVEKIT_API_SECRET':
-            return Promise.resolve('prod-secret')
-          case 'PREVIEW_LIVEKIT_HOST':
-            return Promise.resolve('preview.livekit.example.com')
-          case 'PREVIEW_LIVEKIT_API_KEY':
-            return Promise.resolve('preview-api-key')
-          case 'PREVIEW_LIVEKIT_API_SECRET':
-            return Promise.resolve('preview-secret')
-          default:
-            return Promise.reject(new Error(`Unknown key: ${key}`))
-        }
-      }),
-      getString: jest.fn().mockImplementation((key: string) => {
-        if (key === 'ALLOW_LOCAL_PREVIEW') return 'true'
-        return ''
-      }),
-      getNumber: jest.fn().mockReturnValue(0),
-      requireNumber: jest.fn().mockResolvedValue(0)
-    },
-    logs: {
-      getLogger: jest.fn().mockReturnValue({
-        info: loggerInfoSpy,
-        warn: loggerWarnSpy,
-        error: jest.fn()
-      })
-    }
-  })
+  livekitComponent = await buildLivekitComponent({}, { info: loggerInfoSpy, warn: loggerWarnSpy, error: jest.fn() })
 })
 
 describe('when destroying a room', () => {
@@ -1005,54 +1003,26 @@ describe('when getting room metadata from room name', () => {
   })
 })
 
+describe('when getting an island room name', () => {
+  it('should prefix the island name with island-', () => {
+    expect(livekitComponent.getIslandRoomName('C12')).toBe('island-C12')
+  })
+
+  it('should use the island name verbatim, with no other transformation', () => {
+    expect(livekitComponent.getIslandRoomName('C-99-main')).toBe('island-C-99-main')
+  })
+
+  it('should round-trip with getIslandNameFromRoomName', () => {
+    expect(livekitComponent.getIslandNameFromRoomName(livekitComponent.getIslandRoomName('C12'))).toBe('C12')
+  })
+})
+
 describe('when parsing room metadata for an island room', () => {
   describe('and the scene and world prefixes are empty', () => {
     let componentWithEmptyPrefixes: ILivekitComponent
 
     beforeEach(async () => {
-      componentWithEmptyPrefixes = await createLivekitComponent({
-        config: {
-          requireString: jest.fn().mockImplementation((key) => {
-            switch (key) {
-              case 'COMMS_ROOM_PREFIX':
-                return Promise.resolve('world-env-')
-              case 'WORLD_ROOM_PREFIX':
-                return Promise.resolve('')
-              case 'SCENE_ROOM_PREFIX':
-                return Promise.resolve('')
-              case 'PRIVATE_MESSAGES_ROOM_ID':
-                return Promise.resolve('private-messages')
-              case 'PROD_LIVEKIT_HOST':
-                return Promise.resolve('prod.livekit.example.com')
-              case 'PROD_LIVEKIT_API_KEY':
-                return Promise.resolve('prod-api-key')
-              case 'PROD_LIVEKIT_API_SECRET':
-                return Promise.resolve('prod-secret')
-              case 'PREVIEW_LIVEKIT_HOST':
-                return Promise.resolve('preview.livekit.example.com')
-              case 'PREVIEW_LIVEKIT_API_KEY':
-                return Promise.resolve('preview-api-key')
-              case 'PREVIEW_LIVEKIT_API_SECRET':
-                return Promise.resolve('preview-secret')
-              default:
-                return Promise.reject(new Error(`Unknown key: ${key}`))
-            }
-          }),
-          getString: jest.fn().mockImplementation((key: string) => {
-            if (key === 'ALLOW_LOCAL_PREVIEW') return 'true'
-            return ''
-          }),
-          getNumber: jest.fn().mockReturnValue(0),
-          requireNumber: jest.fn().mockResolvedValue(0)
-        },
-        logs: {
-          getLogger: jest.fn().mockReturnValue({
-            info: jest.fn(),
-            warn: jest.fn(),
-            error: jest.fn()
-          })
-        }
-      })
+      componentWithEmptyPrefixes = await buildLivekitComponent({ WORLD_ROOM_PREFIX: '', SCENE_ROOM_PREFIX: '' })
     })
 
     it('should classify an unsharded island room as ISLAND', () => {

@@ -1,4 +1,5 @@
-import { INatsComponent } from '../../src/types/nats.type'
+import { STOP_COMPONENT } from '@well-known-components/interfaces'
+import { INatsComponent } from '../../src/adapters/nats'
 
 export const createNatsMockedComponent = (
   overrides?: Partial<jest.Mocked<INatsComponent>>
@@ -6,9 +7,11 @@ export const createNatsMockedComponent = (
   return {
     connect: jest.fn().mockResolvedValue(undefined),
     subscribe: jest.fn(),
-    publish: jest.fn(),
+    // Defaults to a delivered publish; override with `false` to exercise the dropped path.
+    publish: jest.fn().mockReturnValue(true),
+    isEnabled: jest.fn().mockReturnValue(true),
     isConnected: jest.fn().mockReturnValue(true),
-    stop: jest.fn().mockResolvedValue(undefined),
+    [STOP_COMPONENT]: jest.fn().mockResolvedValue(undefined),
     ...overrides
   } as unknown as jest.Mocked<INatsComponent>
 }

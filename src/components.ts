@@ -58,6 +58,8 @@ import { createUserModerationDBComponent } from './adapters/user-moderation-db'
 import { createUserModerationComponent } from './logic/user-moderation'
 import { createModeratorComponent } from './logic/moderator'
 import { createNatsComponent } from './adapters/nats'
+import { createPeerStateComponent } from './adapters/peer-state'
+import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
 
 // Initialize all the components of the app
@@ -90,6 +92,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const livekit = await createLivekitComponent({ config, logs })
   const nats = await createNatsComponent({ config, logs, metrics })
+  const peerState = await createPeerStateComponent({ config })
 
   let databaseUrl: string | undefined = await config.getString('PG_COMPONENT_PSQL_CONNECTION_STRING')
   if (!databaseUrl) {
@@ -183,6 +186,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     publisher,
     livekit
   })
+
+  const accessGate = await createAccessGateComponent({ userModeration, denyList, logs })
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
@@ -282,9 +287,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     metrics,
     nats,
     livekit,
-    userModeration,
-    denyList,
-    playerConnectionDb
+    accessGate,
+    playerConnectionDb,
+    peerState
   })
 
   const livekitWebhook = createLivekitWebhookComponent()
@@ -342,6 +347,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     moderator,
     features,
     nats,
+    peerState,
+    accessGate,
     clusterSubscriber
   }
 }

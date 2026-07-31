@@ -37,7 +37,9 @@ import { IPublisherComponent } from '@dcl/sns-component'
 import { IUserModerationComponent, IUserModerationDatabaseComponent } from './logic/user-moderation/types'
 import { IModeratorComponent } from './logic/moderator'
 import { IFeaturesComponent } from '@dcl/features-component'
-import { INatsComponent } from './types/nats.type'
+import { INatsComponent } from './adapters/nats'
+import { IPeerStateComponent } from './adapters/peer-state'
+import { IAccessGateComponent } from './logic/access-gate'
 import { IClusterSubscriberComponent } from './logic/cluster-subscriber/types'
 
 export type GlobalContext = {
@@ -90,6 +92,8 @@ export type BaseComponents = {
   moderator: IModeratorComponent
   features: IFeaturesComponent
   nats: INatsComponent
+  peerState: IPeerStateComponent
+  accessGate: IAccessGateComponent
   clusterSubscriber: IClusterSubscriberComponent
 }
 

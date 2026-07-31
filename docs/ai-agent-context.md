@@ -114,6 +114,13 @@ empty: unity-explorer reads only `connStr`.
 **Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
 room name → `generateCredentials(wallet, room, { cast: [] }, false)` → publish.
 
+**Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
+in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
+bounded per-wallet assignment store, whose only consumer is `fromIslandId`) and
+`src/logic/access-gate/` (the platform-ban + deny-list lookup shared with the two signed-fetch
+token handlers). Island room names come from `livekit.getIslandRoomName`, alongside every other
+room-name builder in that adapter.
+
 **Room names** are `island-{clusterId}` — one cluster maps to exactly one room. The `island-`
 prefix is required so this service's own webhook handlers classify these rooms as
 `RoomType.ISLAND` rather than misreading them as scene rooms.
