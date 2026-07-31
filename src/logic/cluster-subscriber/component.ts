@@ -78,8 +78,26 @@ export async function createClusterSubscriberComponent(
       })
       banned = accessState.isBanned || accessState.isDenylisted
     } catch (error) {
-      // Fails open, like every ban check here - a lookup outage must not stop island formation.
-      // Deliberately not cached, so the next event retries instead of being wrong for the full TTL.
+      // FAILS OPEN ON PURPOSE, for every lookup in the block above - the connection-info read,
+      // the platform ban store and the deny list alike. This is a deliberate product decision,
+      // not an oversight, and it has been raised in review before: the alternative (fail closed)
+      // means that an outage in any one of those three dependencies stops island formation and
+      // players cannot get into voice at all. Availability of the platform is judged the more
+      // important property here; a moderation gate that is briefly permissive is recoverable,
+      // a world nobody can connect to is not.
+      //
+      // What this costs, stated plainly so it stays a known trade-off: while a lookup is
+      // failing, a banned or deny-listed wallet can be minted an island token. Two things bound
+      // it. Banning removes the participant from every live room at ban time, so this only
+      // affects a *new* room the wallet joins during the outage. And the result is deliberately
+      // not written to banCache, so the very next event retries the lookup instead of the
+      // process staying wrong for the whole TTL.
+      //
+      // Note this differs from the signed-fetch HTTP path on purpose: there, only the ban
+      // lookup fails open and a deny-list error still rejects the request. That path is a
+      // synchronous user-initiated request that can surface an error to the client and be
+      // retried; this one is a background feed with no caller to report to, where dropping the
+      // event just leaves the peer silently without a room.
       logger.warn(`Ban check failed for ${wallet}, allowing: ${getErrorMessage(error)}`)
       return false
     }
