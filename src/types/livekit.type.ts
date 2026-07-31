@@ -55,6 +55,8 @@ export type ILivekitComponent = IBaseComponent & {
   getCallIdFromRoomName: (roomName: string) => string
   getCommunityVoiceChatRoomName: (communityId: string) => string
   getCommunityIdFromRoomName: (roomName: string) => string
+  /** Builds the LiveKit room name for an island. The `island-` prefix is required, not cosmetic. */
+  getIslandRoomName: (islandName: string) => string
   getIslandNameFromRoomName: (roomName: string) => string
   getRoomMetadataFromRoomName: (roomName: string) => RoomMetadata
   getRoomName: (realmName: string, params: GetRoomNameParams) => string

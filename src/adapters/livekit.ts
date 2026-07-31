@@ -202,11 +202,26 @@ export async function createLivekitComponent(
     return roomName.replace(`${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-`, '')
   }
 
+  function getIslandRoomName(islandName: string): string {
+    return `${ISLAND_ROOM_PREFIX}${islandName}`
+  }
+
   function getIslandNameFromRoomName(roomName: string): string {
     return roomName.replace(ISLAND_ROOM_PREFIX, '')
   }
 
   function getRoomMetadataFromRoomName(roomName: string): RoomMetadata {
+    // Island room: island-{islandName}. Checked first, ahead of the scene and world
+    // branches, because those match on configurable prefixes that are empty by default —
+    // `roomName.startsWith('')` is always true, so an empty SCENE_ROOM_PREFIX would
+    // swallow every island room and report it to SNS as a scene with a bogus realm.
+    // `island-` is a literal prefix no other room shape in this service produces, so
+    // matching it first cannot reclassify anything else.
+    if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
+      const islandName = getIslandNameFromRoomName(roomName)
+      return { islandName, roomType: RoomType.ISLAND }
+    }
+
     // Scene room: {sceneRoomPrefix}{realmName}:{sceneId}
     if (roomName.startsWith(sceneRoomPrefix)) {
       const [realmName, sceneId] = roomName.replace(sceneRoomPrefix, '').split(':')
@@ -230,12 +245,6 @@ export async function createLivekitComponent(
     if (commsRoomPrefix && roomName.startsWith(commsRoomPrefix)) {
       const worldName = roomName.slice(commsRoomPrefix.length)
       return { worldName, roomType: RoomType.WORLD }
-    }
-
-    // Island room: island-{islandName}
-    if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
-      const islandName = getIslandNameFromRoomName(roomName)
-      return { islandName, roomType: RoomType.ISLAND }
     }
 
     // Community voice chat: {COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-{communityId}
@@ -610,6 +619,7 @@ export async function createLivekitComponent(
     getCallIdFromRoomName,
     getCommunityVoiceChatRoomName,
     getCommunityIdFromRoomName,
+    getIslandRoomName,
     getIslandNameFromRoomName,
     getRoomMetadataFromRoomName,
     getRoomName,
