@@ -1025,14 +1025,14 @@ describe('when parsing room metadata for an island room', () => {
       componentWithEmptyPrefixes = await buildLivekitComponent({ WORLD_ROOM_PREFIX: '', SCENE_ROOM_PREFIX: '' })
     })
 
-    it('should classify an unsharded island room as ISLAND', () => {
+    it('should classify an island room as ISLAND', () => {
       expect(componentWithEmptyPrefixes.getRoomMetadataFromRoomName('island-C12')).toEqual({
         islandName: 'C12',
         roomType: RoomType.ISLAND
       })
     })
 
-    it('should classify a sharded island room as ISLAND, keeping the shard in the island name', () => {
+    it('should classify an island room whose name contains a colon as ISLAND, keeping the full name', () => {
       expect(componentWithEmptyPrefixes.getRoomMetadataFromRoomName('island-C12:3')).toEqual({
         islandName: 'C12:3',
         roomType: RoomType.ISLAND
