@@ -1704,8 +1704,14 @@ paths:
         The ban can be permanent (no `duration`) or timed. An optional `customMessage`
         is surfaced to the player at rejection time.
 
-        The player's recorded device id (from their connection info) is always banned
-        alongside the address, so the ban follows the device across wallets.
+        The player's recorded device id (from their connection info) is banned alongside the
+        address when one is known, so the ban follows the device across wallets. This is
+        best-effort: a player who has never connected, or whose client sent no device
+        identifier, is banned by address only.
+
+        Note that the resulting device coverage is **not** reflected by
+        `GET /users/{address}/bans`, which reports address bans only — see that operation for
+        why the two deliberately differ.
       security:
         - SignedFetch: []
       parameters:
@@ -1827,10 +1833,34 @@ paths:
       summary: Get ban status for a user
       description: |
         Returns whether the specified user address currently has an active platform-level
-        ban. If banned, the full ban record is included in the response.
+        ban of its own. If banned, the full ban record is included in the response.
 
         This endpoint is **public** — no authentication required. It is intended for
         clients to check their own ban status before attempting to connect.
+
+        ### This is not the same check token retrieval performs
+
+        `isBanned: false` here does **not** guarantee the user can connect. Token retrieval
+        (`POST /get-scene-adapter`, `GET /private-messages/token`) additionally matches the
+        device identifier the request arrives with against the device snapshot recorded on
+        other users' bans, so a user who was banned on one wallet and reconnects from the
+        same device under a different wallet is rejected there while this endpoint reports
+        them as not banned.
+
+        That difference is intentional. This endpoint answers "does this wallet have a ban
+        record?" — the question a client needs in order to show a ban notice with its reason,
+        expiry and custom message. Whether a given connection will be *accepted* is answered
+        only at token retrieval, which is the sole authority on access.
+
+        The device-based check is deliberately not reflected here for two reasons:
+
+        - This route is unauthenticated, so a device-aware answer would let anyone query two
+          arbitrary addresses and infer from a shared ban that both belong to the same device.
+        - It would let a ban evader probe a fresh wallet before connecting to learn whether
+          their device is already covered, and cycle wallets until one came back clean.
+
+        Moderator tooling that needs the full picture, including each ban's device snapshot,
+        should use the moderator-gated `GET /bans`.
       security: []
       parameters:
         - name: address

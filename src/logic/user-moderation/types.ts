@@ -58,7 +58,21 @@ export interface IUserModerationComponent {
   ): Promise<UserBan>
   liftBan(address: string, liftedBy: string): Promise<void>
   warnPlayer(address: string, reason: string, warnedBy: string): Promise<UserWarning>
+  /**
+   * Whether this address has an active ban of its own. Matches on the banned address only.
+   *
+   * Deliberately narrower than {@link IUserModerationComponent.getActiveBanForConnection}: it
+   * ignores device snapshots, so a ban evader on a fresh wallet reports as not banned here even
+   * though the connection gate will reject them. Reporting surfaces (`GET /users/:address/bans`)
+   * and the duplicate-ban guard in `banPlayer` both depend on that narrower meaning — see
+   * `banStatusHandler` for why the gap is intentional and must not be closed.
+   */
   isPlayerBanned(address: string): Promise<BanStatus>
+  /**
+   * Whether a connection should be rejected, matching the address **or** the device id the
+   * request arrives with against the device snapshot on any active ban. This is the enforcement
+   * question, and the only one that accounts for wallet-switching evasion.
+   */
   getActiveBanForConnection(query: ConnectionBanQuery): Promise<BanStatus>
   getActiveBans(): Promise<UserBan[]>
   getPlayerWarnings(address: string): Promise<UserWarning[]>

@@ -47,6 +47,7 @@
 - **Streaming TTL**: Streaming access has time-to-live and expiration mechanisms
 - **Scene Bans**: Users can be banned from specific scenes by scene admins
 - **Platform Ban (global ban)**: A platform-level ban permanently blocks a user from obtaining any LiveKit token from comms-gatekeeper. Because a token is required to enter any Genesis City room, a platform-banned user is effectively excluded from all real-time interaction in Genesis City. Bans are stored in the `scene_bans` table (scene-scoped) and enforced synchronously at token issuance time — the request is rejected before any LiveKit call is made.
+- **Device-based ban evasion**: A platform ban snapshots the player's last recorded device id (`user_bans.banned_device_id`, sourced from `player_connection_info`) so a banned player who reconnects from the same device under a different wallet is also rejected. This is enforced **only at token issuance**, via `getActiveBanForConnection`. `GET /users/{address}/bans` deliberately reports address bans only and does not reflect device coverage — token issuance is the sole authority on access, and keeping the device check undisclosed on that public endpoint avoids exposing wallet-to-device linkage and denies evaders a way to probe it. Do not "reconcile" the two.
 
 **Role in Genesis City Comms Access:**
 
