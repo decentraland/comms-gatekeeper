@@ -83,7 +83,7 @@ describe('worlds adapter', () => {
           expect(mockFetch.fetch).toHaveBeenCalledWith(`${worldContentUrl}/world/${worldName.toLowerCase()}/scenes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pointers: [pointer] })
+            body: JSON.stringify({ coordinates: [pointer] })
           })
           expect(result).toEqual(mockScene)
         })
@@ -290,6 +290,58 @@ describe('worlds adapter', () => {
     })
   })
 
+  describe('when binding a scene entity to a world', () => {
+    const worldName = 'myworld.dcl.eth'
+    const entityId = 'bafkreiabc123'
+    let sceneMetadataFetch: jest.Mock
+
+    beforeEach(() => {
+      sceneMetadataFetch = mockCachedFetch.cache.mock.results[1].value.fetch
+    })
+
+    describe('and the entity metadata and scoped world scene agree', () => {
+      let result: WorldScene | undefined
+      let scene: WorldScene
+
+      beforeEach(async () => {
+        scene = { worldName, entityId, deployer: '0xdeployer', parcels: ['0,0'] }
+        sceneMetadataFetch.mockResolvedValue({
+          metadata: {
+            scene: { base: '0,0', parcels: ['0,0'] },
+            worldConfiguration: { name: worldName }
+          }
+        })
+        mockFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ scenes: [scene], total: 1 })
+        })
+
+        result = await worldsComponent.fetchWorldSceneByEntityId(worldName, entityId)
+      })
+
+      it('should return the scoped scene', () => {
+        expect(result).toEqual({ ...scene, baseParcel: '0,0' })
+      })
+    })
+
+    describe('and the entity declares a different world', () => {
+      beforeEach(() => {
+        sceneMetadataFetch.mockResolvedValue({
+          metadata: {
+            scene: { base: '0,0', parcels: ['0,0'] },
+            worldConfiguration: { name: 'another-world.dcl.eth' }
+          }
+        })
+      })
+
+      it('should reject the entity without querying a scoped scene', async () => {
+        const result = await worldsComponent.fetchWorldSceneByEntityId(worldName, entityId)
+
+        expect([result, mockFetch.fetch.mock.calls.length]).toEqual([undefined, 0])
+      })
+    })
+  })
+
   describe('when fetching parcel permission addresses', () => {
     const worldName = 'myworld.dcl.eth'
     const permissionName = 'deployment'
@@ -395,27 +447,29 @@ describe('worlds adapter', () => {
   describe('when fetching the scene ID for a world', () => {
     const worldName = 'myworld.dcl.eth'
     const sceneHash = 'bafkreihxhz7kn2fkptfnvj2wmrzxmchhnq4r3ahnhlpy7r7ds4azr4z4zu'
+    const pointer = '1,2'
 
-    describe('and the about endpoint returns a valid response with scenesUrn', () => {
+    describe('and the scoped scenes endpoint returns the scene at the requested parcel', () => {
       let result: string
 
       beforeEach(async () => {
         mockFetch.fetch.mockResolvedValue({
           ok: true,
           json: jest.fn().mockResolvedValue({
-            configurations: {
-              scenesUrn: [
-                `urn:decentraland:entity:${sceneHash}?=&baseUrl=https://worlds-content-server.decentraland.org/contents/`
-              ]
-            }
+            total: 1,
+            scenes: [{ entityId: sceneHash, parcels: [pointer] }]
           })
         })
 
-        result = await worldsComponent.fetchWorldSceneId(worldName)
+        result = await worldsComponent.fetchWorldSceneId(worldName, pointer)
       })
 
-      it('should call the about endpoint with the lowercased world name', () => {
-        expect(mockFetch.fetch).toHaveBeenCalledWith(`${worldContentUrl}/world/${worldName.toLowerCase()}/about`)
+      it('should query the lowercased world with the exact parcel', () => {
+        expect(mockFetch.fetch).toHaveBeenCalledWith(`${worldContentUrl}/world/${worldName.toLowerCase()}/scenes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ coordinates: [pointer] })
+        })
       })
 
       it('should return the extracted scene entity ID', () => {
@@ -423,7 +477,7 @@ describe('worlds adapter', () => {
       })
     })
 
-    describe('and the about endpoint returns a non-200 status', () => {
+    describe('and the scoped scenes endpoint returns a non-200 status', () => {
       beforeEach(() => {
         mockFetch.fetch.mockResolvedValue({
           ok: false,
@@ -432,63 +486,44 @@ describe('worlds adapter', () => {
       })
 
       it('should throw an InvalidRequestError', async () => {
-        await expect(worldsComponent.fetchWorldSceneId(worldName)).rejects.toThrow(
-          `Failed to fetch world about for ${worldName}: HTTP 404`
+        await expect(worldsComponent.fetchWorldSceneId(worldName, pointer)).rejects.toThrow(
+          `No scene found for world ${worldName} at parcel ${pointer}`
         )
       })
     })
 
-    describe('and the response has no scenesUrn', () => {
+    describe('and no scene is active at the parcel', () => {
       beforeEach(() => {
         mockFetch.fetch.mockResolvedValue({
           ok: true,
           json: jest.fn().mockResolvedValue({
-            configurations: {}
+            total: 0,
+            scenes: []
           })
         })
       })
 
       it('should throw an InvalidRequestError', async () => {
-        await expect(worldsComponent.fetchWorldSceneId(worldName)).rejects.toThrow(
-          `No scenes found for world ${worldName}`
+        await expect(worldsComponent.fetchWorldSceneId(worldName, pointer)).rejects.toThrow(
+          `No scene found for world ${worldName} at parcel ${pointer}`
         )
       })
     })
 
-    describe('and the scenesUrn array is empty', () => {
+    describe('and the returned scene does not contain the requested parcel', () => {
       beforeEach(() => {
         mockFetch.fetch.mockResolvedValue({
           ok: true,
           json: jest.fn().mockResolvedValue({
-            configurations: {
-              scenesUrn: []
-            }
+            total: 1,
+            scenes: [{ entityId: sceneHash, parcels: ['3,4'] }]
           })
         })
       })
 
       it('should throw an InvalidRequestError', async () => {
-        await expect(worldsComponent.fetchWorldSceneId(worldName)).rejects.toThrow(
-          `No scenes found for world ${worldName}`
-        )
-      })
-    })
-
-    describe('and the scenesUrn has an invalid format', () => {
-      beforeEach(() => {
-        mockFetch.fetch.mockResolvedValue({
-          ok: true,
-          json: jest.fn().mockResolvedValue({
-            configurations: {
-              scenesUrn: ['not-a-valid-urn']
-            }
-          })
-        })
-      })
-
-      it('should throw an InvalidRequestError', async () => {
-        await expect(worldsComponent.fetchWorldSceneId(worldName)).rejects.toThrow(
-          `Invalid scene URN format for world ${worldName}: not-a-valid-urn`
+        await expect(worldsComponent.fetchWorldSceneId(worldName, pointer)).rejects.toThrow(
+          `No scene found for world ${worldName} at parcel ${pointer}`
         )
       })
     })
@@ -500,20 +535,18 @@ describe('worlds adapter', () => {
         mockFetch.fetch.mockResolvedValue({
           ok: true,
           json: jest.fn().mockResolvedValue({
-            configurations: {
-              scenesUrn: [
-                `urn:decentraland:entity:${sceneHash}?=&baseUrl=https://worlds-content-server.decentraland.org/contents/`
-              ]
-            }
+            total: 1,
+            scenes: [{ entityId: sceneHash, parcels: [pointer] }]
           })
         })
 
-        await worldsComponent.fetchWorldSceneId(uppercaseWorldName)
+        await worldsComponent.fetchWorldSceneId(uppercaseWorldName, pointer)
       })
 
       it('should lowercase the world name in the URL', () => {
         expect(mockFetch.fetch).toHaveBeenCalledWith(
-          `${worldContentUrl}/world/${uppercaseWorldName.toLowerCase()}/about`
+          `${worldContentUrl}/world/${uppercaseWorldName.toLowerCase()}/scenes`,
+          expect.any(Object)
         )
       })
     })

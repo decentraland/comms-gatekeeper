@@ -318,7 +318,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         stubComponents.worlds.hasWorldAccessPermission.mockResolvedValue(true)
       })
 
-      describe('and the world about endpoint returns the scene ID', () => {
+      describe('and the world scenes endpoint returns the scene ID for the parcel', () => {
         beforeEach(() => {
           stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('bafkreiabcdef123')
           stubComponents.livekit.getWorldSceneRoomName.mockReturnValue(
@@ -338,7 +338,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           )
 
           expect(response.status).toBe(200)
-          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth')
+          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth', '10,20')
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(
             'test-world.eth',
@@ -347,7 +347,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         })
       })
 
-      describe('and the world about endpoint fails', () => {
+      describe('and the world scenes endpoint fails', () => {
         beforeEach(() => {
           stubComponents.worlds.fetchWorldSceneId.mockRejectedValue(new Error('HTTP 404'))
         })
@@ -394,7 +394,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(body).toEqual({
             error: 'User is banned from this scene'
           })
-          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth')
+          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth', '10,20')
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.worlds.hasWorldAccessPermission).not.toHaveBeenCalled()
         })

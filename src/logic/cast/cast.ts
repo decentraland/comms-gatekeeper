@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { AppComponents } from '../../types'
 import { PlaceAttributes } from '../../types/places.type'
-import { ForbiddenError } from '../../types/errors'
+import { ForbiddenError, InvalidRequestError } from '../../types/errors'
 import {
   InvalidStreamingKeyError,
   ExpiredStreamingKeyError,
@@ -147,7 +147,7 @@ export function createCastComponent(
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, sceneId, realmName } = params
+    const { walletAddress, worldName, sceneId, realmName, parcel } = params
 
     const roomId = worldName
       ? livekit.getWorldSceneRoomName(worldName, sceneId)
@@ -156,7 +156,7 @@ export function createCastComponent(
     // Resolve the place from the SAME sceneId that the room is derived from. Using the
     // caller-supplied `parcel` here (as before) would let an admin of any one place mint a
     // streamer key for a different scene's room.
-    const place = await places.getPlaceBySceneId(sceneId, worldName)
+    const place = await places.getPlaceBySceneId(sceneId, worldName, parcel)
 
     const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
     if (!isAdmin) {
@@ -333,8 +333,7 @@ export function createCastComponent(
     if (isWorldName && parcel) {
       place = await places.getWorldScenePlace(location, parcel)
     } else if (isWorldName) {
-      // Backwards compatibility: fall back to world-level lookup when no parcel is provided
-      place = await places.getWorldByName(location)
+      throw new InvalidRequestError('A parcel is required to select a scene in a world')
     } else {
       place = await places.getPlaceByParcel(location)
     }

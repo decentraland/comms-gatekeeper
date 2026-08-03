@@ -27,7 +27,7 @@ export type IPlacesComponent = IBaseComponent & {
    * @param worldName - The world name for world scenes; omit for Genesis City scenes.
    * @throws {PlaceNotFoundError} If the scene entity or its base parcel cannot be resolved.
    */
-  getPlaceBySceneId(sceneId: string, worldName?: string): Promise<PlaceAttributes>
+  getPlaceBySceneId(sceneId: string, worldName?: string, parcel?: string): Promise<PlaceAttributes>
   /**
    * @deprecated Use getWorldScenePlace instead. Kept only for backwards compatibility
    * with legacy rooms that lack a sceneId.

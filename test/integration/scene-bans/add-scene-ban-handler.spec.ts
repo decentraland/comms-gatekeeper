@@ -81,8 +81,9 @@ test('POST /scene-bans', ({ components, stubComponents }) => {
       owner: owner.authChain[0].payload
     })
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
+      worldName ? mockedWorldPlace : mockedPlace
+    )
 
     stubComponents.livekit.removeParticipant.mockResolvedValue(undefined)
     stubComponents.livekit.getRoomName.mockReturnValue('test-room-name')

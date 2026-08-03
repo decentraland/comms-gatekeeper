@@ -16,7 +16,7 @@ export async function generateStreamLinkHandler(
   const logger = logs.getLogger('generate-stream-link-handler')
 
   // Validate signed fetch and extract auth data
-  const { identity, sceneId, realm, isWorld } = await validate(context)
+  const { identity, sceneId, parcel, realm, isWorld } = await validate(context)
 
   const realmName = realm.serverName
   const isPreview = livekit.isLocalPreview(realmName)
@@ -32,7 +32,7 @@ export async function generateStreamLinkHandler(
   let resolvedSceneId = sceneId
   if (isWorld && sceneId.endsWith('.eth')) {
     try {
-      resolvedSceneId = await worlds.fetchWorldSceneId(realmName)
+      resolvedSceneId = await worlds.fetchWorldSceneId(realmName, parcel)
     } catch (error) {
       logger.error(`Failed to resolve scene ID for world ${realmName}: ${error}`)
       throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
@@ -45,7 +45,8 @@ export async function generateStreamLinkHandler(
         walletAddress: identity,
         worldName: isWorld ? realm.serverName : undefined,
         sceneId: resolvedSceneId,
-        realmName
+        realmName,
+        parcel
       })
 
   return {

@@ -108,6 +108,7 @@ export interface GenerateStreamLinkParams {
   worldName?: string
   sceneId: string
   realmName: string
+  parcel?: string
 }
 
 export interface GenerateStreamLinkResult {

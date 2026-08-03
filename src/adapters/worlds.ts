@@ -38,7 +38,7 @@ export async function createWorldsComponent(
     const response = await fetch.fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pointers: [pointer] })
+      body: JSON.stringify({ coordinates: [pointer] })
     })
 
     if (!response.ok) {
@@ -54,7 +54,11 @@ export async function createWorldsComponent(
       return undefined
     }
 
-    const scene = result.scenes[0]
+    const scene = result.scenes.find((candidate) => candidate.parcels?.includes(pointer))
+    if (!scene) {
+      logger.warn(`World scene response did not contain the requested pointer ${pointer} in ${worldName}`)
+      return undefined
+    }
     logger.debug(`Found scene ${scene.entityId} for world ${worldName} at pointer ${pointer}`)
     return scene
   }
@@ -72,6 +76,34 @@ export async function createWorldsComponent(
 
     logger.debug(`Found scene entity ${entityId} with base parcel ${result.metadata.scene.base}`)
     return result.metadata
+  }
+
+  async function fetchWorldSceneByEntityId(worldName: string, entityId: string): Promise<WorldScene | undefined> {
+    const metadata = await fetchWorldSceneEntityMetadataById(entityId)
+    const declaredWorldName = metadata?.worldConfiguration?.name ?? metadata?.worldConfiguration?.dclName
+    const base = metadata?.scene?.base
+    const parcels = metadata?.scene?.parcels
+    const canonicalParcel = /^(?:0|-?[1-9]\d*),(?:0|-?[1-9]\d*)$/
+
+    if (
+      !declaredWorldName ||
+      declaredWorldName.toLowerCase() !== worldName.toLowerCase() ||
+      !base ||
+      !Array.isArray(parcels) ||
+      !parcels.includes(base) ||
+      new Set(parcels).size !== parcels.length ||
+      parcels.some((parcel) => !canonicalParcel.test(parcel))
+    ) {
+      logger.warn(`Scene entity ${entityId} is not valid for world ${worldName}`)
+      return undefined
+    }
+
+    const scene = await fetchWorldSceneByPointer(worldName, base)
+    if (!scene || scene.entityId !== entityId || !scene.parcels.includes(base)) {
+      logger.warn(`Scene entity ${entityId} is not active at ${base} in world ${worldName}`)
+      return undefined
+    }
+    return { ...scene, baseParcel: base }
   }
 
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
@@ -167,35 +199,13 @@ export async function createWorldsComponent(
     return result.addresses ?? []
   }
 
-  /**
-   * Fetches the scene entity ID for a world from its about endpoint.
-   * Parses the first entry in configurations.scenesUrn to extract the content hash.
-   * @throws InvalidRequestError if the request fails, no scenes exist, or the URN format is invalid.
-   */
-  async function fetchWorldSceneId(worldName: string): Promise<string> {
-    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/about`
-    const response = await fetch.fetch(url)
-
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined)
-      throw new InvalidRequestError(`Failed to fetch world about for ${worldName}: HTTP ${response.status}`)
+  /** Resolves the active scene at an exact parcel within the named world. */
+  async function fetchWorldSceneId(worldName: string, pointer: string): Promise<string> {
+    const scene = await fetchWorldSceneByPointer(worldName, pointer)
+    if (!scene || !scene.parcels.includes(pointer)) {
+      throw new InvalidRequestError(`No scene found for world ${worldName} at parcel ${pointer}`)
     }
-
-    const about = (await response.json()) as {
-      configurations?: { scenesUrn?: string[] }
-    }
-
-    const scenesUrn = about.configurations?.scenesUrn
-    if (!scenesUrn || scenesUrn.length === 0) {
-      throw new InvalidRequestError(`No scenes found for world ${worldName}`)
-    }
-
-    const urnMatch = scenesUrn[0].match(/^urn:decentraland:entity:([^?]+)/)
-    if (!urnMatch) {
-      throw new InvalidRequestError(`Invalid scene URN format for world ${worldName}: ${scenesUrn[0]}`)
-    }
-
-    return urnMatch[1]
+    return scene.entityId
   }
 
   async function hasWorldAccessPermission(authAddress: string, worldName: string): Promise<boolean> {
@@ -213,6 +223,7 @@ export async function createWorldsComponent(
   return {
     fetchWorldActionPermissions,
     fetchWorldSceneByPointer,
+    fetchWorldSceneByEntityId,
     fetchWorldSceneEntityMetadataById,
     fetchWorldSceneId,
     hasWorldOwnerPermission,

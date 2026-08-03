@@ -14,7 +14,7 @@ export async function commsServerSceneHandler(
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
-  const { sceneId, identity, realm } = await validate(context)
+  const { sceneId, identity, realm, parcel } = await validate(context)
   let room: string
   const permissions: Permissions = {
     cast: [],
@@ -49,7 +49,7 @@ export async function commsServerSceneHandler(
     let worldSceneId = sceneId
     if (sceneId.endsWith('.eth')) {
       try {
-        worldSceneId = await worlds.fetchWorldSceneId(realmName)
+        worldSceneId = await worlds.fetchWorldSceneId(realmName, parcel)
       } catch (error) {
         logger.error(`Failed to fetch scene ID for world ${realmName}: ${error}`)
         throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)

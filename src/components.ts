@@ -204,7 +204,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneAdmins,
     livekit,
     places,
-    contentClient,
     lands,
     cache,
     logs

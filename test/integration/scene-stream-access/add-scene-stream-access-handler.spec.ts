@@ -78,13 +78,13 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       positions: ['10,20'],
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeWorldId,
       world_name: 'name.dcl.eth',
       owner: owner.authChain[0].payload
@@ -237,7 +237,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 200 with a new streaming access when it does not exist', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: anotherPlaceId,
       positions: ['11,22'],
       owner: owner.authChain[0].payload
@@ -352,7 +352,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 400 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockRejectedValue(
+    stubComponents.places.getPlaceBySceneId.mockRejectedValue(
       new InvalidRequestError('Could not find scene information')
     )
 
@@ -436,13 +436,13 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       positions: ['10,20'],
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeWorldId,
       world_name: 'name.dcl.eth',
       owner: owner.authChain[0].payload
@@ -715,7 +715,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
   it('returns 400 when request is invalid', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockRejectedValue(new InvalidRequestError('Invalid request'))
+    stubComponents.places.getPlaceBySceneId.mockRejectedValue(new InvalidRequestError('Invalid request'))
 
     const response = await makeRequest(
       localFetch,

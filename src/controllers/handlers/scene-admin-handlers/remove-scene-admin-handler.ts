@@ -19,7 +19,7 @@ export async function removeSceneAdminHandler(
     verification
   } = ctx
 
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
   const logger = logs.getLogger('remove-scene-admin-handler')
 
@@ -43,12 +43,8 @@ export async function removeSceneAdminHandler(
   const isWorld = hostname.includes('worlds-content-server')
   const authenticatedAddress = verification.auth.toLowerCase()
 
-  let place: PlaceAttributes
-  if (isWorld) {
-    place = await getWorldScenePlace(serverName, parcel)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  const place: PlaceAttributes = await getPlaceBySceneId(sceneId, isWorld ? serverName : undefined, parcel)
   if (!place) {
     throw new InvalidRequestError('Place not found')
   }

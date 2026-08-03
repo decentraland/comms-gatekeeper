@@ -89,17 +89,11 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       isWorld: false
     })
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
-      id: placeId,
-      positions: ['10,20'],
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
-
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
-      id: placeWorldId,
-      world_name: 'name.dcl.eth',
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
+      worldName
+        ? ({ id: placeWorldId, world_name: 'name.dcl.eth', owner: owner.authChain[0].payload } as PlaceAttributes)
+        : ({ id: placeId, positions: ['10,20'], owner: owner.authChain[0].payload } as PlaceAttributes)
+    )
 
     stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: true,

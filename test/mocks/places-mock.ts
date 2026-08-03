@@ -3,11 +3,18 @@ import { IPlacesComponent, PlaceAttributes } from '../../src/types/places.type'
 export const createPlacesMockedComponent = (
   overrides?: Partial<jest.Mocked<IPlacesComponent>>
 ): jest.Mocked<IPlacesComponent> => {
+  const getPlaceByParcel: jest.MockedFunction<IPlacesComponent['getPlaceByParcel']> = jest.fn()
+  const getWorldScenePlace: jest.MockedFunction<IPlacesComponent['getWorldScenePlace']> = jest.fn()
+
   return {
-    getPlaceByParcel: jest.fn(),
-    getWorldScenePlace: jest.fn(),
+    getPlaceByParcel,
+    getWorldScenePlace,
     getWorldScenePlaceByEntityId: jest.fn(),
-    getPlaceBySceneId: jest.fn(),
+    getPlaceBySceneId: jest.fn((_sceneId, worldName, parcel) => {
+      if (worldName && parcel) return getWorldScenePlace(worldName, parcel)
+      if (parcel) return getPlaceByParcel(parcel)
+      return Promise.reject(new Error('The mocked scene lookup requires a parcel or an explicit override'))
+    }),
     getWorldByName: jest.fn(),
     getPlaceStatusByIds: jest.fn(),
     ...overrides

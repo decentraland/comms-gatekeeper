@@ -50,6 +50,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
     expect(body.expiresAt).toBeDefined()
     expect(body.expiresInDays).toBe(4)
     expect(spyComponents.cast.generateStreamLink).toHaveBeenCalledWith({
+      parcel: '10,20',
       walletAddress: owner.authChain[0].payload,
       worldName: undefined,
       sceneId: 'bafytest123',
