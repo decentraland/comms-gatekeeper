@@ -39,15 +39,13 @@ export async function createClusterSubscriberComponent(
   const { config, logs, metrics, nats, livekit, accessGate, playerConnectionDb, peerState } = components
   const logger = logs.getLogger('cluster-subscriber')
 
-  const [enabledFlag, subjectPrefix, queueGroupSetting, banCacheTtlSetting] = await Promise.all([
+  const [enabledFlag, queueGroupSetting, banCacheTtlSetting] = await Promise.all([
     config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
-    config.getString('NATS_SUBJECT_PREFIX'),
     config.getString('NATS_QUEUE_GROUP'),
     config.getNumber('CLUSTER_BAN_CACHE_TTL_MS')
   ])
 
   const enabled = enabledFlag === 'true'
-  const prefix = subjectPrefix ?? ''
   const queueGroup = queueGroupSetting || DEFAULT_QUEUE_GROUP
 
   // First ban cache in this service - the path was two uncached DB reads per event. A stale
@@ -134,9 +132,7 @@ export async function createClusterSubscriberComponent(
 
     let delivered: boolean
     try {
-      // Deliberately unprefixed: WS Connector subscribes to the literal subject (see
-      // docs/ai-agent-context.md). Never hoist a shared encoder across the mint's await above
-      // - that would corrupt frames.
+      // Never hoist a shared encoder across the mint's await above - that would corrupt frames.
       delivered = nats.publish(`engine.peer.${wallet}.island_changed`, IslandChangedMessage.encode(message).finish())
     } catch (error) {
       metrics.increment('dcl_gatekeeper_cluster_publish_failed_total')
@@ -182,9 +178,8 @@ export async function createClusterSubscriberComponent(
     // Kept small and synchronous, with every path guarded. A throw escaping here unwinds
     // into the NATS client's reader loop and stops delivery on every subject.
     try {
-      // Wallet is the token after `peer.`, but the subject includes `prefix` first - stripping
-      // it before splitting keeps this correct for any prefix length, not just an empty one.
-      const wallet = subject.slice(prefix.length).split('.')[1]?.toLowerCase()
+      // Wallet is the token after `peer.`.
+      const wallet = subject.split('.')[1]?.toLowerCase()
       if (!wallet) {
         logger.warn(`Cannot extract a wallet from subject ${subject}`)
         return
@@ -221,7 +216,7 @@ export async function createClusterSubscriberComponent(
 
     // Queue-grouped: without it, N replicas would each mint and publish for every event,
     // giving each client N island_changed messages with N different tokens.
-    nats.subscribe(`${prefix}peer.*.cluster_change`, handleClusterChange, { queue: queueGroup })
+    nats.subscribe('peer.*.cluster_change', handleClusterChange, { queue: queueGroup })
 
     // Not awaited - well-known-components gates HTTP readiness (/health/ready, /health/startup)
     // on start() resolving, and connect() can stall ~20s per unreachable broker address before
@@ -229,7 +224,7 @@ export async function createClusterSubscriberComponent(
     // would only cost readiness time (src/adapters/nats/component.ts).
     void nats.connect()
 
-    logger.info(`Cluster subscriber started (prefix: "${prefix}", queue group: ${queueGroup})`)
+    logger.info(`Cluster subscriber started (queue group: ${queueGroup})`)
   }
 
   return { [START_COMPONENT]: start }

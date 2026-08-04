@@ -101,15 +101,15 @@ Both paths enforce bans synchronously in this service, before a token is issued.
 Replaces the one hop `archipelago-core` owned. Pulse clusters peers; this service turns an
 assignment into a LiveKit connection string. Behind `CLUSTER_SUBSCRIBER_ENABLED`, default off.
 
-**Consumes** (subjects prefixed with `NATS_SUBJECT_PREFIX`, matching Pulse's `Nats:SubjectPrefix`):
+**Consumes**:
 
 | Subject | Payload | Use |
 |---|---|---|
 | `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` | drives minting; queue-grouped so one replica handles each event |
 
-**Produces** `engine.peer.{addr}.island_changed` (`IslandChangedMessage`), **unprefixed** —
-WS Connector subscribes to the literal subject and needs no change. `peers` is published
-empty: unity-explorer reads only `connStr`.
+**Produces** `engine.peer.{addr}.island_changed` (`IslandChangedMessage`) — WS Connector
+subscribes to the literal subject and needs no change. `peers` is published empty:
+unity-explorer reads only `connStr`.
 
 **Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
 room name → `generateCredentials(wallet, room, { cast: [] }, false)` → publish.
