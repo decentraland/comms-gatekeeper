@@ -341,6 +341,45 @@ describe('worlds adapter', () => {
       })
     })
 
+    describe('and legacy metadata explicitly declares a different world without parcels', () => {
+      beforeEach(() => {
+        sceneMetadataFetch.mockResolvedValue({
+          metadata: { worldConfiguration: { name: 'another-world.dcl.eth' } }
+        })
+      })
+
+      it('should reject the entity without querying the scoped scene index', async () => {
+        const result = await worldsComponent.fetchWorldSceneByEntityId(worldName, entityId)
+
+        expect([result, mockFetch.fetch.mock.calls.length]).toEqual([undefined, 0])
+      })
+    })
+
+    describe('and a legacy entity has no scene metadata', () => {
+      let result: WorldScene | undefined
+
+      beforeEach(async () => {
+        sceneMetadataFetch.mockResolvedValue(undefined)
+        mockFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            scenes: [{ worldName, entityId, deployer: '0xdeployer', parcels: ['4,5'], baseParcel: '4,5' }],
+            total: 1
+          })
+        })
+
+        result = await worldsComponent.fetchWorldSceneByEntityId(worldName, entityId)
+      })
+
+      it('should trust the world-scoped active-scene index', () => {
+        expect(result).toEqual(expect.objectContaining({ entityId, baseParcel: '4,5' }))
+      })
+
+      it('should scope the lookup to the requested world', () => {
+        expect(mockFetch.fetch).toHaveBeenCalledWith(`${worldContentUrl}/world/${worldName}/scenes?limit=100&offset=0`)
+      })
+    })
+
     describe('and the entity metadata uses a non-canonical base parcel', () => {
       let result: WorldScene | undefined
 

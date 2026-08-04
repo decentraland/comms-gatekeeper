@@ -70,12 +70,16 @@ export async function createWorldsComponent(
 
     const result = await sceneEntityMetadataCache.fetch(url)
 
-    if (!result?.metadata?.scene) {
+    if (!result?.metadata) {
       logger.debug(`No scene entity metadata found for entity ID ${entityId}`)
       return undefined
     }
 
-    logger.debug(`Found scene entity ${entityId} with base parcel ${result.metadata.scene.base}`)
+    logger.debug(
+      result.metadata.scene
+        ? `Found scene entity ${entityId} with base parcel ${result.metadata.scene.base}`
+        : `Found legacy scene entity ${entityId} without parcel metadata`
+    )
     return result.metadata
   }
 
@@ -84,21 +88,49 @@ export async function createWorldsComponent(
     const declaredWorldName = metadata?.worldConfiguration?.name ?? metadata?.worldConfiguration?.dclName
     const sceneMetadata = metadata?.scene
 
-    if (
-      !declaredWorldName ||
-      declaredWorldName.toLowerCase() !== worldName.toLowerCase() ||
-      !SceneParcels.validate(sceneMetadata)
-    ) {
+    if (declaredWorldName && declaredWorldName.toLowerCase() !== worldName.toLowerCase()) {
       logger.warn(`Scene entity ${entityId} is not valid for world ${worldName}`)
       return undefined
     }
 
-    const scene = await fetchWorldSceneByPointer(worldName, sceneMetadata.base)
-    if (!scene || scene.entityId !== entityId || !scene.parcels.includes(sceneMetadata.base)) {
-      logger.warn(`Scene entity ${entityId} is not active at ${sceneMetadata.base} in world ${worldName}`)
+    if (sceneMetadata && !SceneParcels.validate(sceneMetadata)) {
+      logger.warn(`Scene entity ${entityId} has invalid parcel metadata for world ${worldName}`)
       return undefined
     }
-    return { ...scene, baseParcel: sceneMetadata.base }
+
+    if (sceneMetadata) {
+      const scene = await fetchWorldSceneByPointer(worldName, sceneMetadata.base)
+      if (!scene || scene.entityId !== entityId || !scene.parcels.includes(sceneMetadata.base)) {
+        logger.warn(`Scene entity ${entityId} is not active at ${sceneMetadata.base} in world ${worldName}`)
+        return undefined
+      }
+      return { ...scene, baseParcel: sceneMetadata.base }
+    }
+
+    // Legacy entities may lack metadata. In that case, the world-scoped scenes
+    // index is authoritative for both membership and the effective base parcel.
+    const pageSize = 100
+    const maxPages = 10
+    let offset = 0
+    let total = 1
+    while (offset < total && offset / pageSize < maxPages) {
+      const response = await fetch.fetch(
+        `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes?limit=${pageSize}&offset=${offset}`
+      )
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined)
+        return undefined
+      }
+      const result = (await response.json()) as { scenes?: WorldScene[]; total?: number }
+      const scene = result.scenes?.find((candidate) => candidate.entityId === entityId)
+      if (scene) {
+        const baseParcel = scene.baseParcel ?? scene.parcels[0]
+        return baseParcel ? { ...scene, baseParcel } : undefined
+      }
+      total = result.total ?? 0
+      offset += pageSize
+    }
+    return undefined
   }
 
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {

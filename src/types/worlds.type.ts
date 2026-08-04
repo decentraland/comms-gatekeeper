@@ -11,7 +11,7 @@ export type WorldScene = {
 
 // Metadata structure returned by the worlds content server /contents/:entityId endpoint
 export type WorldSceneEntityMetadata = {
-  scene: {
+  scene?: {
     base: string
     parcels: string[]
   }

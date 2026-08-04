@@ -116,6 +116,24 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
       })
     })
 
+    describe('and the streamer identity contains a room id with colons', () => {
+      beforeEach(() => {
+        spyComponents.cast.promotePresenter.mockResolvedValueOnce(undefined)
+      })
+
+      it('should respond with 200', async () => {
+        const streamerIdentity = 'stream:scene:localpreview:bafytest:a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+        const response = await makeRequest(
+          components.localFetch,
+          `/cast/presenters/${encodeURIComponent(streamerIdentity)}`,
+          { method: 'PUT', metadata },
+          owner
+        )
+
+        expect(response.status).toBe(200)
+      })
+    })
+
     describe('and the participantIdentity is a watcher identity', () => {
       it('should respond with 400', async () => {
         const watcherIdentity = 'watch:room-123:a1b2c3d4-e5f6-7890-abcd-ef1234567890'
@@ -225,6 +243,37 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
 
         expect(response.status).toBe(400)
       })
+    })
+  })
+
+  describe('when presenter operations target a world scene', () => {
+    const worldMetadata = {
+      sceneId: 'caller-supplied-scene',
+      realm: {
+        serverName: 'example.dcl.eth',
+        hostname: 'https://worlds-content-server.decentraland.org',
+        protocol: 'https'
+      },
+      parcel: '3,4'
+    }
+
+    beforeEach(() => {
+      spyComponents.worlds.fetchWorldSceneId.mockResolvedValue('trusted-world-scene')
+      spyComponents.cast.getPresenters.mockResolvedValue({ presenters: [] })
+    })
+
+    it('should derive the room from the world and parcel resolver', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/cast/presenters',
+        { method: 'GET', metadata: worldMetadata },
+        owner
+      )
+
+      expect(response.status).toBe(200)
+      expect(spyComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('example.dcl.eth', '3,4')
+      expect(spyComponents.cast.getPresenters.mock.calls[0][0]).toContain('trusted-world-scene')
+      expect(spyComponents.cast.getPresenters.mock.calls[0][0]).not.toContain('caller-supplied-scene')
     })
   })
 })

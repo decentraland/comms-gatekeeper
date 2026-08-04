@@ -2,6 +2,7 @@ import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
 import { validate } from '../../../logic/utils'
+import { resolveCastRoom } from './room-resolver'
 
 export async function generateStreamLinkHandler(
   context: HandlerContextWithPath<
@@ -26,13 +27,10 @@ export async function generateStreamLinkHandler(
     throw new InvalidRequestError('sceneId is required in authMetadata for Cast2 chat functionality')
   }
 
-  // The client may send the world name as the sceneId instead of the real content hash. Resolve
-  // it to the actual entity id so both the LiveKit room name and the Place lookup use the same
-  // hash the scene participants use (mirrors comms-scene-handler). Genesis scenes pass through.
   let resolvedSceneId = sceneId
-  if (isWorld && sceneId.endsWith('.eth')) {
+  if (isWorld) {
     try {
-      resolvedSceneId = await worlds.fetchWorldSceneId(realmName, parcel)
+      resolvedSceneId = (await resolveCastRoom({ livekit, worlds }, { sceneId, parcel, realmName, isWorld })).sceneId
     } catch (error) {
       logger.error(`Failed to resolve scene ID for world ${realmName}: ${error}`)
       throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
