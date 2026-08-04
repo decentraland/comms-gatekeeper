@@ -350,6 +350,19 @@ describe('PlacesComponent', () => {
       })
     })
 
+    describe('and the Genesis entity uses a non-canonical pointer', () => {
+      beforeEach(() => {
+        mockContentClient.fetchEntityById.mockResolvedValue({
+          pointers: ['010,20'],
+          metadata: { scene: { base: '10,20', parcels: ['10,20'] } }
+        })
+      })
+
+      it('should reject the unbound scene identity', async () => {
+        await expect(placesComponent.getPlaceBySceneId(sceneId)).rejects.toThrow(PlaceNotFoundError)
+      })
+    })
+
     describe('and a world name is given (world scene)', () => {
       const worldName = 'test-world'
       let result: PlaceAttributes

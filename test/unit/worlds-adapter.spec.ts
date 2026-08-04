@@ -340,6 +340,24 @@ describe('worlds adapter', () => {
         expect([result, mockFetch.fetch.mock.calls.length]).toEqual([undefined, 0])
       })
     })
+
+    describe('and the entity metadata uses a non-canonical base parcel', () => {
+      let result: WorldScene | undefined
+
+      beforeEach(async () => {
+        sceneMetadataFetch.mockResolvedValue({
+          metadata: {
+            scene: { base: '00,0', parcels: ['00,0'] },
+            worldConfiguration: { name: worldName }
+          }
+        })
+        result = await worldsComponent.fetchWorldSceneByEntityId(worldName, entityId)
+      })
+
+      it('should reject the entity without querying a scoped scene', () => {
+        expect([result, mockFetch.fetch.mock.calls.length]).toEqual([undefined, 0])
+      })
+    })
   })
 
   describe('when fetching parcel permission addresses', () => {

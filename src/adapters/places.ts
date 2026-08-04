@@ -1,3 +1,4 @@
+import { SceneParcels } from '@dcl/schemas'
 import { AppComponents } from '../types'
 import { PlaceNotFoundError } from '../types/errors'
 import { IPlacesComponent, PlaceAttributes, PlaceResponse } from '../types/places.type'
@@ -128,25 +129,25 @@ export async function createPlacesComponent(
     }
 
     const entity = await contentClient.fetchEntityById(sceneId)
-    const base = entity?.metadata?.scene?.base
-    const parcels = entity?.metadata?.scene?.parcels
+    const scene = entity?.metadata?.scene
     const pointers = entity?.pointers
-    const canonicalParcel = /^(?:0|-?[1-9]\d*),(?:0|-?[1-9]\d*)$/
-    const pointerSet = Array.isArray(pointers) ? new Set(pointers) : new Set<string>()
+    const validPointers =
+      Array.isArray(pointers) &&
+      pointers.length > 0 &&
+      pointers.every((pointer) => typeof pointer === 'string') &&
+      SceneParcels.validate({ base: pointers[0], parcels: pointers })
+    const pointerSet = validPointers ? new Set(pointers) : new Set<string>()
     const validIdentity =
-      !!base &&
-      Array.isArray(parcels) &&
-      parcels.includes(base) &&
-      new Set(parcels).size === parcels.length &&
-      pointerSet.size === parcels.length &&
-      parcels.every((value: string) => canonicalParcel.test(value) && pointerSet.has(value)) &&
-      (!parcel || parcels.includes(parcel))
+      SceneParcels.validate(scene) &&
+      pointerSet.size === scene.parcels.length &&
+      scene.parcels.every((value) => pointerSet.has(value)) &&
+      (!parcel || scene.parcels.includes(parcel))
     if (!validIdentity) {
       logger.info(`No scene entity found for scene ID ${sceneId}`)
       throw new PlaceNotFoundError(`No scene entity found for scene ID ${sceneId}`)
     }
 
-    return getPlaceByParcel(base)
+    return getPlaceByParcel(scene.base)
   }
 
   return {
