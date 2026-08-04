@@ -54,7 +54,6 @@ describe('cluster-subscriber component', () => {
   }: BuildOptions = {}): Promise<IClusterSubscriberComponent> {
     const values: Record<string, string | undefined> = {
       CLUSTER_SUBSCRIBER_ENABLED: 'true',
-      NATS_SUBJECT_PREFIX: '',
       NATS_QUEUE_GROUP: 'comms-gatekeeper-cluster',
       ...settings
     }
@@ -157,13 +156,13 @@ describe('cluster-subscriber component', () => {
       expect(nats.connect).toHaveBeenCalled()
     })
 
-    describe('and neither the subject prefix nor the queue group is configured', () => {
+    describe('and the queue group is not configured', () => {
       beforeEach(async () => {
-        component = await build({ settings: { NATS_SUBJECT_PREFIX: undefined, NATS_QUEUE_GROUP: undefined } })
+        component = await build({ settings: { NATS_QUEUE_GROUP: undefined } })
         await component[START_COMPONENT]!(startOptions)
       })
 
-      it('should subscribe unprefixed under the default queue group', () => {
+      it('should subscribe under the default queue group', () => {
         // The queue group must never fall back to undefined: without one, every replica
         // handles every event and each client gets N island_changed messages.
         expect(nats.subscribe).toHaveBeenCalledWith('peer.*.cluster_change', expect.any(Function), {
@@ -172,27 +171,11 @@ describe('cluster-subscriber component', () => {
       })
     })
 
-    describe('and a subject prefix is configured', () => {
-      beforeEach(async () => {
-        component = await build({ settings: { NATS_SUBJECT_PREFIX: 'dev.' } })
-        await component[START_COMPONENT]!(startOptions)
-      })
-
-      it('should apply the prefix to the inbound subject', () => {
-        expect(nats.subscribe).toHaveBeenCalledWith('dev.peer.*.cluster_change', expect.any(Function), {
-          queue: 'comms-gatekeeper-cluster'
-        })
-      })
-    })
-
-    describe('and a cluster_change arrives on a prefixed subject', () => {
+    describe('and a cluster_change arrives', () => {
       let decoded: IslandChangedMessage
 
       beforeEach(async () => {
-        component = await build({ settings: { NATS_SUBJECT_PREFIX: 'dev.' } })
-        await component[START_COMPONENT]!(startOptions)
-
-        await deliver(`dev.peer.${WALLET}.cluster_change`, clusterChange('C5'))
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
         decoded = IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array)
       })
 
@@ -200,7 +183,7 @@ describe('cluster-subscriber component', () => {
         expect(livekit.generateCredentials).toHaveBeenCalledWith(WALLET, 'island-C5', { cast: [] }, false)
       })
 
-      it('should publish on the unprefixed outbound subject', () => {
+      it('should publish on the outbound subject', () => {
         expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
       })
 

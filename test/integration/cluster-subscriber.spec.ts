@@ -123,7 +123,6 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
         ({
           CLUSTER_SUBSCRIBER_ENABLED: 'true',
           NATS_URL: NATS_TEST_URL,
-          NATS_SUBJECT_PREFIX: '',
           NATS_QUEUE_GROUP: 'comms-gatekeeper-cluster-test'
         })[key],
       getNumber: async () => undefined,
