@@ -2,7 +2,12 @@ import { randomUUID } from 'crypto'
 import { FOUR_DAYS } from '../../../logic/time'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError, LivekitIngressNotFoundError, UnauthorizedError } from '../../../types/errors'
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  LivekitIngressNotFoundError,
+  UnauthorizedError
+} from '../../../types/errors'
 import { PlaceAttributes } from '../../../types/places.type'
 import { NotificationStreamingType } from '../../../types/notification.type'
 
@@ -16,14 +21,15 @@ export async function resetSceneStreamAccessHandler(
       | 'livekit'
       | 'logs'
       | 'config'
-      | 'notifications',
+      | 'notifications'
+      | 'userModeration',
       '/scene-stream-access/reset'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, notifications },
+    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, notifications, userModeration },
     verification
   } = ctx
   const logger = logs.getLogger('reset-scene-stream-access-handler')
@@ -46,6 +52,17 @@ export async function resetSceneStreamAccessHandler(
   // sceneId is required for all requests
   if (!sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  }
+
+  // Outside the try below, which maps anything but UnauthorizedError to a 500. Before the admin
+  // check too: this mints a streaming key, and validateStreamerToken honours a key without
+  // re-checking the wallet.
+  const { isBanned } = await userModeration.getActiveBanForConnection({
+    address: authenticatedAddress.toLowerCase()
+  })
+  if (isBanned) {
+    logger.warn(`Rejected stream key reset from platform-banned user: ${authenticatedAddress}`)
+    throw new ForbiddenError('Access denied, platform-banned user')
   }
 
   try {

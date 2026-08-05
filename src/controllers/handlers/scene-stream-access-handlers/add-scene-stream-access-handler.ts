@@ -1,7 +1,12 @@
 import { randomUUID } from 'crypto'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
-import { InvalidRequestError, StreamingAccessNotFoundError, UnauthorizedError } from '../../../types/errors'
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  StreamingAccessNotFoundError,
+  UnauthorizedError
+} from '../../../types/errors'
 import { SceneStreamAccess } from '../../../types'
 import { PlaceAttributes } from '../../../types/places.type'
 import { FOUR_DAYS } from '../../../logic/time'
@@ -9,14 +14,21 @@ import { FOUR_DAYS } from '../../../logic/time'
 export async function addSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'livekit' | 'logs' | 'config',
+      | 'fetch'
+      | 'sceneStreamAccessManager'
+      | 'sceneManager'
+      | 'places'
+      | 'livekit'
+      | 'logs'
+      | 'config'
+      | 'userModeration',
       '/scene-stream-access'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit },
+    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, userModeration },
     verification
   } = ctx
   const logger = logs.getLogger('add-scene-stream-access-handler')
@@ -27,6 +39,16 @@ export async function addSceneStreamAccessHandler(
     throw new InvalidRequestError('Authentication required')
   }
   const authenticatedAddress = verification.auth
+
+  // Before the admin check: this returns a streaming key, and validateStreamerToken honours a key
+  // without re-checking the wallet.
+  const { isBanned } = await userModeration.getActiveBanForConnection({
+    address: authenticatedAddress.toLowerCase()
+  })
+  if (isBanned) {
+    logger.warn(`Rejected stream key request from platform-banned user: ${authenticatedAddress}`)
+    throw new ForbiddenError('Access denied, platform-banned user')
+  }
 
   const {
     parcel,

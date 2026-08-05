@@ -408,4 +408,44 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       expect(response.status).toBe(400)
     })
   })
+
+  // A reset mints a fresh key, so it has to be gated like the initial request.
+  describe('when the requesting admin has an active platform ban', () => {
+    const bannedBy = '0x0000000000000000000000000000000000000099'
+
+    beforeEach(async () => {
+      await components.userModerationDb.createBan({
+        bannedAddress: owner.authChain[0].payload.toLowerCase(),
+        bannedBy,
+        reason: 'Harassment'
+      })
+    })
+
+    afterEach(async () => {
+      await components.database.query('DELETE FROM user_bans')
+      await components.database.query('DELETE FROM player_connection_info')
+    })
+
+    // The handler wraps its body in a catch that turns anything but UnauthorizedError into a 500,
+    // so this also pins that the rejection is raised outside it.
+    it('should respond with a 403 and not a 500', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        { method: 'PUT', metadata: metadataLand },
+        owner
+      )
+      const body = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(body).toEqual({ error: 'Access denied, platform-banned user' })
+    })
+
+    it('should not remove the existing ingress or mint a new one', async () => {
+      await makeRequest(components.localFetch, '/scene-stream-access', { method: 'PUT', metadata: metadataLand }, owner)
+
+      expect(stubComponents.livekit.removeIngress).not.toHaveBeenCalled()
+      expect(stubComponents.livekit.getOrCreateIngress).not.toHaveBeenCalled()
+    })
+  })
 })
