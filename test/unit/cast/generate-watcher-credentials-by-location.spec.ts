@@ -262,6 +262,50 @@ describe('when generating watcher credentials by location', () => {
       expect(result.roomId).toBe('scene-test-realm:bafkreiscene123')
       expect(result.identity).toMatch(/^watch:scene-test-realm:bafkreiscene123:[0-9a-f-]+$/)
     })
+
+    // Covered through the gated entry point rather than the internal minting helper, which is no
+    // longer on ICastComponent.
+    it('should mint the credentials with watch-only permissions and the watcher role', async () => {
+      await castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+
+      expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+        expect.any(String),
+        'scene-test-realm:bafkreiscene123',
+        expect.objectContaining({
+          canPublish: false,
+          canSubscribe: true,
+          cast: []
+        }),
+        false,
+        expect.objectContaining({
+          role: 'watcher',
+          displayName: identity
+        })
+      )
+    })
+  })
+
+  describe('and the identity contains special characters', () => {
+    const location = '10,20'
+    const specialIdentity = 'User With Spaces & Special Chars!'
+
+    beforeEach(() => {
+      mockPlaces.getPlaceByParcel.mockResolvedValue(mockPlace)
+    })
+
+    it('should pass the identity through to the credential metadata', async () => {
+      await castComponent.generateWatcherCredentialsByLocation(location, specialIdentity, WATCHER_ADDRESS)
+
+      expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Boolean),
+        expect.objectContaining({
+          displayName: specialIdentity
+        })
+      )
+    })
   })
 
   describe('and the place has no title', () => {

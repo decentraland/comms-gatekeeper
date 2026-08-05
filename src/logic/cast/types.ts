@@ -38,14 +38,6 @@ export interface ICastComponent {
   validateStreamerToken(streamingKey: string, identity: string): Promise<ValidateStreamerTokenResult>
 
   /**
-   * Generates watcher credentials for a specific room.
-   * @param roomId - The LiveKit room ID to join
-   * @param identity - Display name for the watcher
-   * @returns LiveKit credentials for the watcher
-   */
-  generateWatcherCredentials(roomId: string, identity: string): Promise<GenerateWatcherCredentialsResult>
-
-  /**
    * Generates watcher credentials by resolving a location to a room.
    * @param location - Parcel coordinates or world name
    * @param identity - Display name for the watcher

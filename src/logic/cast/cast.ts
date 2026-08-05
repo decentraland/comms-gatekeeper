@@ -328,6 +328,13 @@ export function createCastComponent(
   /**
    * Generates LiveKit credentials for a watcher (viewer).
    * Watchers connect to the scene room with read-only permissions (can view streams but not publish).
+   *
+   * Deliberately **not** on {@link ICastComponent}: it takes no wallet address and runs no ban
+   * checks, so it mints a token for whoever asks. The gates live in
+   * {@link generateWatcherCredentialsByLocation}, which is the only caller. Exposing this on the
+   * component surface would let a future caller mint watcher credentials straight past them —
+   * keep it internal, or give it an address and move the gates into it, before adding a caller.
+   *
    * @param roomId - The scene room ID to join (format: scene:${realmName}:${sceneId})
    * @param identity - Display name for the watcher (required, provided by frontend)
    * @returns LiveKit credentials
@@ -635,7 +642,6 @@ export function createCastComponent(
     generateStreamLink,
     generatePreviewStreamLink,
     validateStreamerToken,
-    generateWatcherCredentials,
     generateWatcherCredentialsByLocation,
     generatePresentationBotToken,
     promotePresenter,
