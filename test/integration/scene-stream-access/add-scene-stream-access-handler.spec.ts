@@ -774,6 +774,53 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     })
   })
 
+  // No player_connection_info row for this wallet: the match can only come from the device id on
+  // the request itself.
+  describe('when the request carries a device identifier another wallet is banned on', () => {
+    const bannedBy = '0x0000000000000000000000000000000000000099'
+
+    beforeEach(async () => {
+      stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(mockSceneStreamAccess)
+      jest
+        .spyOn(handlersUtils, 'validate')
+        .mockResolvedValue({ ...metadataLand, deviceIdentifier: 'banned-device' } as any)
+      await components.userModerationDb.createBan({
+        bannedAddress: '0x0000000000000000000000000000000000000001',
+        bannedBy,
+        reason: 'Evasion',
+        bannedDeviceId: 'banned-device'
+      })
+    })
+
+    afterEach(async () => {
+      await components.database.query('DELETE FROM user_bans')
+      await components.database.query('DELETE FROM player_connection_info')
+    })
+
+    it('should respond with a 403 for a wallet with no ban and no recorded connection', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        { method: 'POST', metadata: metadataLand },
+        owner
+      )
+
+      expect(response.status).toBe(403)
+    })
+
+    it('should not return an existing streaming key', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        { method: 'POST', metadata: metadataLand },
+        owner
+      )
+      const body = await response.json()
+
+      expect(body).not.toHaveProperty('streaming_key')
+    })
+  })
+
   describe('when the requesting admin last connected from a device another wallet is banned on', () => {
     const bannedBy = '0x0000000000000000000000000000000000000099'
 

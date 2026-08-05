@@ -409,6 +409,46 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     })
   })
 
+  // No player_connection_info row for this wallet: the match can only come from the device id on
+  // the request itself.
+  describe('when the reset request carries a device identifier another wallet is banned on', () => {
+    const bannedBy = '0x0000000000000000000000000000000000000099'
+
+    beforeEach(async () => {
+      jest
+        .spyOn(handlersUtils, 'validate')
+        .mockResolvedValue({ ...metadataLand, deviceIdentifier: 'banned-device' } as any)
+      await components.userModerationDb.createBan({
+        bannedAddress: '0x0000000000000000000000000000000000000001',
+        bannedBy,
+        reason: 'Evasion',
+        bannedDeviceId: 'banned-device'
+      })
+    })
+
+    afterEach(async () => {
+      await components.database.query('DELETE FROM user_bans')
+      await components.database.query('DELETE FROM player_connection_info')
+    })
+
+    it('should respond with a 403 for a wallet with no ban and no recorded connection', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        { method: 'PUT', metadata: metadataLand },
+        owner
+      )
+
+      expect(response.status).toBe(403)
+    })
+
+    it('should not mint a replacement key', async () => {
+      await makeRequest(components.localFetch, '/scene-stream-access', { method: 'PUT', metadata: metadataLand }, owner)
+
+      expect(stubComponents.sceneStreamAccessManager.addAccess).not.toHaveBeenCalled()
+    })
+  })
+
   // A reset mints a fresh key, so it has to be gated like the initial request.
   describe('when the requesting admin has an active platform ban', () => {
     const bannedBy = '0x0000000000000000000000000000000000000099'

@@ -40,22 +40,24 @@ export async function addSceneStreamAccessHandler(
   }
   const authenticatedAddress = verification.auth
 
+  const {
+    parcel,
+    realm: { hostname, serverName },
+    sceneId,
+    deviceIdentifier
+  } = await validate(ctx)
+  const isWorld = !!hostname?.includes('worlds-content-server')
+
   // Before the admin check: this returns a streaming key, and validateStreamerToken honours a key
   // without re-checking the wallet.
   const { isBanned } = await userModeration.getActiveBanForConnection({
-    address: authenticatedAddress.toLowerCase()
+    address: authenticatedAddress.toLowerCase(),
+    deviceId: deviceIdentifier
   })
   if (isBanned) {
     logger.warn(`Rejected stream key request from platform-banned user: ${authenticatedAddress}`)
     throw new ForbiddenError('Access denied, platform-banned user')
   }
-
-  const {
-    parcel,
-    realm: { hostname, serverName },
-    sceneId
-  } = await validate(ctx)
-  const isWorld = !!hostname?.includes('worlds-content-server')
 
   // sceneId is required for all requests
   if (!sceneId) {

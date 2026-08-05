@@ -45,7 +45,8 @@ export async function resetSceneStreamAccessHandler(
   const {
     parcel,
     realm: { hostname, serverName },
-    sceneId
+    sceneId,
+    deviceIdentifier
   } = await validate(ctx)
   const isWorld = !!hostname?.includes('worlds-content-server')
 
@@ -58,7 +59,8 @@ export async function resetSceneStreamAccessHandler(
   // check too: this mints a streaming key, and validateStreamerToken honours a key without
   // re-checking the wallet.
   const { isBanned } = await userModeration.getActiveBanForConnection({
-    address: authenticatedAddress.toLowerCase()
+    address: authenticatedAddress.toLowerCase(),
+    deviceId: deviceIdentifier
   })
   if (isBanned) {
     logger.warn(`Rejected stream key reset from platform-banned user: ${authenticatedAddress}`)
