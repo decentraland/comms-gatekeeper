@@ -69,9 +69,18 @@ export interface IUserModerationComponent {
    */
   isPlayerBanned(address: string): Promise<BanStatus>
   /**
-   * Whether a connection should be rejected, matching the address **or** the device id the
-   * request arrives with against the device snapshot on any active ban. This is the enforcement
-   * question, and the only one that accounts for wallet-switching evasion.
+   * Whether a connection should be rejected, matching the address **or** a device id against the
+   * device snapshot on any active ban. This is the enforcement question, and the only one that
+   * accounts for wallet-switching evasion.
+   *
+   * The device id is the one the request arrives with; when the request has none, it falls back to
+   * the device this address was last recorded connecting from (`player_connection_info`). That
+   * fallback is what gives device coverage to the paths that never receive a device identifier
+   * (voice, cast) and stops a client from shedding coverage by going quiet. Only the last recorded
+   * device is consulted, not a full history.
+   *
+   * Unlike {@link IUserModerationComponent.isPlayerBanned}, never expose this on an
+   * unauthenticated route: a device match reveals that two addresses share a device.
    */
   getActiveBanForConnection(query: ConnectionBanQuery): Promise<BanStatus>
   getActiveBans(): Promise<UserBan[]>

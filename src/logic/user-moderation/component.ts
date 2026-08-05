@@ -129,7 +129,37 @@ export function createUserModerationComponent(
     },
 
     async getActiveBanForConnection({ address, deviceId }: ConnectionBanQuery): Promise<BanStatus> {
-      return userModerationDb.getActiveBanForConnection({ address: normalizeAddress(address), deviceId })
+      const normalizedAddress = normalizeAddress(address)
+
+      // When the request carries no device identifier, fall back to the device this address was
+      // last recorded connecting from. Two paths need it:
+      //
+      // - Voice and cast never receive one (voice is called by the social service over a bearer
+      //   token; cast requests carry no device metadata), so without this they are address-only
+      //   and a wallet that already connected from a banned device still gets a token.
+      // - A client that stops sending a device identifier would otherwise shed device coverage
+      //   simply by going quiet, since a missing term matches nothing.
+      //
+      // Race-free against the connection-info upsert that runs concurrently on the token paths:
+      // that upsert COALESCEs a null incoming device onto the stored value, so a request which
+      // supplies no device cannot clobber the row this lookup reads, whichever lands first.
+      //
+      // Only the last recorded device is available (`player_connection_info` is one row per
+      // address), so this covers the device a wallet most recently used, not every device it has
+      // ever used.
+      let resolvedDeviceId = deviceId
+      if (!resolvedDeviceId) {
+        try {
+          const connectionInfo = await playerConnectionDb.getByAddress(normalizedAddress)
+          resolvedDeviceId = connectionInfo?.deviceId || null
+        } catch (error: any) {
+          // The device term is supplementary: fall through to the address match rather than
+          // failing a gate the request itself did not depend on.
+          logger.warn(`Failed to resolve recorded device for ${normalizedAddress}: ${error.message}`)
+        }
+      }
+
+      return userModerationDb.getActiveBanForConnection({ address: normalizedAddress, deviceId: resolvedDeviceId })
     },
 
     async getActiveBans(): Promise<UserBan[]> {

@@ -70,8 +70,9 @@ export function createCastComponent(
    * Cast tokens are LiveKit tokens for the scene's real comms room, so a platform ban has to stop
    * them for the same reason it stops scene comms.
    *
-   * Address-only: Cast requests are signed by the wallet but carry no device identifier, so this
-   * degrades to an address match. See the voice component for the same reasoning.
+   * Cast requests are signed by the wallet but carry no device identifier, so the gate falls back
+   * to the device this address was last recorded connecting from. See the voice component for the
+   * same reasoning.
    *
    * @param walletAddress - Lowercased address the credentials would be issued to.
    * @throws {ForbiddenError} If the address is platform-banned.

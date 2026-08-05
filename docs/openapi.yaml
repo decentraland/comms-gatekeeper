@@ -989,7 +989,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden - One of the participants has an active platform ban
+          description: Forbidden - One of the participants has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:
@@ -1128,7 +1128,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden - The user has an active platform ban
+          description: Forbidden - The user has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:
@@ -1622,7 +1622,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden - The watcher has an active platform ban or is banned from the scene
+          description: Forbidden - The watcher has an active platform ban (or last connected from a banned device), or is banned from the scene
           content:
             application/json:
               schema:
@@ -1674,7 +1674,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '403':
-          description: Forbidden - The caller has an active platform ban
+          description: Forbidden - The caller has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:
@@ -1883,12 +1883,13 @@ paths:
 
         ### This is not the same check token retrieval performs
 
-        `isBanned: false` here does **not** guarantee the user can connect. Token retrieval
-        (`POST /get-scene-adapter`, `GET /private-messages/token`) additionally matches the
-        device identifier the request arrives with against the device snapshot recorded on
-        other users' bans, so a user who was banned on one wallet and reconnects from the
-        same device under a different wallet is rejected there while this endpoint reports
-        them as not banned.
+        `isBanned: false` here does **not** guarantee the user can connect. Every token path
+        additionally matches a device identifier against the device snapshot recorded on other
+        users' bans — the identifier the request arrives with, or the device the address was
+        last recorded connecting from when the request carries none (as voice and cast requests
+        always do). So a user who was banned on one wallet and reconnects from the same device
+        under a different wallet is rejected there while this endpoint reports them as not
+        banned.
 
         That difference is intentional. This endpoint answers "does this wallet have a ban
         record?" — the question a client needs in order to show a ban notice with its reason,

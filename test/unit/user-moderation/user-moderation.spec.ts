@@ -544,6 +544,120 @@ describe('user-moderation-component', () => {
         expect(result).toEqual({ isBanned: false })
       })
     })
+
+    describe('and the request supplies a device id', () => {
+      beforeEach(() => {
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValueOnce({ isBanned: false })
+      })
+
+      it('should not look up the recorded device, so the supplied one is authoritative', async () => {
+        await component.getActiveBanForConnection({ address: '0xABC', deviceId: 'supplied-device' })
+
+        expect(mockPlayerConnectionDb.getByAddress).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the request supplies no device id and the address has a recorded device', () => {
+      beforeEach(() => {
+        mockPlayerConnectionDb.getByAddress.mockResolvedValue({
+          address: '0xabc',
+          ipAddress: '1.2.3.4',
+          deviceId: 'recorded-device',
+          createdAt: 1,
+          updatedAt: 2
+        })
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValueOnce({ isBanned: false })
+      })
+
+      it('should look up the recorded device for the normalized address', async () => {
+        await component.getActiveBanForConnection({ address: '0xABC' })
+
+        expect(mockPlayerConnectionDb.getByAddress).toHaveBeenCalledWith('0xabc')
+      })
+
+      it('should match the ban against the recorded device', async () => {
+        await component.getActiveBanForConnection({ address: '0xABC' })
+
+        expect(mockUserModerationDb.getActiveBanForConnection).toHaveBeenCalledWith({
+          address: '0xabc',
+          deviceId: 'recorded-device'
+        })
+      })
+
+      it('should report the connection as banned when the recorded device is banned', async () => {
+        const ban = makeBan({ bannedAddress: '0xother', bannedDeviceId: 'recorded-device' })
+        mockUserModerationDb.getActiveBanForConnection.mockReset()
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValueOnce({ isBanned: true, ban })
+
+        const result = await component.getActiveBanForConnection({ address: '0xABC' })
+
+        expect(result).toEqual({ isBanned: true, ban })
+      })
+    })
+
+    describe('and the request supplies no device id and the recorded device is an empty string', () => {
+      beforeEach(() => {
+        mockPlayerConnectionDb.getByAddress.mockResolvedValue({
+          address: '0xabc',
+          ipAddress: null,
+          deviceId: '',
+          createdAt: 1,
+          updatedAt: 2
+        })
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValueOnce({ isBanned: false })
+      })
+
+      it('should pass null so an empty term cannot match rows with no device', async () => {
+        await component.getActiveBanForConnection({ address: '0xABC' })
+
+        expect(mockUserModerationDb.getActiveBanForConnection).toHaveBeenCalledWith({
+          address: '0xabc',
+          deviceId: null
+        })
+      })
+    })
+
+    describe('and the request supplies no device id and the address has no recorded connection', () => {
+      beforeEach(() => {
+        mockPlayerConnectionDb.getByAddress.mockResolvedValue(null)
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValueOnce({ isBanned: false })
+      })
+
+      it('should fall back to an address-only match', async () => {
+        await component.getActiveBanForConnection({ address: '0xABC' })
+
+        expect(mockUserModerationDb.getActiveBanForConnection).toHaveBeenCalledWith({
+          address: '0xabc',
+          deviceId: null
+        })
+      })
+    })
+
+    describe('and resolving the recorded device fails', () => {
+      beforeEach(() => {
+        mockPlayerConnectionDb.getByAddress.mockRejectedValue(new Error('connection info unavailable'))
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValueOnce({ isBanned: false })
+      })
+
+      it('should still evaluate the address match rather than failing the gate', async () => {
+        await component.getActiveBanForConnection({ address: '0xABC' })
+
+        expect(mockUserModerationDb.getActiveBanForConnection).toHaveBeenCalledWith({
+          address: '0xabc',
+          deviceId: undefined
+        })
+      })
+
+      it('should report the connection as banned when the address itself is banned', async () => {
+        const ban = makeBan({ bannedAddress: '0xabc' })
+        mockUserModerationDb.getActiveBanForConnection.mockReset()
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValueOnce({ isBanned: true, ban })
+
+        const result = await component.getActiveBanForConnection({ address: '0xABC' })
+
+        expect(result).toEqual({ isBanned: true, ban })
+      })
+    })
   })
 
   describe('when getting active bans', () => {

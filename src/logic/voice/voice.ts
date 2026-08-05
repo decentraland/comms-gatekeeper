@@ -29,10 +29,11 @@ export function createVoiceComponent(
    * stops scene comms: without this, a banned user keeps full real-time audio access to everyone
    * they can reach through a call or a community stage.
    *
-   * Address-only by design: these routes are called by the social service with a bearer token, so
-   * no signed-fetch metadata — and therefore no device identifier — reaches this component.
-   * `getActiveBanForConnection` is still the right gate to ask; it degrades to an address match
-   * when no device id is supplied, and picks up device coverage for free if one ever is.
+   * These routes are called by the social service over a bearer token, so no signed-fetch metadata
+   * — and therefore no device identifier — reaches this component. Passing no device id is
+   * deliberate rather than a gap: `getActiveBanForConnection` then falls back to the device each
+   * address was last recorded connecting from, so a wallet that already connected from a banned
+   * device is rejected here too.
    *
    * @param addresses - Lowercased addresses that are about to receive credentials.
    * @throws {ForbiddenError} If any address is platform-banned.
