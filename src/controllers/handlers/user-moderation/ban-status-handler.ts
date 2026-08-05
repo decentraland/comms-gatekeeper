@@ -15,10 +15,15 @@ import { HandlerContextWithPath } from '../../../types'
  * - This route is unauthenticated. A device-aware answer would let anyone query two arbitrary
  *   addresses and infer from a shared ban that they belong to the same device, turning a public
  *   endpoint into a wallet-linkage oracle. This is the load-bearing reason.
- * - It would hand ban evaders a probe. An evader could check a new wallet here before connecting
- *   and learn whether their device is already covered, then discard wallets until one comes back
- *   clean. Keeping device enforcement undisclosed means the only way to discover it is to be
- *   rejected by it.
+ * - It would hand ban evaders a probe on *fresh* wallets. A device-aware lookup would let an
+ *   evader test a new wallet here before connecting and cycle wallets until one came back clean,
+ *   which is why the lookup stays address-only.
+ *
+ *   This does not keep the existence of device enforcement secret, and deliberately no longer
+ *   tries to: the response includes `bannedDeviceId`, so a banned wallet querying itself can see
+ *   that a device was captured. That disclosure is an accepted trade-off. What is withheld is the
+ *   ability to test an *arbitrary* address against a device, which is the part that would let an
+ *   evader shop for a clean wallet.
  *
  * Note that the third reason this once gave — that a device-aware answer here would consult the
  * address's *last recorded* device rather than the one a future connection arrives from, and so
