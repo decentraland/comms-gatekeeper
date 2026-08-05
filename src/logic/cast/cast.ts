@@ -92,6 +92,10 @@ export function createCastComponent(
   /**
    * Creates or reuses stream access for a place, returning the streaming key and expiration.
    * Shared logic used by both generateStreamLink and generatePreviewStreamLink.
+   *
+   * Mints a key that `validateStreamerToken` later honours without re-checking the wallet, so
+   * every caller must gate on the platform ban first — both current callers do, each before its
+   * own permission logic.
    */
   async function createStreamAccess(
     place: StreamAccessPlace,
@@ -209,6 +213,7 @@ export function createCastComponent(
    * Generates a stream link for local preview. Skips admin check and uses a synthetic place.
    * @param params - Parameters for generating the preview stream link
    * @returns Stream link details
+   * @throws {ForbiddenError} If the caller has an active platform ban
    */
   async function generatePreviewStreamLink(params: {
     sceneId: string
@@ -216,6 +221,14 @@ export function createCastComponent(
     walletAddress: string
   }): Promise<GenerateStreamLinkResult> {
     const { sceneId, realmName, walletAddress } = params
+
+    // Preview minting is gated on the platform ban too. It skips the admin check and the realm
+    // name deciding this branch is self-asserted, so wherever ALLOW_LOCAL_PREVIEW is on this
+    // would otherwise be a one-request way for a banned wallet to obtain a working streaming
+    // key — and `validateStreamerToken` trusts a minted key without re-checking the wallet.
+    // Matches `comms-scene-handler`, which applies the platform ban before it branches on
+    // preview and only skips the *scene*-ban check for it.
+    await assertNoActivePlatformBan(walletAddress.toLowerCase())
 
     const roomId = livekit.getSceneRoomName(realmName, sceneId)
     const place: StreamAccessPlace = {

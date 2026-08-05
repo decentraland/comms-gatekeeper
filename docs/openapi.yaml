@@ -1648,10 +1648,13 @@ paths:
         Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
 
         Rejected with `403` when the caller has an active platform ban, checked before the scene
-        admin lookup so the response never doubles as an admin-status oracle. This is the only
-        wallet-scoped gate on the streaming path: `POST /cast/streamer-token` authenticates a
-        streaming key rather than a wallet, so a key minted before the ban keeps working until it
-        expires.
+        admin lookup so the response never doubles as an admin-status oracle. The local-preview
+        branch (`ALLOW_LOCAL_PREVIEW` with a preview realm name) is gated too, even though it
+        skips the admin check.
+
+        This is the only wallet-scoped gate on the streaming path: `POST /cast/streamer-token`
+        authenticates a streaming key rather than a wallet, so a key minted before the ban keeps
+        working until it expires.
       security:
         - SignedFetch: []
       responses:

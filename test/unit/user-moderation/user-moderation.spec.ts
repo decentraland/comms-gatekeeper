@@ -658,6 +658,25 @@ describe('user-moderation-component', () => {
         expect(result).toEqual({ isBanned: true, ban })
       })
     })
+
+    describe('and resolving the recorded device rejects with a non-Error value', () => {
+      beforeEach(() => {
+        mockUserModerationDb.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
+      })
+
+      // Reporting the failure must not itself throw, or the handler that exists to keep this
+      // non-fatal would take the whole gate down with it.
+      it.each([
+        ['undefined', undefined],
+        ['null', null],
+        ['a string', 'connection info unavailable'],
+        ['a number', 500]
+      ])('should still evaluate the address match when the rejection is %s', async (_label, rejection) => {
+        mockPlayerConnectionDb.getByAddress.mockRejectedValue(rejection)
+
+        await expect(component.getActiveBanForConnection({ address: '0xABC' })).resolves.toEqual({ isBanned: false })
+      })
+    })
   })
 
   describe('when getting active bans', () => {

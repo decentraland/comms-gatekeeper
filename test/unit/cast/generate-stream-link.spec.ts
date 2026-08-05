@@ -377,6 +377,56 @@ describe('when generating a stream link', () => {
     })
   })
 
+  // Local preview mints through the same createStreamAccess helper and skips the admin check, so
+  // it needs its own ban assertion — generateStreamLink's does not cover this branch.
+  describe('and the caller generates a local preview stream link', () => {
+    let params: { sceneId: string; realmName: string; walletAddress: string }
+
+    describe('and the caller has an active platform ban', () => {
+      let bannedAddress: string
+
+      beforeEach(() => {
+        bannedAddress = '0xbanned00000000000000000000000000000000ad'
+        params = { sceneId: 'bafkreiscene123', realmName: 'preview', walletAddress: bannedAddress }
+        mockUserModeration.getActiveBanForConnection.mockResolvedValue({
+          isBanned: true,
+          ban: makeBan({ bannedAddress })
+        })
+      })
+
+      it('should throw a ForbiddenError stating the user is platform-banned', async () => {
+        await expect(castComponent.generatePreviewStreamLink(params)).rejects.toThrow(
+          new ForbiddenError('Access denied, platform-banned user')
+        )
+      })
+
+      it('should not create any stream access', async () => {
+        await expect(castComponent.generatePreviewStreamLink(params)).rejects.toThrow(ForbiddenError)
+
+        expect(mockSceneStreamAccessManager.addAccess).not.toHaveBeenCalled()
+      })
+
+      it('should not create a LiveKit ingress, so no streaming key is minted', async () => {
+        await expect(castComponent.generatePreviewStreamLink(params)).rejects.toThrow(ForbiddenError)
+
+        expect(mockLivekit.getOrCreateIngress).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the caller has no active platform ban', () => {
+      beforeEach(() => {
+        params = { sceneId: 'bafkreiscene123', realmName: 'preview', walletAddress: '0xowner123' }
+        mockUserModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
+      })
+
+      it('should generate the preview stream link', async () => {
+        const result = await castComponent.generatePreviewStreamLink(params)
+
+        expect(result.streamingKey).toBe('test-stream-key')
+      })
+    })
+  })
+
   describe('and the caller has a lifted or expired ban only', () => {
     let params: { walletAddress: string; sceneId: string; realmName: string }
 
