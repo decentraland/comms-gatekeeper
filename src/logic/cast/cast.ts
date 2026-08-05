@@ -74,6 +74,19 @@ export function createCastComponent(
    * to the device this address was last recorded connecting from. See the voice component for the
    * same reasoning.
    *
+   * No device id is threaded in from the handlers on purpose. No client sends one here: the
+   * watcher token is called by the Cast2 web app with no signed-fetch metadata at all, and the
+   * stream link is scene-signed, and the explorer's scene signature metadata has no field for a
+   * device identifier. Accepting a device term the callers never populate would add a parameter
+   * that is always undefined. Revisit if a client starts sending one.
+   *
+   * Two accepted consequences of relying on the fallback here:
+   * - Cast paths never call `upsertPlayerConnection`, so a wallet that only ever uses Cast and
+   *   never enters a scene has no recorded device and is matched on address alone. Players who
+   *   enter a scene first — the normal case — are recorded there and covered.
+   * - Only the last recorded device is consulted, so an address that has since connected from a
+   *   clean device no longer matches its earlier banned one.
+   *
    * @param walletAddress - Lowercased address the credentials would be issued to.
    * @throws {ForbiddenError} If the address is platform-banned.
    */
