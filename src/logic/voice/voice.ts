@@ -25,8 +25,8 @@ export function createVoiceComponent(
   /**
    * Rejects the request when any of the given addresses has an active platform ban.
    *
-   * No device id is passed: these routes are bearer-authenticated by the social service and carry
-   * no signed-fetch metadata, so the gate falls back to the device recorded for each address.
+   * No device id is passed: these routes are bearer-authenticated and carry no signed-fetch
+   * metadata, so the gate falls back to the device recorded for each address.
    *
    * @param addresses - Lowercased addresses that are about to receive credentials.
    * @throws {ForbiddenError} If any address is platform-banned.
@@ -329,8 +329,7 @@ export function createVoiceComponent(
     roomId: string,
     userAddresses: string[]
   ): Promise<Record<string, { connectionUrl: string }>> {
-    // Either side banned refuses the whole call: crediting only the unbanned party would leave
-    // them alone in a room nobody can join.
+    // Either side banned refuses the call: the other would be left alone in a dead room.
     await assertNoActivePlatformBan(userAddresses)
 
     const roomName = livekit.getPrivateVoiceChatRoomName(roomId)

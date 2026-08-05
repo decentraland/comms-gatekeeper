@@ -59,21 +59,18 @@ export interface IUserModerationComponent {
   liftBan(address: string, liftedBy: string): Promise<void>
   warnPlayer(address: string, reason: string, warnedBy: string): Promise<UserWarning>
   /**
-   * Whether this address has an active ban of its own. Address only, ignoring device snapshots.
-   * `banPlayer` relies on that narrower meaning for its duplicate guard: a device-aware version
-   * would make a wallet that merely shares a device impossible to ban, and `liftBan` matches on
-   * `banned_address`, so impossible to lift. Use `getActiveBanForConnection` to ask whether a
-   * connection should be rejected.
+   * Whether this address has an active ban of its own, ignoring device snapshots. Must stay
+   * address-only: `banPlayer`'s duplicate guard depends on it, and `liftBan` could not undo a
+   * device-wide match. Use `getActiveBanForConnection` to gate a connection.
    */
   isPlayerBanned(address: string): Promise<BanStatus>
   /**
    * Whether a connection should be rejected, matching the address **or** a device id against the
-   * device snapshot on any active ban. This is the enforcement question.
+   * device snapshot on any active ban. The device id is the request's, falling back to the
+   * address's last recorded one; an own ban wins over a device match.
    *
-   * Uses the device id the request arrives with, falling back to the address's last recorded one
-   * (`player_connection_info`) when it has none. When both an own ban and a device match exist, the
-   * own ban is returned. Callers on unauthenticated routes must not expose the returned record
-   * unless it belongs to the queried address — it may be another player's ban.
+   * The returned record may be another player's ban — never expose it unless `bannedAddress` is
+   * the queried address.
    */
   getActiveBanForConnection(query: ConnectionBanQuery): Promise<BanStatus>
   getActiveBans(): Promise<UserBan[]>

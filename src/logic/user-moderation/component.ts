@@ -16,8 +16,7 @@ function normalizeAddress(address: string): string {
   return address.toLowerCase()
 }
 
-// Reporting must not throw: the catches below guard best-effort paths, and a rejection is not
-// guaranteed to be an Error.
+// The catches below guard best-effort paths, so reporting must not throw on a non-Error rejection.
 function errorMessage(error: unknown): string {
   return isErrorWithMessage(error) ? error.message : String(error)
 }
@@ -138,10 +137,9 @@ export function createUserModerationComponent(
     async getActiveBanForConnection({ address, deviceId }: ConnectionBanQuery): Promise<BanStatus> {
       const normalizedAddress = normalizeAddress(address)
 
-      // No device id on the request (every voice and cast call): fall back to the one recorded for
-      // the address. Safe against the connection-info upsert running concurrently on the token
-      // paths because that upsert COALESCEs a null incoming device onto the stored value, so it
-      // cannot clobber the row read here.
+      // No device id on the request (every voice and cast call): use the one recorded for the
+      // address. Race-free only because the concurrent connection-info upsert COALESCEs a null
+      // incoming device onto the stored value, so it cannot clobber this read.
       let resolvedDeviceId = deviceId
       if (!resolvedDeviceId) {
         try {

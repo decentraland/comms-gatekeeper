@@ -67,9 +67,8 @@ export function createCastComponent(
   /**
    * Rejects the request when the given wallet has an active platform ban.
    *
-   * No device id is passed because no cast client sends one, so the gate falls back to the device
-   * recorded for the address. Cast never records one itself, so cast-only wallets match on address
-   * alone.
+   * No device id is passed because no cast client sends one; the gate falls back to the device
+   * recorded for the address, and cast never records one, so cast-only wallets match on address.
    *
    * @param walletAddress - Lowercased address the credentials would be issued to.
    * @throws {ForbiddenError} If the address is platform-banned.
@@ -215,8 +214,7 @@ export function createCastComponent(
   }): Promise<GenerateStreamLinkResult> {
     const { sceneId, realmName, walletAddress } = params
 
-    // Gated too: this branch skips the admin check and its realm name is self-asserted, so it
-    // would otherwise mint a working key for a banned wallet wherever ALLOW_LOCAL_PREVIEW is on.
+    // Gated too: this branch skips the admin check and its realm name is self-asserted.
     await assertNoActivePlatformBan(walletAddress.toLowerCase())
 
     const roomId = livekit.getSceneRoomName(realmName, sceneId)
