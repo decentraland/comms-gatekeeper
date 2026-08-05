@@ -33,6 +33,15 @@ test('GET /users/:address/bans', ({ components }) => {
         expect(body.data.isBanned).toBe(true)
         expect(body.data.ban).toBeDefined()
       })
+
+      it('should report the ban as matched on the address', async () => {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
+          method: 'GET'
+        })
+        const body = await response.json()
+
+        expect(body.data.matchedOn).toBe('address')
+      })
     })
 
     describe('and the player is not banned', () => {
@@ -43,6 +52,15 @@ test('GET /users/:address/bans', ({ components }) => {
         expect(response.status).toBe(200)
         const body = await response.json()
         expect(body.data.isBanned).toBe(false)
+      })
+
+      it('should omit matchedOn', async () => {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
+          method: 'GET'
+        })
+        const body = await response.json()
+
+        expect(body.data.matchedOn).toBeUndefined()
       })
     })
 
@@ -97,6 +115,15 @@ test('GET /users/:address/bans', ({ components }) => {
         expect(body.data.isBanned).toBe(true)
       })
 
+      it('should report the ban as matched on the device, not the address', async () => {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
+          method: 'GET'
+        })
+        const body = await response.json()
+
+        expect(body.data.matchedOn).toBe('device')
+      })
+
       // The coverage is reported; whose ban produced it is not.
       it('should not disclose the other player ban record', async () => {
         const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
@@ -144,6 +171,15 @@ test('GET /users/:address/bans', ({ components }) => {
         const body = await response.json()
 
         expect(body.data.ban).toMatchObject({ bannedAddress: targetAddress, reason: 'Harassment' })
+      })
+
+      it('should report the ban as matched on the address', async () => {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
+          method: 'GET'
+        })
+        const body = await response.json()
+
+        expect(body.data.matchedOn).toBe('address')
       })
     })
 

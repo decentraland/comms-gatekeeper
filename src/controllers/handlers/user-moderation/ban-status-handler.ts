@@ -1,10 +1,24 @@
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../../types'
+import { UserBan } from '../../../logic/user-moderation/types'
+
+/**
+ * Which identifier the ban matched on, so a client can word the notice correctly: `address` is the
+ * player's own ban, `device` is another player's ban covering the device this address is recorded
+ * on. Absent when not banned.
+ */
+export type BanMatch = 'address' | 'device'
+
+export type BanStatusResponse = { isBanned: boolean; matchedOn?: BanMatch; ban?: UserBan }
 
 /**
  * Reports whether an address would be rejected by a platform ban — its own, or one matching the
  * device it is recorded on. Answers the same question as the connection gate, so a client is told
  * it is banned rather than only discovering it when a token request fails.
+ *
+ * `matchedOn` says which identifier matched, so a client can distinguish "you are banned" from
+ * "the device you are on is banned" — the second is not the player's own record and carries no
+ * reason or expiry to show.
  *
  * Two constraints hold this shape:
  *
@@ -30,15 +44,20 @@ export async function banStatusHandler(
   try {
     const banStatus = await userModeration.getActiveBanForConnection({ address })
 
-    // Report coverage, but only expose the record when it is this address's own ban: a device
-    // match would otherwise publish another player's ban row, including whose wallet it is.
+    // The record is exposed only for the address's own ban: a device match points at another
+    // player's row, which would disclose whose wallet is banned on an unauthenticated route.
     const isOwnBan = banStatus.ban?.bannedAddress === address.toLowerCase()
+
+    let data: BanStatusResponse = { isBanned: false }
+    if (banStatus.isBanned) {
+      data = isOwnBan
+        ? { isBanned: true, matchedOn: 'address', ban: banStatus.ban }
+        : { isBanned: true, matchedOn: 'device' }
+    }
 
     return {
       status: 200,
-      body: {
-        data: isOwnBan ? banStatus : { isBanned: banStatus.isBanned }
-      }
+      body: { data }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

@@ -1892,12 +1892,14 @@ paths:
 
         ### The ban record is only returned for the address's own ban
 
-        When `isBanned` is true because of a **device** match, the response contains
+        `matchedOn` says which identifier matched. When it is `device`, the response contains
         `isBanned: true` and no `ban` object: the matching row belongs to another player, and
         publishing it on an unauthenticated route would disclose whose wallet is banned. The full
-        record — reason, expiry, custom message, `bannedDeviceId` — is returned only when the ban
-        belongs to the queried address. Where both exist, the address's own ban is the one
-        reported.
+        record — reason, expiry, custom message, `bannedDeviceId` — is returned only when
+        `matchedOn` is `address`. Where both exist, the address's own ban is the one reported.
+
+        A client can use `matchedOn` to word the notice: an `address` match has a reason and an
+        expiry to show, a `device` match has neither.
 
         Because the route is unauthenticated, any address can be tested for device coverage. That
         is an accepted trade-off for being able to tell banned players why they are blocked.
@@ -1926,6 +1928,14 @@ paths:
                     properties:
                       isBanned:
                         type: boolean
+                      matchedOn:
+                        type: string
+                        enum: [address, device]
+                        description: >-
+                          Which identifier the ban matched on. `address` is the player's own ban and
+                          comes with the full `ban` record. `device` means another player's ban
+                          covers the device this address is recorded on; `ban` is omitted, because
+                          that record belongs to someone else. Absent when `isBanned` is false.
                       ban:
                         $ref: '#/components/schemas/UserBan'
         '500':
