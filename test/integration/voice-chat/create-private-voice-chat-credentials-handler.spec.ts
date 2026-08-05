@@ -257,8 +257,7 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
 
       describe('and one of the users last connected from a device another wallet is banned on', () => {
         beforeEach(async () => {
-          // No device identifier reaches this route, so this is only caught via the device
-          // recorded for the wallet on an earlier connection.
+          // No device identifier on this route, so only the recorded device catches this.
           await components.playerConnectionDb.upsertPlayerConnection({
             address: validAddress1.toLowerCase(),
             ipAddress: '1.2.3.4',

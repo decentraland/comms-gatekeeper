@@ -67,25 +67,9 @@ export function createCastComponent(
   /**
    * Rejects the request when the given wallet has an active platform ban.
    *
-   * Cast tokens are LiveKit tokens for the scene's real comms room, so a platform ban has to stop
-   * them for the same reason it stops scene comms.
-   *
-   * Cast requests are signed by the wallet but carry no device identifier, so the gate falls back
-   * to the device this address was last recorded connecting from. See the voice component for the
-   * same reasoning.
-   *
-   * No device id is threaded in from the handlers on purpose. No client sends one here: the
-   * watcher token is called by the Cast2 web app with no signed-fetch metadata at all, and the
-   * stream link is scene-signed, and the explorer's scene signature metadata has no field for a
-   * device identifier. Accepting a device term the callers never populate would add a parameter
-   * that is always undefined. Revisit if a client starts sending one.
-   *
-   * Two accepted consequences of relying on the fallback here:
-   * - Cast paths never call `upsertPlayerConnection`, so a wallet that only ever uses Cast and
-   *   never enters a scene has no recorded device and is matched on address alone. Players who
-   *   enter a scene first — the normal case — are recorded there and covered.
-   * - Only the last recorded device is consulted, so an address that has since connected from a
-   *   clean device no longer matches its earlier banned one.
+   * No device id is passed because no cast client sends one, so the gate falls back to the device
+   * recorded for the address. Cast never records one itself, so cast-only wallets match on address
+   * alone.
    *
    * @param walletAddress - Lowercased address the credentials would be issued to.
    * @throws {ForbiddenError} If the address is platform-banned.
@@ -106,9 +90,8 @@ export function createCastComponent(
    * Creates or reuses stream access for a place, returning the streaming key and expiration.
    * Shared logic used by both generateStreamLink and generatePreviewStreamLink.
    *
-   * Mints a key that `validateStreamerToken` later honours without re-checking the wallet, so
-   * every caller must gate on the platform ban first — both current callers do, each before its
-   * own permission logic.
+   * Mints a key `validateStreamerToken` later honours without re-checking the wallet, so callers
+   * must gate on the platform ban first.
    */
   async function createStreamAccess(
     place: StreamAccessPlace,
@@ -196,10 +179,7 @@ export function createCastComponent(
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
     const { walletAddress, worldName, sceneId, realmName } = params
 
-    // Checked before the admin lookup: a banned wallet gets the same answer whether or not it is a
-    // scene admin, so the rejection never doubles as an admin-status oracle. This is also the only
-    // wallet-scoped gate on the streaming path — `validateStreamerToken` authenticates a streaming
-    // key, not a wallet, so blocking the mint is what keeps a banned admin from getting a new key.
+    // Before the admin lookup, so the rejection can't double as an admin-status oracle.
     await assertNoActivePlatformBan(walletAddress.toLowerCase())
 
     const roomId = worldName
@@ -235,12 +215,8 @@ export function createCastComponent(
   }): Promise<GenerateStreamLinkResult> {
     const { sceneId, realmName, walletAddress } = params
 
-    // Preview minting is gated on the platform ban too. It skips the admin check and the realm
-    // name deciding this branch is self-asserted, so wherever ALLOW_LOCAL_PREVIEW is on this
-    // would otherwise be a one-request way for a banned wallet to obtain a working streaming
-    // key — and `validateStreamerToken` trusts a minted key without re-checking the wallet.
-    // Matches `comms-scene-handler`, which applies the platform ban before it branches on
-    // preview and only skips the *scene*-ban check for it.
+    // Gated too: this branch skips the admin check and its realm name is self-asserted, so it
+    // would otherwise mint a working key for a banned wallet wherever ALLOW_LOCAL_PREVIEW is on.
     await assertNoActivePlatformBan(walletAddress.toLowerCase())
 
     const roomId = livekit.getSceneRoomName(realmName, sceneId)
@@ -329,11 +305,8 @@ export function createCastComponent(
    * Generates LiveKit credentials for a watcher (viewer).
    * Watchers connect to the scene room with read-only permissions (can view streams but not publish).
    *
-   * Deliberately **not** on {@link ICastComponent}: it takes no wallet address and runs no ban
-   * checks, so it mints a token for whoever asks. The gates live in
-   * {@link generateWatcherCredentialsByLocation}, which is the only caller. Exposing this on the
-   * component surface would let a future caller mint watcher credentials straight past them —
-   * keep it internal, or give it an address and move the gates into it, before adding a caller.
+   * Kept off {@link ICastComponent}: it runs no ban checks, so it must stay behind
+   * {@link generateWatcherCredentialsByLocation}, which gates before calling it.
    *
    * @param roomId - The scene room ID to join (format: scene:${realmName}:${sceneId})
    * @param identity - Display name for the watcher (required, provided by frontend)
@@ -396,8 +369,7 @@ export function createCastComponent(
     watcherAddress: string,
     parcel?: string
   ): Promise<GenerateWatcherCredentialsResult> {
-    // Platform ban first: it does not depend on the place, and it must apply even when the
-    // location cannot be resolved.
+    // Before resolving the location, so an unresolvable place still rejects.
     await assertNoActivePlatformBan(watcherAddress.toLowerCase())
 
     const isWorldName = location.endsWith('.eth')

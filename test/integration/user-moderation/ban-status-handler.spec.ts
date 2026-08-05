@@ -73,11 +73,9 @@ test('GET /users/:address/bans', ({ components }) => {
       })
     })
 
-    // Pins the intentional divergence from token retrieval: the connection gate would reject
-    // this player via the device snapshot on the other wallet's ban, but this endpoint reports
-    // address bans only. Keeping it undisclosed avoids exposing wallet-to-device linkage on an
-    // unauthenticated route and denies ban evaders a way to probe device coverage. If this test
-    // starts failing, the endpoint has become a device-linkage oracle — see banStatusHandler.
+    // Pins the intentional divergence: the gate rejects this player via the other wallet's device
+    // snapshot, this endpoint reports address bans only. If it fails, the endpoint has become a
+    // device-linkage oracle — see banStatusHandler.
     describe('and another player is banned from the device this player last connected from', () => {
       beforeEach(async () => {
         await components.playerConnectionDb.upsertPlayerConnection({

@@ -8,8 +8,7 @@ export const createUserModerationMockedComponent = (
     liftBan: jest.fn(),
     warnPlayer: jest.fn(),
     isPlayerBanned: jest.fn().mockResolvedValue({ isBanned: false }),
-    // Defaults to not banned so specs that are not about ban enforcement do not have to
-    // stub the gate every credential-issuing path now consults.
+    // Defaults to not banned so specs unrelated to ban enforcement need not stub the gate.
     getActiveBanForConnection: jest.fn().mockResolvedValue({ isBanned: false }),
     getActiveBans: jest.fn().mockResolvedValue([]),
     getPlayerWarnings: jest.fn().mockResolvedValue([]),

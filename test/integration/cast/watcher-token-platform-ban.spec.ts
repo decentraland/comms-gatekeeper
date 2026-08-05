@@ -1,8 +1,8 @@
 import { test } from '../../components'
 import { makeRequest, admin } from '../../utils'
 
-// Exercises the real cast component (unlike watcher-token-handler.spec.ts, which stubs it) so this
-// covers the wiring of the platform-ban gate through components.ts.
+// Exercises the real cast component (watcher-token-handler.spec.ts stubs it), so this covers the
+// gate's wiring through components.ts.
 test('POST /cast/watcher-token platform ban enforcement', ({ components, spyComponents }) => {
   const bannedBy = '0x0000000000000000000000000000000000000099'
   // The signer address makeRequest authenticates as by default.
@@ -63,8 +63,7 @@ test('POST /cast/watcher-token platform ban enforcement', ({ components, spyComp
   describe('when the watcher is not banned but last connected from a device another wallet is banned on', () => {
     beforeEach(async () => {
       requestBody = { location: '20,-4', identity: 'clever-bear' }
-      // The request itself carries no device identifier, so this is only caught via the device
-      // recorded for the wallet on an earlier connection.
+      // No device identifier on the request, so only the recorded device can catch this.
       await components.playerConnectionDb.upsertPlayerConnection({
         address: watcherAddress,
         ipAddress: '1.2.3.4',

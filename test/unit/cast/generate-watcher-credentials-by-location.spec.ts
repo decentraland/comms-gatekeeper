@@ -263,8 +263,7 @@ describe('when generating watcher credentials by location', () => {
       expect(result.identity).toMatch(/^watch:scene-test-realm:bafkreiscene123:[0-9a-f-]+$/)
     })
 
-    // Covered through the gated entry point rather than the internal minting helper, which is no
-    // longer on ICastComponent.
+    // Through the gated entry point: the minting helper is no longer on ICastComponent.
     it('should mint the credentials with watch-only permissions and the watcher role', async () => {
       await castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
 

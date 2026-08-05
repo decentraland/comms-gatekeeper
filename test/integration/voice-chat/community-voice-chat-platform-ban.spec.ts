@@ -3,9 +3,8 @@ import { makeRequest } from '../../utils'
 import { CommunityRole } from '../../../src/types/social.type'
 import { CommunityVoiceChatAction } from '../../../src/types/community-voice'
 
-// Exercises the real voice component (unlike community-voice-chat-handler.spec.ts, which stubs
-// it) so this covers the wiring of the platform-ban gate through components.ts, not just the
-// component in isolation.
+// Exercises the real voice component (community-voice-chat-handler.spec.ts stubs it), so this
+// covers the gate's wiring through components.ts.
 test('POST /community-voice-chat platform ban enforcement', ({ components, spyComponents }) => {
   const communityId = 'test-community'
   const bannedBy = '0x0000000000000000000000000000000000000099'
@@ -95,8 +94,7 @@ test('POST /community-voice-chat platform ban enforcement', ({ components, spyCo
         action: CommunityVoiceChatAction.JOIN,
         user_role: CommunityRole.Member
       }
-      // This route is bearer-authenticated and carries no device identifier, so this is only
-      // caught via the device recorded for the wallet on an earlier connection.
+      // Bearer-authenticated with no device identifier, so only the recorded device catches this.
       await components.playerConnectionDb.upsertPlayerConnection({
         address: userAddress.toLowerCase(),
         ipAddress: '1.2.3.4',

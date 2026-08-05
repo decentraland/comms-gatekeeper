@@ -59,28 +59,19 @@ export interface IUserModerationComponent {
   liftBan(address: string, liftedBy: string): Promise<void>
   warnPlayer(address: string, reason: string, warnedBy: string): Promise<UserWarning>
   /**
-   * Whether this address has an active ban of its own. Matches on the banned address only.
-   *
-   * Deliberately narrower than {@link IUserModerationComponent.getActiveBanForConnection}: it
-   * ignores device snapshots, so a ban evader on a fresh wallet reports as not banned here even
-   * though the connection gate will reject them. Reporting surfaces (`GET /users/:address/bans`)
-   * and the duplicate-ban guard in `banPlayer` both depend on that narrower meaning — see
-   * `banStatusHandler` for why the gap is intentional and must not be closed.
+   * Whether this address has an active ban of its own. Address only, ignoring device snapshots, so
+   * an evader on a fresh wallet reports as not banned here while the connection gate rejects them.
+   * `GET /users/:address/bans` and the duplicate-ban guard in `banPlayer` both rely on that
+   * narrower meaning — see `banStatusHandler` before widening it.
    */
   isPlayerBanned(address: string): Promise<BanStatus>
   /**
    * Whether a connection should be rejected, matching the address **or** a device id against the
-   * device snapshot on any active ban. This is the enforcement question, and the only one that
-   * accounts for wallet-switching evasion.
+   * device snapshot on any active ban. This is the enforcement question.
    *
-   * The device id is the one the request arrives with; when the request has none, it falls back to
-   * the device this address was last recorded connecting from (`player_connection_info`). That
-   * fallback is what gives device coverage to the paths that never receive a device identifier
-   * (voice, cast) and stops a client from shedding coverage by going quiet. Only the last recorded
-   * device is consulted, not a full history.
-   *
-   * Unlike {@link IUserModerationComponent.isPlayerBanned}, never expose this on an
-   * unauthenticated route: a device match reveals that two addresses share a device.
+   * Uses the device id the request arrives with, falling back to the address's last recorded one
+   * (`player_connection_info`) when it has none. Never expose on an unauthenticated route: a device
+   * match reveals that two addresses share a device.
    */
   getActiveBanForConnection(query: ConnectionBanQuery): Promise<BanStatus>
   getActiveBans(): Promise<UserBan[]>

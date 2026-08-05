@@ -16,8 +16,8 @@ function normalizeAddress(address: string): string {
   return address.toLowerCase()
 }
 
-// Every catch below guards a best-effort path whose whole point is to not fail the caller, so
-// none of them may throw while reporting. A rejection is not guaranteed to be an Error.
+// Reporting must not throw: the catches below guard best-effort paths, and a rejection is not
+// guaranteed to be an Error.
 function errorMessage(error: unknown): string {
   return isErrorWithMessage(error) ? error.message : String(error)
 }
@@ -138,32 +138,17 @@ export function createUserModerationComponent(
     async getActiveBanForConnection({ address, deviceId }: ConnectionBanQuery): Promise<BanStatus> {
       const normalizedAddress = normalizeAddress(address)
 
-      // When the request carries no device identifier, fall back to the device this address was
-      // last recorded connecting from. Two paths need it:
-      //
-      // - Voice and cast never receive one (voice is called by the social service over a bearer
-      //   token; cast requests carry no device metadata), so without this they are address-only
-      //   and a wallet that already connected from a banned device still gets a token.
-      // - A client that stops sending a device identifier would otherwise shed device coverage
-      //   simply by going quiet, since a missing term matches nothing.
-      //
-      // Race-free against the connection-info upsert that runs concurrently on the token paths:
-      // that upsert COALESCEs a null incoming device onto the stored value, so a request which
-      // supplies no device cannot clobber the row this lookup reads, whichever lands first.
-      //
-      // Only the last recorded device is available (`player_connection_info` is one row per
-      // address), so this covers the device a wallet most recently used, not every device it has
-      // ever used.
+      // No device id on the request (every voice and cast call): fall back to the one recorded for
+      // the address. Safe against the connection-info upsert running concurrently on the token
+      // paths because that upsert COALESCEs a null incoming device onto the stored value, so it
+      // cannot clobber the row read here.
       let resolvedDeviceId = deviceId
       if (!resolvedDeviceId) {
         try {
           const connectionInfo = await playerConnectionDb.getByAddress(normalizedAddress)
           resolvedDeviceId = connectionInfo?.deviceId || null
         } catch (error: unknown) {
-          // The device term is supplementary: fall through to the address match rather than
-          // failing a gate the request itself did not depend on. Read the message defensively —
-          // reaching into `.message` on a null/undefined rejection would throw from inside the
-          // handler that exists to keep this failure non-fatal.
+          // Supplementary term: fall through to the address match instead of failing the gate.
           logger.warn(`Failed to resolve recorded device for ${normalizedAddress}: ${errorMessage(error)}`)
         }
       }

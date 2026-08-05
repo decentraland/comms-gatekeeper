@@ -664,8 +664,7 @@ describe('user-moderation-component', () => {
         mockUserModerationDb.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
       })
 
-      // Reporting the failure must not itself throw, or the handler that exists to keep this
-      // non-fatal would take the whole gate down with it.
+      // Reporting the failure must not itself throw, or the gate goes down with it.
       it.each([
         ['undefined', undefined],
         ['null', null],

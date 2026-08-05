@@ -377,8 +377,7 @@ describe('when generating a stream link', () => {
     })
   })
 
-  // Local preview mints through the same createStreamAccess helper and skips the admin check, so
-  // it needs its own ban assertion — generateStreamLink's does not cover this branch.
+  // Separate branch from generateStreamLink, with its own ban assertion and no admin check.
   describe('and the caller generates a local preview stream link', () => {
     let params: { sceneId: string; realmName: string; walletAddress: string }
 
