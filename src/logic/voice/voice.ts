@@ -6,6 +6,7 @@ import { VoiceChatUserStatus } from '../../adapters/db/types'
 import { CommunityRole, CommunityVoiceChatUserMetadata, CommunityVoiceChatUserProfile } from '../../types/social.type'
 import { CommunityVoiceChatAction } from '../../types/community-voice'
 import { isErrorWithMessage } from '../errors'
+import { ForbiddenError } from '../../types/errors'
 import { Events, CommunityStreamingEndedEvent } from '@dcl/schemas'
 
 // Tolerance for the stale-leave timestamp guard. LiveKit event timestamps have
@@ -16,10 +17,40 @@ import { Events, CommunityStreamingEndedEvent } from '@dcl/schemas'
 const STALE_LEAVE_SKEW_MS = 1000
 
 export function createVoiceComponent(
-  components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit' | 'analytics' | 'publisher'>
+  components: Pick<AppComponents, 'voiceDB' | 'logs' | 'livekit' | 'analytics' | 'publisher' | 'userModeration'>
 ): IVoiceComponent {
-  const { voiceDB, livekit, logs, analytics, publisher } = components
+  const { voiceDB, livekit, logs, analytics, publisher, userModeration } = components
   const logger = logs.getLogger('voice')
+
+  /**
+   * Rejects the request when any of the given addresses has an active platform ban.
+   *
+   * Voice tokens are LiveKit tokens, so a platform ban has to stop them for the same reason it
+   * stops scene comms: without this, a banned user keeps full real-time audio access to everyone
+   * they can reach through a call or a community stage.
+   *
+   * Address-only by design: these routes are called by the social service with a bearer token, so
+   * no signed-fetch metadata — and therefore no device identifier — reaches this component.
+   * `getActiveBanForConnection` is still the right gate to ask; it degrades to an address match
+   * when no device id is supplied, and picks up device coverage for free if one ever is.
+   *
+   * @param addresses - Lowercased addresses that are about to receive credentials.
+   * @throws {ForbiddenError} If any address is platform-banned.
+   */
+  async function assertNoActivePlatformBan(addresses: string[]): Promise<void> {
+    const statuses = await Promise.all(
+      addresses.map(async (address) => ({
+        address,
+        ...(await userModeration.getActiveBanForConnection({ address }))
+      }))
+    )
+
+    const banned = statuses.find((status) => status.isBanned)
+    if (banned) {
+      logger.warn(`Rejected voice credentials for platform-banned user: ${banned.address}`)
+      throw new ForbiddenError('Access denied, platform-banned user')
+    }
+  }
 
   /**
    * Handles the event when a participant joins a PRIVATE voice chat room.
@@ -298,11 +329,17 @@ export function createVoiceComponent(
    * @param roomId - The ID suffix of the room to generate credentials for.
    * @param userAddresses - The addresses of the users to generate credentials for.
    * @returns A record of user addresses and their credentials.
+   * @throws {ForbiddenError} If any participant has an active platform ban.
    */
   async function getPrivateVoiceChatRoomCredentials(
     roomId: string,
     userAddresses: string[]
   ): Promise<Record<string, { connectionUrl: string }>> {
+    // Reject the whole call when either side is banned, before any room is created. Issuing
+    // credentials only to the unbanned party would leave them alone in a room waiting for someone
+    // who can never join.
+    await assertNoActivePlatformBan(userAddresses)
+
     const roomName = livekit.getPrivateVoiceChatRoomName(roomId)
     // Generate credentials for each user.
     const roomKeys = await Promise.all(
@@ -373,6 +410,7 @@ export function createVoiceComponent(
    * @param profileData - Optional profile data for the user.
    * @param isCreating - Whether the user is creating the room (affects speaker status).
    * @returns The connection URL for the user.
+   * @throws {ForbiddenError} If the user has an active platform ban.
    */
   async function getCommunityVoiceChatCredentialsWithRole(
     communityId: string,
@@ -381,6 +419,10 @@ export function createVoiceComponent(
     profileData?: CommunityVoiceChatUserProfile,
     action: CommunityVoiceChatAction = CommunityVoiceChatAction.JOIN
   ): Promise<{ connectionUrl: string }> {
+    // Covers both joining and creating: a banned user must not be able to open a community stage
+    // either, and a community role never overrides a platform ban.
+    await assertNoActivePlatformBan([userAddress])
+
     const roomName = livekit.getCommunityVoiceChatRoomName(communityId)
 
     // Determine if user is a speaker:

@@ -201,6 +201,60 @@ test('POST /private-voice-chat', ({ components, spyComponents }) => {
         }
       })
 
+      describe('and one of the users has an active platform ban', () => {
+        beforeEach(async () => {
+          await components.userModerationDb.createBan({
+            bannedAddress: validAddress2.toLowerCase(),
+            bannedBy: '0x0000000000000000000000000000000000000099',
+            reason: 'Harassment'
+          })
+        })
+
+        afterEach(async () => {
+          await components.database.query('DELETE FROM user_bans')
+        })
+
+        it('should respond with a 403 and a message saying the user is platform-banned', async () => {
+          const response = await makeRequest(components.localFetch, '/private-voice-chat', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(requestBody)
+          })
+          const body = await response.json()
+
+          expect(response.status).toBe(403)
+          expect(body).toEqual({ error: 'Access denied, platform-banned user' })
+        })
+
+        it('should not issue LiveKit credentials to either participant', async () => {
+          await makeRequest(components.localFetch, '/private-voice-chat', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(requestBody)
+          })
+
+          expect(spyComponents.livekit.generateCredentials).not.toHaveBeenCalled()
+        })
+
+        it('should not create the private voice chat room', async () => {
+          await makeRequest(components.localFetch, '/private-voice-chat', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(requestBody)
+          })
+
+          await expect(
+            components.voiceDB.getUsersInRoom(components.livekit.getPrivateVoiceChatRoomName(requestBody.room_id))
+          ).resolves.toEqual([])
+        })
+      })
+
       describe('and getting private voice chat credentials fails', () => {
         beforeEach(() => {
           spyComponents.livekit.generateCredentials.mockRejectedValueOnce(

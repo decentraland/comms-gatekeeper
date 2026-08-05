@@ -957,6 +957,10 @@ paths:
         Creates a private voice chat room for two users.
         Generates LiveKit credentials for both users to join the room.
         Requires Bearer Token authentication.
+
+        Rejected with `403` when **either** participant has an active platform ban. The whole call
+        is refused rather than issuing credentials only to the unbanned party, who would otherwise
+        wait alone in a room nobody can join.
       security:
         - BearerAuth: []
       requestBody:
@@ -980,6 +984,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - One of the participants has an active platform ban
           content:
             application/json:
               schema:
@@ -1087,6 +1097,9 @@ paths:
         Creates a new community voice chat or joins an existing one.
         The user's role in the community determines their permissions in the voice chat.
         Requires Bearer Token authentication.
+
+        Rejected with `403` when the user has an active platform ban. This applies to both actions:
+        a community role, including `owner`, never overrides a platform ban.
       security:
         - BearerAuth: []
       requestBody:
@@ -1110,6 +1123,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The user has an active platform ban
           content:
             application/json:
               schema:
@@ -1569,8 +1588,14 @@ paths:
       description: |
         Generates LiveKit credentials for a watcher to view streams in a location.
         This endpoint allows users to join as viewers in a specific location (parcel or world)
-        and watch active streams. No authentication required.
-      security: []
+        and watch active streams.
+
+        Requires Signed Fetch authentication from a wallet (a `decentraland-kernel-scene` signer is
+        rejected: viewers are end users, not scenes). A verified wallet is required because
+        watchers join the scene's real comms room, so both scene bans and platform bans are
+        enforced against it — either one is rejected with `403`.
+      security:
+        - SignedFetch: []
       requestBody:
         required: true
         content:
@@ -1596,6 +1621,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The watcher has an active platform ban or is banned from the scene
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
@@ -1615,6 +1646,12 @@ paths:
         The generated link expires after 4 days.
         Requires Signed Fetch authentication from decentraland-kernel-scene.
         Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+
+        Rejected with `403` when the caller has an active platform ban, checked before the scene
+        admin lookup so the response never doubles as an admin-status oracle. This is the only
+        wallet-scoped gate on the streaming path: `POST /cast/streamer-token` authenticates a
+        streaming key rather than a wallet, so a key minted before the ban keeps working until it
+        expires.
       security:
         - SignedFetch: []
       responses:
@@ -1632,6 +1669,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required or insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The caller has an active platform ban
           content:
             application/json:
               schema:

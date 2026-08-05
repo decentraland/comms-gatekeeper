@@ -1,6 +1,7 @@
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
 import { NotSceneAdminError } from '../../../src/logic/cast/errors'
+import { ForbiddenError } from '../../../src/types/errors'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
@@ -9,6 +10,8 @@ import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-moc
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
 import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
+import { createUserModerationMockedComponent } from '../../mocks/user-moderation-mock'
+import { makeBan } from '../user-moderation/utils'
 
 describe('when generating a stream link', () => {
   let castComponent: ICastComponent
@@ -19,6 +22,7 @@ describe('when generating a stream link', () => {
   let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
   let mockConfig: ReturnType<typeof createConfigMockedComponent>
   let mockSceneBanManager: ReturnType<typeof createSceneBanManagerMockedComponent>
+  let mockUserModeration: ReturnType<typeof createUserModerationMockedComponent>
   let mockPlace: PlaceAttributes
   let mockWorldScenePlace: PlaceAttributes
 
@@ -86,6 +90,8 @@ describe('when generating a stream link', () => {
       isBanned: jest.fn().mockResolvedValue(false)
     })
 
+    mockUserModeration = createUserModerationMockedComponent()
+
     castComponent = createCastComponent({
       livekit: mockLivekit,
       logs: mockLogs,
@@ -93,7 +99,8 @@ describe('when generating a stream link', () => {
       sceneManager: mockSceneManager,
       places: mockPlaces,
       config: mockConfig,
-      sceneBanManager: mockSceneBanManager
+      sceneBanManager: mockSceneBanManager,
+      userModeration: mockUserModeration
     })
   })
 
@@ -328,6 +335,62 @@ describe('when generating a stream link', () => {
       expect(result.placeName).toBe('Test World Scene Place')
       expect(result.expiresAt).toBeDefined()
       expect(result.expiresInDays).toBeGreaterThan(0)
+    })
+  })
+
+  describe('and the caller has an active platform ban', () => {
+    let bannedAddress: string
+    let params: { walletAddress: string; sceneId: string; realmName: string }
+
+    beforeEach(() => {
+      bannedAddress = '0xbanned00000000000000000000000000000000ad'
+      params = { walletAddress: bannedAddress, sceneId: 'bafkreiscene123', realmName: 'test-realm' }
+      mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      mockUserModeration.getActiveBanForConnection.mockResolvedValue({
+        isBanned: true,
+        ban: makeBan({ bannedAddress })
+      })
+    })
+
+    it('should throw a ForbiddenError stating the user is platform-banned', async () => {
+      await expect(castComponent.generateStreamLink(params)).rejects.toThrow(
+        new ForbiddenError('Access denied, platform-banned user')
+      )
+    })
+
+    it('should not create any stream access', async () => {
+      await expect(castComponent.generateStreamLink(params)).rejects.toThrow(ForbiddenError)
+
+      expect(mockSceneStreamAccessManager.addAccess).not.toHaveBeenCalled()
+    })
+
+    it('should not create a LiveKit ingress', async () => {
+      await expect(castComponent.generateStreamLink(params)).rejects.toThrow(ForbiddenError)
+
+      expect(mockLivekit.getOrCreateIngress).not.toHaveBeenCalled()
+    })
+
+    it('should reject before checking scene admin permissions, so the error never reveals admin status', async () => {
+      await expect(castComponent.generateStreamLink(params)).rejects.toThrow(ForbiddenError)
+
+      expect(mockSceneManager.isSceneOwnerOrAdmin).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the caller has a lifted or expired ban only', () => {
+    let params: { walletAddress: string; sceneId: string; realmName: string }
+
+    beforeEach(() => {
+      params = { walletAddress: '0xowner123', sceneId: 'bafkreiscene123', realmName: 'test-realm' }
+      mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      mockPlaces.getPlaceBySceneId.mockResolvedValue(mockPlace)
+      mockUserModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
+    })
+
+    it('should generate the stream link', async () => {
+      const result = await castComponent.generateStreamLink(params)
+
+      expect(result.streamingKey).toBe('test-stream-key')
     })
   })
 })

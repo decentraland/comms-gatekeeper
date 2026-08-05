@@ -7,6 +7,7 @@ import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-moc
 import { createPlacesMockedComponent, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
 import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
+import { createUserModerationMockedComponent } from '../../mocks/user-moderation-mock'
 
 describe('when generating watcher credentials', () => {
   let castComponent: ICastComponent
@@ -65,7 +66,8 @@ describe('when generating watcher credentials', () => {
       sceneManager: mockSceneManager,
       places: mockPlaces,
       config: mockConfig,
-      sceneBanManager: createSceneBanManagerMockedComponent()
+      sceneBanManager: createSceneBanManagerMockedComponent(),
+      userModeration: createUserModerationMockedComponent()
     })
   })
 

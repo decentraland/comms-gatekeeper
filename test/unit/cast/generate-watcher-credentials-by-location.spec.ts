@@ -9,6 +9,8 @@ import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-moc
 import { createPlacesMockedComponent, createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
 import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
+import { createUserModerationMockedComponent } from '../../mocks/user-moderation-mock'
+import { makeBan } from '../user-moderation/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 
 const WATCHER_ADDRESS = '0xwatcher00000000000000000000000000000abc'
@@ -22,6 +24,7 @@ describe('when generating watcher credentials by location', () => {
   let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
   let mockConfig: ReturnType<typeof createConfigMockedComponent>
   let mockSceneBanManager: ReturnType<typeof createSceneBanManagerMockedComponent>
+  let mockUserModeration: ReturnType<typeof createUserModerationMockedComponent>
   let mockPlace: PlaceAttributes
   let mockWorldPlace: PlaceAttributes
 
@@ -92,6 +95,8 @@ describe('when generating watcher credentials by location', () => {
       isBanned: jest.fn().mockResolvedValue(false)
     })
 
+    mockUserModeration = createUserModerationMockedComponent()
+
     castComponent = createCastComponent({
       livekit: mockLivekit,
       logs: mockLogs,
@@ -99,7 +104,8 @@ describe('when generating watcher credentials by location', () => {
       sceneManager: mockSceneManager,
       places: mockPlaces,
       config: mockConfig,
-      sceneBanManager: mockSceneBanManager
+      sceneBanManager: mockSceneBanManager,
+      userModeration: mockUserModeration
     })
   })
 
@@ -355,6 +361,51 @@ describe('when generating watcher credentials by location', () => {
       ).rejects.toThrow(ForbiddenError)
 
       expect(mockLivekit.generateCredentials).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the watcher has an active platform ban', () => {
+    const location = '10,20'
+    const identity = 'watcher-identity'
+
+    beforeEach(() => {
+      mockPlaces.getPlaceByParcel.mockResolvedValue(mockPlace)
+      mockUserModeration.getActiveBanForConnection.mockResolvedValue({
+        isBanned: true,
+        ban: makeBan({ bannedAddress: WATCHER_ADDRESS.toLowerCase() })
+      })
+    })
+
+    it('should throw a ForbiddenError stating the user is platform-banned', async () => {
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+      ).rejects.toThrow(new ForbiddenError('Access denied, platform-banned user'))
+    })
+
+    it('should check the ban against the lowercased watcher address', async () => {
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+      ).rejects.toThrow(ForbiddenError)
+
+      expect(mockUserModeration.getActiveBanForConnection).toHaveBeenCalledWith({
+        address: WATCHER_ADDRESS.toLowerCase()
+      })
+    })
+
+    it('should not issue any LiveKit credentials', async () => {
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+      ).rejects.toThrow(ForbiddenError)
+
+      expect(mockLivekit.generateCredentials).not.toHaveBeenCalled()
+    })
+
+    it('should reject without resolving the location, so an unresolvable place still rejects', async () => {
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+      ).rejects.toThrow(ForbiddenError)
+
+      expect(mockPlaces.getPlaceByParcel).not.toHaveBeenCalled()
     })
   })
 })

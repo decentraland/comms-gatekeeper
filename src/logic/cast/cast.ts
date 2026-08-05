@@ -50,11 +50,39 @@ export function buildStreamLinks(
 export function createCastComponent(
   components: Pick<
     AppComponents,
-    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config' | 'sceneBanManager'
+    | 'livekit'
+    | 'logs'
+    | 'sceneStreamAccessManager'
+    | 'sceneManager'
+    | 'places'
+    | 'config'
+    | 'sceneBanManager'
+    | 'userModeration'
   >
 ): ICastComponent {
-  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, sceneBanManager } = components
+  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, sceneBanManager, userModeration } =
+    components
   const logger = logs.getLogger('cast')
+
+  /**
+   * Rejects the request when the given wallet has an active platform ban.
+   *
+   * Cast tokens are LiveKit tokens for the scene's real comms room, so a platform ban has to stop
+   * them for the same reason it stops scene comms.
+   *
+   * Address-only: Cast requests are signed by the wallet but carry no device identifier, so this
+   * degrades to an address match. See the voice component for the same reasoning.
+   *
+   * @param walletAddress - Lowercased address the credentials would be issued to.
+   * @throws {ForbiddenError} If the address is platform-banned.
+   */
+  async function assertNoActivePlatformBan(walletAddress: string): Promise<void> {
+    const { isBanned } = await userModeration.getActiveBanForConnection({ address: walletAddress })
+    if (isBanned) {
+      logger.warn(`Rejected cast credentials for platform-banned user: ${walletAddress}`)
+      throw new ForbiddenError('Access denied, platform-banned user')
+    }
+  }
 
   /** Minimal place fields needed by createStreamAccess. */
   type StreamAccessPlace = Pick<PlaceAttributes, 'id' | 'title'> &
@@ -144,10 +172,17 @@ export function createCastComponent(
    *
    * @param params - Parameters for generating the stream link
    * @returns Stream link details including streaming key and expiration
+   * @throws {ForbiddenError} If the caller has an active platform ban
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
     const { walletAddress, worldName, sceneId, realmName } = params
+
+    // Checked before the admin lookup: a banned wallet gets the same answer whether or not it is a
+    // scene admin, so the rejection never doubles as an admin-status oracle. This is also the only
+    // wallet-scoped gate on the streaming path — `validateStreamerToken` authenticates a streaming
+    // key, not a wallet, so blocking the mint is what keeps a banned admin from getting a new key.
+    await assertNoActivePlatformBan(walletAddress.toLowerCase())
 
     const roomId = worldName
       ? livekit.getWorldSceneRoomName(worldName, sceneId)
@@ -327,6 +362,10 @@ export function createCastComponent(
     watcherAddress: string,
     parcel?: string
   ): Promise<GenerateWatcherCredentialsResult> {
+    // Platform ban first: it does not depend on the place, and it must apply even when the
+    // location cannot be resolved.
+    await assertNoActivePlatformBan(watcherAddress.toLowerCase())
+
     const isWorldName = location.endsWith('.eth')
 
     let place: PlaceAttributes
