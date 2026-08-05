@@ -2,21 +2,20 @@ import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../../types'
 
 /**
- * Reports whether an address has an active platform ban of its own.
+ * Reports whether an address would be rejected by a platform ban — its own, or one matching the
+ * device it is recorded on. Answers the same question as the connection gate, so a client is told
+ * it is banned rather than only discovering it when a token request fails.
  *
- * Intentionally narrower than the connection gate: `getActiveBanForConnection` also matches a
- * device id, so an evader on a fresh wallet is rejected at token issuance while this reports
- * `isBanned: false`. Do not close that gap by making the lookup device-aware:
+ * Two constraints hold this shape:
  *
- * - The route is unauthenticated, so a device-aware answer would let anyone link two arbitrary
- *   addresses to the same device.
- * - It would let an evader test fresh wallets here and cycle until one came back clean.
- * - `banPlayer` uses `isPlayerBanned` as its duplicate guard and `liftBan` matches on
- *   `banned_address`, so a device-aware version would make a wallet that merely shares a device
- *   impossible to ban and impossible to lift.
+ * - The ban record is returned only for the address's own ban. A device match would otherwise
+ *   publish another player's row on an unauthenticated route, including whose wallet it is.
+ * - It calls `getActiveBanForConnection`, never `isPlayerBanned`. `banPlayer` uses the latter as
+ *   its duplicate guard and `liftBan` matches on `banned_address`, so widening it would make a
+ *   wallet that merely shares a device impossible to ban and impossible to lift.
  *
- * The response does include `bannedDeviceId`; that disclosure is accepted. What is withheld is
- * querying *by* device.
+ * The route is unauthenticated, so a caller can test any address for device coverage. That is an
+ * accepted trade-off for telling banned players why they are blocked.
  */
 export async function banStatusHandler(
   context: Pick<HandlerContextWithPath<'userModeration' | 'logs', '/users/:address/bans'>, 'components' | 'params'>
@@ -29,12 +28,16 @@ export async function banStatusHandler(
   const logger = logs.getLogger('ban-status-handler')
 
   try {
-    const banStatus = await userModeration.isPlayerBanned(address)
+    const banStatus = await userModeration.getActiveBanForConnection({ address })
+
+    // Report coverage, but only expose the record when it is this address's own ban: a device
+    // match would otherwise publish another player's ban row, including whose wallet it is.
+    const isOwnBan = banStatus.ban?.bannedAddress === address.toLowerCase()
 
     return {
       status: 200,
       body: {
-        data: banStatus
+        data: isOwnBan ? banStatus : { isBanned: banStatus.isBanned }
       }
     }
   } catch (error) {

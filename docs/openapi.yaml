@@ -1755,9 +1755,8 @@ paths:
         best-effort: a player who has never connected, or whose client sent no device
         identifier, is banned by address only.
 
-        Note that the resulting device coverage is **not** reflected by
-        `GET /users/{address}/bans`, which reports address bans only — see that operation for
-        why the two deliberately differ.
+        The resulting device coverage is reflected by `GET /users/{address}/bans`, which reports
+        a device match as `isBanned: true` without disclosing the matching ban record.
       security:
         - SignedFetch: []
       parameters:
@@ -1878,33 +1877,30 @@ paths:
       operationId: getBanStatus
       summary: Get ban status for a user
       description: |
-        Returns whether the specified user address currently has an active platform-level
-        ban of its own. If banned, the full ban record is included in the response.
+        Returns whether the specified user address would currently be rejected by a platform
+        ban — its own, or one matching the device the address is recorded on.
 
         This endpoint is **public** — no authentication required. It is intended for
         clients to check their own ban status before attempting to connect.
 
-        ### This is not the same check token retrieval performs
+        ### Matches what token retrieval enforces
 
-        `isBanned: false` here does **not** guarantee the user can connect. Every token path
-        additionally matches a device identifier against the device snapshot recorded on other
-        users' bans — the identifier the request arrives with, or the device the address was
-        last recorded connecting from when the request carries none (as voice and cast requests
-        always do). So a user who was banned on one wallet and reconnects from the same device
-        under a different wallet is rejected there while this endpoint reports them as not
-        banned.
+        The answer here is the same one every token path applies, so a client can show a ban
+        notice rather than leaving the player to discover it when a token request fails. A user
+        banned on one wallet who reconnects under a different wallet from the same recorded
+        device is reported as banned here and rejected there.
 
-        That difference is intentional. This endpoint answers "does this wallet have a ban
-        record?" — the question a client needs in order to show a ban notice with its reason,
-        expiry and custom message. Whether a given connection will be *accepted* is answered
-        only at token retrieval, which is the sole authority on access.
+        ### The ban record is only returned for the address's own ban
 
-        The device-based check is deliberately not reflected here for two reasons:
+        When `isBanned` is true because of a **device** match, the response contains
+        `isBanned: true` and no `ban` object: the matching row belongs to another player, and
+        publishing it on an unauthenticated route would disclose whose wallet is banned. The full
+        record — reason, expiry, custom message, `bannedDeviceId` — is returned only when the ban
+        belongs to the queried address. Where both exist, the address's own ban is the one
+        reported.
 
-        - This route is unauthenticated, so a device-aware answer would let anyone query two
-          arbitrary addresses and infer from a shared ban that both belong to the same device.
-        - It would let a ban evader probe a fresh wallet before connecting to learn whether
-          their device is already covered, and cycle wallets until one came back clean.
+        Because the route is unauthenticated, any address can be tested for device coverage. That
+        is an accepted trade-off for being able to tell banned players why they are blocked.
 
         Moderator tooling that needs the full picture, including each ban's device snapshot,
         should use the moderator-gated `GET /bans`.

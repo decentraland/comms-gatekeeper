@@ -90,11 +90,11 @@ test('POST /cast/watcher-token platform ban enforcement', ({ components, spyComp
       expect(body).toEqual({ error: 'Access denied, platform-banned user' })
     })
 
-    it('should still report the wallet as not banned on the public ban-status endpoint', async () => {
+    it('should report the wallet as banned on the ban-status endpoint, so the client can say why', async () => {
       const response = await makeRequest(components.localFetch, `/users/${watcherAddress}/bans`, { method: 'GET' })
       const body = await response.json()
 
-      expect(body.data.isBanned).toBe(false)
+      expect(body.data.isBanned).toBe(true)
     })
   })
 

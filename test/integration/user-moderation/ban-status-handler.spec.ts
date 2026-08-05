@@ -73,9 +73,6 @@ test('GET /users/:address/bans', ({ components }) => {
       })
     })
 
-    // Pins the intentional divergence: the gate rejects this player via the other wallet's device
-    // snapshot, this endpoint reports address bans only. If it fails, the endpoint has become a
-    // device-linkage oracle — see banStatusHandler.
     describe('and another player is banned from the device this player last connected from', () => {
       beforeEach(async () => {
         await components.playerConnectionDb.upsertPlayerConnection({
@@ -91,15 +88,16 @@ test('GET /users/:address/bans', ({ components }) => {
         })
       })
 
-      it('should respond with a 200 and isBanned false, reporting address bans only', async () => {
+      it('should respond with a 200 and isBanned true, matching what the connection gate answers', async () => {
         const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
           method: 'GET'
         })
         expect(response.status).toBe(200)
         const body = await response.json()
-        expect(body.data.isBanned).toBe(false)
+        expect(body.data.isBanned).toBe(true)
       })
 
+      // The coverage is reported; whose ban produced it is not.
       it('should not disclose the other player ban record', async () => {
         const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
           method: 'GET'
@@ -108,13 +106,44 @@ test('GET /users/:address/bans', ({ components }) => {
         expect(body.data.ban).toBeUndefined()
       })
 
-      it('should still reject the connection at the gate the token handlers use', async () => {
+      it('should agree with the gate the token handlers use', async () => {
         const status = await components.userModeration.getActiveBanForConnection({
           address: targetAddress,
           deviceId: 'shared-device'
         })
 
         expect(status.isBanned).toBe(true)
+      })
+    })
+
+    describe('and the player has a ban of their own alongside a device match on another ban', () => {
+      beforeEach(async () => {
+        await components.playerConnectionDb.upsertPlayerConnection({
+          address: targetAddress,
+          ipAddress: '1.2.3.4',
+          deviceId: 'shared-device'
+        })
+        await components.userModerationDb.createBan({
+          bannedAddress: '0x0000000000000000000000000000000000000002',
+          bannedBy: '0x0000000000000000000000000000000000000099',
+          reason: 'Evasion',
+          bannedDeviceId: 'shared-device'
+        })
+        await components.userModerationDb.createBan({
+          bannedAddress: targetAddress,
+          bannedBy: '0x0000000000000000000000000000000000000099',
+          reason: 'Harassment'
+        })
+      })
+
+      // Both rows match, so the query must not pick between them arbitrarily.
+      it('should return the player own ban record rather than the device-matched one', async () => {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
+          method: 'GET'
+        })
+        const body = await response.json()
+
+        expect(body.data.ban).toMatchObject({ bannedAddress: targetAddress, reason: 'Harassment' })
       })
     })
 

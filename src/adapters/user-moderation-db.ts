@@ -118,7 +118,9 @@ export function createUserModerationDBComponent(components: {
         .append(identifierMatch)
         .append(SQL`) AND `)
         .append(activeBanFilter())
-        .append(SQL` LIMIT 1`)
+        // Prefer the address's own ban over one matched through the device, so the record returned
+        // is deterministic when both exist.
+        .append(SQL` ORDER BY (banned_address = ${address}) DESC, banned_at DESC LIMIT 1`)
 
       const result = await database.query<UserBan>(query)
       if (result.rows.length > 0) {
