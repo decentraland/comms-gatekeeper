@@ -16,7 +16,7 @@ export async function generateStreamLinkHandler(
   const logger = logs.getLogger('generate-stream-link-handler')
 
   // Validate signed fetch and extract auth data
-  const { identity, sceneId, realm, isWorld } = await validate(context)
+  const { identity, sceneId, realm, isWorld, deviceIdentifier } = await validate(context)
 
   const realmName = realm.serverName
   const isPreview = livekit.isLocalPreview(realmName)
@@ -40,12 +40,18 @@ export async function generateStreamLinkHandler(
   }
 
   const result = isPreview
-    ? await cast.generatePreviewStreamLink({ sceneId: resolvedSceneId, realmName, walletAddress: identity })
+    ? await cast.generatePreviewStreamLink({
+        sceneId: resolvedSceneId,
+        realmName,
+        walletAddress: identity,
+        deviceIdentifier
+      })
     : await cast.generateStreamLink({
         walletAddress: identity,
         worldName: isWorld ? realm.serverName : undefined,
         sceneId: resolvedSceneId,
-        realmName
+        realmName,
+        deviceIdentifier
       })
 
   return {

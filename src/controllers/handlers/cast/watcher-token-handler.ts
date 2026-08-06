@@ -27,7 +27,8 @@ export async function watcherTokenHandler(
     body.location,
     body.identity,
     watcherAddress,
-    body.parcel
+    body.parcel,
+    verification!.authMetadata?.deviceIdentifier
   )
 
   logger.info(`Watcher credentials generated for location ${body.location}`)

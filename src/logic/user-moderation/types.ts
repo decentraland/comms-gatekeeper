@@ -58,7 +58,20 @@ export interface IUserModerationComponent {
   ): Promise<UserBan>
   liftBan(address: string, liftedBy: string): Promise<void>
   warnPlayer(address: string, reason: string, warnedBy: string): Promise<UserWarning>
+  /**
+   * Whether this address has an active ban of its own, ignoring device snapshots. Must stay
+   * address-only: `banPlayer`'s duplicate guard depends on it, and `liftBan` could not undo a
+   * device-wide match. Use `getActiveBanForConnection` to gate a connection.
+   */
   isPlayerBanned(address: string): Promise<BanStatus>
+  /**
+   * Whether a connection should be rejected, matching the address **or** a device id against the
+   * device snapshot on any active ban. The device id is the request's, falling back to the
+   * address's last recorded one; an own ban wins over a device match.
+   *
+   * The returned record may be another player's ban — never expose it unless `bannedAddress` is
+   * the queried address.
+   */
   getActiveBanForConnection(query: ConnectionBanQuery): Promise<BanStatus>
   getActiveBans(): Promise<UserBan[]>
   getPlayerWarnings(address: string): Promise<UserWarning[]>

@@ -8,6 +8,7 @@ import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-moc
 import { createPlacesMockedComponent } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
 import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
+import { createUserModerationMockedComponent } from '../../mocks/user-moderation-mock'
 
 describe('when generating a presentation bot token', () => {
   let castComponent: ICastComponent
@@ -50,7 +51,8 @@ describe('when generating a presentation bot token', () => {
       sceneManager: createSceneManagerMockedComponent(),
       places: createPlacesMockedComponent(),
       config: createConfigMockedComponent(),
-      sceneBanManager: createSceneBanManagerMockedComponent()
+      sceneBanManager: createSceneBanManagerMockedComponent(),
+      userModeration: createUserModerationMockedComponent()
     })
   })
 

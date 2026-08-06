@@ -11,6 +11,7 @@ import { createSceneManagerMockedComponent } from '../../mocks/scene-manager-moc
 import { createPlacesMockedComponent, createMockedPlace } from '../../mocks/places-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
 import { createSceneBanManagerMockedComponent } from '../../mocks/scene-ban-manager-mock'
+import { createUserModerationMockedComponent } from '../../mocks/user-moderation-mock'
 
 function createRoomWithPresenters(presenters: string[]): Room {
   return new Room({ metadata: JSON.stringify({ presenters }) })
@@ -61,7 +62,8 @@ describe('when managing presenters', () => {
       sceneManager: mockSceneManager,
       places: mockPlaces,
       config: createConfigMockedComponent(),
-      sceneBanManager: createSceneBanManagerMockedComponent()
+      sceneBanManager: createSceneBanManagerMockedComponent(),
+      userModeration: createUserModerationMockedComponent()
     })
   })
 
