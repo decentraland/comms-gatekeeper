@@ -44,6 +44,50 @@ test('GET /users/:address/bans', ({ components }) => {
       })
     })
 
+    describe('and the player own ban captured a device id', () => {
+      beforeEach(async () => {
+        await components.playerConnectionDb.upsertPlayerConnection({
+          address: targetAddress,
+          ipAddress: '1.2.3.4',
+          deviceId: 'own-device'
+        })
+        await components.userModerationDb.createBan({
+          bannedAddress: targetAddress,
+          bannedBy: '0x0000000000000000000000000000000000000099',
+          reason: 'Spamming',
+          bannedDeviceId: 'own-device'
+        })
+      })
+
+      // The route is unauthenticated and the value is a stable cross-wallet machine identifier.
+      it('should not expose bannedDeviceId on the public response', async () => {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
+          method: 'GET'
+        })
+        const body = await response.json()
+
+        expect(body.data.ban).not.toHaveProperty('bannedDeviceId')
+      })
+
+      it('should still return the rest of the ban record', async () => {
+        const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
+          method: 'GET'
+        })
+        const body = await response.json()
+
+        expect(body.data.ban).toMatchObject({ bannedAddress: targetAddress, reason: 'Spamming' })
+      })
+
+      it('should still enforce the device, so stripping it is presentation only', async () => {
+        const status = await components.userModeration.getActiveBanForConnection({
+          address: '0x00000000000000000000000000000000000000ff',
+          deviceId: 'own-device'
+        })
+
+        expect(status.isBanned).toBe(true)
+      })
+    })
+
     describe('and the player is not banned', () => {
       it('should respond with a 200 and isBanned false', async () => {
         const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {

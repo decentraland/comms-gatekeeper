@@ -96,6 +96,44 @@ test('GET /bans', ({ components }) => {
             expect(body.data).toHaveLength(2)
           })
         })
+
+        // This is the only route that exposes the device id now that the public one strips it, so
+        // moderator tooling depends on it.
+        describe('and an active ban captured a device id', () => {
+          beforeEach(async () => {
+            await components.playerConnectionDb.upsertPlayerConnection({
+              address: '0x0000000000000000000000000000000000000003',
+              ipAddress: '1.2.3.4',
+              deviceId: 'moderator-visible-device'
+            })
+            await makeRequest(
+              components.localFetch,
+              '/users/0x0000000000000000000000000000000000000003/bans',
+              {
+                method: 'POST',
+                body: JSON.stringify({ reason: 'Evasion' }),
+                metadata: { signer: 'dcl:moderator' }
+              },
+              moderatorIdentity
+            )
+          })
+
+          afterEach(async () => {
+            await components.database.query('DELETE FROM player_connection_info')
+          })
+
+          it('should include bannedDeviceId on the record', async () => {
+            const response = await makeRequest(
+              components.localFetch,
+              '/bans',
+              { method: 'GET', metadata: { signer: 'dcl:moderator' } },
+              moderatorIdentity
+            )
+            const body = await response.json()
+
+            expect(body.data[0]).toMatchObject({ bannedDeviceId: 'moderator-visible-device' })
+          })
+        })
       })
     })
   })

@@ -146,6 +146,18 @@ components:
           format: date-time
           description: Record creation timestamp
 
+    PublicUserBan:
+      description: >-
+        A ban record as returned by the public `GET /users/{address}/bans`. Identical to `UserBan`
+        minus `bannedDeviceId`: the route is unauthenticated and the device id is a stable
+        cross-wallet machine identifier. Moderator tooling reads the device from `GET /bans`.
+      allOf:
+        - $ref: '#/components/schemas/UserBan'
+      properties:
+        bannedDeviceId:
+          not: {}
+          description: Never present on this route.
+
     UserWarning:
       type: object
       properties:
@@ -1919,8 +1931,12 @@ paths:
         `matchedOn` says which identifier matched. When it is `device`, the response contains
         `isBanned: true` and no `ban` object: the matching row belongs to another player, and
         publishing it on an unauthenticated route would disclose whose wallet is banned. The full
-        record — reason, expiry, custom message, `bannedDeviceId` — is returned only when
-        `matchedOn` is `address`. Where both exist, the address's own ban is the one reported.
+        record — reason, expiry, custom message — is returned only when `matchedOn` is `address`.
+        Where both exist, the address's own ban is the one reported.
+
+        `bannedDeviceId` is **never** returned on this route, whatever `matchedOn` says: it is a
+        stable cross-wallet machine identifier and this endpoint is unauthenticated. Moderator
+        tooling reads it from the moderator-gated `GET /bans`.
 
         A client can use `matchedOn` to word the notice: an `address` match has a reason and an
         expiry to show, a `device` match has neither.
@@ -1961,7 +1977,7 @@ paths:
                           covers the device this address is recorded on; `ban` is omitted, because
                           that record belongs to someone else. Absent when `isBanned` is false.
                       ban:
-                        $ref: '#/components/schemas/UserBan'
+                        $ref: '#/components/schemas/PublicUserBan'
         '500':
           description: Internal server error
           content:
