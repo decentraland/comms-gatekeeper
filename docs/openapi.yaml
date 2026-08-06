@@ -660,6 +660,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The caller has an active platform ban, or last connected from a banned device
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Stream access not found
           content:
@@ -706,6 +712,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The caller has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:
@@ -769,6 +781,12 @@ paths:
           description: Stream access reset successfully
         '401':
           description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The caller has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:

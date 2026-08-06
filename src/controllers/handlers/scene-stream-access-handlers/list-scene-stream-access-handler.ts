@@ -1,4 +1,4 @@
-import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
+import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
 import { PlaceAttributes } from '../../../types/places.type'
@@ -7,14 +7,14 @@ import { FOUR_DAYS } from '../../../logic/time'
 export async function listSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'logs' | 'config',
+      'fetch' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'logs' | 'config' | 'userModeration',
       '/scene-stream-access'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, sceneManager, places },
+    components: { logs, sceneStreamAccessManager, sceneManager, places, userModeration },
     verification
   } = ctx
   const logger = logs.getLogger('get-scene-stream-access-handler')
@@ -29,9 +29,21 @@ export async function listSceneStreamAccessHandler(
   const {
     parcel,
     realm: { hostname, serverName },
-    sceneId
+    sceneId,
+    deviceIdentifier
   } = await validate(ctx)
   const isWorld = !!hostname?.includes('worlds-content-server')
+
+  // Before the admin check: this returns a streaming key, and validateStreamerToken honours a key
+  // without re-checking the wallet.
+  const { isBanned } = await userModeration.getActiveBanForConnection({
+    address: authenticatedAddress.toLowerCase(),
+    deviceId: deviceIdentifier
+  })
+  if (isBanned) {
+    logger.warn(`Rejected stream key retrieval from platform-banned user: ${authenticatedAddress}`)
+    throw new ForbiddenError('Access denied, platform-banned user')
+  }
 
   // sceneId is required for all requests
   if (!sceneId) {
