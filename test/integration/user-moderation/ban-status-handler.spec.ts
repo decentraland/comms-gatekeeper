@@ -106,7 +106,7 @@ test('GET /users/:address/bans', ({ components }) => {
         })
       })
 
-      it('should respond with a 200 and isBanned true, matching what the connection gate answers', async () => {
+      it('should respond with a 200 and isBanned true from the recorded device', async () => {
         const response = await components.localFetch.fetch(`/users/${targetAddress}/bans`, {
           method: 'GET'
         })
@@ -133,7 +133,7 @@ test('GET /users/:address/bans', ({ components }) => {
         expect(body.data.ban).toBeUndefined()
       })
 
-      it('should agree with the gate the token handlers use', async () => {
+      it('should agree with the gate when the connection presents that same device', async () => {
         const status = await components.userModeration.getActiveBanForConnection({
           address: targetAddress,
           deviceId: 'shared-device'

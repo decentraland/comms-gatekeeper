@@ -1901,12 +1901,18 @@ paths:
         This endpoint is **public** — no authentication required. It is intended for
         clients to check their own ban status before attempting to connect.
 
-        ### Matches what token retrieval enforces
+        ### Close to what token retrieval enforces, but not identical
 
-        The answer here is the same one every token path applies, so a client can show a ban
-        notice rather than leaving the player to discover it when a token request fails. A user
-        banned on one wallet who reconnects under a different wallet from the same recorded
-        device is reported as banned here and rejected there.
+        This endpoint receives only an address, so its device term is always the address's **last
+        recorded** device. Token paths prefer the device identifier the request itself carries and
+        fall back to the recorded one only when it has none. Where a request arrives with a device
+        that differs from the recorded one, the two can disagree in both directions.
+
+        So a user banned on one wallet who reconnects under a different wallet from the same
+        recorded device is reported as banned here and rejected at token issuance — but treat this
+        endpoint as the source for **user-facing ban messaging**, not as a prediction of whether a
+        specific connection will be accepted. Token issuance stays authoritative for a concrete
+        request.
 
         ### The ban record is only returned for the address's own ban
 
