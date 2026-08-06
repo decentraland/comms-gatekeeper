@@ -51,6 +51,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         validLocation,
         identity,
         expect.any(String),
+        undefined,
         undefined
       )
     })
@@ -77,6 +78,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         validWorldName,
         identity,
         expect.any(String),
+        undefined,
         undefined
       )
     })
@@ -107,6 +109,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         validLocation,
         customIdentity,
         expect.any(String),
+        undefined,
         undefined
       )
     })

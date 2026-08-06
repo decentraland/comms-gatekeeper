@@ -426,6 +426,51 @@ describe('when generating a stream link', () => {
     })
   })
 
+  describe('and the request carries a device id another wallet is banned on', () => {
+    let params: { walletAddress: string; sceneId: string; realmName: string; deviceIdentifier: string }
+
+    beforeEach(() => {
+      params = {
+        walletAddress: '0xowner123',
+        sceneId: 'bafkreiscene123',
+        realmName: 'test-realm',
+        deviceIdentifier: 'banned-device'
+      }
+      mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      mockUserModeration.getActiveBanForConnection.mockImplementation(async ({ deviceId }) =>
+        deviceId === 'banned-device'
+          ? { isBanned: true, ban: makeBan({ bannedAddress: '0xsomeone-else', bannedDeviceId: 'banned-device' }) }
+          : { isBanned: false }
+      )
+    })
+
+    it('should pass the request device id to the gate and reject', async () => {
+      await expect(castComponent.generateStreamLink(params)).rejects.toThrow(ForbiddenError)
+
+      expect(mockUserModeration.getActiveBanForConnection).toHaveBeenCalledWith({
+        address: '0xowner123',
+        deviceId: 'banned-device'
+      })
+    })
+
+    it('should not mint a streaming key', async () => {
+      await expect(castComponent.generateStreamLink(params)).rejects.toThrow(ForbiddenError)
+
+      expect(mockSceneStreamAccessManager.addAccess).not.toHaveBeenCalled()
+    })
+
+    it('should reject the local preview branch on the same device id', async () => {
+      await expect(
+        castComponent.generatePreviewStreamLink({
+          sceneId: 'bafkreiscene123',
+          realmName: 'preview',
+          walletAddress: '0xowner123',
+          deviceIdentifier: 'banned-device'
+        })
+      ).rejects.toThrow(ForbiddenError)
+    })
+  })
+
   describe('and the caller has a lifted or expired ban only', () => {
     let params: { walletAddress: string; sceneId: string; realmName: string }
 

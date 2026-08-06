@@ -67,14 +67,18 @@ export function createCastComponent(
   /**
    * Rejects the request when the given wallet has an active platform ban.
    *
-   * No device id is passed because no cast client sends one; the gate falls back to the device
-   * recorded for the address, and cast never records one, so cast-only wallets match on address.
+   * No cast client sends a device id today, so in practice the gate falls back to the device
+   * recorded for the address; cast never records one, so cast-only wallets match on address.
    *
    * @param walletAddress - Lowercased address the credentials would be issued to.
+   * @param deviceIdentifier - Device id from signed-fetch metadata, when the caller sends one.
    * @throws {ForbiddenError} If the address is platform-banned.
    */
-  async function assertNoActivePlatformBan(walletAddress: string): Promise<void> {
-    const { isBanned } = await userModeration.getActiveBanForConnection({ address: walletAddress })
+  async function assertNoActivePlatformBan(walletAddress: string, deviceIdentifier?: string): Promise<void> {
+    const { isBanned } = await userModeration.getActiveBanForConnection({
+      address: walletAddress,
+      deviceId: deviceIdentifier
+    })
     if (isBanned) {
       logger.warn(`Rejected cast credentials for platform-banned user: ${walletAddress}`)
       throw new ForbiddenError('Access denied, platform-banned user')
@@ -176,10 +180,10 @@ export function createCastComponent(
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, sceneId, realmName } = params
+    const { walletAddress, worldName, sceneId, realmName, deviceIdentifier } = params
 
     // Before the admin lookup, so the rejection can't double as an admin-status oracle.
-    await assertNoActivePlatformBan(walletAddress.toLowerCase())
+    await assertNoActivePlatformBan(walletAddress.toLowerCase(), deviceIdentifier)
 
     const roomId = worldName
       ? livekit.getWorldSceneRoomName(worldName, sceneId)
@@ -211,11 +215,12 @@ export function createCastComponent(
     sceneId: string
     realmName: string
     walletAddress: string
+    deviceIdentifier?: string
   }): Promise<GenerateStreamLinkResult> {
-    const { sceneId, realmName, walletAddress } = params
+    const { sceneId, realmName, walletAddress, deviceIdentifier } = params
 
     // Gated too: this branch skips the admin check and its realm name is self-asserted.
-    await assertNoActivePlatformBan(walletAddress.toLowerCase())
+    await assertNoActivePlatformBan(walletAddress.toLowerCase(), deviceIdentifier)
 
     const roomId = livekit.getSceneRoomName(realmName, sceneId)
     const place: StreamAccessPlace = {
@@ -365,10 +370,11 @@ export function createCastComponent(
     location: string,
     identity: string,
     watcherAddress: string,
-    parcel?: string
+    parcel?: string,
+    deviceIdentifier?: string
   ): Promise<GenerateWatcherCredentialsResult> {
     // Before resolving the location, so an unresolvable place still rejects.
-    await assertNoActivePlatformBan(watcherAddress.toLowerCase())
+    await assertNoActivePlatformBan(watcherAddress.toLowerCase(), deviceIdentifier)
 
     const isWorldName = location.endsWith('.eth')
 

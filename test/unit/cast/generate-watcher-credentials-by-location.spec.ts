@@ -407,6 +407,63 @@ describe('when generating watcher credentials by location', () => {
     })
   })
 
+  describe('and the request carries a device id another wallet is banned on', () => {
+    const location = '10,20'
+    const identity = 'watcher-identity'
+
+    beforeEach(() => {
+      mockPlaces.getPlaceByParcel.mockResolvedValue(mockPlace)
+      mockUserModeration.getActiveBanForConnection.mockImplementation(async ({ deviceId }) =>
+        deviceId === 'banned-device'
+          ? { isBanned: true, ban: makeBan({ bannedAddress: '0xsomeone-else', bannedDeviceId: 'banned-device' }) }
+          : { isBanned: false }
+      )
+    })
+
+    it('should pass the request device id to the gate', async () => {
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(
+          location,
+          identity,
+          WATCHER_ADDRESS,
+          undefined,
+          'banned-device'
+        )
+      ).rejects.toThrow(ForbiddenError)
+
+      expect(mockUserModeration.getActiveBanForConnection).toHaveBeenCalledWith({
+        address: WATCHER_ADDRESS.toLowerCase(),
+        deviceId: 'banned-device'
+      })
+    })
+
+    it('should not issue any LiveKit credentials', async () => {
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(
+          location,
+          identity,
+          WATCHER_ADDRESS,
+          undefined,
+          'banned-device'
+        )
+      ).rejects.toThrow(ForbiddenError)
+
+      expect(mockLivekit.generateCredentials).not.toHaveBeenCalled()
+    })
+
+    it('should still issue credentials when the request device is clean', async () => {
+      const result = await castComponent.generateWatcherCredentialsByLocation(
+        location,
+        identity,
+        WATCHER_ADDRESS,
+        undefined,
+        'clean-device'
+      )
+
+      expect(result.token).toBe('test-token')
+    })
+  })
+
   describe('and the watcher has an active platform ban', () => {
     const location = '10,20'
     const identity = 'watcher-identity'

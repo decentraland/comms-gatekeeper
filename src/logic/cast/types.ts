@@ -25,6 +25,7 @@ export interface ICastComponent {
     sceneId: string
     realmName: string
     walletAddress: string
+    deviceIdentifier?: string
   }): Promise<GenerateStreamLinkResult>
 
   /**
@@ -52,7 +53,8 @@ export interface ICastComponent {
     location: string,
     identity: string,
     watcherAddress: string,
-    parcel?: string
+    parcel?: string,
+    deviceIdentifier?: string
   ): Promise<GenerateWatcherCredentialsResult>
 
   /**
@@ -100,6 +102,8 @@ export interface GenerateStreamLinkParams {
   worldName?: string
   sceneId: string
   realmName: string
+  /** From signed-fetch metadata when the caller sends one; no current client does. */
+  deviceIdentifier?: string
 }
 
 export interface GenerateStreamLinkResult {
