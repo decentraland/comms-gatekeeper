@@ -98,7 +98,12 @@ components:
       description: |
         Bearer token authentication for service-to-service communication.
   schemas:
-    UserBan:
+    PublicUserBan:
+      description: >-
+        A ban record without the device id, as returned by the public
+        `GET /users/{address}/bans`. Declared standalone rather than as `UserBan` minus a field, so
+        no generator can flatten a composed schema and hand the device id back to a public client.
+        `UserBan` is this plus `bannedDeviceId`.
       type: object
       properties:
         id:
@@ -117,12 +122,6 @@ components:
           type: string
           nullable: true
           description: Optional message shown to the player on rejection
-        bannedDeviceId:
-          type: string
-          nullable: true
-          description: >-
-            Device id captured from the player's connection info at ban time. The ban also
-            rejects this device (under any wallet). Null when no device id was recorded.
         bannedAt:
           type: string
           format: date-time
@@ -145,6 +144,23 @@ components:
           type: string
           format: date-time
           description: Record creation timestamp
+
+    UserBan:
+      description: >-
+        A full ban record, including the device snapshot. Returned by the moderator-gated
+        `GET /bans` and by the ban-creation response. Composed from `PublicUserBan`, so flattening
+        yields the correct superset.
+      allOf:
+        - $ref: '#/components/schemas/PublicUserBan'
+        - type: object
+          properties:
+            bannedDeviceId:
+              type: string
+              nullable: true
+              description: >-
+                Device id captured from the player's connection info at ban time. The ban also
+                rejects this device (under any wallet). Null when no device id was recorded.
+                Never returned by the public `GET /users/{address}/bans`.
 
     UserWarning:
       type: object
@@ -1919,8 +1935,12 @@ paths:
         `matchedOn` says which identifier matched. When it is `device`, the response contains
         `isBanned: true` and no `ban` object: the matching row belongs to another player, and
         publishing it on an unauthenticated route would disclose whose wallet is banned. The full
-        record — reason, expiry, custom message, `bannedDeviceId` — is returned only when
-        `matchedOn` is `address`. Where both exist, the address's own ban is the one reported.
+        record — reason, expiry, custom message — is returned only when `matchedOn` is `address`.
+        Where both exist, the address's own ban is the one reported.
+
+        `bannedDeviceId` is **never** returned on this route, whatever `matchedOn` says: it is a
+        stable cross-wallet machine identifier and this endpoint is unauthenticated. Moderator
+        tooling reads it from the moderator-gated `GET /bans`.
 
         A client can use `matchedOn` to word the notice: an `address` match has a reason and an
         expiry to show, a `device` match has neither.
@@ -1961,7 +1981,7 @@ paths:
                           covers the device this address is recorded on; `ban` is omitted, because
                           that record belongs to someone else. Absent when `isBanned` is false.
                       ban:
-                        $ref: '#/components/schemas/UserBan'
+                        $ref: '#/components/schemas/PublicUserBan'
         '500':
           description: Internal server error
           content:
