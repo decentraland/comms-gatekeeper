@@ -98,7 +98,12 @@ components:
       description: |
         Bearer token authentication for service-to-service communication.
   schemas:
-    UserBan:
+    PublicUserBan:
+      description: >-
+        A ban record without the device id, as returned by the public
+        `GET /users/{address}/bans`. Declared standalone rather than as `UserBan` minus a field, so
+        no generator can flatten a composed schema and hand the device id back to a public client.
+        `UserBan` is this plus `bannedDeviceId`.
       type: object
       properties:
         id:
@@ -117,12 +122,6 @@ components:
           type: string
           nullable: true
           description: Optional message shown to the player on rejection
-        bannedDeviceId:
-          type: string
-          nullable: true
-          description: >-
-            Device id captured from the player's connection info at ban time. The ban also
-            rejects this device (under any wallet). Null when no device id was recorded.
         bannedAt:
           type: string
           format: date-time
@@ -146,17 +145,22 @@ components:
           format: date-time
           description: Record creation timestamp
 
-    PublicUserBan:
+    UserBan:
       description: >-
-        A ban record as returned by the public `GET /users/{address}/bans`. Identical to `UserBan`
-        minus `bannedDeviceId`: the route is unauthenticated and the device id is a stable
-        cross-wallet machine identifier. Moderator tooling reads the device from `GET /bans`.
+        A full ban record, including the device snapshot. Returned by the moderator-gated
+        `GET /bans` and by the ban-creation response. Composed from `PublicUserBan`, so flattening
+        yields the correct superset.
       allOf:
-        - $ref: '#/components/schemas/UserBan'
-      properties:
-        bannedDeviceId:
-          not: {}
-          description: Never present on this route.
+        - $ref: '#/components/schemas/PublicUserBan'
+        - type: object
+          properties:
+            bannedDeviceId:
+              type: string
+              nullable: true
+              description: >-
+                Device id captured from the player's connection info at ban time. The ban also
+                rejects this device (under any wallet). Null when no device id was recorded.
+                Never returned by the public `GET /users/{address}/bans`.
 
     UserWarning:
       type: object
