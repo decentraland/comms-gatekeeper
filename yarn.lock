@@ -1110,14 +1110,14 @@
   resolved "https://registry.npmjs.org/@dcl/catalyst-contracts/-/catalyst-contracts-4.4.2.tgz"
   integrity sha512-gJZo3IB8U+jhBJWR0DgoLS+zaUDIb/u79e7Rp+MEM78uH3bvC19S3Dd8lxWEbPXNKlCB0saUptfK/Buw0c1y2Q==
 
-"@dcl/core-commons@0.10.0", "@dcl/core-commons@^0.10.0":
+"@dcl/core-commons@0.10.0":
   version "0.10.0"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.10.0.tgz#cbdcc810f55a1a708b9250ab566b951f312841e2"
   integrity sha512-lcCgnwxkq/MoTbU59wKnspmVaQyEIP8SRRDUCd3Werrwj+nsH6T7xGuVo17cLVEd8D/Hi3NLFtBiq+N7kZAt/A==
   dependencies:
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/core-commons@0.10.1", "@dcl/core-commons@^0.10.1":
+"@dcl/core-commons@0.10.1", "@dcl/core-commons@^0.10.0", "@dcl/core-commons@^0.10.1":
   version "0.10.1"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.10.1.tgz#f6b38fd623a5043a571e80d7ba1ac40e9db41973"
   integrity sha512-iLBpIg15czlzV7No5Wzb3FyreXpqYx8YnVJ8xYKczXpl6C3eqBQoqEA02hRkd/UASbzqcPJeG1wH1wHSxYTmQw==
@@ -1175,10 +1175,10 @@
     eslint-plugin-prettier "^5.1.3"
     prettier "^3.3.2"
 
-"@dcl/features-component@^1.0.1":
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/@dcl/features-component/-/features-component-1.0.1.tgz#93c095cce8284778f2947f3487c8d62c82517a87"
-  integrity sha512-RsxGD0WniEVAWGrvQX+LrZv/ZcBNHtZaZr71JQGfq+o803cO3fVPHmZw0QBjtDhuTRs4WUSNBqpKseBL4wQm8Q==
+"@dcl/features-component@^1.0.2":
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/@dcl/features-component/-/features-component-1.0.2.tgz#8666702cf5366e94cb085265fdcaed900ab7c6b5"
+  integrity sha512-K0Y1h3lqduRKQwqd+upbUwYz7bhx+0dC1GTuM90zJGXyqGolNHNPMzfpVPCi0rrqS9Tv+nMpveN454g2Tnb9hw==
   dependencies:
     "@dcl/core-commons" "0.10.1"
     "@well-known-components/interfaces" "^1.5.2"
