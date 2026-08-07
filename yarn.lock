@@ -1110,14 +1110,14 @@
   resolved "https://registry.npmjs.org/@dcl/catalyst-contracts/-/catalyst-contracts-4.4.2.tgz"
   integrity sha512-gJZo3IB8U+jhBJWR0DgoLS+zaUDIb/u79e7Rp+MEM78uH3bvC19S3Dd8lxWEbPXNKlCB0saUptfK/Buw0c1y2Q==
 
-"@dcl/core-commons@0.10.0", "@dcl/core-commons@^0.10.0":
+"@dcl/core-commons@0.10.0":
   version "0.10.0"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.10.0.tgz#cbdcc810f55a1a708b9250ab566b951f312841e2"
   integrity sha512-lcCgnwxkq/MoTbU59wKnspmVaQyEIP8SRRDUCd3Werrwj+nsH6T7xGuVo17cLVEd8D/Hi3NLFtBiq+N7kZAt/A==
   dependencies:
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/core-commons@0.10.1", "@dcl/core-commons@^0.10.1":
+"@dcl/core-commons@0.10.1", "@dcl/core-commons@^0.10.0", "@dcl/core-commons@^0.10.1":
   version "0.10.1"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.10.1.tgz#f6b38fd623a5043a571e80d7ba1ac40e9db41973"
   integrity sha512-iLBpIg15czlzV7No5Wzb3FyreXpqYx8YnVJ8xYKczXpl6C3eqBQoqEA02hRkd/UASbzqcPJeG1wH1wHSxYTmQw==
@@ -1132,15 +1132,15 @@
     "@dcl/core-commons" "^0.10.0"
     "@dcl/crypto" "3.7.0"
 
-"@dcl/crypto-middleware@^4.1.0":
-  version "4.1.0"
-  resolved "https://registry.yarnpkg.com/@dcl/crypto-middleware/-/crypto-middleware-4.1.0.tgz#85b946c2627d4fbb3a91795fd78109f5cccba1e4"
-  integrity sha512-F9MVyxnLFaLJSyo5o6MtsGTDiQ1r4VqCKuFkaEPcq2JFyI6W4ftIRaKIj7hLb65PP/ywm3FkQrizSJ+6MhWpZw==
+"@dcl/crypto-middleware@^5.0.0":
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/@dcl/crypto-middleware/-/crypto-middleware-5.0.0.tgz#3237b3888cac37e0920de8ee1d3fad9b54a77424"
+  integrity sha512-MIy5oRsTy8AujEef6MDaObJM04zZqKDVF9FlWz6aBxjr1kU7jjSDPxHRLIcXC4ECCCWpugpd6A8gwsE3TVhRhw==
   dependencies:
     "@dcl/core-commons" "^0.10.0"
     "@dcl/crypto" "3.7.0"
 
-"@dcl/crypto@3.7.0":
+"@dcl/crypto@3.7.0", "@dcl/crypto@^3.4.0", "@dcl/crypto@^3.4.5":
   version "3.7.0"
   resolved "https://registry.yarnpkg.com/@dcl/crypto/-/crypto-3.7.0.tgz#2436370e591ea269da4806ee800e8eec21ff2168"
   integrity sha512-8HSFLxnIHDeA8I/6yGAUwbCin2TX2oPn2uBLj5UmR0NFAyN5wYJCqbeolaJaIdmqN9RFjdb9ixKOY4uKF5Q2XA==
@@ -1148,15 +1148,6 @@
     "@dcl/schemas" "^25.2.0"
     eth-connect "^6.0.3"
     ethereum-cryptography "^2.0.0"
-
-"@dcl/crypto@^3.4.0", "@dcl/crypto@^3.4.5":
-  version "3.4.5"
-  resolved "https://registry.npmjs.org/@dcl/crypto/-/crypto-3.4.5.tgz"
-  integrity sha512-uneyjOAOx7pi5kabZsLmPm9kSLkCk4Cok8FUsvT+6k8RquqkjKqocvkGVOMaoWsfU6S3mkLOyaeqEKmOy4ErxA==
-  dependencies:
-    "@dcl/schemas" "^9.2.0"
-    eth-connect "^6.0.3"
-    ethereum-cryptography "^1.0.3"
 
 "@dcl/eslint-config@^2.2.1":
   version "2.2.1"
@@ -1307,15 +1298,6 @@
     ajv-errors "^3.0.0"
     ajv-keywords "^5.1.0"
     mitt "^3.0.1"
-
-"@dcl/schemas@^9.2.0":
-  version "9.15.0"
-  resolved "https://registry.npmjs.org/@dcl/schemas/-/schemas-9.15.0.tgz"
-  integrity sha512-nip5rsOcJplNfBWeImwezuHLprM0gLW03kEeqGIvT9J6HnEBTtvIwkk9+NSt7hzFKEvWGI+C23vyNWbG3nU+SQ==
-  dependencies:
-    ajv "^8.11.0"
-    ajv-errors "^3.0.0"
-    ajv-keywords "^5.1.0"
 
 "@dcl/sns-component@^3.1.5":
   version "3.1.5"
@@ -1663,20 +1645,10 @@
   dependencies:
     "@noble/hashes" "1.4.0"
 
-"@noble/hashes@1.2.0", "@noble/hashes@~1.2.0":
-  version "1.2.0"
-  resolved "https://registry.npmjs.org/@noble/hashes/-/hashes-1.2.0.tgz"
-  integrity sha512-FZfhjEDbT5GRswV3C6uvLPHMiVD6lQBmpoX5+eSiPaMTXte/IKqI5dykDxzZB/WBeK/CDuQRBWarPdi3FNY2zQ==
-
 "@noble/hashes@1.4.0", "@noble/hashes@~1.4.0":
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/@noble/hashes/-/hashes-1.4.0.tgz#45814aa329f30e4fe0ba49426f49dfccdd066426"
   integrity sha512-V1JJ1WTRUqHHrOSh597hURcMqVKVGL/ea3kv0gSnEdsEZ0/+VyPghM1lMNGc00z7CIQorSvbKpuJkxvuHbvdbg==
-
-"@noble/secp256k1@1.7.1", "@noble/secp256k1@~1.7.0":
-  version "1.7.1"
-  resolved "https://registry.npmjs.org/@noble/secp256k1/-/secp256k1-1.7.1.tgz"
-  integrity sha512-hOUk6AyBFmqVrv7k5WAw/LpszxVbj9gGN4JRkIX52fdFAj1UA61KXmZDvqVEm+pOyec3+fIeZB02LYa/pWOArw==
 
 "@nodelib/fs.scandir@2.1.5":
   version "2.1.5"
@@ -1709,24 +1681,10 @@
   resolved "https://registry.npmjs.org/@pkgr/core/-/core-0.1.1.tgz"
   integrity sha512-cq8o4cWH0ibXh9VGi5P20Tu9XF/0fFXl9EUinr9QfTM7a7p0oTA4iJRCQWppXR1Pg8dSM0UCItCkPwsk9qWWYA==
 
-"@scure/base@~1.1.0":
-  version "1.1.3"
-  resolved "https://registry.npmjs.org/@scure/base/-/base-1.1.3.tgz"
-  integrity sha512-/+SgoRjLq7Xlf0CWuLHq2LUZeL/w65kfzAPG5NH9pcmBhs+nunQTn4gvdwgMTIXnt9b2C/1SeL2XiysZEyIC9Q==
-
 "@scure/base@~1.1.6":
   version "1.1.9"
   resolved "https://registry.yarnpkg.com/@scure/base/-/base-1.1.9.tgz#e5e142fbbfe251091f9c5f1dd4c834ac04c3dbd1"
   integrity sha512-8YKhl8GHiNI/pU2VMaofa2Tor7PJRAjwQLBBuilkJ9L5+13yVbC7JO/wS7piioAvPSwR3JKM1IJ/u4xQzbcXKg==
-
-"@scure/bip32@1.1.5":
-  version "1.1.5"
-  resolved "https://registry.npmjs.org/@scure/bip32/-/bip32-1.1.5.tgz"
-  integrity sha512-XyNh1rB0SkEqd3tXcXMi+Xe1fvg+kUIcoRIEujP1Jgv7DqW2r9lg3Ah0NkFaCs9sTkQAQA8kw7xiRXzENi9Rtw==
-  dependencies:
-    "@noble/hashes" "~1.2.0"
-    "@noble/secp256k1" "~1.7.0"
-    "@scure/base" "~1.1.0"
 
 "@scure/bip32@1.4.0":
   version "1.4.0"
@@ -1736,14 +1694,6 @@
     "@noble/curves" "~1.4.0"
     "@noble/hashes" "~1.4.0"
     "@scure/base" "~1.1.6"
-
-"@scure/bip39@1.1.1":
-  version "1.1.1"
-  resolved "https://registry.npmjs.org/@scure/bip39/-/bip39-1.1.1.tgz"
-  integrity sha512-t+wDck2rVkh65Hmv280fYdVdY25J9YeEUIgn2LG1WM6gxFkGzcksoDiUkWVpVp3Oex9xGC68JU2dSbUfwZ2jPg==
-  dependencies:
-    "@noble/hashes" "~1.2.0"
-    "@scure/base" "~1.1.0"
 
 "@scure/bip39@1.3.0":
   version "1.3.0"
@@ -3635,16 +3585,6 @@ eth-connect@^6.0.3:
   version "6.2.4"
   resolved "https://registry.npmjs.org/eth-connect/-/eth-connect-6.2.4.tgz"
   integrity sha512-K0+g+pZoWkcJKKc4hwlYvaruoMBFcARoULIdf50bz/Zk9YdgFoKPjlRQWAtBgSDfxJS7AAHqg40k2Z/uQI0aNw==
-
-ethereum-cryptography@^1.0.3:
-  version "1.2.0"
-  resolved "https://registry.npmjs.org/ethereum-cryptography/-/ethereum-cryptography-1.2.0.tgz"
-  integrity sha512-6yFQC9b5ug6/17CQpCyE3k9eKBMdhyVjzUy1WkiuY/E4vj/SXDBbCw8QEIaXqf0Mf2SnY6RmpDcwlUmBSS0EJw==
-  dependencies:
-    "@noble/hashes" "1.2.0"
-    "@noble/secp256k1" "1.7.1"
-    "@scure/bip32" "1.1.5"
-    "@scure/bip39" "1.1.1"
 
 ethereum-cryptography@^2.0.0:
   version "2.2.1"
