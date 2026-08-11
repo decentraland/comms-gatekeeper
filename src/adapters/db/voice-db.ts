@@ -2,7 +2,13 @@ import SQL from 'sql-template-strings'
 import { PoolClient } from 'pg'
 import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX } from '../livekit'
 import { AppComponents } from '../../types'
-import { IVoiceDBComponent, VoiceChatUser, VoiceChatUserStatus, CommunityVoiceChatUser } from './types'
+import {
+  ExpiredCommunityVoiceChat,
+  IVoiceDBComponent,
+  VoiceChatUser,
+  VoiceChatUserStatus,
+  CommunityVoiceChatUser
+} from './types'
 import { RoomDoesNotExistError } from './errors'
 
 export async function createVoiceDBComponent({
@@ -408,9 +414,10 @@ export async function createVoiceDBComponent({
   }
 
   /**
-   * Deletes expired community voice chats and returns the names of the rooms that were deleted.
+   * Deletes expired community voice chats and returns the rooms that were deleted with how many
+   * participants each one had.
    */
-  async function deleteExpiredCommunityVoiceChats(): Promise<string[]> {
+  async function deleteExpiredCommunityVoiceChats(): Promise<ExpiredCommunityVoiceChat[]> {
     const now = Date.now()
 
     // Get rooms where:
@@ -450,7 +457,16 @@ export async function createVoiceDBComponent({
       RETURNING expired_rooms.room_name`)
 
     const expiredResult = await database.query(expiredQuery)
-    return [...new Set(expiredResult.rows.map((row) => row.room_name))]
+
+    // One row per deleted participant, so the row count per room is the room's participant count.
+    // Counting here instead of with a separate query keeps the count exact: any read taken before
+    // or after the DELETE would race with participants joining or leaving.
+    const participantCountByRoom = new Map<string, number>()
+    for (const row of expiredResult.rows) {
+      participantCountByRoom.set(row.room_name, (participantCountByRoom.get(row.room_name) ?? 0) + 1)
+    }
+
+    return [...participantCountByRoom].map(([roomName, participantCount]) => ({ roomName, participantCount }))
   }
 
   function getIsConnectedQuery(now: number): string {
@@ -613,46 +629,6 @@ export async function createVoiceDBComponent({
     }))
   }
 
-  /**
-   * Gets the total participant count (all participants, not just active) for a batch of community voice chats.
-   * This is optimized for bulk queries and counts all participants regardless of their status.
-   * @param communityIds - Array of community IDs to get participant counts for.
-   * @returns Map of room name to total participant count.
-   */
-  async function getBulkCommunityVoiceChatParticipantCount(communityIds: string[]): Promise<Map<string, number>> {
-    if (communityIds.length === 0) {
-      return new Map()
-    }
-
-    // Create room names for the given community IDs
-    const roomNames = communityIds.map((id) => livekit.getCommunityVoiceChatRoomName(id))
-
-    const bulkCountQuery = SQL`
-      SELECT 
-        room_name,
-        COUNT(*) as total_participant_count
-      FROM community_voice_chat_users 
-      WHERE room_name = ANY(${roomNames})
-      GROUP BY room_name
-    `
-
-    const result = await database.query(bulkCountQuery)
-
-    const countsMap = new Map<string, number>()
-    for (const row of result.rows) {
-      countsMap.set(row.room_name, parseInt(row.total_participant_count))
-    }
-
-    // Ensure all requested rooms are in the map (with 0 if they don't exist)
-    for (const roomName of roomNames) {
-      if (!countsMap.has(roomName)) {
-        countsMap.set(roomName, 0)
-      }
-    }
-
-    return countsMap
-  }
-
   return {
     deleteExpiredPrivateVoiceChats,
     deletePrivateVoiceChat,
@@ -676,7 +652,6 @@ export async function createVoiceDBComponent({
     getAllActiveCommunityVoiceChats,
     isUserInAnyCommunityVoiceChat,
     getBulkCommunityVoiceChatStatus,
-    getBulkCommunityVoiceChatParticipantCount,
     // Export helper function for reuse
     isActiveCommunityUser: (user: CommunityVoiceChatUser, now: number) => isActiveCommunityUser(user, now)
   }
