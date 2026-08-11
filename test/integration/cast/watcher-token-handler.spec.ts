@@ -1,5 +1,7 @@
+import { Authenticator } from '@dcl/crypto'
+import { AUTH_METADATA_HEADER } from '@dcl/crypto-middleware'
 import { test } from '../../components'
-import { makeRequest } from '../../utils'
+import { admin, getAuthHeaders, makeRequest } from '../../utils'
 import { InvalidRequestError } from '../../../src/types/errors'
 
 test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
@@ -51,6 +53,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         validLocation,
         identity,
         expect.any(String),
+        undefined,
         undefined
       )
     })
@@ -77,6 +80,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         validWorldName,
         identity,
         expect.any(String),
+        undefined,
         undefined
       )
     })
@@ -107,6 +111,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         validLocation,
         customIdentity,
         expect.any(String),
+        undefined,
         undefined
       )
     })
@@ -207,6 +212,34 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       })
 
       expect(response.status).not.toBe(200)
+      expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
+    })
+
+    it('should reject a scene signer signed canonically but delivered in mixed case', async () => {
+      // The signed payload is lowercased, so a spelling differing only in case shares the
+      // signature: the request stays genuinely authentic while reading differently to the
+      // `!== 'decentraland-kernel-scene'` check the authWatcher middleware gates on. Without the
+      // guard in verify() this scene request is served as if a viewer had signed it.
+      const headers = getAuthHeaders(
+        'POST',
+        '/cast/watcher-token',
+        { signer: 'decentraland-kernel-scene' },
+        (payload) => Authenticator.signPayload(admin, payload)
+      )
+      headers[AUTH_METADATA_HEADER] = JSON.stringify({ signer: 'Decentraland-Kernel-Scene' })
+
+      const response = await components.localFetch.fetch('/cast/watcher-token', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location: validLocation, identity: 'scene-signed' })
+      })
+
+      expect(response.status).toBe(400)
+      // The raw metadata is echoed back truncated at 64 characters, so match the prefix.
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        message: expect.stringMatching(/^Invalid chain metadata: /)
+      })
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
     })
   })

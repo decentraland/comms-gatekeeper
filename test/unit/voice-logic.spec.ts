@@ -13,6 +13,9 @@ import { CommunityRole } from '../../src/types/social.type'
 import { CommunityVoiceChatAction } from '../../src/types/community-voice'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { createPublisherMockedComponent } from '../mocks/publisher-mock'
+import { createUserModerationMockedComponent } from '../mocks/user-moderation-mock'
+import { makeBan } from './user-moderation/utils'
+import { ForbiddenError } from '../../src/types/errors'
 
 describe('Voice Logic Component', () => {
   let voiceComponent: IVoiceComponent
@@ -36,6 +39,7 @@ describe('Voice Logic Component', () => {
   let updateParticipantMetadataMock: jest.MockedFunction<ILivekitComponent['updateParticipantMetadata']>
   let logs: jest.Mocked<ILoggerComponent>
   let publisher: jest.Mocked<IPublisherComponent>
+  let userModeration: ReturnType<typeof createUserModerationMockedComponent>
 
   beforeEach(() => {
     jest.resetAllMocks()
@@ -83,12 +87,15 @@ describe('Voice Logic Component', () => {
     const analytics = createAnalyticsMockedComponent()
     publisher = createPublisherMockedComponent()
 
+    userModeration = createUserModerationMockedComponent()
+
     voiceComponent = createVoiceComponent({
       voiceDB,
       livekit,
       logs,
       analytics,
-      publisher
+      publisher,
+      userModeration
     })
   })
 
@@ -294,6 +301,80 @@ describe('Voice Logic Component', () => {
             connectionUrl: `livekit:${mockCredentials[1].url}?access_token=${mockCredentials[1].token}`
           }
         })
+      })
+    })
+
+    describe('and the first participant has an active platform ban', () => {
+      beforeEach(() => {
+        userModeration.getActiveBanForConnection.mockImplementation(async ({ address }) =>
+          address === userAddresses[0]
+            ? { isBanned: true, ban: makeBan({ bannedAddress: address }) }
+            : { isBanned: false }
+        )
+      })
+
+      it('should reject with a ForbiddenError stating the user is platform-banned', async () => {
+        await expect(voiceComponent.getPrivateVoiceChatRoomCredentials(roomId, userAddresses)).rejects.toThrow(
+          new ForbiddenError('Access denied, platform-banned user')
+        )
+      })
+
+      it('should not issue credentials to the other participant', async () => {
+        await expect(voiceComponent.getPrivateVoiceChatRoomCredentials(roomId, userAddresses)).rejects.toThrow(
+          ForbiddenError
+        )
+
+        expect(generateCredentialsMock).not.toHaveBeenCalled()
+      })
+
+      it('should not create the voice chat room', async () => {
+        await expect(voiceComponent.getPrivateVoiceChatRoomCredentials(roomId, userAddresses)).rejects.toThrow(
+          ForbiddenError
+        )
+
+        expect(createVoiceChatRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the second participant has an active platform ban', () => {
+      beforeEach(() => {
+        userModeration.getActiveBanForConnection.mockImplementation(async ({ address }) =>
+          address === userAddresses[1]
+            ? { isBanned: true, ban: makeBan({ bannedAddress: address }) }
+            : { isBanned: false }
+        )
+      })
+
+      it('should reject with a ForbiddenError so the caller cannot be put in a room alone', async () => {
+        await expect(voiceComponent.getPrivateVoiceChatRoomCredentials(roomId, userAddresses)).rejects.toThrow(
+          new ForbiddenError('Access denied, platform-banned user')
+        )
+      })
+
+      it('should not create the voice chat room', async () => {
+        await expect(voiceComponent.getPrivateVoiceChatRoomCredentials(roomId, userAddresses)).rejects.toThrow(
+          ForbiddenError
+        )
+
+        expect(createVoiceChatRoomMock).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and neither participant has an active platform ban', () => {
+      beforeEach(() => {
+        mockCredentials = [
+          { token: 'token1', url: 'url1' },
+          { token: 'token2', url: 'url2' }
+        ]
+
+        generateCredentialsMock.mockResolvedValueOnce(mockCredentials[0]).mockResolvedValueOnce(mockCredentials[1])
+        userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
+      })
+
+      it('should check the ban gate once per participant', async () => {
+        await voiceComponent.getPrivateVoiceChatRoomCredentials(roomId, userAddresses)
+
+        expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
       })
     })
   })

@@ -50,11 +50,40 @@ export function buildStreamLinks(
 export function createCastComponent(
   components: Pick<
     AppComponents,
-    'livekit' | 'logs' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'config' | 'sceneBanManager'
+    | 'livekit'
+    | 'logs'
+    | 'sceneStreamAccessManager'
+    | 'sceneManager'
+    | 'places'
+    | 'config'
+    | 'sceneBanManager'
+    | 'userModeration'
   >
 ): ICastComponent {
-  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, sceneBanManager } = components
+  const { livekit, logs, sceneStreamAccessManager, sceneManager, places, config, sceneBanManager, userModeration } =
+    components
   const logger = logs.getLogger('cast')
+
+  /**
+   * Rejects the request when the given wallet has an active platform ban.
+   *
+   * No cast client sends a device id today, so in practice the gate falls back to the device
+   * recorded for the address; cast never records one, so cast-only wallets match on address.
+   *
+   * @param walletAddress - Lowercased address the credentials would be issued to.
+   * @param deviceIdentifier - Device id from signed-fetch metadata, when the caller sends one.
+   * @throws {ForbiddenError} If the address is platform-banned.
+   */
+  async function assertNoActivePlatformBan(walletAddress: string, deviceIdentifier?: string): Promise<void> {
+    const { isBanned } = await userModeration.getActiveBanForConnection({
+      address: walletAddress,
+      deviceId: deviceIdentifier
+    })
+    if (isBanned) {
+      logger.warn(`Rejected cast credentials for platform-banned user: ${walletAddress}`)
+      throw new ForbiddenError('Access denied, platform-banned user')
+    }
+  }
 
   /** Minimal place fields needed by createStreamAccess. */
   type StreamAccessPlace = Pick<PlaceAttributes, 'id' | 'title'> &
@@ -63,6 +92,9 @@ export function createCastComponent(
   /**
    * Creates or reuses stream access for a place, returning the streaming key and expiration.
    * Shared logic used by both generateStreamLink and generatePreviewStreamLink.
+   *
+   * Mints a key `validateStreamerToken` later honours without re-checking the wallet, so callers
+   * must gate on the platform ban first.
    */
   async function createStreamAccess(
     place: StreamAccessPlace,
@@ -144,10 +176,14 @@ export function createCastComponent(
    *
    * @param params - Parameters for generating the stream link
    * @returns Stream link details including streaming key and expiration
+   * @throws {ForbiddenError} If the caller has an active platform ban
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, sceneId, realmName, parcel } = params
+    const { walletAddress, worldName, sceneId, realmName, parcel, deviceIdentifier } = params
+
+    // Before the admin lookup, so the rejection can't double as an admin-status oracle.
+    await assertNoActivePlatformBan(walletAddress.toLowerCase(), deviceIdentifier)
 
     const roomId = worldName
       ? livekit.getWorldSceneRoomName(worldName, sceneId)
@@ -173,13 +209,18 @@ export function createCastComponent(
    * Generates a stream link for local preview. Skips admin check and uses a synthetic place.
    * @param params - Parameters for generating the preview stream link
    * @returns Stream link details
+   * @throws {ForbiddenError} If the caller has an active platform ban
    */
   async function generatePreviewStreamLink(params: {
     sceneId: string
     realmName: string
     walletAddress: string
+    deviceIdentifier?: string
   }): Promise<GenerateStreamLinkResult> {
-    const { sceneId, realmName, walletAddress } = params
+    const { sceneId, realmName, walletAddress, deviceIdentifier } = params
+
+    // Gated too: this branch skips the admin check and its realm name is self-asserted.
+    await assertNoActivePlatformBan(walletAddress.toLowerCase(), deviceIdentifier)
 
     const roomId = livekit.getSceneRoomName(realmName, sceneId)
     const place: StreamAccessPlace = {
@@ -266,6 +307,10 @@ export function createCastComponent(
   /**
    * Generates LiveKit credentials for a watcher (viewer).
    * Watchers connect to the scene room with read-only permissions (can view streams but not publish).
+   *
+   * Kept off {@link ICastComponent}: it runs no ban checks, so it must stay behind
+   * {@link generateWatcherCredentialsByLocation}, which gates before calling it.
+   *
    * @param roomId - The scene room ID to join (format: scene:${realmName}:${sceneId})
    * @param identity - Display name for the watcher (required, provided by frontend)
    * @returns LiveKit credentials
@@ -325,8 +370,12 @@ export function createCastComponent(
     location: string,
     identity: string,
     watcherAddress: string,
-    parcel?: string
+    parcel?: string,
+    deviceIdentifier?: string
   ): Promise<GenerateWatcherCredentialsResult> {
+    // Before resolving the location, so an unresolvable place still rejects.
+    await assertNoActivePlatformBan(watcherAddress.toLowerCase(), deviceIdentifier)
+
     const isWorldName = location.endsWith('.eth')
 
     let place: PlaceAttributes
@@ -568,7 +617,6 @@ export function createCastComponent(
     generateStreamLink,
     generatePreviewStreamLink,
     validateStreamerToken,
-    generateWatcherCredentials,
     generateWatcherCredentialsByLocation,
     generatePresentationBotToken,
     promotePresenter,

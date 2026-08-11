@@ -9,10 +9,16 @@ import {
 import { PlayerAlreadyBannedError, BanNotFoundError } from './errors'
 import { createBanEvent, createBanLiftedEvent, createWarningEvent } from './events'
 import { AppComponents } from '../../types'
+import { isErrorWithMessage } from '../errors'
 import { retry } from '../../utils/retrier'
 
 function normalizeAddress(address: string): string {
   return address.toLowerCase()
+}
+
+// The catches below guard best-effort paths, so reporting must not throw on a non-Error rejection.
+function errorMessage(error: unknown): string {
+  return isErrorWithMessage(error) ? error.message : String(error)
 }
 
 export function createUserModerationComponent(
@@ -24,9 +30,9 @@ export function createUserModerationComponent(
   async function removeParticipantFromAllRooms(address: string): Promise<void> {
     try {
       await livekit.removeParticipantFromAllRooms(address)
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to remove participant from all rooms', {
-        error: error.message,
+        error: errorMessage(error),
         address
       })
     }
@@ -37,9 +43,9 @@ export function createUserModerationComponent(
       await retry(async () => {
         await publisher.publishMessage(event)
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to publish moderation event', {
-        error: error.message,
+        error: errorMessage(error),
         subType: event.subType,
         key: event.key
       })
@@ -71,8 +77,8 @@ export function createUserModerationComponent(
       try {
         const connectionInfo = await playerConnectionDb.getByAddress(normalizedAddress)
         bannedDeviceId = connectionInfo?.deviceId || null
-      } catch (error: any) {
-        logger.warn(`Failed to load connection info for ${normalizedAddress}: ${error.message}`)
+      } catch (error: unknown) {
+        logger.warn(`Failed to load connection info for ${normalizedAddress}: ${errorMessage(error)}`)
       }
 
       logger.info(`Banning player ${normalizedAddress} by ${normalizedBannedBy}`)
@@ -129,7 +135,23 @@ export function createUserModerationComponent(
     },
 
     async getActiveBanForConnection({ address, deviceId }: ConnectionBanQuery): Promise<BanStatus> {
-      return userModerationDb.getActiveBanForConnection({ address: normalizeAddress(address), deviceId })
+      const normalizedAddress = normalizeAddress(address)
+
+      // No device id on the request (every voice and cast call): use the one recorded for the
+      // address. Race-free only because the concurrent connection-info upsert COALESCEs a null
+      // incoming device onto the stored value, so it cannot clobber this read.
+      let resolvedDeviceId = deviceId
+      if (!resolvedDeviceId) {
+        try {
+          const connectionInfo = await playerConnectionDb.getByAddress(normalizedAddress)
+          resolvedDeviceId = connectionInfo?.deviceId || null
+        } catch (error: unknown) {
+          // Supplementary term: fall through to the address match instead of failing the gate.
+          logger.warn(`Failed to resolve recorded device for ${normalizedAddress}: ${errorMessage(error)}`)
+        }
+      }
+
+      return userModerationDb.getActiveBanForConnection({ address: normalizedAddress, deviceId: resolvedDeviceId })
     },
 
     async getActiveBans(): Promise<UserBan[]> {

@@ -98,7 +98,12 @@ components:
       description: |
         Bearer token authentication for service-to-service communication.
   schemas:
-    UserBan:
+    PublicUserBan:
+      description: >-
+        A ban record without the device id, as returned by the public
+        `GET /users/{address}/bans`. Declared standalone rather than as `UserBan` minus a field, so
+        no generator can flatten a composed schema and hand the device id back to a public client.
+        `UserBan` is this plus `bannedDeviceId`.
       type: object
       properties:
         id:
@@ -117,12 +122,6 @@ components:
           type: string
           nullable: true
           description: Optional message shown to the player on rejection
-        bannedDeviceId:
-          type: string
-          nullable: true
-          description: >-
-            Device id captured from the player's connection info at ban time. The ban also
-            rejects this device (under any wallet). Null when no device id was recorded.
         bannedAt:
           type: string
           format: date-time
@@ -145,6 +144,23 @@ components:
           type: string
           format: date-time
           description: Record creation timestamp
+
+    UserBan:
+      description: >-
+        A full ban record, including the device snapshot. Returned by the moderator-gated
+        `GET /bans` and by the ban-creation response. Composed from `PublicUserBan`, so flattening
+        yields the correct superset.
+      allOf:
+        - $ref: '#/components/schemas/PublicUserBan'
+        - type: object
+          properties:
+            bannedDeviceId:
+              type: string
+              nullable: true
+              description: >-
+                Device id captured from the player's connection info at ban time. The ban also
+                rejects this device (under any wallet). Null when no device id was recorded.
+                Never returned by the public `GET /users/{address}/bans`.
 
     UserWarning:
       type: object
@@ -660,6 +676,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The caller has an active platform ban, or last connected from a banned device
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Stream access not found
           content:
@@ -706,6 +728,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The caller has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:
@@ -769,6 +797,12 @@ paths:
           description: Stream access reset successfully
         '401':
           description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The caller has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:
@@ -957,6 +991,10 @@ paths:
         Creates a private voice chat room for two users.
         Generates LiveKit credentials for both users to join the room.
         Requires Bearer Token authentication.
+
+        Rejected with `403` when **either** participant has an active platform ban. The whole call
+        is refused rather than issuing credentials only to the unbanned party, who would otherwise
+        wait alone in a room nobody can join.
       security:
         - BearerAuth: []
       requestBody:
@@ -980,6 +1018,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - One of the participants has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:
@@ -1087,6 +1131,9 @@ paths:
         Creates a new community voice chat or joins an existing one.
         The user's role in the community determines their permissions in the voice chat.
         Requires Bearer Token authentication.
+
+        Rejected with `403` when the user has an active platform ban. This applies to both actions:
+        a community role, including `owner`, never overrides a platform ban.
       security:
         - BearerAuth: []
       requestBody:
@@ -1110,6 +1157,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The user has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:
@@ -1569,8 +1622,14 @@ paths:
       description: |
         Generates LiveKit credentials for a watcher to view streams in a location.
         This endpoint allows users to join as viewers in a specific location (parcel or world)
-        and watch active streams. No authentication required.
-      security: []
+        and watch active streams.
+
+        Requires Signed Fetch authentication from a wallet (a `decentraland-kernel-scene` signer is
+        rejected: viewers are end users, not scenes). A verified wallet is required because
+        watchers join the scene's real comms room, so both scene bans and platform bans are
+        enforced against it — either one is rejected with `403`.
+      security:
+        - SignedFetch: []
       requestBody:
         required: true
         content:
@@ -1596,6 +1655,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The watcher has an active platform ban (or last connected from a banned device), or is banned from the scene
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
@@ -1615,6 +1680,15 @@ paths:
         The generated link expires after 4 days.
         Requires Signed Fetch authentication from decentraland-kernel-scene.
         Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
+
+        Rejected with `403` when the caller has an active platform ban, checked before the scene
+        admin lookup so the response never doubles as an admin-status oracle. The local-preview
+        branch (`ALLOW_LOCAL_PREVIEW` with a preview realm name) is gated too, even though it
+        skips the admin check.
+
+        This is the only wallet-scoped gate on the streaming path: `POST /cast/streamer-token`
+        authenticates a streaming key rather than a wallet, so a key minted before the ban keeps
+        working until it expires.
       security:
         - SignedFetch: []
       responses:
@@ -1632,6 +1706,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required or insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - The caller has an active platform ban, or last connected from a banned device
           content:
             application/json:
               schema:
@@ -1704,8 +1784,13 @@ paths:
         The ban can be permanent (no `duration`) or timed. An optional `customMessage`
         is surfaced to the player at rejection time.
 
-        The player's recorded device id (from their connection info) is always banned
-        alongside the address, so the ban follows the device across wallets.
+        The player's recorded device id (from their connection info) is banned alongside the
+        address when one is known, so the ban follows the device across wallets. This is
+        best-effort: a player who has never connected, or whose client sent no device
+        identifier, is banned by address only.
+
+        The resulting device coverage is reflected by `GET /users/{address}/bans`, which reports
+        a device match as `isBanned: true` without disclosing the matching ban record.
       security:
         - SignedFetch: []
       parameters:
@@ -1826,11 +1911,45 @@ paths:
       operationId: getBanStatus
       summary: Get ban status for a user
       description: |
-        Returns whether the specified user address currently has an active platform-level
-        ban. If banned, the full ban record is included in the response.
+        Returns whether the specified user address would currently be rejected by a platform
+        ban — its own, or one matching the device the address is recorded on.
 
         This endpoint is **public** — no authentication required. It is intended for
         clients to check their own ban status before attempting to connect.
+
+        ### Close to what token retrieval enforces, but not identical
+
+        This endpoint receives only an address, so its device term is always the address's **last
+        recorded** device. Token paths prefer the device identifier the request itself carries and
+        fall back to the recorded one only when it has none. Where a request arrives with a device
+        that differs from the recorded one, the two can disagree in both directions.
+
+        So a user banned on one wallet who reconnects under a different wallet from the same
+        recorded device is reported as banned here and rejected at token issuance — but treat this
+        endpoint as the source for **user-facing ban messaging**, not as a prediction of whether a
+        specific connection will be accepted. Token issuance stays authoritative for a concrete
+        request.
+
+        ### The ban record is only returned for the address's own ban
+
+        `matchedOn` says which identifier matched. When it is `device`, the response contains
+        `isBanned: true` and no `ban` object: the matching row belongs to another player, and
+        publishing it on an unauthenticated route would disclose whose wallet is banned. The full
+        record — reason, expiry, custom message — is returned only when `matchedOn` is `address`.
+        Where both exist, the address's own ban is the one reported.
+
+        `bannedDeviceId` is **never** returned on this route, whatever `matchedOn` says: it is a
+        stable cross-wallet machine identifier and this endpoint is unauthenticated. Moderator
+        tooling reads it from the moderator-gated `GET /bans`.
+
+        A client can use `matchedOn` to word the notice: an `address` match has a reason and an
+        expiry to show, a `device` match has neither.
+
+        Because the route is unauthenticated, any address can be tested for device coverage. That
+        is an accepted trade-off for being able to tell banned players why they are blocked.
+
+        Moderator tooling that needs the full picture, including each ban's device snapshot,
+        should use the moderator-gated `GET /bans`.
       security: []
       parameters:
         - name: address
@@ -1853,8 +1972,16 @@ paths:
                     properties:
                       isBanned:
                         type: boolean
+                      matchedOn:
+                        type: string
+                        enum: [address, device]
+                        description: >-
+                          Which identifier the ban matched on. `address` is the player's own ban and
+                          comes with the full `ban` record. `device` means another player's ban
+                          covers the device this address is recorded on; `ban` is omitted, because
+                          that record belongs to someone else. Absent when `isBanned` is false.
                       ban:
-                        $ref: '#/components/schemas/UserBan'
+                        $ref: '#/components/schemas/PublicUserBan'
         '500':
           description: Internal server error
           content:
