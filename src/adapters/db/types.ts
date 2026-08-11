@@ -29,6 +29,13 @@ export interface CommunityVoiceChatUser {
   sid?: string | null
 }
 
+/** A community voice chat room that the expiration sweep tore down. */
+export interface ExpiredCommunityVoiceChat {
+  roomName: string
+  /** Participants the room held when it was deleted. Always at least one. */
+  participantCount: number
+}
+
 export interface PlayerConnectionInfo {
   address: string
   ipAddress: string | null
@@ -201,10 +208,10 @@ export interface IVoiceDBComponent {
   deleteCommunityVoiceChat: (roomName: string) => Promise<void>
 
   /**
-   * Deletes expired community voice chats and returns the names of the rooms that were deleted.
-   * @returns The names of the rooms that were deleted.
+   * Deletes expired community voice chats and returns the rooms that were deleted.
+   * @returns The deleted rooms, each with the number of participants it had when it was deleted.
    */
-  deleteExpiredCommunityVoiceChats: () => Promise<string[]>
+  deleteExpiredCommunityVoiceChats: () => Promise<ExpiredCommunityVoiceChat[]>
 
   /**
    * Gets all active community voice chat rooms with their community IDs.
@@ -246,12 +253,4 @@ export interface IVoiceDBComponent {
       moderatorCount: number
     }>
   >
-
-  /**
-   * Gets the total participant count (all participants, not just active) for a batch of community voice chats.
-   * This is optimized for bulk queries and counts all participants regardless of their status.
-   * @param communityIds - Array of community IDs to get participant counts for.
-   * @returns Map of room name to total participant count.
-   */
-  getBulkCommunityVoiceChatParticipantCount: (communityIds: string[]) => Promise<Map<string, number>>
 }

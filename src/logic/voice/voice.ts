@@ -137,8 +137,13 @@ export function createVoiceComponent(
 
   /**
    * Publishes CommunityStreamingEnded event for a community voice chat room.
+   *
+   * This is the only signal consumers get that a community voice chat is over, so every teardown
+   * path must call it. A zero participant count means nothing was actually deleted (another path
+   * already tore the room down), which is the one case where staying quiet is correct.
+   *
    * @param roomName - The name of the room.
-   * @param participantCount - The number of active participants in the room.
+   * @param participantCount - The number of participants the room had when it was deleted.
    */
   async function publishCommunityStreamingEndedEvent(roomName: string, participantCount: number): Promise<void> {
     if (participantCount === 0) {
@@ -468,19 +473,16 @@ export function createVoiceComponent(
   async function expireCommunityVoiceChats(): Promise<void> {
     logger.debug('Running community voice chat expiration job')
 
-    // Get all active community rooms to get their IDs before deletion
-    const allCommunityRooms = await voiceDB.getAllActiveCommunityVoiceChats()
-    const communityIds = allCommunityRooms.map((room) => room.communityId)
+    // The delete reports the participant count of each room it removed. Deriving it from a prior
+    // read is not an option: a room is only expired once it has no active moderator, and every
+    // "active rooms" query filters exactly those rooms out, leaving each expiry with a count of 0
+    // and its ended event unpublished.
+    const expiredRooms = await voiceDB.deleteExpiredCommunityVoiceChats()
 
-    // Get participant counts for all rooms in a single bulk query before deletion
-    const roomCounts = await voiceDB.getBulkCommunityVoiceChatParticipantCount(communityIds)
-
-    const expiredRoomNames = await voiceDB.deleteExpiredCommunityVoiceChats()
-
-    logger.debug(`Found ${expiredRoomNames.length} expired community voice chat rooms`)
+    logger.debug(`Found ${expiredRooms.length} expired community voice chat rooms`)
 
     // Delete the expired rooms from LiveKit and publish events.
-    for (const roomName of expiredRoomNames) {
+    for (const { roomName, participantCount } of expiredRooms) {
       const communityId = livekit.getCommunityIdFromRoomName(roomName)
       logger.info(`Expiring community voice chat room: ${roomName} (community: ${communityId})`)
 
@@ -490,8 +492,6 @@ export function createVoiceComponent(
 
       await livekit.deleteRoom(roomName)
 
-      // Publish event with participant count we got before deletion
-      const participantCount = roomCounts.get(roomName) || 0
       await publishCommunityStreamingEndedEvent(roomName, participantCount)
     }
   }
