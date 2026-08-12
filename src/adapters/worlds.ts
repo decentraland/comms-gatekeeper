@@ -1,4 +1,5 @@
 import { SceneParcels } from '@dcl/schemas'
+import { LRUCache } from 'lru-cache'
 import { AppComponents, NamesResponse } from '../types'
 import { ensureSlashAtTheEnd } from '../logic/utils'
 import {
@@ -16,14 +17,21 @@ export async function createWorldsComponent(
   const { config, cachedFetch, fetch, logs } = components
   const logger = logs.getLogger('world-component')
 
-  const [worldContentUrl, lambdasUrl] = await Promise.all([
+  const [worldContentUrl, lambdasUrl, worldSceneCacheMax, worldSceneCacheTtl] = await Promise.all([
     config.requireString('WORLD_CONTENT_URL'),
-    config.requireString('LAMBDAS_URL')
+    config.requireString('LAMBDAS_URL'),
+    config.getNumber('WORLD_SCENE_CACHE_MAX'),
+    config.getNumber('WORLD_SCENE_CACHE_TTL')
   ])
 
   const permissionsCache = cachedFetch.cache<PermissionsOverWorld>()
   const sceneEntityMetadataCache = cachedFetch.cache<{ metadata: WorldSceneEntityMetadata }>()
   const namesCache = cachedFetch.cache<NamesResponse>()
+  const worldSceneCache = new LRUCache<string, WorldScene>({
+    max: worldSceneCacheMax ?? 5000,
+    ttl: worldSceneCacheTtl ?? 5 * 60 * 1000
+  })
+  const pendingWorldSceneRequests = new Map<string, Promise<WorldScene | undefined>>()
 
   async function fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined> {
     const response = await permissionsCache.fetch(
@@ -32,9 +40,12 @@ export async function createWorldsComponent(
     return response
   }
 
-  async function fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined> {
-    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes`
-    logger.debug(`Fetching world scene for ${worldName} at pointer ${pointer}`)
+  async function fetchWorldSceneByPointerFromServer(
+    normalizedWorldName: string,
+    pointer: string
+  ): Promise<WorldScene | undefined> {
+    const url = `${worldContentUrl}/world/${encodeURIComponent(normalizedWorldName)}/scenes`
+    logger.debug(`Fetching world scene for ${normalizedWorldName} at pointer ${pointer}`)
 
     const response = await fetch.fetch(url, {
       method: 'POST',
@@ -44,24 +55,54 @@ export async function createWorldsComponent(
 
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined)
-      logger.warn(`Failed to fetch world scene for ${worldName} at pointer ${pointer}: HTTP ${response.status}`)
+      logger.warn(
+        `Failed to fetch world scene for ${normalizedWorldName} at pointer ${pointer}: HTTP ${response.status}`
+      )
       return undefined
     }
 
     const result = (await response.json()) as { scenes: WorldScene[]; total: number }
 
     if (!result.scenes || result.scenes.length === 0) {
-      logger.debug(`No scene found for world ${worldName} at pointer ${pointer}`)
+      logger.debug(`No scene found for world ${normalizedWorldName} at pointer ${pointer}`)
       return undefined
     }
 
     const scene = result.scenes.find((candidate) => candidate.parcels?.includes(pointer))
     if (!scene) {
-      logger.warn(`World scene response did not contain the requested pointer ${pointer} in ${worldName}`)
+      logger.warn(`World scene response did not contain the requested pointer ${pointer} in ${normalizedWorldName}`)
       return undefined
     }
-    logger.debug(`Found scene ${scene.entityId} for world ${worldName} at pointer ${pointer}`)
+    logger.debug(`Found scene ${scene.entityId} for world ${normalizedWorldName} at pointer ${pointer}`)
     return scene
+  }
+
+  async function fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined> {
+    const normalizedWorldName = worldName.toLowerCase()
+    const cacheKey = JSON.stringify([normalizedWorldName, pointer])
+    const cachedScene = worldSceneCache.get(cacheKey)
+    if (cachedScene) {
+      return cachedScene
+    }
+
+    const pendingRequest = pendingWorldSceneRequests.get(cacheKey)
+    if (pendingRequest) {
+      return pendingRequest
+    }
+
+    const request = fetchWorldSceneByPointerFromServer(normalizedWorldName, pointer).then((scene) => {
+      if (scene) {
+        worldSceneCache.set(cacheKey, scene)
+      }
+      return scene
+    })
+    pendingWorldSceneRequests.set(cacheKey, request)
+
+    try {
+      return await request
+    } finally {
+      pendingWorldSceneRequests.delete(cacheKey)
+    }
   }
 
   async function fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined> {

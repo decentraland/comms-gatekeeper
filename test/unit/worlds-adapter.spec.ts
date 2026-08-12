@@ -87,6 +87,42 @@ describe('worlds adapter', () => {
           })
           expect(result).toEqual(mockScene)
         })
+
+        describe('and the same scene is requested again', () => {
+          beforeEach(async () => {
+            await worldsComponent.fetchWorldSceneByPointer(worldName, pointer)
+          })
+
+          it('should return the cached scene without another request', () => {
+            expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
+          })
+        })
+      })
+
+      describe('and concurrent requests resolve the same scene', () => {
+        let mockScene: WorldScene
+
+        beforeEach(async () => {
+          mockScene = {
+            worldName,
+            deployer: '0x1234567890abcdef1234567890abcdef12345678',
+            entityId: 'bafkreiconcurrent',
+            parcels: [pointer]
+          }
+          mockFetch.fetch.mockResolvedValue({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ scenes: [mockScene], total: 1 })
+          })
+
+          await Promise.all([
+            worldsComponent.fetchWorldSceneByPointer(worldName, pointer),
+            worldsComponent.fetchWorldSceneByPointer(worldName, pointer)
+          ])
+        })
+
+        it('should coalesce the requests into one upstream call', () => {
+          expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
+        })
       })
 
       describe('and no scenes are returned', () => {
@@ -150,6 +186,16 @@ describe('worlds adapter', () => {
 
       it('should release the undici response body', () => {
         expect(cancelMock).toHaveBeenCalledTimes(1)
+      })
+
+      describe('and the same scene is requested again', () => {
+        beforeEach(async () => {
+          await worldsComponent.fetchWorldSceneByPointer(worldName, pointer)
+        })
+
+        it('should retry the upstream request', () => {
+          expect(mockFetch.fetch).toHaveBeenCalledTimes(2)
+        })
       })
     })
 
