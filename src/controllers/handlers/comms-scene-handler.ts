@@ -38,6 +38,23 @@ export async function commsSceneHandler(
 
   const logger = logs.getLogger('comms-scene-handler')
   const { sceneId, identity, parcel, realmName, deviceIdentifier } = await oldValidate(context)
+  const isWorld = realmName.endsWith('.eth')
+
+  if (!sceneId) {
+    throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  }
+
+  // World room identity is authoritative at the signed parcel. Never trust a caller-supplied
+  // content hash because it may refer to a stale or unrelated deployment.
+  let resolvedSceneId = sceneId
+  if (isWorld) {
+    try {
+      resolvedSceneId = await worlds.fetchWorldSceneId(realmName, parcel)
+    } catch (error) {
+      logger.error(`Failed to fetch scene ID for world ${realmName}: ${error}`)
+      throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
+    }
+  }
 
   const ipAddress = getRequestIp(context.request.headers)
 
@@ -75,24 +92,6 @@ export async function commsSceneHandler(
   const permissions: Permissions = {
     cast: [],
     mute: []
-  }
-
-  const isWorld = realmName.endsWith('.eth')
-
-  if (!sceneId) {
-    throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
-  }
-
-  // The client may send the world name as the sceneId instead of the actual content hash.
-  // Resolve the real sceneId once so both the ban check and room name use the same value.
-  let resolvedSceneId = sceneId
-  if (isWorld && sceneId?.endsWith('.eth')) {
-    try {
-      resolvedSceneId = await worlds.fetchWorldSceneId(realmName, parcel)
-    } catch (error) {
-      logger.error(`Failed to fetch scene ID for world ${realmName}: ${error}`)
-      throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
-    }
   }
 
   // Check if user is banned from the scene (skip for local preview)
