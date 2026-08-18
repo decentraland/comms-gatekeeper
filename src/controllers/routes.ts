@@ -1,6 +1,10 @@
 import { Router } from '@dcl/http-server'
 import { bearerTokenMiddleware } from '@dcl/http-commons'
-import { wellKnownComponents as authVerificationMiddleware } from '@dcl/crypto-middleware'
+import {
+  rejectIfSigner,
+  requireSigner,
+  wellKnownComponents as authVerificationMiddleware
+} from '@dcl/crypto-middleware'
 import { GlobalContext } from '../types'
 import { errorHandler } from './handlers/error-handler'
 import { pingHandler } from './handlers/ping-handler'
@@ -88,21 +92,20 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   const auth = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'decentraland-kernel-scene'
+    metadataValidator: requireSigner('decentraland-kernel-scene')
   })
 
   // Auth middleware that accepts both scene requests and authoritative server requests
   const authSceneOrServer = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
-    metadataValidator: (metadata: Record<string, any>) =>
-      metadata.signer === 'decentraland-kernel-scene' || metadata.signer === 'dcl:authoritative-server'
+    metadataValidator: requireSigner('decentraland-kernel-scene', 'dcl:authoritative-server')
   })
 
   const authExplorer = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'dcl:explorer'
+    metadataValidator: requireSigner('dcl:explorer')
   })
 
   // Watcher (stream viewer) tokens: require a verified wallet (optional: false rejects
@@ -111,7 +114,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   const authWatcher = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer !== 'decentraland-kernel-scene'
+    metadataValidator: rejectIfSigner('decentraland-kernel-scene')
   })
 
   router.get('/ping', pingHandler)
@@ -245,7 +248,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   const signedFetch = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: true,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer !== 'decentraland-kernel-scene'
+    metadataValidator: rejectIfSigner('decentraland-kernel-scene')
   })
 
   const moderatorWrite = moderator.moderatorAuthMiddleware({ moderatorRequired: true })

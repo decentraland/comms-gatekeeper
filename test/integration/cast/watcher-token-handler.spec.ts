@@ -216,14 +216,15 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
     })
 
     it('should reject a scene signer signed canonically but delivered in mixed case', async () => {
-      // Re-casing the delivered metadata makes the request read differently to the
-      // `!== 'decentraland-kernel-scene'` check the authWatcher middleware gates on, so without
-      // something rejecting it this scene request is served as if a viewer had signed it.
+      // Re-casing the delivered metadata makes the request read differently to the scene gate the
+      // authWatcher middleware applies, so without something rejecting it this scene request is
+      // served as if a viewer had signed it.
       //
-      // @dcl/crypto-middleware 6 joins the metadata bytes into the signed payload verbatim, so
-      // the delivered bytes no longer reproduce what was signed and verification fails outright.
-      // Version 5.1.0 caught the same request one step later, with a 400 from its canonical-value
-      // guard; that guard is gone because the signature now covers every field rather than two.
+      // Two layers refuse it now, and the earlier one wins. `rejectIfSigner` refuses a signer that
+      // is not already canonical, and `metadataValidator` runs before signature verification, so
+      // this is a 400 from the gate rather than the 401 the signature would produce a step later.
+      // Either way it never reaches the handler; being refused before any crypto runs is the
+      // cheaper of the two.
       const headers = getAuthHeaders(
         'POST',
         '/cast/watcher-token',
@@ -238,10 +239,10 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         body: JSON.stringify({ location: validLocation, identity: 'scene-signed' })
       })
 
-      expect(response.status).toBe(401)
+      expect(response.status).toBe(400)
       await expect(response.json()).resolves.toEqual({
         ok: false,
-        message: expect.stringMatching(/^Invalid signature/)
+        message: expect.stringMatching(/^Invalid metadata content/)
       })
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
     })
