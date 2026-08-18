@@ -83,8 +83,10 @@ export function getAuthHeaders(
   const headers: Record<string, string> = {}
   const timestamp = Date.now()
   const metadataJSON = JSON.stringify(metadata)
+  // Current payload format (@dcl/crypto-middleware 6): method, path and timestamp lowercased, the
+  // metadata joined verbatim so its casing is covered by the signature.
   const payloadParts = [method.toLowerCase(), path.toLowerCase(), timestamp.toString(), metadataJSON]
-  const payloadToSign = payloadParts.join(':').toLowerCase()
+  const payloadToSign = payloadParts.join(':')
 
   const chain = chainProvider(payloadToSign)
 
