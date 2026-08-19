@@ -100,6 +100,35 @@ export function getAuthHeaders(
   return headers
 }
 
+/**
+ * Signs the pre-6.0.0 payload, which folded the whole joined string. Explorer clients still
+ * produce this until unity, godot and bevy ship the new format; delete alongside
+ * `canonicalMetadataKeys` in src/logic/utils.ts once they have.
+ */
+export function getLegacyAuthHeaders(
+  method: string,
+  path: string,
+  metadata: Record<string, any>,
+  chainProvider: (payload: string) => AuthChain,
+  deliveredMetadata?: string
+) {
+  const headers: Record<string, string> = {}
+  const timestamp = Date.now()
+  const metadataJSON = JSON.stringify(metadata)
+  const payloadToSign = [method, path, timestamp.toString(), metadataJSON].join(':').toLowerCase()
+
+  chainProvider(payloadToSign).forEach((link, index) => {
+    headers[`${AUTH_CHAIN_HEADER_PREFIX}${index}`] = JSON.stringify(link)
+  })
+
+  headers[AUTH_TIMESTAMP_HEADER] = timestamp.toString()
+  // Delivered separately so a test can re-case the metadata after signing, which the legacy
+  // payload cannot distinguish.
+  headers[AUTH_METADATA_HEADER] = deliveredMetadata ?? metadataJSON
+
+  return headers
+}
+
 export async function makeRequest(fetch: any, path: string, options: any = {}, identity = admin) {
   const url = new URL(path, 'http://127.0.0.1:3002')
 
