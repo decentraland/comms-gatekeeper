@@ -216,10 +216,15 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
     })
 
     it('should reject a scene signer signed canonically but delivered in mixed case', async () => {
-      // The signed payload is lowercased, so a spelling differing only in case shares the
-      // signature: the request stays genuinely authentic while reading differently to the
-      // `!== 'decentraland-kernel-scene'` check the authWatcher middleware gates on. Without the
-      // guard in verify() this scene request is served as if a viewer had signed it.
+      // Re-casing the delivered metadata makes the request read differently to the scene gate the
+      // authWatcher middleware applies, so without something rejecting it this scene request is
+      // served as if a viewer had signed it.
+      //
+      // Two layers refuse it now, and the earlier one wins. `rejectIfSigner` refuses a signer that
+      // is not already canonical, and `metadataValidator` runs before signature verification, so
+      // this is a 400 from the gate rather than the 401 the signature would produce a step later.
+      // Either way it never reaches the handler; being refused before any crypto runs is the
+      // cheaper of the two.
       const headers = getAuthHeaders(
         'POST',
         '/cast/watcher-token',
@@ -235,10 +240,9 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       })
 
       expect(response.status).toBe(400)
-      // The raw metadata is echoed back truncated at 64 characters, so match the prefix.
       await expect(response.json()).resolves.toEqual({
         ok: false,
-        message: expect.stringMatching(/^Invalid chain metadata: /)
+        message: expect.stringMatching(/^Invalid metadata content/)
       })
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
     })

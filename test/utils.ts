@@ -83,8 +83,10 @@ export function getAuthHeaders(
   const headers: Record<string, string> = {}
   const timestamp = Date.now()
   const metadataJSON = JSON.stringify(metadata)
+  // Current payload format (@dcl/crypto-middleware 6): method, path and timestamp lowercased, the
+  // metadata joined verbatim so its casing is covered by the signature.
   const payloadParts = [method.toLowerCase(), path.toLowerCase(), timestamp.toString(), metadataJSON]
-  const payloadToSign = payloadParts.join(':').toLowerCase()
+  const payloadToSign = payloadParts.join(':')
 
   const chain = chainProvider(payloadToSign)
 
@@ -94,6 +96,35 @@ export function getAuthHeaders(
 
   headers[AUTH_TIMESTAMP_HEADER] = timestamp.toString()
   headers[AUTH_METADATA_HEADER] = metadataJSON
+
+  return headers
+}
+
+/**
+ * Signs the pre-6.0.0 payload, which folded the whole joined string. Explorer clients still
+ * produce this until unity, godot and bevy ship the new format; delete alongside
+ * `canonicalMetadataKeys` in src/logic/utils.ts once they have.
+ */
+export function getLegacyAuthHeaders(
+  method: string,
+  path: string,
+  metadata: Record<string, any>,
+  chainProvider: (payload: string) => AuthChain,
+  deliveredMetadata?: string
+) {
+  const headers: Record<string, string> = {}
+  const timestamp = Date.now()
+  const metadataJSON = JSON.stringify(metadata)
+  const payloadToSign = [method, path, timestamp.toString(), metadataJSON].join(':').toLowerCase()
+
+  chainProvider(payloadToSign).forEach((link, index) => {
+    headers[`${AUTH_CHAIN_HEADER_PREFIX}${index}`] = JSON.stringify(link)
+  })
+
+  headers[AUTH_TIMESTAMP_HEADER] = timestamp.toString()
+  // Delivered separately so a test can re-case the metadata after signing, which the legacy
+  // payload cannot distinguish.
+  headers[AUTH_METADATA_HEADER] = deliveredMetadata ?? metadataJSON
 
   return headers
 }
