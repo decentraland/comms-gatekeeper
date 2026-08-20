@@ -41,6 +41,38 @@ test('legacy signed-fetch payload acceptance', function ({ components }) {
     })
   })
 
+  // The scene-adapter routes verify through validate()/oldValidate(); the rest go through the
+  // middleware. Both had to be opted in separately, so both are covered here.
+  describe('when a legacy-signed request goes through the middleware instead', () => {
+    const mwPath = '/private-messages/token'
+    const MW_METADATA = { signer: 'dcl:explorer', sceneId: 'bafkreiAbC123', deviceIdentifier: 'Dev-AbC' }
+
+    it('should be accepted rather than 401', async () => {
+      const headers = getLegacyAuthHeaders('GET', mwPath, MW_METADATA, (payload) =>
+        Authenticator.signPayload(owner, payload)
+      )
+      const response = await components.localFetch.fetch(mwPath, { method: 'GET', headers })
+
+      expect(response.status).not.toBe(401)
+    })
+
+    it('should refuse a re-cased declared key with the guard own 400', async () => {
+      // Not wrapped in UnauthorizedError here, unlike the validate() path, so the guard status
+      // reaches the client directly.
+      const delivered = JSON.stringify(MW_METADATA).replace('"sceneId"', '"SceneId"')
+      const headers = getLegacyAuthHeaders(
+        'GET',
+        mwPath,
+        MW_METADATA,
+        (payload) => Authenticator.signPayload(owner, payload),
+        delivered
+      )
+      const response = await components.localFetch.fetch(mwPath, { method: 'GET', headers })
+
+      expect(response.status).toBe(400)
+    })
+  })
+
   describe('and a declared key is re-cased after signing', () => {
     it('should reject it rather than read the field as absent', async () => {
       const delivered = JSON.stringify(METADATA).replace('"sceneId"', '"SceneId"')
