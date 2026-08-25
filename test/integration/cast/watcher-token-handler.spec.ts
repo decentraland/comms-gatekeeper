@@ -246,6 +246,47 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
       })
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
     })
+
+    describe('and the re-spelled signer key is itself covered by the signature', () => {
+      let response: Response
+
+      beforeEach(async () => {
+        // The delivered metadata is not rewritten after signing here — `Signer` is what was signed,
+        // so the chain is authentic and the signature check has nothing to object to. That is the
+        // whole point: a scene-driven client can simply sign the key under another spelling, and
+        // before @dcl/crypto-middleware 6.3.0 the gate read the exact key and therefore saw no
+        // `signer` at all. `rejectIfSigner` answered "allowed" for metadata that names, in plain
+        // sight, the one signer it exists to refuse, and the watcher token was issued to a scene.
+        //
+        // 6.3.0 treats a key that case-folds to the declared field without being spelled exactly
+        // that as a rejection rather than an absence. Nothing is folded or rewritten: the request
+        // is refused, at the metadata gate, before any crypto runs.
+        const headers = getAuthHeaders(
+          'POST',
+          '/cast/watcher-token',
+          { Signer: 'decentraland-kernel-scene' },
+          (payload) => Authenticator.signPayload(admin, payload)
+        )
+
+        response = await components.localFetch.fetch('/cast/watcher-token', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location: validLocation, identity: 'scene-signed' })
+        })
+      })
+
+      it('should refuse the request with a 400 from the metadata gate', async () => {
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toEqual({
+          ok: false,
+          message: expect.stringMatching(/^Invalid metadata content/)
+        })
+      })
+
+      it('should not issue watcher credentials to the scene', () => {
+        expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
+      })
+    })
   })
 
   describe('when credentials are generated', () => {
