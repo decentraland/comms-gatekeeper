@@ -1,6 +1,7 @@
 import { AuthChain, AuthIdentity, AuthLinkType, Authenticator, IdentityType } from '@dcl/crypto'
 import { AUTH_CHAIN_HEADER_PREFIX, AUTH_METADATA_HEADER, AUTH_TIMESTAMP_HEADER } from '@dcl/crypto-middleware'
 import { createUnsafeIdentity } from '@dcl/crypto/dist/crypto'
+import { getAuthHeaders } from '@dcl/test-helpers'
 
 export const owner: AuthIdentity = {
   ephemeralIdentity: {
@@ -74,36 +75,21 @@ export const admin: AuthIdentity = {
   ]
 }
 
-export function getAuthHeaders(
-  method: string,
-  path: string,
-  metadata: Record<string, any>,
-  chainProvider: (payload: string) => AuthChain
-) {
-  const headers: Record<string, string> = {}
-  const timestamp = Date.now()
-  const metadataJSON = JSON.stringify(metadata)
-  // Current payload format (@dcl/crypto-middleware 6): method, path and timestamp lowercased, the
-  // metadata joined verbatim so its casing is covered by the signature.
-  const payloadParts = [method.toLowerCase(), path.toLowerCase(), timestamp.toString(), metadataJSON]
-  const payloadToSign = payloadParts.join(':')
-
-  const chain = chainProvider(payloadToSign)
-
-  chain.forEach((link, index) => {
-    headers[`${AUTH_CHAIN_HEADER_PREFIX}${index}`] = JSON.stringify(link)
-  })
-
-  headers[AUTH_TIMESTAMP_HEADER] = timestamp.toString()
-  headers[AUTH_METADATA_HEADER] = metadataJSON
-
-  return headers
-}
+/**
+ * The current payload format (@dcl/crypto-middleware 6) is signed by `@dcl/test-helpers`, so the
+ * one definition of it stays in step with the middleware that verifies it. Re-exported here so
+ * call sites keep importing it from `test/utils`.
+ */
+export { getAuthHeaders }
 
 /**
  * Signs the pre-6.0.0 payload, which folded the whole joined string. Explorer clients still
  * produce this until unity, godot and bevy ship the new format; delete alongside
  * `canonicalMetadataKeys` in src/logic/utils.ts once they have.
+ *
+ * Deliberately kept local rather than taken from `@dcl/test-helpers`: the shared package only
+ * signs the current format, so there is nothing there to import, and this is the only thing
+ * covering the legacy-compatibility window.
  */
 export function getLegacyAuthHeaders(
   method: string,

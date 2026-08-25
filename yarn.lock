@@ -1124,13 +1124,12 @@
   dependencies:
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/crypto-middleware@^4.0.0":
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/@dcl/crypto-middleware/-/crypto-middleware-4.0.0.tgz#4a586f3243e351775564ff08c4c231bf5320ba7f"
-  integrity sha512-j12R22lMBYk5zwXRzoKxGvU+F8IER+iV9buehbriHPkxVQdBOBqS0EoWtREpanGW1MLhHqoAijsOft1hXzc/rA==
+"@dcl/core-commons@0.11.0":
+  version "0.11.0"
+  resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.11.0.tgz#a5d36935cc1d4151073971cfa82a17f96d403298"
+  integrity sha512-VJ6FgMQoF242slJy1EDJkfkOqYKrywSKJf/ZNg5buGsZj2CAc+RLyBnp0XSl/iCp3VJfpJA3lm5yuKCqWralCA==
   dependencies:
-    "@dcl/core-commons" "^0.10.0"
-    "@dcl/crypto" "3.7.0"
+    "@well-known-components/interfaces" "^1.5.2"
 
 "@dcl/crypto-middleware@^6.3.0":
   version "6.3.0"
@@ -1140,7 +1139,7 @@
     "@dcl/core-commons" "^0.10.0"
     "@dcl/crypto" "3.7.0"
 
-"@dcl/crypto@3.7.0":
+"@dcl/crypto@3.7.0", "@dcl/crypto@^3.7.0":
   version "3.7.0"
   resolved "https://registry.yarnpkg.com/@dcl/crypto/-/crypto-3.7.0.tgz#2436370e591ea269da4806ee800e8eec21ff2168"
   integrity sha512-8HSFLxnIHDeA8I/6yGAUwbCin2TX2oPn2uBLj5UmR0NFAyN5wYJCqbeolaJaIdmqN9RFjdb9ixKOY4uKF5Q2XA==
@@ -1326,14 +1325,13 @@
     "@dcl/core-commons" "0.10.1"
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/test-helpers@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@dcl/test-helpers/-/test-helpers-0.2.0.tgz#82ac2e8d6aa8554a0813b60a7b3d7a595dde7402"
-  integrity sha512-BlnVYYS12JhtmMnNjCF3vnKRqDRms/jsgpb/knMvNoJpYxZo87wpMedLjBUxoNEjOem+2JLSdzdzStzmOFDi4Q==
+"@dcl/test-helpers@^0.3.2":
+  version "0.3.2"
+  resolved "https://registry.yarnpkg.com/@dcl/test-helpers/-/test-helpers-0.3.2.tgz#42fe05760e23c77fa7f89ff70c50c1aef324cd37"
+  integrity sha512-YlKjGtTp1LkGZ4hmRCplHjgmZ+5HVz/0rALYqbIXhcYfYxgoxLx36Dg65vcTjNcS4wyjgO7G4YEDQProBaoadw==
   dependencies:
-    "@dcl/core-commons" "0.10.1"
-    "@dcl/crypto" "^3.4.5"
-    "@dcl/crypto-middleware" "^4.0.0"
+    "@dcl/core-commons" "0.11.0"
+    "@dcl/crypto" "^3.7.0"
     "@well-known-components/interfaces" "^1.5.2"
 
 "@dcl/traced-fetch-component@1.0.8":
