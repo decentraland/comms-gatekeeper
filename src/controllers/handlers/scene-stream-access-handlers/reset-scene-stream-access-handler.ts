@@ -33,7 +33,7 @@ export async function resetSceneStreamAccessHandler(
     verification
   } = ctx
   const logger = logs.getLogger('reset-scene-stream-access-handler')
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
   const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
@@ -68,12 +68,7 @@ export async function resetSceneStreamAccessHandler(
   }
 
   try {
-    let place: PlaceAttributes
-    if (isWorld) {
-      place = await getWorldScenePlace(serverName, parcel)
-    } else {
-      place = await getPlaceByParcel(parcel)
-    }
+    const place: PlaceAttributes = await getPlaceBySceneId(sceneId, isWorld ? serverName : undefined, parcel)
 
     const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
     if (!isOwnerOrAdmin) {

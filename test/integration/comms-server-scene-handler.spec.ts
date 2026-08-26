@@ -97,20 +97,50 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
       validateResult.realm.hostname = 'worlds-content-server.decentraland.org'
       validateResult.isWorld = true
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
+      stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('active-world-scene')
+      stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-room-active-world-scene')
     })
 
-    it('should generate credentials for world room and return connection details', async () => {
-      const response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({})
+    describe('and the caller supplies a different content hash', () => {
+      it('should generate credentials for the active scene at the signed parcel', async () => {
+        const response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        })
+
+        expect(response.status).toBe(200)
+        expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith(mockWorldRealm, mockParcel)
+        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(mockWorldRealm, 'active-world-scene')
+        expect(stubComponents.livekit.generateCredentials).toHaveBeenCalledWith(
+          'authoritative-server',
+          'world-room-active-world-scene',
+          { cast: [], mute: [] },
+          false
+        )
+      })
+    })
+
+    describe('and the active scene cannot be resolved', () => {
+      beforeEach(() => {
+        stubComponents.worlds.fetchWorldSceneId.mockRejectedValue(new Error('HTTP 404'))
       })
 
-      expect(response.status).toBe(200)
-      const body = await response.json()
-      expect(body.adapter).toBe('wss://livekit.example.com?token=mock-token')
+      it('should respond with 400 without checking bans or minting credentials', async () => {
+        const response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        })
+
+        expect(response.status).toBe(400)
+        expect(stubComponents.denyList.isDenylisted).not.toHaveBeenCalled()
+        expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
+      })
     })
   })
 

@@ -1,7 +1,7 @@
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { ICastComponent } from '../../../src/logic/cast/types'
 import { NoActiveStreamError, ExpiredStreamAccessError } from '../../../src/logic/cast/errors'
-import { ForbiddenError } from '../../../src/types/errors'
+import { ForbiddenError, InvalidRequestError } from '../../../src/types/errors'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene-stream-access-manager-mock'
@@ -111,6 +111,7 @@ describe('when generating watcher credentials by location', () => {
 
   describe('and the location is a world name', () => {
     const worldLocation = 'test-world.dcl.eth'
+    const worldParcel = '10,20'
     const identity = 'watcher-identity'
 
     beforeEach(() => {
@@ -128,22 +129,33 @@ describe('when generating watcher credentials by location', () => {
         expiration_time: String(Date.now() + 2 * 24 * 60 * 60 * 1000)
       }
 
-      mockPlaces.getWorldByName.mockResolvedValue(mockWorldPlace)
+      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldPlace)
       mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(worldStreamAccess)
     })
 
-    it('should look up the world by name and stream access by place id', async () => {
-      await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity, WATCHER_ADDRESS)
+    it('should look up the exact world scene and stream access by place id', async () => {
+      await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity, WATCHER_ADDRESS, worldParcel)
 
-      expect(mockPlaces.getWorldByName).toHaveBeenCalledWith(worldLocation)
+      expect(mockPlaces.getWorldScenePlace).toHaveBeenCalledWith(worldLocation, worldParcel)
       expect(mockPlaces.getPlaceByParcel).not.toHaveBeenCalled()
       expect(mockSceneStreamAccessManager.getLatestAccessByPlaceId).toHaveBeenCalledWith('world-place-123')
     })
 
     it('should return the place name', async () => {
-      const result = await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity, WATCHER_ADDRESS)
+      const result = await castComponent.generateWatcherCredentialsByLocation(
+        worldLocation,
+        identity,
+        WATCHER_ADDRESS,
+        worldParcel
+      )
 
       expect(result.placeName).toBe('Test World Place')
+    })
+
+    it('should reject an ambiguous world request without a parcel', async () => {
+      await expect(
+        castComponent.generateWatcherCredentialsByLocation(worldLocation, identity, WATCHER_ADDRESS)
+      ).rejects.toBeInstanceOf(InvalidRequestError)
     })
   })
 
@@ -309,6 +321,7 @@ describe('when generating watcher credentials by location', () => {
 
   describe('and the place has no title', () => {
     const worldLocation = 'unnamed-world.dcl.eth'
+    const worldParcel = '50,60'
     const identity = 'watcher-identity'
 
     beforeEach(() => {
@@ -333,12 +346,17 @@ describe('when generating watcher credentials by location', () => {
         expiration_time: String(Date.now() + 2 * 24 * 60 * 60 * 1000)
       }
 
-      mockPlaces.getWorldByName.mockResolvedValue(placeWithoutTitle)
+      mockPlaces.getWorldScenePlace.mockResolvedValue(placeWithoutTitle)
       mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(streamAccess)
     })
 
     it('should use the world name as place name', async () => {
-      const result = await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity, WATCHER_ADDRESS)
+      const result = await castComponent.generateWatcherCredentialsByLocation(
+        worldLocation,
+        identity,
+        WATCHER_ADDRESS,
+        worldParcel
+      )
 
       expect(result.placeName).toBe('unnamed-world.dcl.eth')
     })

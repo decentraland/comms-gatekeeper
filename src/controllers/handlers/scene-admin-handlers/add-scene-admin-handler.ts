@@ -28,7 +28,7 @@ export async function addSceneAdminHandler(
     verification
   } = ctx
 
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
@@ -46,14 +46,8 @@ export async function addSceneAdminHandler(
 
   const isWorld = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
-
-  let place: PlaceAttributes
-
-  if (isWorld) {
-    place = await getWorldScenePlace(serverName, parcel)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  const place: PlaceAttributes = await getPlaceBySceneId(sceneId, isWorld ? serverName : undefined, parcel)
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
 

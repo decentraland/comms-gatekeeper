@@ -17,7 +17,7 @@ export async function listSceneAdminsHandler(
   } = ctx
 
   const logger = logs.getLogger('list-scene-admins-handler')
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
@@ -27,6 +27,7 @@ export async function listSceneAdminsHandler(
   const authenticatedAddress = verification.auth.toLowerCase()
 
   const {
+    sceneId,
     parcel,
     realm: { hostname, serverName }
   } = await validate(ctx)
@@ -35,13 +36,8 @@ export async function listSceneAdminsHandler(
     authoritativeServerIdentity && authenticatedAddress.toLowerCase() === authoritativeServerIdentity.toLowerCase()
 
   const isWorld = hostname.includes('worlds-content-server')
-
-  let place: PlaceAttributes
-  if (isWorld) {
-    place = await getWorldScenePlace(serverName, parcel)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  const place: PlaceAttributes = await getPlaceBySceneId(sceneId, isWorld ? serverName : undefined, parcel)
 
   // Allow any authenticated scene participant to list admins.
   // This enables all clients to validate admin identity for applying changes.

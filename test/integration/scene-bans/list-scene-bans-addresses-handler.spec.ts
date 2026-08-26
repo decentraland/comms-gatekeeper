@@ -65,8 +65,8 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
       hasLandLease: true
     }
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue(mockedPlace)
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue(mockedWorldPlace)
   })
 
   afterEach(async () => {

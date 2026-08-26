@@ -197,7 +197,8 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       }
 
       stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
-      stubComponents.livekit.getWorldRoomName.mockReturnValue('test-world.eth')
+      stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('test-scene')
+      stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-prd-scene-room-test-world.eth-test-scene')
       stubComponents.livekit.generateCredentials.mockResolvedValue({
         url: 'wss://test-livekit-url',
         token: 'test-token'
@@ -318,7 +319,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         stubComponents.worlds.hasWorldAccessPermission.mockResolvedValue(true)
       })
 
-      describe('and the world about endpoint returns the scene ID', () => {
+      describe('and the world scenes endpoint returns the scene ID for the parcel', () => {
         beforeEach(() => {
           stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('bafkreiabcdef123')
           stubComponents.livekit.getWorldSceneRoomName.mockReturnValue(
@@ -338,7 +339,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           )
 
           expect(response.status).toBe(200)
-          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth')
+          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth', '10,20')
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(
             'test-world.eth',
@@ -347,7 +348,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         })
       })
 
-      describe('and the world about endpoint fails', () => {
+      describe('and the world scenes endpoint fails', () => {
         beforeEach(() => {
           stubComponents.worlds.fetchWorldSceneId.mockRejectedValue(new Error('HTTP 404'))
         })
@@ -368,6 +369,8 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(body).toEqual({
             error: 'Failed to resolve scene ID for world test-world.eth'
           })
+          expect(stubComponents.userModeration.getActiveBanForConnection).not.toHaveBeenCalled()
+          expect(stubComponents.denyList.isDenylisted).not.toHaveBeenCalled()
           expect(stubComponents.sceneBans.isUserBanned).not.toHaveBeenCalled()
         })
       })
@@ -394,7 +397,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(body).toEqual({
             error: 'User is banned from this scene'
           })
-          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth')
+          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth', '10,20')
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.worlds.hasWorldAccessPermission).not.toHaveBeenCalled()
         })
@@ -413,6 +416,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         }
 
         stubComponents.worlds.hasWorldAccessPermission.mockResolvedValue(true)
+        stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('bafytest123')
         stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-prd-scene-room-test-world.eth-bafytest123')
         stubComponents.places.getWorldByName.mockResolvedValue({
           id: 'place-123',
@@ -458,6 +462,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         }
 
         stubComponents.worlds.hasWorldAccessPermission.mockResolvedValue(true)
+        stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('bafytest123')
         stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-prd-scene-room-test-world.eth-bafytest123')
         stubComponents.places.getWorldByName.mockResolvedValue({
           id: 'place-123',
@@ -499,6 +504,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         }
 
         stubComponents.worlds.hasWorldAccessPermission.mockResolvedValue(true)
+        stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('bafytest123')
         stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-prd-scene-room-test-world.eth-bafytest123')
         stubComponents.places.getWorldByName.mockRejectedValue(new Error('Places API down'))
         stubComponents.livekit.generateCredentials.mockResolvedValue({
@@ -523,7 +529,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       })
     })
 
-    describe('when client sends a content hash as sceneId', () => {
+    describe('when client sends a stale content hash as sceneId', () => {
       let contentHashMetadata: Metadata
 
       beforeEach(() => {
@@ -531,16 +537,17 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           identity: owner.authChain[0].payload,
           realmName: 'test-world.eth',
           parcel: '10,20',
-          sceneId: 'bafkreiabcdef123'
+          sceneId: 'bafkreistale123'
         }
 
         stubComponents.worlds.hasWorldAccessPermission.mockResolvedValue(true)
+        stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('bafkreiactive456')
         stubComponents.livekit.getWorldSceneRoomName.mockReturnValue(
-          'world-prd-scene-room-test-world.eth-bafkreiabcdef123'
+          'world-prd-scene-room-test-world.eth-bafkreiactive456'
         )
       })
 
-      it('should use the sceneId as-is without fetching from the about endpoint', async () => {
+      it('should use the active scene at the signed parcel for bans and credentials', async () => {
         const response = await makeRequest(
           components.localFetch,
           '/get-scene-adapter',
@@ -552,9 +559,9 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         )
 
         expect(response.status).toBe(200)
-        expect(stubComponents.worlds.fetchWorldSceneId).not.toHaveBeenCalled()
-        expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
-        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith('test-world.eth', 'bafkreiabcdef123')
+        expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth', '10,20')
+        expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiactive456')
+        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith('test-world.eth', 'bafkreiactive456')
       })
     })
   })

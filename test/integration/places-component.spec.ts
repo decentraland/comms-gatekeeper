@@ -43,7 +43,9 @@ describe('PlacesComponent', () => {
     }
 
     mockWorlds = {
-      fetchWorldSceneEntityMetadataById: jest.fn()
+      fetchWorldSceneEntityMetadataById: jest.fn(),
+      fetchWorldSceneByEntityId: jest.fn(),
+      fetchWorldSceneByPointer: jest.fn()
     }
 
     mockContentClient = {
@@ -69,7 +71,9 @@ describe('PlacesComponent', () => {
             title: 'Test Place',
             owner: '0xOwnerAddress',
             description: 'Test Description',
-            positions: ['1,2']
+            positions: ['1,2'],
+            disabled: false,
+            world: false
           }
         ],
         ok: true
@@ -159,7 +163,9 @@ describe('PlacesComponent', () => {
             owner: '0xOwnerAddress',
             description: 'A scene in a world',
             positions: ['10,20'],
-            world_name: 'test-world'
+            world_name: 'test-world',
+            disabled: false,
+            world: true
           }
         ],
         ok: true
@@ -182,7 +188,9 @@ describe('PlacesComponent', () => {
             title: 'World Scene',
             owner: '0xOwnerAddress',
             positions: ['10,20'],
-            world_name: 'Test-World'
+            world_name: 'Test-World',
+            disabled: false,
+            world: true
           }
         ],
         ok: true
@@ -214,11 +222,12 @@ describe('PlacesComponent', () => {
       let mockPlaceResponse: PlaceResponse
 
       beforeEach(async () => {
-        mockWorlds.fetchWorldSceneEntityMetadataById.mockResolvedValue({
-          scene: {
-            base: '10,20',
-            parcels: ['10,20', '10,21']
-          }
+        mockWorlds.fetchWorldSceneByEntityId.mockResolvedValue({
+          worldName,
+          entityId,
+          deployer: '0xdeployer',
+          parcels: ['10,20', '10,21'],
+          baseParcel: '10,20'
         })
 
         mockPlaceResponse = {
@@ -228,7 +237,9 @@ describe('PlacesComponent', () => {
               title: 'World Scene',
               owner: '0xOwnerAddress',
               positions: ['10,20', '10,21'],
-              world_name: worldName
+              world_name: worldName,
+              disabled: false,
+              world: true
             } as PlaceAttributes
           ],
           ok: true,
@@ -240,7 +251,7 @@ describe('PlacesComponent', () => {
       })
 
       it('should fetch the scene entity metadata from the worlds content server', () => {
-        expect(mockWorlds.fetchWorldSceneEntityMetadataById).toHaveBeenCalledWith(entityId)
+        expect(mockWorlds.fetchWorldSceneByEntityId).toHaveBeenCalledWith(worldName, entityId)
       })
 
       it('should query the places API with the base parcel and world name', () => {
@@ -254,9 +265,21 @@ describe('PlacesComponent', () => {
       })
     })
 
+    describe('and the declared base is outside the scene parcels', () => {
+      beforeEach(() => {
+        mockWorlds.fetchWorldSceneByEntityId.mockResolvedValue(undefined)
+      })
+
+      it('should reject the unbound scene metadata', async () => {
+        await expect(placesComponent.getWorldScenePlaceByEntityId(worldName, entityId)).rejects.toThrow(
+          PlaceNotFoundError
+        )
+      })
+    })
+
     describe('and the worlds content server returns no scene entity metadata', () => {
       beforeEach(() => {
-        mockWorlds.fetchWorldSceneEntityMetadataById.mockResolvedValue(undefined)
+        mockWorlds.fetchWorldSceneByEntityId.mockResolvedValue(undefined)
       })
 
       it('should throw PlaceNotFoundError', async () => {
@@ -273,7 +296,7 @@ describe('PlacesComponent', () => {
 
     describe('and the scene entity metadata has no base parcel', () => {
       beforeEach(() => {
-        mockWorlds.fetchWorldSceneEntityMetadataById.mockResolvedValue({ scene: {} })
+        mockWorlds.fetchWorldSceneByEntityId.mockResolvedValue(undefined)
       })
 
       it('should throw PlaceNotFoundError', async () => {
@@ -293,10 +316,19 @@ describe('PlacesComponent', () => {
 
       beforeEach(async () => {
         mockContentClient.fetchEntityById.mockResolvedValue({
+          pointers: ['10,20'],
           metadata: { scene: { base: '10,20', parcels: ['10,20'] } }
         })
         mockPlaceResponse = {
-          data: [{ id: 'genesis-place-id', title: 'Genesis Scene', positions: ['10,20'] } as PlaceAttributes],
+          data: [
+            {
+              id: 'genesis-place-id',
+              title: 'Genesis Scene',
+              positions: ['10,20'],
+              disabled: false,
+              world: false
+            } as PlaceAttributes
+          ],
           ok: true,
           total: 1
         }
@@ -318,6 +350,19 @@ describe('PlacesComponent', () => {
       })
     })
 
+    describe('and the Genesis entity uses a non-canonical pointer', () => {
+      beforeEach(() => {
+        mockContentClient.fetchEntityById.mockResolvedValue({
+          pointers: ['010,20'],
+          metadata: { scene: { base: '10,20', parcels: ['10,20'] } }
+        })
+      })
+
+      it('should reject the unbound scene identity', async () => {
+        await expect(placesComponent.getPlaceBySceneId(sceneId)).rejects.toThrow(PlaceNotFoundError)
+      })
+    })
+
     describe('and a world name is given (world scene)', () => {
       const worldName = 'test-world'
       let result: PlaceAttributes
@@ -327,8 +372,12 @@ describe('PlacesComponent', () => {
         // Multi-scene worlds: each scene has its own entity id and base parcel, so the world
         // content server maps this sceneId to its specific base parcel, and the Places API
         // returns the place for that scene within the world.
-        mockWorlds.fetchWorldSceneEntityMetadataById.mockResolvedValue({
-          scene: { base: '5,5', parcels: ['5,5'] }
+        mockWorlds.fetchWorldSceneByEntityId.mockResolvedValue({
+          worldName,
+          entityId: sceneId,
+          deployer: '0xdeployer',
+          parcels: ['5,5'],
+          baseParcel: '5,5'
         })
         mockPlaceResponse = {
           data: [
@@ -336,7 +385,9 @@ describe('PlacesComponent', () => {
               id: 'world-scene-place',
               title: 'World Scene B',
               positions: ['5,5'],
-              world_name: worldName
+              world_name: worldName,
+              disabled: false,
+              world: true
             } as PlaceAttributes
           ],
           ok: true,
@@ -348,7 +399,7 @@ describe('PlacesComponent', () => {
       })
 
       it('should resolve the scene through the worlds content server, not the catalyst content client', () => {
-        expect(mockWorlds.fetchWorldSceneEntityMetadataById).toHaveBeenCalledWith(sceneId)
+        expect(mockWorlds.fetchWorldSceneByEntityId).toHaveBeenCalledWith(worldName, sceneId)
         expect(mockContentClient.fetchEntityById).not.toHaveBeenCalled()
       })
 

@@ -102,6 +102,7 @@ export interface GenerateStreamLinkParams {
   worldName?: string
   sceneId: string
   realmName: string
+  parcel?: string
   /** From signed-fetch metadata when the caller sends one; no current client does. */
   deviceIdentifier?: string
 }

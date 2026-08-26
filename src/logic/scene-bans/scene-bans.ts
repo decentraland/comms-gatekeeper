@@ -102,13 +102,8 @@ export function createSceneBansComponent(
       isWorld: String(isWorld)
     })
 
-    let place: PlaceAttributes
-
-    if (isWorld) {
-      place = await places.getWorldScenePlace(realmName, parcel)
-    } else {
-      place = await places.getPlaceByParcel(parcel)
-    }
+    if (!sceneId) throw new InvalidRequestError('No scene ID provided')
+    const place: PlaceAttributes = await places.getPlaceBySceneId(sceneId, isWorld ? realmName : undefined, parcel)
 
     // Check if the user performing the ban has permission
     const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, bannedBy)
@@ -202,13 +197,8 @@ export function createSceneBansComponent(
       isWorld: String(isWorld)
     })
 
-    let place: PlaceAttributes
-
-    if (isWorld) {
-      place = await places.getWorldScenePlace(realmName, parcel)
-    } else {
-      place = await places.getPlaceByParcel(parcel)
-    }
+    if (!sceneId) throw new InvalidRequestError('No scene ID provided')
+    const place: PlaceAttributes = await places.getPlaceBySceneId(sceneId, isWorld ? realmName : undefined, parcel)
 
     // Check if the user performing the unban has permission
     const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, unbannedBy)
@@ -302,13 +292,8 @@ export function createSceneBansComponent(
       limit: limit || 20
     })
 
-    let place: PlaceAttributes
-
-    if (isWorld) {
-      place = await places.getWorldScenePlace(realmName, parcel)
-    } else {
-      place = await places.getPlaceByParcel(parcel)
-    }
+    if (!sceneId) throw new InvalidRequestError('No scene ID provided')
+    const place: PlaceAttributes = await places.getPlaceBySceneId(sceneId, isWorld ? realmName : undefined, parcel)
 
     // Check if the user requesting the list has permission
     const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, lowercasedRequestedBy)
@@ -351,7 +336,9 @@ export function createSceneBansComponent(
     // Callers decide which identifier is authoritative by which they pass. get-scene-adapter
     // passes only sceneId (so the ban is checked against the exact scene whose room is joined,
     // closing the parcel/sceneId mismatch bypass); world-ban-check and admin flows pass a parcel.
-    if (isWorld && parcel) {
+    if (sceneId && parcel) {
+      place = await places.getPlaceBySceneId(sceneId, isWorld ? realmName : undefined, parcel)
+    } else if (isWorld && parcel) {
       place = await places.getWorldScenePlace(realmName, parcel)
     } else if (isWorld && sceneId) {
       place = await places.getPlaceBySceneId(sceneId, realmName)

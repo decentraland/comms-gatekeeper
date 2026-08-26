@@ -1267,16 +1267,6 @@
     ajv "^8.17.1"
     ajv-formats "^3.0.1"
 
-"@dcl/schemas@25.2.0":
-  version "25.2.0"
-  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-25.2.0.tgz#57eb89aa99074b686d71244b2d37e61ac00a7510"
-  integrity sha512-t8s955qxM2/SWLIL4bOtkGR+UWNLZUCvKp6FNa+R7pLcU7Bc3xgoEQ0WcZolBJVyDypV+nFV/60TBcujYbx/fg==
-  dependencies:
-    ajv "^8.11.0"
-    ajv-errors "^3.0.0"
-    ajv-keywords "^5.1.0"
-    mitt "^3.0.1"
-
 "@dcl/schemas@^18.0.0":
   version "18.8.0"
   resolved "https://registry.npmjs.org/@dcl/schemas/-/schemas-18.8.0.tgz"
@@ -1301,6 +1291,16 @@
   version "25.3.0"
   resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-25.3.0.tgz#5ba7b53e902e9bf8fded3f6dfba1485b08dfe3ae"
   integrity sha512-ChFW3jU3ELN6YsRvs8TZIueBR8/DDxFcWPOeCoPafjLzSRK4GX9wHYrD3Crent07C3i3tm1rX8L/2rw+S39bzQ==
+  dependencies:
+    ajv "^8.11.0"
+    ajv-errors "^3.0.0"
+    ajv-keywords "^5.1.0"
+    mitt "^3.0.1"
+
+"@dcl/schemas@^27.0.0":
+  version "27.0.0"
+  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-27.0.0.tgz#fbda0293c221db90b83cf89b300c43b4b6111cc6"
+  integrity sha512-KwW6ms2p2k8WW+167ta4AOLwQeqJGV1L8jrPcuRiw06kZhbDnlcnOkTqwBibigeIFtN5aoae9you0W3+SceAiA==
   dependencies:
     ajv "^8.11.0"
     ajv-errors "^3.0.0"

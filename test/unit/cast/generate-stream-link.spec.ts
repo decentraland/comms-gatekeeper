@@ -172,7 +172,7 @@ describe('when generating a stream link', () => {
         realmName: 'test-world.dcl.eth'
       })
 
-      expect(mockPlaces.getPlaceBySceneId).toHaveBeenCalledWith('bafkreiscene123', 'test-world.dcl.eth')
+      expect(mockPlaces.getPlaceBySceneId).toHaveBeenCalledWith('bafkreiscene123', 'test-world.dcl.eth', undefined)
     })
 
     it('should check admin permissions using the world scene place', async () => {

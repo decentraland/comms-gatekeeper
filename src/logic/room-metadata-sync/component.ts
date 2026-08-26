@@ -18,12 +18,9 @@ const WEBHOOK_REFRESH_COOLDOWN_SECONDS = 60
 const WEBHOOK_REFRESH_CACHE_KEY_PREFIX = 'room-metadata-sync:webhook-refresh:'
 
 export function createRoomMetadataSyncComponent(
-  components: Pick<
-    AppComponents,
-    'sceneBanManager' | 'sceneAdmins' | 'livekit' | 'places' | 'contentClient' | 'lands' | 'cache' | 'logs'
-  >
+  components: Pick<AppComponents, 'sceneBanManager' | 'sceneAdmins' | 'livekit' | 'places' | 'lands' | 'cache' | 'logs'>
 ): IRoomMetadataSyncComponent {
-  const { sceneBanManager, sceneAdmins, livekit, places, contentClient, lands, cache, logs } = components
+  const { sceneBanManager, sceneAdmins, livekit, places, lands, cache, logs } = components
   const logger = logs.getLogger('room-metadata-sync')
 
   // Cache key namespace prevents collisions if `cache` is later shared with
@@ -92,8 +89,8 @@ export function createRoomMetadataSyncComponent(
       if (worldName && sceneId) {
         place = await places.getWorldScenePlaceByEntityId(worldName, sceneId)
       } else if (worldName) {
-        // Legacy rooms without sceneId: fall back to world-level lookup
-        place = await places.getWorldByName(worldName)
+        logger.warn(`World room ${room.name} has no sceneId; skipping metadata refresh`)
+        return
       } else {
         // Non-world room reaching this branch must be `RoomType.SCENE`, which
         // `getRoomMetadataFromRoomName` only returns when it parsed a sceneId
@@ -103,8 +100,7 @@ export function createRoomMetadataSyncComponent(
           logger.warn(`Room ${room.name} parsed as a scene but has no sceneId; skipping metadata refresh`)
           return
         }
-        const entity = await contentClient.fetchEntityById(sceneId)
-        place = await places.getPlaceByParcel(entity.metadata.scene.base)
+        place = await places.getPlaceBySceneId(sceneId)
       }
 
       await refreshRoomMetadata(place, room.name)

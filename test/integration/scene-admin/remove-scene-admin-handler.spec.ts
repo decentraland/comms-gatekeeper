@@ -91,13 +91,13 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       positions: ['10,20'],
       owner: ownerAddress
     } as PlaceAttributes)
 
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       positions: [],
       world_name: 'test-world',
@@ -275,7 +275,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when scene is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue(null)
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue(null)
 
     const response = await makeRequest(
       localFetch,
