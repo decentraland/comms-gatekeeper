@@ -5,12 +5,13 @@ export const createUserModerationMockedComponent = (
 ): jest.Mocked<IUserModerationComponent> => {
   return {
     banPlayer: jest.fn(),
-    liftBan: jest.fn().mockResolvedValue(undefined),
+    liftBan: jest.fn(),
     warnPlayer: jest.fn(),
     isPlayerBanned: jest.fn().mockResolvedValue({ isBanned: false }),
+    // Defaults to not banned so specs unrelated to ban enforcement need not stub the gate.
     getActiveBanForConnection: jest.fn().mockResolvedValue({ isBanned: false }),
     getActiveBans: jest.fn().mockResolvedValue([]),
     getPlayerWarnings: jest.fn().mockResolvedValue([]),
     ...overrides
-  } as unknown as jest.Mocked<IUserModerationComponent>
+  }
 }

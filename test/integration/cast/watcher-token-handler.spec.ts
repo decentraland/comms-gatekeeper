@@ -1,5 +1,7 @@
+import { Authenticator } from '@dcl/crypto'
+import { AUTH_METADATA_HEADER } from '@dcl/crypto-middleware'
 import { test } from '../../components'
-import { makeRequest } from '../../utils'
+import { admin, getAuthHeaders, makeRequest } from '../../utils'
 import { InvalidRequestError } from '../../../src/types/errors'
 
 test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
@@ -51,6 +53,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         validLocation,
         identity,
         expect.any(String),
+        undefined,
         undefined
       )
     })
@@ -77,6 +80,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         validWorldName,
         identity,
         expect.any(String),
+        undefined,
         undefined
       )
     })
@@ -107,6 +111,7 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
         validLocation,
         customIdentity,
         expect.any(String),
+        undefined,
         undefined
       )
     })
@@ -208,6 +213,79 @@ test('Cast: Watcher Token Handler', function ({ components, spyComponents }) {
 
       expect(response.status).not.toBe(200)
       expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
+    })
+
+    it('should reject a scene signer signed canonically but delivered in mixed case', async () => {
+      // Re-casing the delivered metadata makes the request read differently to the scene gate the
+      // authWatcher middleware applies, so without something rejecting it this scene request is
+      // served as if a viewer had signed it.
+      //
+      // Two layers refuse it now, and the earlier one wins. `rejectIfSigner` refuses a signer that
+      // is not already canonical, and `metadataValidator` runs before signature verification, so
+      // this is a 400 from the gate rather than the 401 the signature would produce a step later.
+      // Either way it never reaches the handler; being refused before any crypto runs is the
+      // cheaper of the two.
+      const headers = getAuthHeaders(
+        'POST',
+        '/cast/watcher-token',
+        { signer: 'decentraland-kernel-scene' },
+        (payload) => Authenticator.signPayload(admin, payload)
+      )
+      headers[AUTH_METADATA_HEADER] = JSON.stringify({ signer: 'Decentraland-Kernel-Scene' })
+
+      const response = await components.localFetch.fetch('/cast/watcher-token', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location: validLocation, identity: 'scene-signed' })
+      })
+
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        message: expect.stringMatching(/^Invalid metadata content/)
+      })
+      expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
+    })
+
+    describe('and the re-spelled signer key is itself covered by the signature', () => {
+      let response: Response
+
+      beforeEach(async () => {
+        // The delivered metadata is not rewritten after signing here — `Signer` is what was signed,
+        // so the chain is authentic and the signature check has nothing to object to. That is the
+        // whole point: a scene-driven client can simply sign the key under another spelling, and
+        // before @dcl/crypto-middleware 6.3.0 the gate read the exact key and therefore saw no
+        // `signer` at all. `rejectIfSigner` answered "allowed" for metadata that names, in plain
+        // sight, the one signer it exists to refuse, and the watcher token was issued to a scene.
+        //
+        // 6.3.0 treats a key that case-folds to the declared field without being spelled exactly
+        // that as a rejection rather than an absence. Nothing is folded or rewritten: the request
+        // is refused, at the metadata gate, before any crypto runs.
+        const headers = getAuthHeaders(
+          'POST',
+          '/cast/watcher-token',
+          { Signer: 'decentraland-kernel-scene' },
+          (payload) => Authenticator.signPayload(admin, payload)
+        )
+
+        response = await components.localFetch.fetch('/cast/watcher-token', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location: validLocation, identity: 'scene-signed' })
+        })
+      })
+
+      it('should refuse the request with a 400 from the metadata gate', async () => {
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toEqual({
+          ok: false,
+          message: expect.stringMatching(/^Invalid metadata content/)
+        })
+      })
+
+      it('should not issue watcher credentials to the scene', () => {
+        expect(spyComponents.cast.generateWatcherCredentialsByLocation).not.toHaveBeenCalled()
+      })
     })
   })
 

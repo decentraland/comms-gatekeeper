@@ -191,7 +191,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
-  const voice = createVoiceComponent({ voiceDB, logs, livekit, analytics, publisher })
+  const voice = createVoiceComponent({ voiceDB, logs, livekit, analytics, publisher, userModeration })
   const voiceChatExpirationJob = await createCronJobComponent(
     { logs },
     voice.expirePrivateVoiceChats,
@@ -244,7 +244,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneManager,
     places,
     config,
-    sceneBanManager
+    sceneBanManager,
+    userModeration
   })
 
   const sceneParticipants = await createSceneParticipantsComponent({

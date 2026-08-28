@@ -1,6 +1,11 @@
 import { Router } from '@dcl/http-server'
 import { bearerTokenMiddleware } from '@dcl/http-commons'
-import { wellKnownComponents as authVerificationMiddleware } from '@dcl/crypto-middleware'
+import {
+  rejectIfSigner,
+  requireSigner,
+  wellKnownComponents as authVerificationMiddleware
+} from '@dcl/crypto-middleware'
+import { CANONICAL_METADATA_KEYS } from '../logic/utils'
 import { GlobalContext } from '../types'
 import { errorHandler } from './handlers/error-handler'
 import { pingHandler } from './handlers/ping-handler'
@@ -88,30 +93,36 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   const auth = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'decentraland-kernel-scene'
+    metadataValidator: requireSigner('decentraland-kernel-scene'),
+    canonicalMetadataKeys: CANONICAL_METADATA_KEYS
   })
 
   // Auth middleware that accepts both scene requests and authoritative server requests
   const authSceneOrServer = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
-    metadataValidator: (metadata: Record<string, any>) =>
-      metadata.signer === 'decentraland-kernel-scene' || metadata.signer === 'dcl:authoritative-server'
+    metadataValidator: requireSigner('decentraland-kernel-scene', 'dcl:authoritative-server'),
+    canonicalMetadataKeys: CANONICAL_METADATA_KEYS
   })
 
   const authExplorer = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer === 'dcl:explorer'
+    metadataValidator: requireSigner('dcl:explorer'),
+    canonicalMetadataKeys: CANONICAL_METADATA_KEYS
   })
 
+  // Deliberately strict, with no canonicalMetadataKeys: the cast web app signs these and its
+  // metadata is all-lowercase, so the pre-6.0.0 and current payloads are byte-identical and it
+  // needs no legacy fallback. Explorer clients do not request watcher tokens.
+  //
   // Watcher (stream viewer) tokens: require a verified wallet (optional: false rejects
   // unidentified requests at the middleware) so scene bans can be enforced against the viewer.
   // Viewers are end users, not scenes, so a kernel-scene-signed request is rejected.
   const authWatcher = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: false,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer !== 'decentraland-kernel-scene'
+    metadataValidator: rejectIfSigner('decentraland-kernel-scene')
   })
 
   router.get('/ping', pingHandler)
@@ -241,11 +252,13 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.get('/cast/generate-stream-link', auth, generateStreamLinkHandler)
   router.get('/cast/stream-info/:streamingKey', getStreamInfoHandler)
 
-  // User moderation routes
+  // User moderation routes. Also deliberately strict: these are called by dapps and internal
+  // tooling with empty metadata, which is casing-invariant, so legacy acceptance would widen the
+  // fallback for no benefit.
   const signedFetch = authVerificationMiddleware({
     fetcher: components.fetch,
     optional: true,
-    metadataValidator: (metadata: Record<string, any>) => metadata.signer !== 'decentraland-kernel-scene'
+    metadataValidator: rejectIfSigner('decentraland-kernel-scene')
   })
 
   const moderatorWrite = moderator.moderatorAuthMiddleware({ moderatorRequired: true })
