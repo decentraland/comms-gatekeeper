@@ -1,7 +1,11 @@
 import { Entity } from '@dcl/schemas'
 import { ParticipantInfo } from 'livekit-server-sdk'
 import { createSceneParticipantsComponent, ISceneParticipantsComponent } from '../../src/adapters/scene-participants'
-import { createPresenceMapComponent, IPresenceMapComponent } from '../../src/logic/presence-map'
+import {
+  createPresenceMapComponent,
+  IPresenceMapComponent,
+  PresenceMapWarmingError
+} from '../../src/logic/presence-map'
 import { WorldScene } from '../../src/types/worlds.type'
 import { decodeParcelChangesFixture, readFixtureJson } from '../fixtures/iteration-2/loader'
 import { createConfigMockedComponent } from '../mocks/config-mock'
@@ -241,11 +245,16 @@ describe('scene-participants component', () => {
         await build({ LIVEKIT_PRESENCE_FALLBACK: 'false' })
       })
 
-      it('should fall back to LiveKit rather than report an empty scene', async () => {
-        const addresses = await component.getParticipantAddresses(paramsOf(LAND.request))
+      it('should report itself as warming rather than answer with an empty scene', async () => {
+        await expect(component.getParticipantAddresses(paramsOf(LAND.request))).rejects.toThrow(PresenceMapWarmingError)
 
-        expect(addresses).toEqual(['0x00000000000000000000000000000000000000aa'])
         expect(logger.warn).toHaveBeenCalled()
+      })
+
+      it('should not fall back to LiveKit, which the operator turned off explicitly', async () => {
+        await expect(component.getParticipantAddresses(paramsOf(LAND.request))).rejects.toThrow(PresenceMapWarmingError)
+
+        expect(livekit.listRoomParticipants).not.toHaveBeenCalled()
       })
     })
 
@@ -253,6 +262,23 @@ describe('scene-participants component', () => {
       await expect(component.getParticipantAddresses({ pointer: null, realmName: 'main' })).rejects.toThrow(
         'Either pointer with realm_name or a world realm_name must be provided'
       )
+    })
+  })
+
+  describe('when LIVEKIT_PRESENCE_FALLBACK is true and the presence map has not been primed', () => {
+    beforeEach(async () => {
+      presenceMap = createPresenceMapMockedComponent({ isReady: jest.fn().mockReturnValue(false) })
+      await build({ LIVEKIT_PRESENCE_FALLBACK: 'true' })
+    })
+
+    it('should answer from LiveKit, which is the whole point of the flag being on', async () => {
+      const addresses = await component.getParticipantAddresses(paramsOf(LAND.request))
+
+      expect(addresses).toEqual(['0x00000000000000000000000000000000000000aa'])
+    })
+
+    it('should not report itself as warming, because it has an answer to give', async () => {
+      await expect(component.getParticipantAddresses(paramsOf(LAND.request))).resolves.toBeDefined()
     })
   })
 

@@ -414,3 +414,33 @@ test('GET /scene-participants resolved on the presence map', ({ components, stub
     })
   })
 })
+
+/**
+ * The cold-map answer. `LIVEKIT_PRESENCE_FALLBACK=false` says "do not answer from LiveKit", so
+ * before the map is primed this route has nothing to answer with — and says so with the same
+ * `503 {"ok":false,"error":"warming"}` body `/hot-scenes` serves, rather than reporting a
+ * deserted scene. The map is deliberately never fed here.
+ */
+test('GET /scene-participants while the presence map is warming', ({ components, beforeStart }) => {
+  const previousEnv = {
+    presenceMap: process.env.PRESENCE_MAP_ENABLED,
+    livekitFallback: process.env.LIVEKIT_PRESENCE_FALLBACK
+  }
+
+  beforeStart(() => {
+    process.env.PRESENCE_MAP_ENABLED = 'true'
+    process.env.LIVEKIT_PRESENCE_FALLBACK = 'false'
+  })
+
+  afterAll(() => {
+    process.env.PRESENCE_MAP_ENABLED = previousEnv.presenceMap
+    process.env.LIVEKIT_PRESENCE_FALLBACK = previousEnv.livekitFallback
+  })
+
+  it('should answer 503 warming, exactly as /hot-scenes does', async () => {
+    const response = await components.localFetch.fetch('/scene-participants?realm_name=cozyfarm.dcl.eth')
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ ok: false, error: 'warming' })
+  })
+})

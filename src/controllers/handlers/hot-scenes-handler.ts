@@ -1,5 +1,6 @@
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../types'
+import { presenceWarmingResponse } from '../../logic/presence-map/warming'
 
 /**
  * `GET /hot-scenes` — the busiest Genesis City scenes, ranked by how many players stand on them.
@@ -22,10 +23,7 @@ export async function getHotScenesHandler(
   const { presenceMap, hotScenes } = context.components
 
   if (!presenceMap.isReady()) {
-    return {
-      status: 503,
-      body: { ok: false, error: 'warming' }
-    }
+    return presenceWarmingResponse()
   }
 
   return {
