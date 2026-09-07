@@ -182,7 +182,9 @@ Behind `PRESENCE_MAP_ENABLED`, default off.
 | `engine.parcel_changes` | `decentraland.pulse.ParcelChangesBatch` | the presence map; **no queue group** — every replica needs the whole map |
 
 Plus one HTTP read on boot: `GET {PULSE_URL}/peers?all=true`, so the routes can answer before
-the first snapshot instead of warming for up to a minute.
+the first snapshot instead of warming for up to a minute. That read is the all-instances list and
+carries no `server_name`, so its entries are *primed*: owned by nobody, taken over by the first
+publisher that mentions the wallet, and expiring on `PRESENCE_PRIME_TTL_MS` if none ever does.
 
 **Produces** nothing on NATS. Two HTTP routes:
 
@@ -190,7 +192,9 @@ the first snapshot instead of warming for up to a minute.
   `usersTotalCount` descending. Ranking logic ported from archipelago-stats verbatim, including
   that `parcels` lists every parcel of the scene rather than only the occupied ones. Recomputed
   on a timer (`HOT_SCENES_REFRESH_MS`) because the join needs catalyst metadata for every
-  occupied tile; `503 {"ok":false,"error":"warming"}` until the map is primed.
+  occupied tile; `503 {"ok":false,"error":"warming"}` until the first refresh that ran against a
+  primed map has completed (`hotScenes.isReady()`, not merely `presenceMap.isReady()` — the map
+  flips ready when the prime resolves, and the first sweep runs before that).
 - `GET /scene-participants` — unchanged shape, but the answer can now come from either
   implementation, selected by `LIVEKIT_PRESENCE_FALLBACK` (default `true` = LiveKit room
   membership, today's behaviour). `false` resolves it on the map — who is standing on the
@@ -205,7 +209,10 @@ a sequence gap the publisher is *frozen* and the current state keeps being serve
 publisher's next snapshot (Pulse guarantees one within 60 s). The map is never dropped, because
 an empty `/hot-scenes` reads as "Genesis City is deserted" to every caller downstream, which is
 a wrong answer rather than a stale one. A snapshot replaces only the entries its own publisher
-owns, so two Pulse instances cannot erase each other's peers. A `parcel`-absent entry is the
+owns — never the primed ones and never another publisher's — so two Pulse instances cannot erase
+each other's peers. A publisher that says nothing at all for `PRESENCE_SERVER_TTL_MS` is presumed
+gone: its entries are dropped and its `seq` forgotten, because a retired replica emits no exits and
+would otherwise be counted as online for the life of this process. A `parcel`-absent entry is the
 peer leaving. A `parcel` of `{}` on the wire is the world origin `(0,0)`, **present** — the two
 must not collapse into one another. A non-lowercase realm or address violates C1: counted and
 logged without the value, never a reason to drop state.
@@ -217,11 +224,15 @@ logged without the value, never a reason to drop state.
 
 **Rollout:** `SHADOW_COMPARE_PRESENCE=true` runs the implementation that is *not* serving as
 well and counts the symmetric difference as `presence_shadow_diff{kind=land|world}`, so the
-cutover is made on measured agreement. Counts only — no address ever reaches a log line or a
-metric label.
+cutover is made on measured agreement. Read it against
+`presence_shadow_compare_total{kind}`, which counts the comparisons that actually produced two
+answers: a shadow rejecting on every request also leaves the diff at zero, and "the sources agree"
+is not the same fact as "the comparison never ran". Counts only — no address ever reaches a log
+line or a metric label.
 
 **Metrics:** `dcl_gatekeeper_presence_*` (batches, snapshots, gaps, contract violations, map
-size, frozen publishers) plus the two contract-named ones, `presence_shadow_diff{kind}` and
+size, frozen publishers, `reclaimed_total{reason=prime_expired|server_gone}`) plus the
+contract-named `presence_shadow_diff{kind}`, `presence_shadow_compare_total{kind}` and
 `presence_prefix_mismatch`.
 
 **World room prefix check.** This service and the worlds content server build a world's LiveKit
@@ -247,10 +258,22 @@ LiveKit is a one-off diagnostic use of the room listing on boot, not a presence 
 - **No queue group on `engine.parcel_changes`**, unlike `peer.*.cluster_change`. That feed drives
   an action that must happen exactly once (minting and publishing a token); this one builds local
   state that every replica serves from, so every replica must see every batch.
-- **The prime is discarded when a snapshot beats it.** The boot-time `/peers?all=true` read is one
-  Pulse instance's HTTP view taken before the feed was live; folding it into a newer snapshot
-  would resurrect peers the snapshot just retired. The first snapshot also retires whatever the
-  prime left behind.
+- **The prime is discarded when a snapshot beats it, but never wiped by one.** A prime still in
+  flight when the first snapshot lands is dropped: folding an older HTTP read into a newer snapshot
+  would resurrect peers it just retired. A prime that landed first, though, survives every
+  publisher's snapshot — `/peers?all=true` is the all-realms *all-instances* list, so the entries a
+  snapshot does not mention may well belong to a Pulse whose own snapshot is up to 60 s away, and
+  dropping them would report an empty Genesis City. They are owned by nobody until a publisher
+  mentions the wallet, and `PRESENCE_PRIME_TTL_MS` (90 s = snapshot interval plus margin) is what
+  retires the ones nobody ever claims. Readiness expires with the prime too: an unfed map that has
+  outlived it holds nothing real, and answering `503 warming` is honest where `200 []` is not.
+- **A silent publisher is presumed gone, on `PRESENCE_SERVER_TTL_MS`.** C1 promises a `server_name`
+  is stable per *process*, and a scaled-down or replaced replica emits no exits for its peers, so
+  nothing else would ever reclaim them (the base branch has the same problem and solves it with
+  `CLUSTER_PEER_STATE_TTL_MS`). 150 s is 2.5 snapshot intervals: silence that long is a process
+  that is not there, not one that is quiet. Both this and the prime expiry run in one sweep on a
+  timer, because neither has any traffic to hang off — the entries that need reclaiming are exactly
+  the ones nothing is publishing about.
 - **A departure is only honoured from the publisher that owns the entry.** Ordering between two
   Pulse instances is not guaranteed, so a peer reconnecting to another instance can deliver the
   old instance's exit after the new one's placement; honouring it would drop a peer who is very

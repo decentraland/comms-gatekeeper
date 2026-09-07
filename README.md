@@ -19,6 +19,7 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
   - [Installation](#installation)
   - [Configuration](#configuration)
   - [Running the Service](#running-the-service)
+- [Rollout notes](#rollout-notes)
 - [Testing](#testing)
 
 ## Features
@@ -30,7 +31,7 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
 - **Scene Banning System**: Enables scene admins to ban users from specific scenes
 - **Request-to-Speak**: Implements moderated voice chat with speaker management
 - **Privacy Controls**: Manages user privacy settings and access control
-- **Presence Map**: Keeps the map of where every online player stands, fed by Pulse over NATS, and serves `GET /hot-scenes` and `GET /scene-participants` from it (behind `PRESENCE_MAP_ENABLED` / `LIVEKIT_PRESENCE_FALLBACK`). While the map is still warming, `GET /hot-scenes` answers `503 {"ok":false,"error":"warming"}`. `GET /scene-participants` instead answers from the LiveKit room lookup for as long as `LIVEKIT_PRESENCE_FALLBACK=true` (the default) — a cold map costs nothing while LiveKit is the served answer anyway — and answers the same `503 warming` once that flag is off, because the operator has then said LiveKit must not answer for that route
+- **Presence Map**: Keeps the map of where every online player stands, fed by Pulse over NATS, and serves `GET /hot-scenes` and `GET /scene-participants` from it (behind `PRESENCE_MAP_ENABLED` / `LIVEKIT_PRESENCE_FALLBACK`). While no ranking has been computed from a primed map yet, `GET /hot-scenes` answers `503 {"ok":false,"error":"warming"}` (its readiness is its own: the map becomes ready when Pulse's `/peers?all=true` prime resolves, the ranking needs a catalyst sweep on top of that). `GET /scene-participants` instead answers from the LiveKit room lookup for as long as `LIVEKIT_PRESENCE_FALLBACK=true` (the default) — a cold map costs nothing while LiveKit is the served answer anyway — and answers the same `503 warming` once that flag is off, because the operator has then said LiveKit must not answer for that route
 
 ## Dependencies
 
@@ -167,6 +168,29 @@ For watch mode with automatic rebuilds:
 ```bash
 yarn dev
 ```
+
+## Rollout notes
+
+### World room names are lower-cased (one-time rename)
+
+`getWorldRoomName` and `getWorldSceneRoomName` now lower-case the world name before building the
+LiveKit room name, so this service computes the same names the worlds content server creates. It is
+not confined to the presence path: the same helpers build the room a client's **token** is issued
+for (`comms-scene-handler`, `comms-server-scene-handler`), the room Cast uses, and the room name the
+scene **stream-access** rows persist.
+
+For a world whose name reaches this service in mixed case, that means, at the deploy:
+
+- sessions connected before it stay in `…-MyWorld.dcl.eth-<sceneId>` while everyone admitted after
+  it joins `…-myworld.dcl.eth-<sceneId>`; the two rooms cannot hear each other until the old
+  sessions drain (they are LiveKit sessions, so minutes, not hours);
+- an RTMP stream-access row created before the deploy still points at the old room name, so a live
+  stream started before the deploy has to be re-issued to reach the new one.
+
+This is intended, not a regression to flag: the content server already creates the lower-cased room,
+so the mixed-case name was a room nobody else was in and every world participant lookup for such a
+world answered "nobody is here". Deploy it when a short drain is acceptable, and re-issue any
+stream-access key for a mixed-case world afterwards.
 
 ## Testing
 
