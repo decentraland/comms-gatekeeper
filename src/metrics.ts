@@ -69,8 +69,19 @@ export const metricDeclarations = {
     type: IMetricsComponent.CounterType,
     labelNames: ['kind']
   },
+  presence_shadow_compare_total: {
+    help:
+      'Total /scene-participants shadow comparisons that actually produced two answers to compare. ' +
+      'Read presence_shadow_diff against this one: a flat compare count is a shadow that never ran, ' +
+      'which is not the same fact as the two sources agreeing',
+    type: IMetricsComponent.CounterType,
+    labelNames: ['kind']
+  },
   presence_prefix_mismatch: {
-    help: '1 when a worlds-content-server world room does not round-trip through this service world room prefix',
+    help:
+      '1 when none of the LiveKit rooms this service computes for the worlds the content server ' +
+      'reports as live exists, i.e. when COMMS_ROOM_PREFIX most likely disagrees with the content ' +
+      "server's; 0 when at least one exists, and 0 whenever nothing could be observed",
     type: IMetricsComponent.GaugeType
   }
 }

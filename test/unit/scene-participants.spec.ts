@@ -320,6 +320,12 @@ describe('scene-participants component', () => {
       }
     })
 
+    it('should count the comparison itself, so agreement is distinguishable from never comparing', async () => {
+      await component.getParticipantAddresses(paramsOf(LAND.request))
+
+      expect(metrics.increment).toHaveBeenCalledWith('presence_shadow_compare_total', { kind: 'land' })
+    })
+
     it('should not count anything when both sources agree', async () => {
       livekit.listRoomParticipants.mockResolvedValue(
         LAND.body.data.addresses.map((address: string) => ({ identity: address, metadata: '{}' }))
@@ -328,14 +334,64 @@ describe('scene-participants component', () => {
       await component.getParticipantAddresses(paramsOf(LAND.request))
 
       expect(metrics.increment).not.toHaveBeenCalledWith('presence_shadow_diff', expect.anything(), expect.anything())
+      // …but the comparison did run, and that is the difference between "the sources agree" and
+      // "the shadow never answered", which is the decision the cutover is made on.
+      expect(metrics.increment).toHaveBeenCalledWith('presence_shadow_compare_total', { kind: 'land' })
     })
 
-    it('should not let a failing shadow lookup break the served answer', async () => {
-      contentClient.fetchEntitiesByPointers.mockRejectedValue(new Error('catalyst is down'))
+    describe('and the shadow lookup fails while the served one succeeds', () => {
+      beforeEach(() => {
+        // The cutover hazard, and the reason the comparison is counted at all: the served answer
+        // resolves the pointer and the shadow's extra catalyst read is the one that gets
+        // rate-limited.
+        contentClient.fetchEntitiesByPointers
+          .mockResolvedValueOnce(LAND.catalyst.returns as Entity[])
+          .mockRejectedValue(new Error('catalyst rate-limited the extra lookup'))
+      })
 
-      await expect(component.getParticipantAddresses(paramsOf(WORLD.request))).resolves.toEqual([
-        '0x00000000000000000000000000000000000000aa'
-      ])
+      it('should not break the served answer', async () => {
+        await expect(component.getParticipantAddresses(paramsOf(LAND.request))).resolves.toEqual([
+          '0x00000000000000000000000000000000000000aa'
+        ])
+      })
+
+      it('should not count a comparison that could not be made', async () => {
+        await component.getParticipantAddresses(paramsOf(LAND.request))
+
+        expect(metrics.increment).not.toHaveBeenCalledWith('presence_shadow_compare_total', expect.anything())
+      })
+    })
+
+    describe('and the presence map is the answer being served', () => {
+      beforeEach(async () => {
+        await build({ SHADOW_COMPARE_PRESENCE: 'true', LIVEKIT_PRESENCE_FALLBACK: 'false' })
+      })
+
+      it('should serve the map answer and shadow LiveKit, counting the same comparison', async () => {
+        const addresses = await component.getParticipantAddresses(paramsOf(LAND.request))
+
+        expect(addresses).toEqual(LAND.body.data.addresses)
+        expect(metrics.increment).toHaveBeenCalledWith('presence_shadow_compare_total', { kind: 'land' })
+        expect(metrics.increment).toHaveBeenCalledWith('presence_shadow_diff', { kind: 'land' }, 3)
+      })
+
+      it('should count a world comparison under kind=world in this direction too', async () => {
+        livekit.listRoomParticipants.mockResolvedValue([])
+
+        await component.getParticipantAddresses(paramsOf(WORLD.request))
+
+        expect(metrics.increment).toHaveBeenCalledWith('presence_shadow_compare_total', { kind: 'world' })
+        expect(metrics.increment).toHaveBeenCalledWith('presence_shadow_diff', { kind: 'world' }, 1)
+      })
+
+      it('should not let a failing LiveKit shadow break the served answer', async () => {
+        livekit.getRoomInfo.mockRejectedValue(new Error('livekit is down'))
+
+        await expect(component.getParticipantAddresses(paramsOf(LAND.request))).resolves.toEqual(
+          LAND.body.data.addresses
+        )
+        expect(metrics.increment).not.toHaveBeenCalledWith('presence_shadow_compare_total', expect.anything())
+      })
     })
 
     describe('and the presence map has not been primed', () => {

@@ -191,6 +191,12 @@ describe('world-room prefix check', () => {
       expect(logger.info).toHaveBeenCalled()
       expect(logger.error).not.toHaveBeenCalled()
     })
+
+    it('should never raise the mismatch gauge, whatever else it reports', async () => {
+      await component.check()
+
+      expect(metrics.observe).not.toHaveBeenCalledWith('presence_prefix_mismatch', {}, 1)
+    })
   })
 
   describe('when there are more live worlds than the check samples', () => {

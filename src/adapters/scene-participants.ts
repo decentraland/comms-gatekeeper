@@ -72,7 +72,9 @@ function symmetricDifferenceSize(a: string[], b: string[]): number {
  * because LiveKit is answering; with it off, a cold map answers `503 warming` rather than falling
  * back to the implementation the operator switched off. `SHADOW_COMPARE_PRESENCE` runs the other
  * implementation as well and counts how far apart the two are, so the cutover is made on measured
- * agreement rather than on hope. Only counts are recorded — never addresses.
+ * agreement rather than on hope — `presence_shadow_compare_total{kind}` alongside
+ * `presence_shadow_diff{kind}`, because a shadow that never answers must not read as agreement.
+ * Only counts are recorded — never addresses.
  *
  * @param components - The config, livekit, content client, worlds, places, scene ban manager,
  * presence map, metrics and logs components.
@@ -264,6 +266,12 @@ export async function createSceneParticipantsComponent(
     try {
       const other = await shadow()
       const difference = symmetricDifferenceSize(served, other)
+
+      // Counted before the difference, and only once two answers exist: a shadow that rejects on
+      // every request would otherwise be indistinguishable from perfect agreement — both leave
+      // presence_shadow_diff at zero — and the cutover would be decided on a comparison that
+      // never ran.
+      metrics.increment('presence_shadow_compare_total', { kind: target.kind })
 
       if (difference > 0) {
         metrics.increment('presence_shadow_diff', { kind: target.kind }, difference)
