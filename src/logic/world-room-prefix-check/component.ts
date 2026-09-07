@@ -4,9 +4,18 @@ import { getErrorMessage } from '../errors'
 import { IWorldRoomPrefixCheckComponent } from './types'
 
 /** Where the worlds content server publishes its per-world comms detail. */
-const STATUS_PATH = '/status'
-/** Where the same detail is published when `/status` omits it. */
 const LIVE_DATA_PATH = '/live-data'
+/** Where the same detail is published when its handler fills `comms.details` in. */
+const STATUS_PATH = '/status'
+
+/**
+ * How many live worlds the check asks LiveKit about.
+ *
+ * The question is "does *any* of the rooms we compute exist", which a sample answers as well as
+ * the whole list, and the whole list is unbounded — a busy deployment has hundreds of live
+ * worlds and this runs on the startup path.
+ */
+export const MAX_WORLDS_CHECKED = 25
 
 type ReportedWorld = { worldName?: string; users?: number }
 
@@ -20,16 +29,22 @@ type ReportedWorld = { worldName?: string; users?: number }
  * lookup answers "nobody is here" — for the process's whole life, with no error anywhere. That
  * is the failure this check converts into a signal.
  *
- * It reads the worlds the content server says have people in them and asserts each one
- * round-trips: `getWorldRoomName(worldName)` must start with this service's prefix, and stripping
- * that prefix must give the world name back. On failure it logs an error and raises the
- * `presence_prefix_mismatch` gauge; it never throws and never gates startup, because a
- * misconfigured world path is not a reason to refuse to serve everything else.
+ * It is decisive because it asks LiveKit, not the content server: the content server publishes
+ * world names already stripped of *its* prefix, so round-tripping one through *our* prefix
+ * succeeds by construction and can never observe the disagreement. Instead the check takes the
+ * worlds the content server reports as live, computes each expected room name with
+ * `getWorldRoomName`, and asks LiveKit which of those rooms exist. Worlds are live, so their
+ * rooms exist — unless we are computing the wrong names.
+ *
+ * On failure it logs an error and raises the `presence_prefix_mismatch` gauge; it never throws
+ * and never gates startup, because a misconfigured world path is not a reason to refuse to serve
+ * everything else. This is a one-off diagnostic use of LiveKit's room listing on boot, not a
+ * presence read.
  *
  * @param components - The config, logs, metrics, fetch and livekit components.
  * @param options - `checkOnStart` decides whether the lifecycle hook runs the check. The test
  * environment passes `false`, the same way the cron jobs are held back there: booting a test
- * program must not reach out to a live worlds content server.
+ * program must not reach out to a live worlds content server or to LiveKit.
  * @returns The prefix check component.
  */
 export async function createWorldRoomPrefixCheckComponent(
@@ -56,77 +71,82 @@ export async function createWorldRoomPrefixCheckComponent(
     return response.json()
   }
 
-  /**
-   * The worlds the content server reports as occupied.
-   *
-   * `/status` is the documented place, but its handler blanks `comms.details` out, so
-   * `/live-data` — which publishes the same list as `data.perWorld` — is read when `/status`
-   * carries nothing. Either source is fine: only the world names are used.
-   */
-  async function reportedWorlds(): Promise<ReportedWorld[] | undefined> {
-    const status = await readJson(STATUS_PATH)
-    const fromStatus: ReportedWorld[] = status?.comms?.details ?? []
-    if (fromStatus.length > 0) {
-      return fromStatus
-    }
+  function namesOf(worlds: ReportedWorld[] | undefined): string[] {
+    return (worlds ?? [])
+      .map((world) => world.worldName)
+      .filter((worldName): worldName is string => typeof worldName === 'string' && worldName.length > 0)
+  }
 
+  /**
+   * The worlds the content server reports as live.
+   *
+   * `/live-data` is the source: it publishes the per-world detail as `data.perWorld`. `/status`
+   * carries the same list as `comms.details`, but its handler blanks it out in some
+   * configurations, so it is only the fallback. Either source is fine — only the world names are
+   * used.
+   */
+  async function liveWorldNames(): Promise<string[]> {
     const liveData = await readJson(LIVE_DATA_PATH)
-    const fromLiveData: ReportedWorld[] = liveData?.data?.perWorld ?? []
+    const fromLiveData = namesOf(liveData?.data?.perWorld ?? liveData?.perWorld)
     if (fromLiveData.length > 0) {
       return fromLiveData
     }
 
-    return []
-  }
-
-  function roundTrips(worldName: string): boolean {
-    const roomName = livekit.getWorldRoomName(worldName)
-
-    if (!roomName.startsWith(prefix)) {
-      return false
-    }
-
-    // Case-insensitive on purpose: the room name is lower-cased by both services on the way in,
-    // and the content server reports whatever case the world was deployed under.
-    return roomName.substring(prefix.length).toLowerCase() === worldName.toLowerCase()
+    const status = await readJson(STATUS_PATH)
+    return namesOf(status?.comms?.details)
   }
 
   async function check(): Promise<boolean> {
-    let worlds: ReportedWorld[] | undefined
+    let names: string[]
 
     try {
-      worlds = await reportedWorlds()
+      names = await liveWorldNames()
     } catch (error) {
       // Not a mismatch: an unreachable content server proves nothing about the prefixes, and
       // claiming one would page someone for the wrong outage.
-      logger.warn(`Could not check the world room prefix against the worlds content server: ${getErrorMessage(error)}`)
-      return true
-    }
-
-    const names = (worlds ?? [])
-      .map((world) => world.worldName)
-      .filter((worldName): worldName is string => typeof worldName === 'string' && worldName.length > 0)
-
-    if (names.length === 0) {
-      logger.info('No occupied world rooms to check the world room prefix against')
+      logger.warn(`Could not read the live worlds from the worlds content server: ${getErrorMessage(error)}`)
       metrics.observe('presence_prefix_mismatch', {}, 0)
       return true
     }
 
-    const mismatched = names.filter((worldName) => !roundTrips(worldName))
+    if (names.length === 0) {
+      logger.info('No live worlds to check the world room prefix against; skipping the check')
+      metrics.observe('presence_prefix_mismatch', {}, 0)
+      return true
+    }
 
-    if (mismatched.length > 0) {
+    const sample = names.slice(0, MAX_WORLDS_CHECKED)
+    const expectedRooms = sample.map((worldName) => livekit.getWorldRoomName(worldName))
+
+    let existing: Set<string>
+
+    try {
+      const rooms = await livekit.listRooms(expectedRooms)
+      existing = new Set(rooms.map((room) => room.name.toLowerCase()))
+    } catch (error) {
+      // Same reasoning: an empty answer from a LiveKit that cannot be reached is not evidence
+      // that the rooms do not exist.
+      logger.warn(`Could not ask LiveKit which world rooms exist: ${getErrorMessage(error)}`)
+      metrics.observe('presence_prefix_mismatch', {}, 0)
+      return true
+    }
+
+    const found = expectedRooms.filter((roomName) => existing.has(roomName.toLowerCase()))
+
+    if (found.length === 0) {
       metrics.observe('presence_prefix_mismatch', {}, 1)
       logger.error(
-        `COMMS_ROOM_PREFIX ("${prefix}") does not round-trip for ${mismatched.length} of ${names.length} world ` +
-          `rooms the worlds content server reports (e.g. "${mismatched[0]}" -> ` +
-          `"${livekit.getWorldRoomName(mismatched[0])}"). World participant lookups will answer with empty ` +
-          'rooms until the two services agree on the prefix.'
+        `None of the ${expectedRooms.length} LiveKit rooms this service computes for the live worlds exists ` +
+          `(e.g. world "${sample[0]}" -> room "${expectedRooms[0]}"). COMMS_ROOM_PREFIX ("${prefix}") most likely ` +
+          "disagrees with the worlds content server's, so every world participant lookup will answer with an " +
+          'empty room until the two match.'
       )
       return false
     }
 
-    logger.info(`World room prefix "${prefix}" round-trips for all ${names.length} reported world rooms`)
+    logger.info(
+      `World room prefix "${prefix}" resolves ${found.length} of ${expectedRooms.length} live world rooms in LiveKit`
+    )
     metrics.observe('presence_prefix_mismatch', {}, 0)
     return true
   }
