@@ -3,6 +3,7 @@ import { EthAddress } from '@dcl/schemas'
 import { AppComponents } from '../types'
 import { InvalidRequestError, NotFoundError } from '../types/errors'
 import { getErrorMessage } from '../logic/errors'
+import { PresenceMapWarmingError } from '../logic/presence-map/warming'
 
 export type SceneParticipantsParams = {
   pointer?: string | null
@@ -67,7 +68,9 @@ function symmetricDifferenceSize(a: string[], b: string[]): number {
  *   this service mints no rooms for. It is contract C3 of iteration 2.
  *
  * `LIVEKIT_PRESENCE_FALLBACK` selects the served answer and defaults to `true`, i.e. to today's
- * behaviour; it is deleted at the end of the rollout. `SHADOW_COMPARE_PRESENCE` runs the other
+ * behaviour; it is deleted at the end of the rollout. With the flag on, a cold map is harmless
+ * because LiveKit is answering; with it off, a cold map answers `503 warming` rather than falling
+ * back to the implementation the operator switched off. `SHADOW_COMPARE_PRESENCE` runs the other
  * implementation as well and counts how far apart the two are, so the cutover is made on measured
  * agreement rather than on hope. Only counts are recorded — never addresses.
  *
@@ -279,12 +282,18 @@ export async function createSceneParticipantsComponent(
   async function getParticipantAddresses(params: SceneParticipantsParams): Promise<string[]> {
     const target = resolveTarget(params)
 
-    // The map answers only once it holds a usable view of the world. Before that LiveKit answers
-    // even when the flag says otherwise: an empty list would read as "this scene is deserted",
-    // which is a wrong answer rather than a stale one.
+    // The map answers only once it holds a usable view of the world.
+    //
+    // While `LIVEKIT_PRESENCE_FALLBACK` is on, LiveKit is the served answer anyway, so a cold map
+    // costs nothing — that is the accepted cold-map fallback, and it is what every deploy does
+    // until the flag is turned off. Once it is off, the operator has said LiveKit must not answer
+    // for this route, so a cold map has nothing to serve: it reports itself as warming, exactly
+    // as /hot-scenes does. An empty list would read as "this scene is deserted", which is a wrong
+    // answer rather than a missing one.
     const mapIsUsable = presenceMap.isReady()
     if (!livekitFallback && !mapIsUsable) {
-      logger.warn('The presence map is not primed yet; answering /scene-participants from LiveKit')
+      logger.warn('The presence map is not primed yet; answering /scene-participants with 503 warming')
+      throw new PresenceMapWarmingError()
     }
 
     const servedFromMap = !livekitFallback && mapIsUsable
