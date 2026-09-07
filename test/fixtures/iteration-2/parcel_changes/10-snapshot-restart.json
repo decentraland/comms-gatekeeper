@@ -1,0 +1,23 @@
+{
+  "serverName": "pulse-1",
+  "seq": 1,
+  "snapshot": true,
+  "serverTime": 1788515587804,
+  "changes": [
+    {
+      "address": "0x0000000000000000000000000000000000000002",
+      "realm": "cozyfarm.dcl.eth",
+      "parcel": {
+        "x": 1,
+        "y": 2
+      }
+    },
+    {
+      "address": "0x0000000000000000000000000000000000000004",
+      "realm": "main",
+      "parcel": {
+        "x": -1
+      }
+    }
+  ]
+}
