@@ -61,6 +61,7 @@ import { createNatsComponent } from './adapters/nats'
 import { createPeerStateComponent } from './adapters/peer-state'
 import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
+import { createPresenceMapComponent } from './logic/presence-map'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -293,6 +294,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     peerState
   })
 
+  const presenceMap = await createPresenceMapComponent({ config, logs, metrics, nats, fetch: tracedFetch })
+
   const livekitWebhook = createLivekitWebhookComponent()
 
   livekitWebhook.registerEventHandler(ingressStartedHandler)
@@ -350,6 +353,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     nats,
     peerState,
     accessGate,
-    clusterSubscriber
+    clusterSubscriber,
+    presenceMap
   }
 }

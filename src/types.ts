@@ -41,6 +41,7 @@ import { INatsComponent } from './adapters/nats'
 import { IPeerStateComponent } from './adapters/peer-state'
 import { IAccessGateComponent } from './logic/access-gate'
 import { IClusterSubscriberComponent } from './logic/cluster-subscriber/types'
+import { IPresenceMapComponent } from './logic/presence-map/types'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -95,6 +96,7 @@ export type BaseComponents = {
   peerState: IPeerStateComponent
   accessGate: IAccessGateComponent
   clusterSubscriber: IClusterSubscriberComponent
+  presenceMap: IPresenceMapComponent
 }
 
 export type AppComponents = BaseComponents & {

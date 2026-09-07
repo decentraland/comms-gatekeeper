@@ -29,6 +29,30 @@ export const metricDeclarations = {
   dcl_gatekeeper_cluster_banned_skipped_total: {
     help: 'Total cluster_change events skipped because the wallet is banned or denylisted',
     type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_presence_batches_received_total: {
+    help: 'Total engine.parcel_changes batches received from Pulse',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_presence_snapshots_total: {
+    help: 'Total engine.parcel_changes snapshot batches applied',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_presence_gaps_total: {
+    help: 'Total engine.parcel_changes sequence gaps detected; the affected server is frozen until its next snapshot',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_presence_contract_violations_total: {
+    help: 'Total engine.parcel_changes entries that broke C1 (a non-lowercase realm or address, or a missing address)',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_presence_map_size: {
+    help: 'Number of wallets currently held in the presence map',
+    type: IMetricsComponent.GaugeType
+  },
+  dcl_gatekeeper_presence_frozen_servers: {
+    help: 'Number of Pulse instances whose deltas are being skipped while waiting for their next snapshot',
+    type: IMetricsComponent.GaugeType
   }
 }
 
