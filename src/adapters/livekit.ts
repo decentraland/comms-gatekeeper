@@ -176,17 +176,27 @@ export async function createLivekitComponent(
    * Gets the world room name without sceneId.
    * Used for world-wide operations like getting all participants in a world.
    * Uses the COMMS_ROOM_PREFIX which matches the world content server prefix.
+   *
+   * The world name is lower-cased because that is how the room exists: the worlds content
+   * server lower-cases it when it mints the connection string. World names reach this service
+   * in whatever case the caller typed, and a room name that differs by one capital letter is
+   * simply a different room — every lookup against it answers "nobody is here" rather than
+   * failing, so the mismatch is invisible until someone notices an empty world.
    */
   function getWorldRoomName(worldName: string): string {
-    return `${commsRoomPrefix}${worldName}`
+    return `${commsRoomPrefix}${worldName.toLowerCase()}`
   }
 
   /**
    * Gets the world scene room name with sceneId.
    * Used for scene-specific operations within a world.
+   *
+   * The world name is lower-cased for the same reason as in {@link getWorldRoomName}. The scene
+   * id is left as it stands: it is a content hash, and the worlds content server does not
+   * change its case either.
    */
   function getWorldSceneRoomName(worldName: string, sceneId: string): string {
-    return `${worldRoomPrefix}${worldName}-${sceneId}`
+    return `${worldRoomPrefix}${worldName.toLowerCase()}-${sceneId}`
   }
 
   function getSceneRoomName(realmName: string, sceneId: string): string {

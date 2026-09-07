@@ -326,6 +326,14 @@ describe('when getting a world room name', () => {
     const result = livekitComponent.getWorldRoomName(worldName)
     expect(result).toBe('world-env-test-world')
   })
+
+  // The worlds content server lower-cases the world name when it creates the room
+  // (getWorldRoomConnectionString), and world names reach this service in whatever case the
+  // caller typed. Without this the room name misses and every lookup answers "nobody is here".
+  it('should lower-case the world name, because that is how the room was created', () => {
+    const result = livekitComponent.getWorldRoomName('CozyFarm.DCL.eth')
+    expect(result).toBe('world-env-cozyfarm.dcl.eth')
+  })
 })
 
 describe('when getting a world scene room name', () => {
@@ -334,6 +342,11 @@ describe('when getting a world scene room name', () => {
     const sceneId = 'bafkreiabcdef123'
     const result = livekitComponent.getWorldSceneRoomName(worldName, sceneId)
     expect(result).toBe('world-prod-scene-room-test-world-bafkreiabcdef123')
+  })
+
+  it('should lower-case the world name but leave the scene id untouched', () => {
+    const result = livekitComponent.getWorldSceneRoomName('CozyFarm.DCL.eth', 'bafkreiAbcDef123')
+    expect(result).toBe('world-prod-scene-room-cozyfarm.dcl.eth-bafkreiAbcDef123')
   })
 })
 
