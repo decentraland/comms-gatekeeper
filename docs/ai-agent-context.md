@@ -14,9 +14,12 @@
 - Manages streaming access lifecycle with expiration and TTL
 - Handles user privacy settings and access control
 - Integrates with LiveKit webhooks for real-time event handling
+- **Keeps the presence map**: consumes Pulse's `engine.parcel_changes` and knows where every online player
+  stands, which is what `GET /hot-scenes` and (behind a flag) `GET /scene-participants` are answered from
 
-**Communication Pattern:** Synchronous HTTP REST API with Signed Fetch authentication (ADR-44), plus an
-asynchronous NATS subscription that feeds the cluster subscriber (island rooms, see below).
+**Communication Pattern:** Synchronous HTTP REST API with Signed Fetch authentication (ADR-44), plus two
+asynchronous NATS subscriptions: one feeds the cluster subscriber (island rooms) and one feeds the presence
+map (`/hot-scenes`, `/scene-participants`). Both are described below.
 
 **Technology Stack:**
 
@@ -25,7 +28,8 @@ asynchronous NATS subscription that feeds the cluster subscriber (island rooms, 
 - HTTP Framework: @dcl/http-server
 - Database: PostgreSQL (via @well-known-components/pg-component)
 - Communication: LiveKit Server SDK for token generation and room management
-- Messaging: NATS (`nats` client, thin custom adapter) for Pulse's cluster feed, behind `CLUSTER_SUBSCRIBER_ENABLED`
+- Messaging: NATS (`nats` client, thin custom adapter) for Pulse's cluster feed (behind
+  `CLUSTER_SUBSCRIBER_ENABLED`) and its parcel-changes feed (behind `PRESENCE_MAP_ENABLED`)
 - Component Architecture: @well-known-components (logger, metrics, http-server, pg-component, env-config-provider)
 
 **External Dependencies:**
@@ -38,9 +42,11 @@ asynchronous NATS subscription that feeds the cluster subscriber (island rooms, 
 - **AWS SNS**: Event notifications for streaming and communication events
 - **NATS**: Message broker carrying Pulse's `cluster_change` feed, which this service consumes, and its
   re-published `island_changed`
-- **Pulse**: Owns peer clustering and cluster sizing (replacing Archipelago Core); publishes per-peer cluster
-  assignments over NATS. It also publishes an `engine.islands` topology snapshot, which this service does
-  not consume — that one feeds archipelago-stats
+- **Pulse**: The source of online-player information (replacing Archipelago Core and archipelago-stats). Owns
+  peer clustering and cluster sizing and publishes per-peer cluster assignments over NATS; also publishes
+  `engine.parcel_changes`, the feed this service's presence map consumes, and serves `GET /peers?all=true`,
+  read once on boot to prime that map. It also publishes an `engine.islands` topology snapshot, which this
+  service does not consume
 
 **Key Concepts:**
 
@@ -89,6 +95,8 @@ Both paths enforce bans synchronously in this service, before a token is issued.
 - **Streaming** (`/scene-stream-access`): RTMP URL and key lifecycle for content creators
 - **Voice chat** (`/private-voice-chat`, `/community-voice-chat`): session creation, speaker management, request-to-speak
 - **Webhooks** (`/livekit-webhook`): receive LiveKit server events (room created/destroyed, participant joined/left)
+- **Presence** (`/hot-scenes`, `/scene-participants`): public, unauthenticated reads of who is where, taken
+  over from archipelago-stats (see the presence map section below)
 
 **Authentication Notes:**
 
@@ -132,13 +140,13 @@ feed archipelago-stats, but are deliberately unused here — both retire in iter
 **Metrics:** `dcl_gatekeeper_cluster_*_total` and `dcl_gatekeeper_nats_connected`.
 
 **Dependency pin (temporary).** `@dcl/protocol` is pinned to a CDN *branch* tarball
-(`dcl-protocol-1.0.0-30550755753.commit-b0705a3.tgz`) because no npm registry release ships
-`proto/decentraland/pulse/pulse_clusters.proto` (generated as
-`out-js/decentraland/pulse/pulse_clusters.gen`, which the subscriber imports) — newest release
-checked: `1.0.0-30376440685.commit-2726089`. Branch builds are not permanent: the CDN artifact
+(`dcl-protocol-1.0.0-33890257211.commit-7dc9cee.tgz`) because no npm registry release ships
+`proto/decentraland/pulse/pulse_clusters.proto` or `pulse_presence.proto` (generated as
+`out-js/decentraland/pulse/pulse_clusters.gen` and `pulse_presence.gen`, which the cluster
+subscriber and the presence map import). Branch builds are not permanent: the CDN artifact
 can vanish once the source branch is rebuilt or deleted, which is exactly what broke
 archipelago-workers before it moved to a registry pin. Repin to an exact registry version as
-soon as a release containing `pulse_clusters` lands.
+soon as a release containing both `pulse_clusters` and `pulse_presence` lands.
 
 **Deliberate choices — do not "fix" these without reading why:**
 
@@ -160,3 +168,89 @@ dwell debounce spaces a peer's events ~3 s apart) and self-correcting on the nex
 a real fix needs wallet-hash-partitioned consumers. Symptom to watch for: `publish_failed`
 clean, but users report being in a voice room whose members they cannot hear.
 
+
+## Presence map (`/hot-scenes`, `/scene-participants`)
+
+Iteration 2 makes Pulse the only source of online-player information. archipelago-stats is
+decommissioned and this service takes over the two routes that answered "who is where".
+Behind `PRESENCE_MAP_ENABLED`, default off.
+
+**Consumes**:
+
+| Subject | Payload | Use |
+|---|---|---|
+| `engine.parcel_changes` | `decentraland.pulse.ParcelChangesBatch` | the presence map; **no queue group** — every replica needs the whole map |
+
+Plus one HTTP read on boot: `GET {PULSE_URL}/peers?all=true`, so the routes can answer before
+the first snapshot instead of warming for up to a minute.
+
+**Produces** nothing on NATS. Two HTTP routes:
+
+- `GET /hot-scenes` — bare array of at most 100 `HotSceneInfo`, main realm only, ordered by
+  `usersTotalCount` descending. Ranking logic ported from archipelago-stats verbatim, including
+  that `parcels` lists every parcel of the scene rather than only the occupied ones. Recomputed
+  on a timer (`HOT_SCENES_REFRESH_MS`) because the join needs catalyst metadata for every
+  occupied tile; `503 {"ok":false,"error":"warming"}` until the map is primed.
+- `GET /scene-participants` — unchanged shape, but the answer can now come from either
+  implementation, selected by `LIVEKIT_PRESENCE_FALLBACK` (default `true` = LiveKit room
+  membership, today's behaviour). `false` resolves it on the map — who is standing on the
+  scene's parcels — minus this service's own scene ban list.
+
+**Consumer rule (contract C1), the part that matters:** `lastSeq` is kept per `server_name`. On
+a sequence gap the publisher is *frozen* and the current state keeps being served until that
+publisher's next snapshot (Pulse guarantees one within 60 s). The map is never dropped, because
+an empty `/hot-scenes` reads as "Genesis City is deserted" to every caller downstream, which is
+a wrong answer rather than a stale one. A snapshot replaces only the entries its own publisher
+owns, so two Pulse instances cannot erase each other's peers. A `parcel`-absent entry is the
+peer leaving. A `parcel` of `{}` on the wire is the world origin `(0,0)`, **present** — the two
+must not collapse into one another. A non-lowercase realm or address violates C1: counted and
+logged without the value, never a reason to drop state.
+
+**Layout:** `src/logic/presence-map/` (the map and the subscription), `src/logic/hot-scenes/`
+(the timer and the ranking), `src/controllers/handlers/hot-scenes-handler.ts`,
+`src/adapters/scene-participants.ts` (both implementations and the shadow comparison), and
+`src/logic/world-room-prefix-check/` (the startup guard described below).
+
+**Rollout:** `SHADOW_COMPARE_PRESENCE=true` runs the implementation that is *not* serving as
+well and counts the symmetric difference as `presence_shadow_diff{kind=land|world}`, so the
+cutover is made on measured agreement. Counts only — no address ever reaches a log line or a
+metric label.
+
+**Metrics:** `dcl_gatekeeper_presence_*` (batches, snapshots, gaps, contract violations, map
+size, frozen publishers) plus the two contract-named ones, `presence_shadow_diff{kind}` and
+`presence_prefix_mismatch`.
+
+**World room prefix check.** This service and the worlds content server build a world's LiveKit
+room name from independently configured `COMMS_ROOM_PREFIX` values, and the committed defaults
+used to disagree (`world-env-` here, `world-` there). Drift does not fail: the room name this
+service computes simply does not exist, so `getRoomInfo` returns nothing and every world lookup
+answers "nobody is here" for the process's whole life. On start, the check reads the worlds the
+content server reports as occupied (`/status`, falling back to `/live-data` because the `/status`
+handler blanks `comms.details` out) and asserts each round-trips through `getWorldRoomName` plus
+`substring(prefix.length)`; a failure logs an error and raises `presence_prefix_mismatch`. It
+never throws and never gates startup, and an unreachable content server is not counted as a
+mismatch. **Limitation:** the round trip only catches a prefix the produced name does not start
+with, or casing drift. It cannot see the content server's own prefix, so the exact
+`world-env-`/`world-` disagreement is caught by the aligned `.env.default` defaults rather than
+by this check; detecting it at runtime would need the check to ask LiveKit whether the computed
+room exists.
+
+**Deliberate choices — do not "fix" these without reading why:**
+
+- **No queue group on `engine.parcel_changes`**, unlike `peer.*.cluster_change`. That feed drives
+  an action that must happen exactly once (minting and publishing a token); this one builds local
+  state that every replica serves from, so every replica must see every batch.
+- **The prime is discarded when a snapshot beats it.** The boot-time `/peers?all=true` read is one
+  Pulse instance's HTTP view taken before the feed was live; folding it into a newer snapshot
+  would resurrect peers the snapshot just retired. The first snapshot also retires whatever the
+  prime left behind.
+- **A departure is only honoured from the publisher that owns the entry.** Ordering between two
+  Pulse instances is not guaranteed, so a peer reconnecting to another instance can deliver the
+  old instance's exit after the new one's placement; honouring it would drop a peer who is very
+  much online.
+- **`/hot-scenes` keeps the previous ranking when a refresh fails**, and has its own tile cache
+  separate from the content client's pointer cache. A city-wide sweep through the shared cache
+  would evict the single-scene lookups `/scene-participants` depends on on every refresh.
+- **The ban filter fails open.** If the place cannot be resolved the answer is served unfiltered,
+  which is exactly what the LiveKit implementation returns today; refusing to answer would be a
+  regression against the behaviour being replaced.
