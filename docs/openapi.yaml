@@ -400,9 +400,11 @@ paths:
         City) is counted — world peers are reported by the worlds content server instead.
 
         The ranking is recomputed on a timer (`HOT_SCENES_REFRESH_MS`), not per request, and
-        served from memory. Until the presence map has been primed the route answers `503` with
-        `{"ok": false, "error": "warming"}`: a stale ranking is a fine answer, an empty one
-        would read as "Genesis City is deserted".
+        served from memory. Until the first refresh that ran against a primed map has completed
+        the route answers `503` with `{"ok": false, "error": "warming"}`: a stale ranking is a
+        fine answer, an empty one would read as "Genesis City is deserted". The map being primed
+        is not enough on its own — it becomes ready the moment the boot-time prime resolves,
+        while the ranking also needs a catalyst sweep on top of it.
 
         This route was previously served by archipelago-stats, which is being decommissioned.
         The path and the response shape are unchanged.
@@ -465,7 +467,7 @@ paths:
                       type: string
                       description: Scene description, from its metadata
         '503':
-          description: The presence map has not been primed yet
+          description: No ranking has been computed from a primed presence map yet
           content:
             application/json:
               schema:
