@@ -42,6 +42,7 @@ import { IPeerStateComponent } from './adapters/peer-state'
 import { IAccessGateComponent } from './logic/access-gate'
 import { IClusterSubscriberComponent } from './logic/cluster-subscriber/types'
 import { IPresenceMapComponent } from './logic/presence-map/types'
+import { IHotScenesComponent } from './logic/hot-scenes/types'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -97,6 +98,7 @@ export type BaseComponents = {
   accessGate: IAccessGateComponent
   clusterSubscriber: IClusterSubscriberComponent
   presenceMap: IPresenceMapComponent
+  hotScenes: IHotScenesComponent
 }
 
 export type AppComponents = BaseComponents & {
