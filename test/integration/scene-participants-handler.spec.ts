@@ -2,6 +2,7 @@ import { ParticipantInfo } from 'livekit-server-sdk'
 import { Entity, EntityType } from '@dcl/schemas'
 import { test } from '../components'
 import { decodeParcelChangesFixture, readFixtureJson } from '../fixtures/iteration-2/loader'
+import { snapshotEnv } from '../utils'
 
 test('GET /scene-participants', ({ components, stubComponents, spyComponents }) => {
   const mockParticipants = [
@@ -333,10 +334,9 @@ test('GET /scene-participants resolved on the presence map', ({ components, stub
   const WORLD_POINTER = readFixtureJson<any>('scene-participants/world-pointer.json')
   const BANNED = readFixtureJson<any>('scene-participants/banned-filtered.json')
 
-  const previousEnv = {
-    presenceMap: process.env.PRESENCE_MAP_ENABLED,
-    livekitFallback: process.env.LIVEKIT_PRESENCE_FALLBACK
-  }
+  // Jest reuses a worker process across spec files, so the flags must not outlive this suite —
+  // and a key that was unset has to be deleted, not assigned the string "undefined".
+  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'LIVEKIT_PRESENCE_FALLBACK')
 
   beforeStart(() => {
     process.env.PRESENCE_MAP_ENABLED = 'true'
@@ -344,9 +344,7 @@ test('GET /scene-participants resolved on the presence map', ({ components, stub
   })
 
   afterAll(() => {
-    // Jest reuses a worker process across spec files, so the flags must not outlive this suite.
-    process.env.PRESENCE_MAP_ENABLED = previousEnv.presenceMap
-    process.env.LIVEKIT_PRESENCE_FALLBACK = previousEnv.livekitFallback
+    restoreEnv()
   })
 
   beforeEach(() => {
@@ -422,10 +420,7 @@ test('GET /scene-participants resolved on the presence map', ({ components, stub
  * deserted scene. The map is deliberately never fed here.
  */
 test('GET /scene-participants while the presence map is warming', ({ components, beforeStart }) => {
-  const previousEnv = {
-    presenceMap: process.env.PRESENCE_MAP_ENABLED,
-    livekitFallback: process.env.LIVEKIT_PRESENCE_FALLBACK
-  }
+  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'LIVEKIT_PRESENCE_FALLBACK')
 
   beforeStart(() => {
     process.env.PRESENCE_MAP_ENABLED = 'true'
@@ -433,8 +428,7 @@ test('GET /scene-participants while the presence map is warming', ({ components,
   })
 
   afterAll(() => {
-    process.env.PRESENCE_MAP_ENABLED = previousEnv.presenceMap
-    process.env.LIVEKIT_PRESENCE_FALLBACK = previousEnv.livekitFallback
+    restoreEnv()
   })
 
   it('should answer 503 warming, exactly as /hot-scenes does', async () => {
