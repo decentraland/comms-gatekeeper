@@ -373,6 +373,21 @@ export async function createLivekitComponent(
     return room
   }
 
+  /**
+   * The rooms LiveKit currently holds, optionally narrowed to a list of names.
+   *
+   * A thin pass-through over the room service client: LiveKit answers only with the rooms of
+   * `names` that actually exist, which is what makes it usable as an existence check for a batch
+   * of computed room names. Errors are not swallowed — a caller that cannot tell "no such room"
+   * from "LiveKit is unreachable" would draw the wrong conclusion from an empty list.
+   *
+   * @param names - Room names to look up; all rooms when omitted.
+   * @returns The rooms that exist.
+   */
+  async function listRooms(names?: string[]): Promise<Room[]> {
+    return await roomClient.listRooms(names)
+  }
+
   async function getRoomInfo(roomName: string): Promise<Room | null> {
     try {
       const existingRooms = await roomClient.listRooms([roomName])
@@ -645,6 +660,7 @@ export async function createLivekitComponent(
     removeParticipantFromAllRooms,
     getRoom,
     getRoomInfo,
+    listRooms,
     getOrCreateIngress,
     removeIngress,
     getWebhookEvent

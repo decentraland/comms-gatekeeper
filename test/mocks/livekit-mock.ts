@@ -45,6 +45,7 @@ export const createLivekitMockedComponent = (
     getRoomMetadataFromRoomName: jest.fn().mockReturnValue({ realmName: undefined }),
     getRoom: jest.fn(),
     getRoomInfo: jest.fn(),
+    listRooms: jest.fn().mockResolvedValue([]),
     getOrCreateIngress: jest.fn(),
     removeIngress: jest.fn(),
     getWebhookEvent: jest.fn(),

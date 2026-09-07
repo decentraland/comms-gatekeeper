@@ -62,6 +62,12 @@ export type ILivekitComponent = IBaseComponent & {
   getRoomName: (realmName: string, params: GetRoomNameParams) => string
   getRoom: (roomName: string) => Promise<Room>
   getRoomInfo: (roomName: string) => Promise<Room | null>
+  /**
+   * Lists the rooms LiveKit holds, narrowed to `names` when given — LiveKit answers only with
+   * the ones that exist, so this doubles as a batch existence check. Rejects rather than
+   * answering an empty list when LiveKit cannot be reached.
+   */
+  listRooms: (names?: string[]) => Promise<Room[]>
   getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
   removeIngress: (ingressId: string) => Promise<IngressInfo | undefined>
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
