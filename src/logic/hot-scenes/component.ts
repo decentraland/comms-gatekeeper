@@ -39,8 +39,8 @@ function getCoords(coordsAsString: string): ParcelCoord {
  * occupied tile, which is far too slow to do inside an HTTP request, and the answer is identical
  * for every caller.
  *
- * Off unless `PRESENCE_MAP_ENABLED` is `'true'`; when off it schedules nothing and serves an
- * empty ranking, and the handler answers `503 warming` because the map never becomes ready.
+ * Off unless `PRESENCE_MAP_ENABLED` is `'true'`; when off it schedules nothing and never becomes
+ * ready, so the handler answers `503 warming` for the process's whole life.
  *
  * @param components - The config, logs, presence map and content client components.
  * @returns The hot scenes component.
@@ -69,6 +69,7 @@ export async function createHotScenesComponent(
   })
 
   let hotScenes: HotSceneInfo[] = []
+  let ready = false
   let refreshing = false
   let timer: NodeJS.Timeout | undefined
 
@@ -148,18 +149,26 @@ export async function createHotScenesComponent(
     refreshing = true
 
     try {
+      // Read before the sweep, not after: the sweep awaits the catalyst, and a map that becomes
+      // ready in the meantime did not feed the counts this ranking was built from.
+      const mapWasReady = presenceMap.isReady()
+
       const countPerTile = new Map<string, number>()
       for (const { parcel, peersCount } of presenceMap.getParcelCounts(MAIN_REALM)) {
         countPerTile.set(`${parcel[0]},${parcel[1]}`, peersCount)
       }
 
       const tiles = [...countPerTile.keys()]
-      if (tiles.length === 0) {
-        hotScenes = []
-        return
-      }
+      hotScenes = tiles.length === 0 ? [] : buildRanking(await resolveScenes(tiles), countPerTile)
 
-      hotScenes = buildRanking(await resolveScenes(tiles), countPerTile)
+      // Only a sweep that ran against a ready map produces an answer. The first one usually does
+      // not: components start in order, so this runs while the prime is still in flight, reads an
+      // empty map and would otherwise publish "Genesis City is deserted" as a fact. Nor does a
+      // sweep that threw — the "keep the previous ranking" guard has nothing to keep on sweep one.
+      if (mapWasReady && !ready) {
+        ready = true
+        logger.info(`/hot-scenes is live with ${hotScenes.length} ranked scenes`)
+      }
     } catch (error) {
       // Kept rather than emptied: an empty /hot-scenes reads as "Genesis City is deserted" to
       // every caller downstream, which is a worse answer than a slightly stale one.
@@ -173,6 +182,10 @@ export async function createHotScenesComponent(
     return hotScenes
   }
 
+  function isReady(): boolean {
+    return ready
+  }
+
   async function start(): Promise<void> {
     if (!enabled) {
       logger.info('Hot scenes are disabled (PRESENCE_MAP_ENABLED is not "true")')
@@ -180,7 +193,7 @@ export async function createHotScenesComponent(
     }
 
     // Not awaited: the first sweep talks to the catalyst, and HTTP readiness must not wait on it.
-    // The handler answers 503 until the presence map is ready anyway.
+    // The handler answers 503 until a sweep has produced a ranking anyway.
     void refresh()
 
     timer = setInterval(() => void refresh(), refreshMs)
@@ -197,6 +210,7 @@ export async function createHotScenesComponent(
   }
 
   return {
+    isReady,
     getHotScenes,
     refresh,
     [START_COMPONENT]: start,

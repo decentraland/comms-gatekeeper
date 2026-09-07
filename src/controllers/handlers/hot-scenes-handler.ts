@@ -12,17 +12,19 @@ import { presenceWarmingResponse } from '../../logic/presence-map/warming'
  * The ranking is precomputed on a timer by the hot-scenes component, because the join needs
  * catalyst metadata for every occupied tile and the answer is identical for every caller.
  *
- * Answers `503 {"ok":false,"error":"warming"}` until the presence map has been primed. A stale
- * ranking would be a fine answer, but an empty one is not: "no scene is busy" and "we do not know
- * yet" are different facts, and every caller downstream would read the first as the city being
- * deserted.
+ * Answers `503 {"ok":false,"error":"warming"}` until a refresh has produced a ranking from a primed
+ * map, and again if the map ever goes cold under it. A stale ranking would be a fine answer, but an
+ * empty one is not: "no scene is busy" and "we do not know yet" are different facts, and every
+ * caller downstream would read the first as the city being deserted. The map's own readiness is not
+ * enough — it flips as soon as the prime resolves, while the ranking needs a catalyst sweep on top
+ * of it, and the first sweep runs before the prime has landed.
  */
 export async function getHotScenesHandler(
   context: Pick<HandlerContextWithPath<'presenceMap' | 'hotScenes', '/hot-scenes'>, 'components'>
 ): Promise<IHttpServerComponent.IResponse> {
   const { presenceMap, hotScenes } = context.components
 
-  if (!presenceMap.isReady()) {
+  if (!presenceMap.isReady() || !hotScenes.isReady()) {
     return presenceWarmingResponse()
   }
 

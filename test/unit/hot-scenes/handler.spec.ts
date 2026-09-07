@@ -33,9 +33,36 @@ describe('GET /hot-scenes handler', () => {
     hotScenes = createHotScenesMockedComponent({ getHotScenes: jest.fn().mockReturnValue(RANKING) })
   })
 
+  describe('when the presence map has been primed but no ranking has been computed yet', () => {
+    beforeEach(() => {
+      presenceMap.isReady.mockReturnValue(true)
+      hotScenes.isReady.mockReturnValue(false)
+    })
+
+    it('should answer 503 warming, because an empty ranking is not the same fact as an empty city', async () => {
+      const response = await getHotScenesHandler(context())
+
+      expect(response).toEqual({ status: 503, body: { ok: false, error: 'warming' } })
+    })
+  })
+
+  describe('when the map has gone cold again after a ranking was computed', () => {
+    beforeEach(() => {
+      presenceMap.isReady.mockReturnValue(false)
+      hotScenes.isReady.mockReturnValue(true)
+    })
+
+    it('should answer 503 warming rather than serve a ranking nothing stands behind', async () => {
+      const response = await getHotScenesHandler(context())
+
+      expect(response).toEqual({ status: 503, body: { ok: false, error: 'warming' } })
+    })
+  })
+
   describe('when the presence map has been primed', () => {
     beforeEach(() => {
       presenceMap.isReady.mockReturnValue(true)
+      hotScenes.isReady.mockReturnValue(true)
     })
 
     it('should serve the precomputed ranking as a bare array', async () => {

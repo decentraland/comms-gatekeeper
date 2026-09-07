@@ -2,6 +2,7 @@ import { ParcelChangesBatch } from '@dcl/protocol/out-js/decentraland/pulse/puls
 import { Entity } from '@dcl/schemas'
 import { test } from '../components'
 import { readFixtureJson } from '../fixtures/iteration-2/loader'
+import { snapshotEnv } from '../utils'
 
 /** The contract pack's `hot-scenes/fixture.json`, whose "ok" case pins the served body. */
 const FIXTURE = readFixtureJson<{ cases: any[] }>('hot-scenes/fixture.json')
@@ -48,10 +49,10 @@ test('GET /hot-scenes while the presence map is off', ({ components }) => {
 })
 
 test('GET /hot-scenes from the presence map', ({ components, stubComponents, beforeStart }) => {
-  const previousEnv = {
-    presenceMap: process.env.PRESENCE_MAP_ENABLED,
-    refresh: process.env.HOT_SCENES_REFRESH_MS
-  }
+  // Jest reuses a worker process across spec files, so the flags must not outlive this suite —
+  // and a key that was unset has to be deleted, not assigned the string "undefined", which
+  // config.getNumber then rejects for every program built afterwards in this worker.
+  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'HOT_SCENES_REFRESH_MS')
 
   beforeStart(() => {
     process.env.PRESENCE_MAP_ENABLED = 'true'
@@ -60,9 +61,7 @@ test('GET /hot-scenes from the presence map', ({ components, stubComponents, bef
   })
 
   afterAll(() => {
-    // Jest reuses a worker process across spec files, so the flags must not outlive this suite.
-    process.env.PRESENCE_MAP_ENABLED = previousEnv.presenceMap
-    process.env.HOT_SCENES_REFRESH_MS = previousEnv.refresh
+    restoreEnv()
   })
 
   beforeEach(() => {
@@ -82,6 +81,14 @@ test('GET /hot-scenes from the presence map', ({ components, stubComponents, bef
   // point of the cache, and would make a separate assertion on the call read as a failure.
   it('should serve the ranking the contract pins, asking the catalyst only about occupied tiles', async () => {
     components.presenceMap.applyBatch(snapshotForFixtureCounts())
+
+    // The map is ready the moment that snapshot lands, but the sweep that turns it into a ranking
+    // has not run: 200 [] here would be "Genesis City is deserted", the one answer this route must
+    // never give.
+    const warming = await components.localFetch.fetch('/hot-scenes')
+    expect(warming.status).toBe(503)
+    expect(await warming.json()).toEqual({ ok: false, error: 'warming' })
+
     await components.hotScenes.refresh()
 
     const response = await components.localFetch.fetch('/hot-scenes')

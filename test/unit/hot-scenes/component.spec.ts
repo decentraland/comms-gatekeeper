@@ -233,6 +233,66 @@ describe('hot-scenes component', () => {
     })
   })
 
+  describe('when reporting whether it can answer', () => {
+    beforeEach(async () => {
+      await build()
+      presenceMap.getParcelCounts.mockReturnValue([{ parcel: [10, 10], peersCount: 1 }])
+      contentClient.fetchEntitiesByPointers.mockResolvedValue([
+        sceneEntity('a-scene', ['10,10'])
+      ] as unknown as Entity[])
+    })
+
+    it('should not be ready before a refresh has run', () => {
+      expect(component.isReady()).toBe(false)
+    })
+
+    it('should be ready once a refresh has run against a ready map', async () => {
+      await component.refresh()
+
+      expect(component.isReady()).toBe(true)
+    })
+
+    it('should not be ready after a refresh that ran before the map was primed', async () => {
+      // The boot race: components start in order, so this sweep runs while the prime is still in
+      // flight and computes an empty ranking. Reporting that as an answer is "Genesis City is
+      // deserted", which is a wrong answer rather than a missing one.
+      presenceMap.isReady.mockReturnValue(false)
+      presenceMap.getParcelCounts.mockReturnValue([])
+
+      await component.refresh()
+
+      expect(component.getHotScenes()).toEqual([])
+      expect(component.isReady()).toBe(false)
+    })
+
+    it('should not be ready when the first sweep fails, because there is no previous ranking to keep', async () => {
+      contentClient.fetchEntitiesByPointers.mockRejectedValue(new Error('catalyst is down'))
+
+      await component.refresh()
+
+      expect(component.isReady()).toBe(false)
+    })
+
+    it('should stay ready when a later sweep fails, because the previous ranking is still served', async () => {
+      await component.refresh()
+      contentClient.fetchEntitiesByPointers.mockRejectedValue(new Error('catalyst is down'))
+
+      await component.refresh()
+
+      expect(component.isReady()).toBe(true)
+      expect(component.getHotScenes().map((scene) => scene.id)).toEqual(['a-scene'])
+    })
+
+    it('should be ready with an empty ranking when the map is primed and the main realm is genuinely empty', async () => {
+      presenceMap.getParcelCounts.mockReturnValue([])
+
+      await component.refresh()
+
+      expect(component.getHotScenes()).toEqual([])
+      expect(component.isReady()).toBe(true)
+    })
+  })
+
   describe('when starting', () => {
     afterEach(async () => {
       await (component as IBaseComponent)[STOP_COMPONENT]?.()
