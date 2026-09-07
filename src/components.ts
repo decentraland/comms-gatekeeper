@@ -63,6 +63,7 @@ import { createAssignmentMirrorComponent } from './adapters/assignment-mirror'
 import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
 import { createPresenceMapComponent } from './logic/presence-map'
+import { createHotScenesComponent } from './logic/hot-scenes'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -299,6 +300,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const presenceMap = await createPresenceMapComponent({ config, logs, metrics, nats, fetch: tracedFetch })
 
+  const hotScenes = await createHotScenesComponent({ config, logs, presenceMap, contentClient })
+
   const livekitWebhook = createLivekitWebhookComponent()
 
   livekitWebhook.registerEventHandler(ingressStartedHandler)
@@ -358,6 +361,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     assignmentMirror,
     accessGate,
     clusterSubscriber,
-    presenceMap
+    presenceMap,
+    hotScenes
   }
 }
