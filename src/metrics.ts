@@ -53,6 +53,13 @@ export const metricDeclarations = {
   dcl_gatekeeper_presence_frozen_servers: {
     help: 'Number of Pulse instances whose deltas are being skipped while waiting for their next snapshot',
     type: IMetricsComponent.GaugeType
+  },
+  // Named without the dcl_gatekeeper_ prefix on purpose: the iteration-2 contract pins this name
+  // and the rollout dashboards look for it verbatim.
+  presence_shadow_diff: {
+    help: 'Addresses differing between the LiveKit and presence-map answers to /scene-participants',
+    type: IMetricsComponent.CounterType,
+    labelNames: ['kind']
   }
 }
 

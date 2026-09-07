@@ -250,10 +250,19 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     userModeration
   })
 
+  const presenceMap = await createPresenceMapComponent({ config, logs, metrics, nats, fetch: tracedFetch })
+
+  const hotScenes = await createHotScenesComponent({ config, logs, presenceMap, contentClient })
+
   const sceneParticipants = await createSceneParticipantsComponent({
+    config,
     livekit,
     contentClient,
     worlds,
+    places,
+    sceneBanManager,
+    presenceMap,
+    metrics,
     logs
   })
 
@@ -294,10 +303,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     playerConnectionDb,
     peerState
   })
-
-  const presenceMap = await createPresenceMapComponent({ config, logs, metrics, nats, fetch: tracedFetch })
-
-  const hotScenes = await createHotScenesComponent({ config, logs, presenceMap, contentClient })
 
   const livekitWebhook = createLivekitWebhookComponent()
 
