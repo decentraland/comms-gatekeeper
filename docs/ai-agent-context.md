@@ -194,7 +194,11 @@ the first snapshot instead of warming for up to a minute.
 - `GET /scene-participants` — unchanged shape, but the answer can now come from either
   implementation, selected by `LIVEKIT_PRESENCE_FALLBACK` (default `true` = LiveKit room
   membership, today's behaviour). `false` resolves it on the map — who is standing on the
-  scene's parcels — minus this service's own scene ban list.
+  scene's parcels — minus this service's own scene ban list. A cold map is invisible while the
+  flag is `true`, because LiveKit is the served answer anyway; with the flag `false` the route
+  serves the same `503 {"ok":false,"error":"warming"}` as `/hot-scenes` (one shared
+  `PresenceMapWarmingError` / `presenceWarmingResponse` in `src/logic/presence-map/warming.ts`),
+  rather than falling back to the implementation the operator switched off.
 
 **Consumer rule (contract C1), the part that matters:** `lastSeq` is kept per `server_name`. On
 a sequence gap the publisher is *frozen* and the current state keeps being served until that
@@ -225,15 +229,18 @@ room name from independently configured `COMMS_ROOM_PREFIX` values, and the comm
 used to disagree (`world-env-` here, `world-` there). Drift does not fail: the room name this
 service computes simply does not exist, so `getRoomInfo` returns nothing and every world lookup
 answers "nobody is here" for the process's whole life. On start, the check reads the worlds the
-content server reports as occupied (`/status`, falling back to `/live-data` because the `/status`
-handler blanks `comms.details` out) and asserts each round-trips through `getWorldRoomName` plus
-`substring(prefix.length)`; a failure logs an error and raises `presence_prefix_mismatch`. It
-never throws and never gates startup, and an unreachable content server is not counted as a
-mismatch. **Limitation:** the round trip only catches a prefix the produced name does not start
-with, or casing drift. It cannot see the content server's own prefix, so the exact
-`world-env-`/`world-` disagreement is caught by the aligned `.env.default` defaults rather than
-by this check; detecting it at runtime would need the check to ask LiveKit whether the computed
-room exists.
+content server reports as live (`/live-data`'s `data.perWorld`, falling back to `/status`'s
+`comms.details` for deployments whose handler fills it in), computes the expected room name for
+a bounded sample of them with `getWorldRoomName`, and asks LiveKit `listRooms(names)` which of
+those rooms exist. Live worlds have rooms, so if none of the computed names exists we are
+computing the wrong names: that logs an error naming the prefix with a sample world and room and
+raises `presence_prefix_mismatch`; one existing room clears it. It never throws and never gates
+startup, and "nothing observed" — no live worlds, an unreachable content server, an unreachable
+LiveKit — is logged with the gauge left at 0 rather than claimed as a mismatch. **Why not the
+round trip:** asserting `worldName` -> `getWorldRoomName` -> `substring(prefix.length)` cannot
+observe the disagreement it exists for, because the content server publishes world names already
+stripped of *its own* prefix, so the trip succeeds by construction whatever our prefix is. Asking
+LiveKit is a one-off diagnostic use of the room listing on boot, not a presence read.
 
 **Deliberate choices — do not "fix" these without reading why:**
 

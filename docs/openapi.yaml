@@ -300,9 +300,13 @@ paths:
         - `false`: **who is standing on the scene's parcels**, resolved on the presence map fed
           by Pulse's `engine.parcel_changes`. Addresses are sorted ascending and this
           service's own scene ban list is always subtracted, so a wallet banned seconds ago is
-          already absent from the answer. While the map has not been primed the LiveKit
-          implementation answers instead, so the route never reports an empty scene it is
-          merely uncertain about.
+          already absent from the answer. While the map has not been primed the route answers
+          `503` with `{"ok": false, "error": "warming"}`, the same body `/hot-scenes` serves:
+          it never reports an empty scene it is merely uncertain about.
+
+        While `LIVEKIT_PRESENCE_FALLBACK` is `true` a cold presence map is invisible here — the
+        LiveKit implementation is the served answer anyway, which is what every deploy does
+        until the flag is turned off.
 
         The response shape is identical either way. The flag is removed at the end of the
         rollout, leaving the parcel-based answer.
@@ -363,6 +367,21 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            The presence map has not been primed yet and `LIVEKIT_PRESENCE_FALLBACK` is `false`,
+            so there is no other implementation allowed to answer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: warming
       tags:
         - Communications
 

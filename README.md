@@ -30,7 +30,7 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
 - **Scene Banning System**: Enables scene admins to ban users from specific scenes
 - **Request-to-Speak**: Implements moderated voice chat with speaker management
 - **Privacy Controls**: Manages user privacy settings and access control
-- **Presence Map**: Keeps the map of where every online player stands, fed by Pulse over NATS, and serves `GET /hot-scenes` and `GET /scene-participants` from it (behind `PRESENCE_MAP_ENABLED` / `LIVEKIT_PRESENCE_FALLBACK`)
+- **Presence Map**: Keeps the map of where every online player stands, fed by Pulse over NATS, and serves `GET /hot-scenes` and `GET /scene-participants` from it (behind `PRESENCE_MAP_ENABLED` / `LIVEKIT_PRESENCE_FALLBACK`). While the map is still warming, `GET /hot-scenes` answers `503 {"ok":false,"error":"warming"}`. `GET /scene-participants` instead answers from the LiveKit room lookup for as long as `LIVEKIT_PRESENCE_FALLBACK=true` (the default) — a cold map costs nothing while LiveKit is the served answer anyway — and answers the same `503 warming` once that flag is off, because the operator has then said LiveKit must not answer for that route
 
 ## Dependencies
 
