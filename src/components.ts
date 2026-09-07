@@ -62,6 +62,7 @@ import { createPeerStateComponent } from './adapters/peer-state'
 import { createAssignmentMirrorComponent } from './adapters/assignment-mirror'
 import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
+import { createPresenceMapComponent } from './logic/presence-map'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -296,6 +297,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     assignmentMirror
   })
 
+  const presenceMap = await createPresenceMapComponent({ config, logs, metrics, nats, fetch: tracedFetch })
+
   const livekitWebhook = createLivekitWebhookComponent()
 
   livekitWebhook.registerEventHandler(ingressStartedHandler)
@@ -354,6 +357,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     peerState,
     assignmentMirror,
     accessGate,
-    clusterSubscriber
+    clusterSubscriber,
+    presenceMap
   }
 }
