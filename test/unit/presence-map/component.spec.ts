@@ -1,5 +1,5 @@
 import { ParcelChangesBatch } from '@dcl/protocol/out-js/decentraland/pulse/pulse_presence.gen'
-import { IBaseComponent, ILoggerComponent, START_COMPONENT } from '@well-known-components/interfaces'
+import { IBaseComponent, ILoggerComponent, START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { NatsMessageHandler } from '../../../src/adapters/nats'
 import { createPresenceMapComponent, IPresenceMapComponent } from '../../../src/logic/presence-map'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
@@ -26,6 +26,10 @@ const REPLAY = readFixtureJson<{
   steps: Array<{ apply: string; map: Record<string, ExpectedEntry>; frozen: string[] }>
 }>('parcel_changes/replay.json')
 
+/** The defaults the contract amendments pin, so a test can reason in absolute time. */
+const PRIME_TTL_MS = 90_000
+const SERVER_TTL_MS = 150_000
+
 const W1 = '0x0000000000000000000000000000000000000001'
 const W2 = '0x0000000000000000000000000000000000000002'
 const W3 = '0x0000000000000000000000000000000000000003'
@@ -51,6 +55,11 @@ function encodeBatch(batch: Partial<ParcelChangesBatch>): Uint8Array {
   } as ParcelChangesBatch).finish()
 }
 
+/** A batch as it comes off the wire, so every test drives the state machine through decode. */
+function batchOf(batch: Partial<ParcelChangesBatch>): ParcelChangesBatch {
+  return ParcelChangesBatch.decode(encodeBatch(batch))
+}
+
 describe('presence-map component', () => {
   let component: IPresenceMapComponent
   let nats: ReturnType<typeof createNatsMockedComponent>
@@ -74,7 +83,12 @@ describe('presence-map component', () => {
       ...settings
     }
     const config = createConfigMockedComponent({
-      getString: jest.fn().mockImplementation((key: string) => Promise.resolve(values[key]))
+      getString: jest.fn().mockImplementation((key: string) => Promise.resolve(values[key])),
+      getNumber: jest
+        .fn()
+        .mockImplementation((key: string) =>
+          Promise.resolve(values[key] === undefined ? undefined : Number(values[key]))
+        )
     })
 
     nats = createNatsMockedComponent({ isEnabled: jest.fn().mockReturnValue(natsEnabled) })
@@ -97,6 +111,12 @@ describe('presence-map component', () => {
   function subscribedHandler(): NatsMessageHandler {
     return nats.subscribe.mock.calls[0][1]
   }
+
+  afterEach(async () => {
+    // The reclaim timer is unref'd, but leaving one per test would still be a handle jest has to
+    // reason about; every started component is stopped here instead.
+    await (component as IBaseComponent | undefined)?.[STOP_COMPONENT]?.()
+  })
 
   function apply(binName: string): void {
     component.applyBatch(decodeParcelChangesFixture(binName))
@@ -133,13 +153,17 @@ describe('presence-map component', () => {
     })
 
     it.each(REPLAY.steps.map((step, index) => [index, step.apply] as const))(
-      'should hold the pinned map after step %i (%s)',
+      'should hold the pinned map and the pinned frozen set after step %i (%s)',
       (index) => {
         for (let step = 0; step <= index; step++) {
           apply(REPLAY.steps[step].apply)
         }
 
         expectMapToEqual(REPLAY.steps[index].map)
+        // The pack pins which publishers are frozen after every step, and a frozen delta leaves
+        // the map untouched — so without this the walk would pass with the wrong publisher
+        // frozen, or with `frozen` never cleared by a snapshot.
+        expect(component.frozenServers()).toEqual([...REPLAY.steps[index].frozen].sort())
       }
     )
   })
@@ -420,15 +444,229 @@ describe('presence-map component', () => {
     })
 
     describe('and the first snapshot arrives after a successful prime', () => {
-      it('should retire the primed entries the feed did not re-announce', async () => {
+      beforeEach(async () => {
         await build()
         await start()
+      })
+
+      it('should keep the primed peers of the publishers that have not snapshotted yet', () => {
         expect(component.size()).toBe(5)
 
+        // pulse-1's snapshot. `/peers?all=true` is the all-instances list, so W1, W3 and W5 may
+        // well belong to another Pulse whose snapshot is up to 60 s away; wiping them here is the
+        // "nobody is here" answer both routes exist to never give.
         apply('10-snapshot-restart.bin')
 
-        expect(component.size()).toBe(2)
+        expect(component.size()).toBe(5)
+        expect(component.get(W1)).toMatchObject({ realm: 'main', parcel: [-1, 0] })
+        expect(component.get(W3)).toMatchObject({ realm: 'cozyfarm.dcl.eth', parcel: [0, 0] })
+        expect(component.get(W5)).toMatchObject({ realm: 'main', parcel: [147, -3] })
       })
+
+      it('should hand a primed wallet over to the publisher that first mentions it', () => {
+        // pulse-1 re-announces W2 and W4, so they are its own from now on.
+        apply('10-snapshot-restart.bin')
+
+        // pulse-2 snapshots without them: not its entries, so they stay.
+        component.applyBatch(
+          batchOf({
+            serverName: 'pulse-2',
+            seq: 1,
+            snapshot: true,
+            changes: [{ address: W7, realm: 'main', parcel: { x: 0, y: 0 } }]
+          })
+        )
+
+        expect(component.get(W2)).toMatchObject({ realm: 'cozyfarm.dcl.eth', parcel: [1, 2] })
+        expect(component.get(W4)).toMatchObject({ realm: 'main', parcel: [-1, 0] })
+
+        // pulse-1 snapshots without W2: its own entry, so this one does retire it.
+        component.applyBatch(
+          batchOf({
+            serverName: 'pulse-1',
+            seq: 2,
+            snapshot: true,
+            changes: [{ address: W4, realm: 'main', parcel: { x: -1, y: 0 } }]
+          })
+        )
+
+        expect(component.get(W2)).toBeUndefined()
+        expect(component.get(W4)).toBeDefined()
+      })
+    })
+  })
+
+  describe('when time passes', () => {
+    let now: number
+
+    beforeEach(() => {
+      now = 1_700_000_000_000
+      jest.spyOn(Date, 'now').mockImplementation(() => now)
+    })
+
+    afterEach(() => {
+      jest.restoreAllMocks()
+    })
+
+    describe('and a primed peer has not been re-announced by any publisher', () => {
+      beforeEach(async () => {
+        await build()
+        await start()
+      })
+
+      it('should keep it until the prime TTL has elapsed', () => {
+        now += PRIME_TTL_MS - 1
+        component.reclaim()
+
+        expect(component.size()).toBe(5)
+      })
+
+      it('should drop it once the prime TTL has elapsed', () => {
+        now += PRIME_TTL_MS
+        component.reclaim()
+
+        expect(component.size()).toBe(0)
+        expect(metrics.increment).toHaveBeenCalledWith(
+          'dcl_gatekeeper_presence_reclaimed_total',
+          { reason: 'prime_expired' },
+          5
+        )
+      })
+
+      it('should stop reporting itself as ready on a prime nothing has taken over from', () => {
+        expect(component.isReady()).toBe(true)
+
+        now += PRIME_TTL_MS
+        component.reclaim()
+
+        expect(component.isReady()).toBe(false)
+      })
+
+      it('should keep a primed peer a publisher took ownership of, and drop the rest', () => {
+        component.applyBatch(
+          batchOf({
+            serverName: 'pulse-2',
+            seq: 1,
+            snapshot: true,
+            changes: [{ address: W3, realm: 'cozyfarm.dcl.eth', parcel: { x: 7, y: 7 } }]
+          })
+        )
+
+        now += PRIME_TTL_MS
+        component.reclaim()
+
+        expect(component.get(W3)).toMatchObject({ realm: 'cozyfarm.dcl.eth', parcel: [7, 7] })
+        expect(component.size()).toBe(1)
+      })
+    })
+
+    describe('and PRESENCE_PRIME_TTL_MS is configured', () => {
+      beforeEach(async () => {
+        await build({ settings: { PRESENCE_PRIME_TTL_MS: '5000' } })
+        await start()
+      })
+
+      it('should expire the prime on the configured TTL rather than on the default', () => {
+        now += 4_999
+        component.reclaim()
+        expect(component.size()).toBe(5)
+
+        now += 1
+        component.reclaim()
+        expect(component.size()).toBe(0)
+      })
+    })
+
+    describe('and a publisher has gone silent', () => {
+      beforeEach(async () => {
+        await build({ settings: { PULSE_URL: undefined } })
+        apply('01-snapshot.bin')
+        apply('09-second-server.bin')
+      })
+
+      it('should drop the silent publisher entries and keep the ones still being refreshed', () => {
+        now += SERVER_TTL_MS
+        // pulse-1 is still publishing, pulse-2 has said nothing since its snapshot.
+        apply('02-delta-move.bin')
+        component.reclaim()
+
+        expect(component.get(W7)).toBeUndefined()
+        expect(component.get(W2)).toMatchObject({ realm: 'main', parcel: [148, -3] })
+        expect(component.size()).toBe(5)
+        expect(metrics.increment).toHaveBeenCalledWith(
+          'dcl_gatekeeper_presence_reclaimed_total',
+          { reason: 'server_gone' },
+          1
+        )
+      })
+
+      it('should keep a publisher whose last batch was inside the TTL', () => {
+        now += SERVER_TTL_MS - 1
+        component.reclaim()
+
+        expect(component.get(W7)).toMatchObject({ realm: 'main', parcel: [0, 0] })
+      })
+
+      it('should forget its seq, so its next delta waits for a snapshot instead of being applied', () => {
+        now += SERVER_TTL_MS
+        apply('02-delta-move.bin')
+        component.reclaim()
+
+        component.applyBatch(
+          batchOf({
+            serverName: 'pulse-2',
+            seq: 2,
+            changes: [{ address: W7, realm: 'main', parcel: { x: 5, y: 5 } }]
+          })
+        )
+
+        expect(component.get(W7)).toBeUndefined()
+        expect(component.frozenServers()).toEqual(['pulse-2'])
+      })
+
+      it('should re-add its peers normally when it comes back with a snapshot', () => {
+        now += SERVER_TTL_MS
+        apply('02-delta-move.bin')
+        component.reclaim()
+
+        apply('09-second-server.bin')
+
+        expect(component.get(W7)).toMatchObject({ realm: 'main', parcel: [0, 0] })
+        expect(component.frozenServers()).toEqual([])
+      })
+    })
+
+    describe('and PRESENCE_SERVER_TTL_MS is configured', () => {
+      beforeEach(async () => {
+        await build({ settings: { PULSE_URL: undefined, PRESENCE_SERVER_TTL_MS: '4000' } })
+        apply('09-second-server.bin')
+      })
+
+      it('should presume the publisher gone on the configured TTL rather than on the default', () => {
+        now += 4_000
+        component.reclaim()
+
+        expect(component.get(W7)).toBeUndefined()
+      })
+    })
+  })
+
+  describe('when nothing drives a batch through the component', () => {
+    afterEach(() => {
+      jest.useRealTimers()
+    })
+
+    it('should reclaim on its own timer', async () => {
+      jest.useFakeTimers({ doNotFake: ['setImmediate'] })
+
+      await build({ settings: { PULSE_URL: undefined } })
+      await start()
+      apply('09-second-server.bin')
+      expect(component.size()).toBe(1)
+
+      jest.advanceTimersByTime(SERVER_TTL_MS + 30_000)
+
+      expect(component.size()).toBe(0)
     })
   })
 

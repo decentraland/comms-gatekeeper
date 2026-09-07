@@ -9,10 +9,17 @@ export type PresenceEntry = {
   realm: string
   parcel: ParcelCoord
   /**
-   * `server_name` of the Pulse instance that last wrote this entry, so a snapshot only replaces
-   * what its own publisher owns. Primed entries carry `PRIME_SERVER_NAME`.
+   * `server_name` of the Pulse instance that owns this entry, so a snapshot only replaces what
+   * its own publisher owns. `undefined` while the entry is still only *primed*: the boot-time
+   * `GET /peers?all=true` read is the all-instances list and carries no `server_name`, so there
+   * is no publisher to attribute it to until one mentions the wallet.
    */
-  serverName: string
+  serverName?: string
+  /**
+   * When the HTTP prime wrote this entry, for the `PRESENCE_PRIME_TTL_MS` expiry. Set only while
+   * `serverName` is `undefined`; ownership replaces it.
+   */
+  primedAt?: number
 }
 
 export type ParcelPeerCount = {
@@ -60,4 +67,18 @@ export type IPresenceMapComponent = IBaseComponent & {
    * @returns One entry per occupied parcel of that realm, with how many peers stand on it.
    */
   getParcelCounts(realm: string): ParcelPeerCount[]
+  /**
+   * @returns The `server_name`s whose deltas are being skipped while their next snapshot is
+   * awaited, sorted ascending. Public so the contract replay can assert the pinned frozen set of
+   * every step, which a map comparison alone cannot see (a frozen delta leaves the map as it is).
+   */
+  frozenServers(): string[]
+  /**
+   * Drops the state no publisher stands behind any more: primed entries no publisher re-asserted
+   * within `PRESENCE_PRIME_TTL_MS`, and every entry (plus the `seq`) of a publisher that has sent
+   * no batch for `PRESENCE_SERVER_TTL_MS`.
+   *
+   * Runs on a timer while the component is started; public so tests and operators can force one.
+   */
+  reclaim(): void
 }

@@ -11,6 +11,8 @@ export const createPresenceMapMockedComponent = (
     getAddressesInRealm: jest.fn().mockReturnValue([]),
     getAddressesInParcels: jest.fn().mockReturnValue([]),
     getParcelCounts: jest.fn().mockReturnValue([]),
+    frozenServers: jest.fn().mockReturnValue([]),
+    reclaim: jest.fn(),
     ...overrides
   } as unknown as jest.Mocked<IPresenceMapComponent>
 }
