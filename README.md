@@ -30,10 +30,12 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
 - **Scene Banning System**: Enables scene admins to ban users from specific scenes
 - **Request-to-Speak**: Implements moderated voice chat with speaker management
 - **Privacy Controls**: Manages user privacy settings and access control
+- **Presence Map**: Keeps the map of where every online player stands, fed by Pulse over NATS, and serves `GET /hot-scenes` and `GET /scene-participants` from it (behind `PRESENCE_MAP_ENABLED` / `LIVEKIT_PRESENCE_FALLBACK`)
 
 ## Dependencies
 
 - **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Separate communication channel for Archipelago rooms
+- **[Pulse](https://github.com/decentraland/Pulse)**: The source of online-player information. Publishes per-peer cluster assignments and parcel changes over NATS, and serves `GET /peers?all=true`, which this service reads once on boot to prime its presence map
 - **[Catalyst](https://github.com/decentraland/catalyst)**: Content server for scene metadata and validation
 - **[Places API](https://github.com/decentraland/places-api)**: Scene and place information
 - **[Social Service](https://github.com/decentraland/social-service-ea)**: User relationships and social data
