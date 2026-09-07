@@ -1,6 +1,7 @@
 import { ParcelChange, ParcelChangesBatch } from '@dcl/protocol/out-js/decentraland/pulse/pulse_presence.gen'
-import { START_COMPONENT } from '@well-known-components/interfaces'
+import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { AppComponents } from '../../types'
+import { positiveNumberOr } from '../../utils/config'
 import { getErrorMessage } from '../errors'
 import { IPresenceMapComponent, ParcelCoord, ParcelPeerCount, PresenceEntry } from './types'
 
@@ -8,10 +9,23 @@ import { IPresenceMapComponent, ParcelCoord, ParcelPeerCount, PresenceEntry } fr
 export const PARCEL_CHANGES_SUBJECT = 'engine.parcel_changes'
 
 /**
- * Owner recorded for entries that came from the boot-time HTTP prime rather than from the feed.
- * Not a real `server_name`, and deliberately not a valid one.
+ * How long an entry that only the boot-time HTTP prime stands behind is trusted for. The prime
+ * carries no `server_name`, so nothing else can retire it: a peer who left during the hand-over
+ * would otherwise sit in the map for the process's whole life. The default is C1's 60 s snapshot
+ * interval plus margin — every publisher that is alive re-asserts its own peers well inside it.
  */
-export const PRIME_SERVER_NAME = '__prime__'
+const DEFAULT_PRIME_TTL_MS = 90_000
+
+/**
+ * How long a publisher may say nothing before it is presumed gone. C1 guarantees a snapshot every
+ * 60 s, so 2.5 intervals of silence means the process is not there any more (a scaled-down
+ * replica, or one replaced under a new `server_name`) rather than merely quiet — and its peers
+ * logged off with it.
+ */
+const DEFAULT_SERVER_TTL_MS = 150_000
+
+/** How many times per TTL the reclaim sweep runs, so an expiry is never much overdue. */
+const RECLAIM_SWEEPS_PER_TTL = 3
 
 type ServerState = {
   /** Last `seq` accepted from this publisher. */
@@ -21,6 +35,8 @@ type ServerState = {
    * publisher's next snapshot (C1 guarantees one within 60 s).
    */
   frozen: boolean
+  /** When the last batch of any kind was seen from this publisher, for the liveness TTL. */
+  lastSeenAt: number
 }
 
 type PeersAllResponse = {
@@ -78,21 +94,28 @@ export async function createPresenceMapComponent(
   const { config, logs, metrics, nats, fetch } = components
   const logger = logs.getLogger('presence-map')
 
-  const [enabledFlag, pulseUrlSetting] = await Promise.all([
+  const [enabledFlag, pulseUrlSetting, primeTtlSetting, serverTtlSetting] = await Promise.all([
     config.getString('PRESENCE_MAP_ENABLED'),
-    config.getString('PULSE_URL')
+    config.getString('PULSE_URL'),
+    config.getNumber('PRESENCE_PRIME_TTL_MS'),
+    config.getNumber('PRESENCE_SERVER_TTL_MS')
   ])
 
   const enabled = enabledFlag === 'true'
   const pulseUrl = pulseUrlSetting?.replace(/\/+$/, '')
+  const primeTtlMs = positiveNumberOr(primeTtlSetting, DEFAULT_PRIME_TTL_MS)
+  const serverTtlMs = positiveNumberOr(serverTtlSetting, DEFAULT_SERVER_TTL_MS)
+  const reclaimIntervalMs = Math.max(1_000, Math.floor(Math.min(primeTtlMs, serverTtlMs) / RECLAIM_SWEEPS_PER_TTL))
 
   const entries = new Map<string, PresenceEntry>()
   /** realm -> parcel key -> addresses standing on it. Derived; rebuilt only through the helpers below. */
   const index = new Map<string, Map<string, Set<string>>>()
   const servers = new Map<string, ServerState>()
 
-  let primed = false
+  /** When the HTTP prime landed, or `undefined` if it never did. Readiness expires with it. */
+  let primedAt: number | undefined
   let snapshotsApplied = 0
+  let reclaimTimer: NodeJS.Timeout | undefined
 
   function reportSize(): void {
     metrics.observe('dcl_gatekeeper_presence_map_size', {}, entries.size)
@@ -159,13 +182,16 @@ export async function createPresenceMapComponent(
     indexAdd(entry, address)
   }
 
-  function removeEntriesOwnedBy(serverName: string): void {
+  function removeEntriesOwnedBy(serverName: string): number {
+    let removed = 0
     for (const [address, entry] of entries) {
       if (entry.serverName === serverName) {
         entries.delete(address)
         indexRemove(entry, address)
+        removed++
       }
     }
+    return removed
   }
 
   function applyChange(change: ParcelChange, serverName: string, seq: number): void {
@@ -190,11 +216,12 @@ export async function createPresenceMapComponent(
 
     if (!change.parcel) {
       const existing = entries.get(address)
-      // Only the owner (or the prime this entry came from) may retire it. Ordering between two
-      // publishers is not guaranteed, so a hand-over — the peer reconnecting to another Pulse —
-      // can deliver the old instance's exit after the new instance's placement, and honouring it
-      // would drop a peer that is very much online.
-      if (existing && existing.serverName !== serverName && existing.serverName !== PRIME_SERVER_NAME) {
+      // Only the owner may retire an entry — or any publisher, while the entry is still just
+      // primed and belongs to nobody. Ordering between two publishers is not guaranteed, so a
+      // hand-over — the peer reconnecting to another Pulse — can deliver the old instance's exit
+      // after the new instance's placement, and honouring it would drop a peer that is very much
+      // online.
+      if (existing && existing.serverName !== undefined && existing.serverName !== serverName) {
         return
       }
       removeEntry(address)
@@ -218,18 +245,26 @@ export async function createPresenceMapComponent(
       return
     }
 
+    // Liveness is about the publisher, not about the batch being useful: a duplicate, a gap and a
+    // delta skipped while frozen all prove the process is still there.
+    const known = servers.get(serverName)
+    if (known) {
+      known.lastSeenAt = Date.now()
+    }
+
     if (batch.snapshot) {
+      // Only this publisher's own entries: `/peers?all=true` is the all-instances list, so the
+      // primed entries this snapshot does not mention may well belong to a Pulse whose own
+      // snapshot is up to 60 s away. Wiping them here would report an empty Genesis City — the
+      // "nobody is here" answer both routes exist never to give. They expire on their own TTL if
+      // no publisher ever claims them (see `reclaim`).
       removeEntriesOwnedBy(serverName)
-      // The prime is one Pulse instance's HTTP view, taken before the feed was live. The first
-      // snapshot is the feed taking over; keeping half-attributed HTTP rows next to it would
-      // leave peers who left during the hand-over in the map for the process's whole life.
-      removeEntriesOwnedBy(PRIME_SERVER_NAME)
 
       for (const change of batch.changes) {
         applyChange(change, serverName, batch.seq)
       }
 
-      servers.set(serverName, { lastSeq: batch.seq, frozen: false })
+      servers.set(serverName, { lastSeq: batch.seq, frozen: false, lastSeenAt: Date.now() })
       snapshotsApplied++
       metrics.increment('dcl_gatekeeper_presence_snapshots_total')
       reportSize()
@@ -242,7 +277,7 @@ export async function createPresenceMapComponent(
     if (!state) {
       // First thing heard from this publisher and it is not a snapshot: there is no baseline to
       // apply a delta on top of, so wait for its snapshot instead of inventing one.
-      servers.set(serverName, { lastSeq: batch.seq, frozen: true })
+      servers.set(serverName, { lastSeq: batch.seq, frozen: true, lastSeenAt: Date.now() })
       metrics.increment('dcl_gatekeeper_presence_gaps_total')
       logger.warn(`First batch from ${serverName} is a delta (seq ${batch.seq}); waiting for its snapshot`)
       reportFrozen()
@@ -308,6 +343,8 @@ export async function createPresenceMapComponent(
       const body = (await response.json()) as PeersAllResponse
       const peers = body?.peers ?? []
 
+      const now = Date.now()
+
       if (snapshotsApplied > 0) {
         // The feed won the race. Its snapshot is newer and authoritative per publisher, so
         // folding an older HTTP read into it would resurrect peers it just retired.
@@ -322,11 +359,13 @@ export async function createPresenceMapComponent(
         upsertEntry(peer.address.toLowerCase(), {
           realm: peer.realm.toLowerCase(),
           parcel: [peer.parcel[0], peer.parcel[1]] as ParcelCoord,
-          serverName: PRIME_SERVER_NAME
+          // No `serverName`: this read is the all-instances list and says nothing about which
+          // Pulse owns the peer. The first publisher to mention the wallet takes it over.
+          primedAt: now
         })
       }
 
-      primed = true
+      primedAt = now
       reportSize()
       logger.info(`Primed the presence map with ${peers.length} peers from ${url}`)
     } catch (error) {
@@ -336,7 +375,60 @@ export async function createPresenceMapComponent(
   }
 
   function isReady(): boolean {
-    return primed || snapshotsApplied > 0
+    if (snapshotsApplied > 0) {
+      return true
+    }
+    // The prime is a point-in-time HTTP read with no publisher behind it, and it expires with the
+    // entries it wrote: once it has, an unfed map holds nothing real, and reporting it as ready
+    // would serve "the city is deserted" as a fact instead of "we do not know yet".
+    return primedAt !== undefined && Date.now() - primedAt < primeTtlMs
+  }
+
+  function frozenServers(): string[] {
+    const frozen: string[] = []
+    for (const [name, state] of servers) {
+      if (state.frozen) {
+        frozen.push(name)
+      }
+    }
+    return frozen.sort()
+  }
+
+  function reclaim(): void {
+    const now = Date.now()
+
+    let primeExpired = 0
+    for (const [address, entry] of entries) {
+      if (entry.serverName === undefined && now - (entry.primedAt ?? 0) >= primeTtlMs) {
+        entries.delete(address)
+        indexRemove(entry, address)
+        primeExpired++
+      }
+    }
+
+    let serverGone = 0
+    for (const [name, state] of servers) {
+      if (now - state.lastSeenAt < serverTtlMs) {
+        continue
+      }
+      // Its `seq` goes with it: if the same `server_name` comes back it is a new process, and its
+      // first batch must be a snapshot to be applied, exactly as any publisher's first batch is.
+      serverGone += removeEntriesOwnedBy(name)
+      servers.delete(name)
+      logger.warn(`No batch from ${name} for ${serverTtlMs}ms; presuming it gone and dropping its entries`)
+    }
+
+    if (primeExpired > 0) {
+      metrics.increment('dcl_gatekeeper_presence_reclaimed_total', { reason: 'prime_expired' }, primeExpired)
+      logger.info(`Retired ${primeExpired} primed entries no publisher re-asserted within ${primeTtlMs}ms`)
+    }
+    if (serverGone > 0) {
+      metrics.increment('dcl_gatekeeper_presence_reclaimed_total', { reason: 'server_gone' }, serverGone)
+    }
+    if (primeExpired > 0 || serverGone > 0) {
+      reportSize()
+      reportFrozen()
+    }
   }
 
   function get(address: string): PresenceEntry | undefined {
@@ -412,7 +504,21 @@ export async function createPresenceMapComponent(
     // and the first snapshot makes the map ready regardless.
     void prime()
 
-    logger.info(`Presence map started, subscribed to ${PARCEL_CHANGES_SUBJECT}`)
+    // Nothing else reclaims: a publisher that disappears sends no exits, and a primed entry has
+    // no publisher to retire it, so both are swept on a timer rather than on traffic.
+    reclaimTimer = setInterval(reclaim, reclaimIntervalMs)
+    reclaimTimer.unref?.()
+
+    logger.info(
+      `Presence map started, subscribed to ${PARCEL_CHANGES_SUBJECT} (reclaiming every ${reclaimIntervalMs}ms)`
+    )
+  }
+
+  async function stop(): Promise<void> {
+    if (reclaimTimer) {
+      clearInterval(reclaimTimer)
+      reclaimTimer = undefined
+    }
   }
 
   function size(): number {
@@ -427,6 +533,9 @@ export async function createPresenceMapComponent(
     getAddressesInRealm,
     getAddressesInParcels,
     getParcelCounts,
-    [START_COMPONENT]: start
+    frozenServers,
+    reclaim,
+    [START_COMPONENT]: start,
+    [STOP_COMPONENT]: stop
   }
 }

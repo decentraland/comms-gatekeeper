@@ -54,6 +54,14 @@ export const metricDeclarations = {
     help: 'Number of Pulse instances whose deltas are being skipped while waiting for their next snapshot',
     type: IMetricsComponent.GaugeType
   },
+  dcl_gatekeeper_presence_reclaimed_total: {
+    help:
+      'Total presence-map entries reclaimed because nothing stands behind them any more: a primed ' +
+      'entry no publisher re-asserted within PRESENCE_PRIME_TTL_MS, or the entries of a publisher ' +
+      'silent for PRESENCE_SERVER_TTL_MS',
+    type: IMetricsComponent.CounterType,
+    labelNames: ['reason']
+  },
   // Named without the dcl_gatekeeper_ prefix on purpose: the iteration-2 contract pins these two
   // names and the rollout dashboards look for them verbatim.
   presence_shadow_diff: {
