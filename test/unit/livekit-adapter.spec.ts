@@ -161,6 +161,33 @@ describe('when getting room info', () => {
   })
 })
 
+describe('when listing rooms by name', () => {
+  const rooms = [{ name: 'world-cozyfarm.dcl.eth' }, { name: 'world-other.dcl.eth' }] as Room[]
+
+  describe('and some of the names exist', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([rooms[0]])
+    })
+
+    it('should pass the names through and answer with the rooms that exist', async () => {
+      const result = await livekitComponent.listRooms(['world-cozyfarm.dcl.eth', 'world-other.dcl.eth'])
+
+      expect(result).toEqual([rooms[0]])
+      expect(listRoomsSpy).toHaveBeenCalledWith(['world-cozyfarm.dcl.eth', 'world-other.dcl.eth'])
+    })
+  })
+
+  describe('and LiveKit cannot be reached', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockRejectedValue(new Error('Network error'))
+    })
+
+    it('should reject, so a caller cannot read the failure as "no such room"', async () => {
+      await expect(livekitComponent.listRooms(['world-cozyfarm.dcl.eth'])).rejects.toThrow('Network error')
+    })
+  })
+})
+
 describe('when getting or creating a room', () => {
   const roomName = 'test-room'
   const mockRoom = {
