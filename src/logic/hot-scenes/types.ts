@@ -18,6 +18,13 @@ export type HotSceneInfo = {
 }
 
 export type IHotScenesComponent = IBaseComponent & {
+  /**
+   * Whether a ranking exists to serve: false until a refresh has completed against a presence map
+   * that was ready. It is its own readiness, not the map's — the map flips ready the moment the
+   * prime resolves, while the ranking needs a catalyst sweep, and until that has landed there is
+   * nothing to answer with. Callers serve `503 warming` while this is false.
+   */
+  isReady(): boolean
   /** The most recently computed ranking. Empty until the first refresh completes. */
   getHotScenes(): HotSceneInfo[]
   /**
