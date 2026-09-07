@@ -1,0 +1,11 @@
+{
+  "serverName": "pulse-1",
+  "seq": 3,
+  "serverTime": 1788515571804,
+  "changes": [
+    {
+      "address": "0x0000000000000000000000000000000000000001",
+      "realm": "main"
+    }
+  ]
+}

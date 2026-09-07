@@ -1,0 +1,15 @@
+{
+  "serverName": "pulse-1",
+  "seq": 9,
+  "serverTime": 1788515583804,
+  "changes": [
+    {
+      "address": "0x0000000000000000000000000000000000000005",
+      "realm": "main",
+      "parcel": {
+        "x": 150,
+        "y": -3
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "contract": "C3",
+  "presenceState": "parcel_changes/replay.json steps[0].map (after 01-snapshot)",
+  "request": "GET /scene-participants?pointer=-1,0&realm_name=main",
+  "catalyst": {
+    "fetchEntitiesByPointers": ["-1,0"],
+    "returns": [
+      { "id": "bafy-scene-a", "pointers": ["-1,0", "0,0", "-1,1"], "metadata": { "scene": { "base": "-1,0", "parcels": ["-1,0", "0,0", "-1,1"] } } }
+    ]
+  },
+  "resolution": "addresses = map.where(realm == 'main' && parcel in scene.parcels), sorted asc",
+  "status": 200,
+  "body": {
+    "ok": true,
+    "data": {
+      "addresses": ["0x0000000000000000000000000000000000000001", "0x0000000000000000000000000000000000000004"]
+    }
+  }
+}

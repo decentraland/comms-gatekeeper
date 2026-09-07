@@ -1,0 +1,12 @@
+{
+  "01-snapshot": "Snapshot on publisher start: the full state of pulse-1 (C1 §4). W3 stands on the world origin — parcel {} is (0,0), present.",
+  "02-delta-move": "W2 walks one parcel east: an ordinary move (C1 §1 was satisfied by the snapshot).",
+  "03-exit": "W1 leaves by any exit path (C1 §2): exactly one parcel-absent entry, realm kept.",
+  "04-realm-change": "W2 teleports from main to cozyfarm.dcl.eth: one non-null entry for the NEW realm only; the old realm is implied (C1 §2).",
+  "05-coalesced": "W3 moved twice inside one batch interval ((0,0)->(2,2)->(3,4)); only the latest state is published (C1 §3). Producer input in 05-coalesced.input.json.",
+  "06-mixed-case": "Handshake/teleport arrived with realm \"CozyFarm.dcl.eth\" and a mixed-case wallet; Pulse canonicalizes both to lowercase before publishing (C1 §5). Input in 06-mixed-case.input.json.",
+  "07-invalid-mixed-case-realm": "INVALID: violates C1 §5 (realm not lowercase). A conforming Pulse never emits it; consumers use it to test their contract-violation guard. Not part of replay.json.",
+  "08-gap": "seq jumps 6 -> 9 for pulse-1: the consumer keeps serving its current state and waits for the next snapshot (C1 consumer rule).",
+  "09-second-server": "A second Pulse instance announces itself with its own snapshot; consumers key seq and replacement per server_name.",
+  "10-snapshot-restart": "pulse-1 restarted: seq resets to 1 with snapshot=true; everything previously known for pulse-1 is replaced, pulse-2 entries are untouched."
+}

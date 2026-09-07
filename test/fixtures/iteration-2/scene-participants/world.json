@@ -1,0 +1,14 @@
+{
+  "contract": "C3",
+  "presenceState": "parcel_changes/replay.json steps[0].map (after 01-snapshot)",
+  "request": "GET /scene-participants?realm_name=CozyFarm.dcl.eth",
+  "note": "mixed-case realm_name; lookup is case-insensitive (lower(realm_name)); no pointer => whole world",
+  "resolution": "addresses = map.where(realm == 'cozyfarm.dcl.eth'), sorted asc",
+  "status": 200,
+  "body": {
+    "ok": true,
+    "data": {
+      "addresses": ["0x0000000000000000000000000000000000000003"]
+    }
+  }
+}
