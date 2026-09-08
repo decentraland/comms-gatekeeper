@@ -80,8 +80,10 @@ export const metricDeclarations = {
   presence_prefix_mismatch: {
     help:
       '1 when none of the LiveKit rooms this service computes for the worlds the content server ' +
-      'reports as live exists, i.e. when COMMS_ROOM_PREFIX most likely disagrees with the content ' +
-      "server's; 0 when at least one exists, and 0 whenever nothing could be observed",
+      'reports as live exists and at least three such worlds were sampled, i.e. when ' +
+      "COMMS_ROOM_PREFIX most likely disagrees with the content server's; 0 when at least one " +
+      'exists, and 0 whenever nothing conclusive could be observed (no live worlds, fewer than ' +
+      'three sampled, an unreachable content server or LiveKit)',
     type: IMetricsComponent.GaugeType
   }
 }

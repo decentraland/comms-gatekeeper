@@ -139,6 +139,9 @@ describe('world-room prefix check', () => {
 
   describe('when none of the computed rooms exists in LiveKit', () => {
     beforeEach(async () => {
+      fetchComponent = createFetchMockedComponent({
+        fetch: serve({ liveData: ['cozyfarm.dcl.eth', 'other.dcl.eth', 'third.dcl.eth'] })
+      })
       livekit.listRooms.mockResolvedValue([])
       await build('world-env-')
     })
@@ -159,6 +162,29 @@ describe('world-room prefix check', () => {
       expect(message).toContain('cozyfarm.dcl.eth')
       expect(message).toContain('world-cozyfarm.dcl.eth')
       expect(message).not.toContain('0x')
+    })
+  })
+
+  describe('when none of the computed rooms exists but too few live worlds were sampled', () => {
+    beforeEach(async () => {
+      // Two live worlds, neither with a room. That is as consistent with a deployment whose
+      // worlds happen to be roomless — listed as live with nobody connected, or on a comms
+      // adapter that is not LiveKit — as it is with a prefix disagreement, and an error naming a
+      // prefix that is in fact correct pages someone for the wrong thing.
+      fetchComponent = createFetchMockedComponent({
+        fetch: serve({ liveData: ['cozyfarm.dcl.eth', 'other.dcl.eth'] })
+      })
+      livekit.listRooms.mockResolvedValue([])
+      await build('world-env-')
+    })
+
+    it('should report it at info and leave the gauge at 0 rather than claim a mismatch', async () => {
+      await expect(component.check()).resolves.toBe(true)
+
+      expect(metrics.observe).toHaveBeenCalledWith('presence_prefix_mismatch', {}, 0)
+      expect(metrics.observe).not.toHaveBeenCalledWith('presence_prefix_mismatch', {}, 1)
+      expect(logger.error).not.toHaveBeenCalled()
+      expect(logger.info).toHaveBeenCalled()
     })
   })
 
