@@ -341,6 +341,29 @@ describe('presence-map component', () => {
     })
   })
 
+  describe('when PULSE_URL is configured with something that is not an absolute http(s) URL', () => {
+    // `.env.default` ships inside the image and is a live config source, so a bare `PULSE_URL=`
+    // line resolves to the empty string and satisfies even `requireString`. Validating the value
+    // is what turns a prime that can never work into a boot failure rather than one warn line per
+    // restart and a map that waits for its first snapshot every time.
+    it.each([
+      ['the empty string a bare `PULSE_URL=` line leaves behind', ''],
+      ['a bare host', 'pulse.example.com'],
+      ['a placeholder', '<URL>'],
+      ['another protocol', 'nats://pulse.example.com:4222']
+    ])('should refuse to build with %s', async (_case, value) => {
+      await expect(build({ settings: { PULSE_URL: value } })).rejects.toThrow(
+        'Configuration: PULSE_URL must be an absolute http(s) URL'
+      )
+    })
+
+    describe('and the presence map is off', () => {
+      it('should build anyway, because a deployment that runs without the map must not fail to boot', async () => {
+        await expect(build({ settings: { PRESENCE_MAP_ENABLED: undefined, PULSE_URL: '' } })).resolves.toBeDefined()
+      })
+    })
+  })
+
   describe('when starting', () => {
     describe('and the presence map is enabled', () => {
       beforeEach(async () => {
