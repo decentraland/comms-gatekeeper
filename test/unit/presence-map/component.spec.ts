@@ -565,6 +565,26 @@ describe('presence-map component', () => {
         expect(component.isReady()).toBe(false)
       })
 
+      it('should keep a primed peer a publisher re-asserted with a delta, not only with a snapshot', () => {
+        // Ownership transfers on the first batch of any kind that mentions the wallet. A delta
+        // only counts once the publisher has a baseline, so pulse-2 snapshots (about nobody)
+        // first — exactly the order a real hand-over arrives in.
+        component.applyBatch(batchOf({ serverName: 'pulse-2', seq: 1, snapshot: true, changes: [] }))
+        component.applyBatch(
+          batchOf({
+            serverName: 'pulse-2',
+            seq: 2,
+            changes: [{ address: W3, realm: 'cozyfarm.dcl.eth', parcel: { x: 7, y: 7 } }]
+          })
+        )
+
+        now += PRIME_TTL_MS
+        component.reclaim()
+
+        expect(component.get(W3)).toMatchObject({ realm: 'cozyfarm.dcl.eth', parcel: [7, 7] })
+        expect(component.size()).toBe(1)
+      })
+
       it('should keep a primed peer a publisher took ownership of, and drop the rest', () => {
         component.applyBatch(
           batchOf({
