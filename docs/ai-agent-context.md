@@ -115,6 +115,7 @@ assignment into a LiveKit connection string. Behind `CLUSTER_SUBSCRIBER_ENABLED`
 | Subject | Payload | Use |
 |---|---|---|
 | `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` | drives minting; queue-grouped so one replica handles each event |
+| `peer.{addr}.connect` | empty (never decoded) | ws-connector's post-handshake signal; re-sends the peer's *current* island, queue-grouped for the same reason |
 
 **Produces** `engine.peer.{addr}.island_changed` (`IslandChangedMessage`) — WS Connector
 subscribes to the literal subject and needs no change. `peers` is published empty:
@@ -122,6 +123,27 @@ unity-explorer reads only `connStr`.
 
 **Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
 room name → `generateCredentials(wallet, room, { cast: [] }, false)` → publish.
+
+**Re-send on `connect`.** ws-connector publishes `peer.{addr}.connect` (empty payload, lowercase
+address) after every successful handshake, and this service answers it by re-minting and
+re-publishing the peer's *current* `island_changed`, with **no `fromIslandId`** — a re-send is not
+a move — and always a freshly minted token, because a stored one would be expiring exactly when a
+reconnecting client needs it. **Why the signal exists:** iteration 2 retires the client heartbeat
+that used to hand a reconnecting WebSocket its room back, and Pulse only publishes an assignment
+when the clustering *changes*. Without the re-send, a peer whose socket dropped while standing
+still would sit roomless until something re-clustered it, which for a peer standing still is
+never.
+
+A wallet this replica has no assignment for — a fresh or restarted replica, or an entry
+`CLUSTER_PEER_STATE_TTL_MS` retired — is recovered in two reads: the presence map says which realm
+the wallet stands in, and Pulse's `GET /realms/{realm}/islands` says which island of that realm
+holds it. With the presence map off there is no realm to ask about, so the connect is skipped and
+counted (`island_resend_skipped_total`) rather than guessed at; that costs the peer nothing it was
+not already waiting for, since Pulse publishes the assignment itself once the peer is clustered.
+Standing in a realm is also not the same fact as being clustered, so a wallet in no island is the
+same skip. Banned wallets are skipped exactly like a `cluster_change`, and count the same
+moderation metric. Everything for one wallet runs on one serialization chain across both subjects,
+so a re-send can never race an assignment and announce the room the peer is leaving.
 
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
@@ -137,7 +159,11 @@ prefix is required so this service's own webhook handlers classify these rooms a
 **Not consumed:** `peer.*.heartbeat` and `peer.*.disconnect` survive iteration 1 and still
 feed archipelago-stats, but are deliberately unused here — both retire in iteration 2.
 
-**Metrics:** `dcl_gatekeeper_cluster_*_total` and `dcl_gatekeeper_nats_connected`.
+**Metrics:** `dcl_gatekeeper_cluster_*_total` and `dcl_gatekeeper_nats_connected`, plus
+`island_resend_total` / `island_resend_skipped_total` for the `connect` path (named without the
+service prefix because the iteration-2 contract pins them). `dcl_gatekeeper_cluster_published_total`
+counts only what a `cluster_change` published, so the two subjects stay separable; a re-send that
+NATS dropped counts `dcl_gatekeeper_cluster_publish_failed_total`, never a re-send.
 
 **Dependency pin (temporary).** `@dcl/protocol` is pinned to a CDN *branch* tarball
 (`dcl-protocol-1.0.0-33890257211.commit-7dc9cee.tgz`) because no npm registry release ships

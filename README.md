@@ -33,10 +33,12 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
 - **Privacy Controls**: Manages user privacy settings and access control
 - **Presence Map**: Keeps the map of where every online player stands, fed by Pulse over NATS, and serves `GET /hot-scenes` and `GET /scene-participants` from it (behind `PRESENCE_MAP_ENABLED` / `LIVEKIT_PRESENCE_FALLBACK`). While no ranking has been computed from a ready map yet, `GET /hot-scenes` answers `503 {"ok":false,"error":"warming"}` (its readiness is its own: the map becomes ready when Pulse's `/peers?all=true` prime resolves, the ranking needs a catalyst sweep on top of that). The map is ready only while a live source stands behind it — a publisher heard from within `PRESENCE_SERVER_TTL_MS`, or a prime younger than `PRESENCE_PRIME_TTL_MS` — so a NATS or Pulse outage that empties it takes both routes back to `503 warming` instead of reporting a deserted world as fact. `GET /scene-participants` instead answers from the LiveKit room lookup for as long as `LIVEKIT_PRESENCE_FALLBACK=true` (the default) — a cold map costs nothing while LiveKit is the served answer anyway — and answers the same `503 warming` once that flag is off, because the operator has then said LiveKit must not answer for that route
 
+- **Island Re-send on Reconnect**: Answers ws-connector's `peer.{address}.connect` by re-minting and re-publishing the peer's current `island_changed`, so a reconnecting WebSocket gets its room back (see "Why a reconnect needs a re-send" below)
+
 ## Dependencies
 
 - **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Separate communication channel for Archipelago rooms
-- **[Pulse](https://github.com/decentraland/Pulse)**: The source of online-player information. Publishes per-peer cluster assignments and parcel changes over NATS, and serves `GET /peers?all=true`, which this service reads once on boot to prime its presence map
+- **[Pulse](https://github.com/decentraland/Pulse)**: The source of online-player information. Publishes per-peer cluster assignments and parcel changes over NATS, and serves `GET /peers?all=true`, which this service reads once on boot to prime its presence map, and `GET /realms/{realm}/islands`, which it reads to recover the cluster of a reconnecting peer it has no assignment for
 - **[Catalyst](https://github.com/decentraland/catalyst)**: Content server for scene metadata and validation
 - **[Places API](https://github.com/decentraland/places-api)**: Scene and place information
 - **[Social Service](https://github.com/decentraland/social-service-ea)**: User relationships and social data
@@ -215,6 +217,28 @@ deployment whose comms adapter is not LiveKit has no rooms at all. A deployment 
 sampled world is roomless therefore raises the gauge with a correct prefix configured. Requiring
 three sampled worlds makes that unlikely rather than impossible, so treat the gauge as a prompt to
 compare the two `COMMS_ROOM_PREFIX` values — not as proof on its own.
+
+### Why a reconnect needs a re-send
+
+Pulse publishes a cluster assignment when the clustering *changes*, and iteration 2 retires the
+client heartbeat that used to hand a reconnecting WebSocket its room back. Between the two, a peer
+whose socket dropped while standing still had nothing to tell it which island to rejoin — for a
+peer standing still, "the next cluster change" is never.
+
+So ws-connector publishes `peer.{address}.connect` after every successful handshake, and this
+service (behind `CLUSTER_SUBSCRIBER_ENABLED`, the same flag as the cluster feed) answers it by
+re-minting a token for the peer's **current** island and re-publishing
+`engine.peer.{address}.island_changed` for it. The message carries no `fromIslandId`, because a
+re-send is not a move, and the token is always freshly minted: a stored one would be expiring
+exactly when a reconnecting client needs it. Nothing publishes the subject until ws-connector
+starts doing so, so subscribing to it changes nothing on its own.
+
+A wallet this replica holds no assignment for is recovered from the presence map (which realm the
+wallet stands in) plus Pulse's `GET /realms/{realm}/islands` (which island of that realm holds it).
+With `PRESENCE_MAP_ENABLED` off there is no realm to ask about, so the connect is skipped and
+counted on `island_resend_skipped_total` instead of guessed at — Pulse publishes the assignment
+itself once the peer is clustered, so the peer waits no longer than it already would. Successful
+re-sends count `island_resend_total`; banned wallets are skipped exactly like a cluster change.
 
 ## Testing
 
