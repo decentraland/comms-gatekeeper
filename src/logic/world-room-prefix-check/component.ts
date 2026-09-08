@@ -17,6 +17,19 @@ const STATUS_PATH = '/status'
  */
 export const MAX_WORLDS_CHECKED = 25
 
+/**
+ * How many live worlds must be sampled before "none of their rooms exists" is read as a prefix
+ * disagreement.
+ *
+ * A live world can legitimately have no LiveKit room — `/live-data` lists a world by name and not
+ * by occupancy, so a world with nobody actually connected is reported as live, and a deployment
+ * on a comms adapter that is not LiveKit has no rooms at all. On one or two such worlds the
+ * observation says nothing, and an error naming a `COMMS_ROOM_PREFIX` that is in fact correct
+ * pages someone for the wrong outage. Three independent roomless worlds is where the coincidence
+ * stops being cheaper than the misconfiguration.
+ */
+export const MIN_WORLDS_FOR_MISMATCH = 3
+
 type ReportedWorld = { worldName?: string; users?: number }
 
 /**
@@ -34,7 +47,9 @@ type ReportedWorld = { worldName?: string; users?: number }
  * succeeds by construction and can never observe the disagreement. Instead the check takes the
  * worlds the content server reports as live, computes each expected room name with
  * `getWorldRoomName`, and asks LiveKit which of those rooms exist. Worlds are live, so their
- * rooms exist — unless we are computing the wrong names.
+ * rooms exist — unless we are computing the wrong names. "None of them exists" is only read that
+ * way from `MIN_WORLDS_FOR_MISMATCH` sampled worlds up, because a single live world can be
+ * legitimately roomless.
  *
  * On failure it logs an error and raises the `presence_prefix_mismatch` gauge; it never throws
  * and never gates startup, because a misconfigured world path is not a reason to refuse to serve
@@ -132,6 +147,21 @@ export async function createWorldRoomPrefixCheckComponent(
     }
 
     const found = expectedRooms.filter((roomName) => existing.has(roomName.toLowerCase()))
+
+    if (found.length === 0 && sample.length < MIN_WORLDS_FOR_MISMATCH) {
+      // Not enough evidence to name a culprit: see `MIN_WORLDS_FOR_MISMATCH`. Logged so the
+      // observation is not lost, with the gauge left at 0 — the same way every other "nothing
+      // conclusive was observed" branch above leaves it.
+      logger.info(
+        `None of the ${expectedRooms.length} LiveKit rooms computed for the live worlds exists ` +
+          `(e.g. world "${sample[0]}" -> room "${expectedRooms[0]}"), but a mismatch is only reported ` +
+          `from ${MIN_WORLDS_FOR_MISMATCH} sampled live worlds up: a world listed as live with nobody ` +
+          'connected, or a deployment on a comms adapter that is not LiveKit, has no room either. ' +
+          `COMMS_ROOM_PREFIX is "${prefix}".`
+      )
+      metrics.observe('presence_prefix_mismatch', {}, 0)
+      return true
+    }
 
     if (found.length === 0) {
       metrics.observe('presence_prefix_mismatch', {}, 1)
