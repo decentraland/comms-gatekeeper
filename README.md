@@ -136,6 +136,12 @@ cp .env.default .env
 
 See `.env.default` for available configuration options.
 
+`PULSE_URL` is the one key that file documents without defining: `.env.default` ships inside the
+image and is a live config source, so a bare `PULSE_URL=` line would resolve to an empty string
+that no required-key check can reject. It is commented out instead, and whatever a deployment does
+set is validated while `PRESENCE_MAP_ENABLED=true` — anything but an absolute `http(s)` URL fails
+the boot rather than becoming a prime that can never work.
+
 ### Running the Service
 
 #### Setting up the environment

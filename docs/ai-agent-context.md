@@ -185,6 +185,9 @@ Plus one HTTP read on boot: `GET {PULSE_URL}/peers?all=true`, so the routes can 
 the first snapshot instead of warming for up to a minute. That read is the all-instances list and
 carries no `server_name`, so its entries are *primed*: owned by nobody, taken over by the first
 publisher that mentions the wallet, and expiring on `PRESENCE_PRIME_TTL_MS` if none ever does.
+`PULSE_URL` is unset in `.env.default` (commented out, not emptied — an empty value satisfies
+`requireString`) and validated while the map is on: anything but an absolute `http(s)` URL fails
+the boot instead of becoming a prime that can never work.
 
 **Produces** nothing on NATS. Two HTTP routes:
 

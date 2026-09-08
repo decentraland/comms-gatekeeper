@@ -1,7 +1,7 @@
 import { ParcelChange, ParcelChangesBatch } from '@dcl/protocol/out-js/decentraland/pulse/pulse_presence.gen'
 import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { AppComponents } from '../../types'
-import { positiveNumberOr } from '../../utils/config'
+import { assertAbsoluteHttpUrl, positiveNumberOr } from '../../utils/config'
 import { getErrorMessage } from '../errors'
 import { IPresenceMapComponent, ParcelCoord, ParcelPeerCount, PresenceEntry } from './types'
 
@@ -102,7 +102,16 @@ export async function createPresenceMapComponent(
   ])
 
   const enabled = enabledFlag === 'true'
-  const pulseUrl = pulseUrlSetting?.replace(/\/+$/, '')
+  // Validated rather than merely read, and only while the map is on. `.env.default` ships inside
+  // the image and is a live config source, so a bare `PULSE_URL=` line resolves to `''` and would
+  // satisfy any required-key check: an operator who half-configured it would get a prime that can
+  // never work — one warn line per restart, and a map that waits for its first snapshot every time
+  // — instead of being told. A deployment that leaves the map off must still boot, whatever the
+  // value is, because nothing reads it there.
+  const pulseUrl =
+    enabled && pulseUrlSetting !== undefined
+      ? assertAbsoluteHttpUrl('PULSE_URL', pulseUrlSetting).replace(/\/+$/, '')
+      : pulseUrlSetting?.replace(/\/+$/, '')
   const primeTtlMs = positiveNumberOr(primeTtlSetting, DEFAULT_PRIME_TTL_MS)
   const serverTtlMs = positiveNumberOr(serverTtlSetting, DEFAULT_SERVER_TTL_MS)
   const reclaimIntervalMs = Math.max(1_000, Math.floor(Math.min(primeTtlMs, serverTtlMs) / RECLAIM_SWEEPS_PER_TTL))
