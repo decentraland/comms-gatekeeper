@@ -14,7 +14,10 @@ import { test } from '../components'
 // a stub: `generateCredentials` mints a JWT locally via `AccessToken.toJwt()` (HMAC signing, no
 // live LiveKit server contacted). The PROD_LIVEKIT_* fixtures that mint needs live in
 // test/setup-env.ts, alongside the other test-only environment defaults.
-const NATS_TEST_URL = 'localhost:4222'
+// docker-compose's broker, overridable so the suite can be pointed at whatever broker a
+// developer or a validator already has running (e.g. a container on another port) instead of
+// being silently skipped.
+const NATS_TEST_URL = process.env.NATS_TEST_URL || 'localhost:4222'
 const BANNED_WALLET = '0x2222222222222222222222222222222222222222'
 const ALLOWED_WALLET = '0x3333333333333333333333333333333333333333'
 // Distinct wallets per scenario: peerState is the app-level component, shared for the whole
@@ -22,6 +25,8 @@ const ALLOWED_WALLET = '0x3333333333333333333333333333333333333333'
 const REASSIGNED_WALLET = '0x4444444444444444444444444444444444444444'
 const QUEUE_GROUP_WALLET = '0x5555555555555555555555555555555555555555'
 const DENYLISTED_WALLET = '0x6666666666666666666666666666666666666666'
+const RECONNECTED_WALLET = '0x7777777777777777777777777777777777777777'
+const UNASSIGNED_WALLET = '0x8888888888888888888888888888888888888888'
 
 const startOptions = {
   started: () => true,
@@ -142,7 +147,12 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
         livekit: components.livekit,
         accessGate: components.accessGate,
         playerConnectionDb: components.playerConnectionDb,
-        peerState: components.peerState
+        peerState: components.peerState,
+        // The connect path's two recovery reads. This program leaves the presence map off, so
+        // the map holds nothing and the recovery is unreachable — a connect for a wallet no
+        // replica has assigned is a skip, which is what a deployment before the cutover does too.
+        presenceMap: components.presenceMap,
+        fetch: components.fetch
       })
     }
   }
@@ -173,6 +183,11 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
 
   function publishClusterChange(wallet: string, clusterId: string): void {
     publisher.publish(`peer.${wallet}.cluster_change`, PeerClusterChange.encode({ clusterId, realm: 'main' }).finish())
+  }
+
+  /** ws-connector's post-handshake signal: the subject carries everything, the payload is empty. */
+  function publishConnect(wallet: string): void {
+    publisher.publish(`peer.${wallet}.connect`, new Uint8Array())
   }
 
   describe('when an allowed wallet is assigned to a cluster', () => {
@@ -315,6 +330,49 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
 
       expect(await nextIslandChanged(5000)).toBeDefined()
       expect(await nextIslandChanged(1500)).toBeUndefined()
+    })
+  })
+
+  describe('when a peer reconnects', () => {
+    it('should re-send the island it is already in, with a fresh token and no fromIslandId', async () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      // The whole A9 loop over a real broker: an assignment establishes the room, then
+      // ws-connector's post-handshake signal arrives on its own subject and the same room comes
+      // back with a token minted for this delivery.
+      publishClusterChange(RECONNECTED_WALLET, 'C50')
+      const assigned = await nextIslandChanged(5000)
+      expect(assigned).toBeDefined()
+
+      publishConnect(RECONNECTED_WALLET)
+      const resent = await nextIslandChanged(5000)
+
+      expect(resent).toBeDefined()
+      expect(resent!.subject).toBe(`engine.peer.${RECONNECTED_WALLET}.island_changed`)
+      expect(resent!.message.islandId).toBe('island-C50')
+      // Not a move: the peer is where it was.
+      expect(resent!.message.fromIslandId).toBeUndefined()
+
+      const jwt = resent!.message.connStr.match(/access_token=(.+)$/)![1]
+      expect(verifiesWithSecret(jwt, process.env.PROD_LIVEKIT_API_SECRET!)).toBe(true)
+      const claims = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString('utf8'))
+      expect(claims.video.room).toBe('island-C50')
+    })
+
+    describe('and no replica holds an assignment for it', () => {
+      it('should publish nothing, because the presence map is off here', async () => {
+        if (!brokerAvailable) {
+          return
+        }
+
+        // PRESENCE_MAP_ENABLED is off in this program, so there is no realm to ask Pulse about
+        // and nothing to recover from: Pulse publishes the first assignment itself.
+        publishConnect(UNASSIGNED_WALLET)
+
+        expect(await nextIslandChanged(2500)).toBeUndefined()
+      })
     })
   })
 

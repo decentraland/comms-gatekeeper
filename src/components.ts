@@ -307,7 +307,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     livekit,
     accessGate,
     playerConnectionDb,
-    peerState
+    peerState,
+    presenceMap,
+    fetch: tracedFetch
   })
 
   const livekitWebhook = createLivekitWebhookComponent()

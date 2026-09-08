@@ -19,7 +19,7 @@ export const metricDeclarations = {
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_published_total: {
-    help: 'Total island_changed messages published',
+    help: 'Total island_changed messages published in response to a cluster_change',
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_publish_failed_total: {
@@ -76,6 +76,20 @@ export const metricDeclarations = {
       'which is not the same fact as the two sources agreeing',
     type: IMetricsComponent.CounterType,
     labelNames: ['kind']
+  },
+  island_resend_total: {
+    help:
+      'Total island_changed messages re-sent because a peer reconnected (peer.{address}.connect), ' +
+      'as opposed to because it was assigned a new cluster',
+    type: IMetricsComponent.CounterType
+  },
+  island_resend_skipped_total: {
+    help:
+      'Total peer.{address}.connect events answered with nothing because no cluster could be ' +
+      'established for the wallet: unknown to this replica and either not in the presence map, ' +
+      'not in any island of its realm, or Pulse could not be asked. Pulse publishes the first ' +
+      'assignment itself once the peer is clustered',
+    type: IMetricsComponent.CounterType
   },
   presence_prefix_mismatch: {
     help:

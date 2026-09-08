@@ -12,12 +12,22 @@ import { createMetricsMockedComponent } from '../../mocks/metrics-mock'
 import { createNatsMockedComponent } from '../../mocks/nats-mock'
 import { createPeerStateMockedComponent } from '../../mocks/peer-state-mock'
 import { createPlayerConnectionDBMockedComponent } from '../../mocks/player-connection-db-mock'
+import { createFetchMockedComponent } from '../../mocks/fetch-mock'
+import { createPresenceMapMockedComponent } from '../../mocks/presence-map-mock'
+import { readFixtureJson } from '../../fixtures/iteration-2/loader'
 import { createDeferred, flushMacrotask } from '../../utils'
 
 const WALLET = '0x1111111111111111111111111111111111111111'
 // Has actual hex letters, unlike WALLET, so upper/lower-casing it is not a no-op.
 const MIXED_CASE_WALLET = '0xAaBbCcDdEeFf00112233445566778899aAbBcCdD'
 const LOWER_CASE_WALLET = MIXED_CASE_WALLET.toLowerCase()
+
+/** The pack's `GET /realms/main/islands`, the answer the recovery path reads. */
+const REALM_ISLANDS = readFixtureJson<{ body: { islands: { id: string; peers: { address: string }[] }[] } }>(
+  'http/realms-main-islands.json'
+)
+/** A wallet the pack's islands answer places in `C2`, in the realm `main`. */
+const CLUSTERED_WALLET = '0x0000000000000000000000000000000000000002'
 
 const startOptions: IBaseComponent.ComponentStartOptions = {
   started: () => true,
@@ -37,6 +47,8 @@ describe('cluster-subscriber component', () => {
   let accessGate: ReturnType<typeof createAccessGateMockedComponent>
   let playerConnectionDb: ReturnType<typeof createPlayerConnectionDBMockedComponent>
   let peerState: IPeerStateComponent
+  let presenceMap: ReturnType<typeof createPresenceMapMockedComponent>
+  let fetchComponent: ReturnType<typeof createFetchMockedComponent>
   let logger: jest.Mocked<ILoggerComponent.ILogger>
 
   type BuildOptions = {
@@ -55,6 +67,7 @@ describe('cluster-subscriber component', () => {
     const values: Record<string, string | undefined> = {
       CLUSTER_SUBSCRIBER_ENABLED: 'true',
       NATS_QUEUE_GROUP: 'comms-gatekeeper-cluster',
+      PULSE_URL: 'https://pulse.example.com',
       ...settings
     }
     const config = createConfigMockedComponent({
@@ -73,6 +86,12 @@ describe('cluster-subscriber component', () => {
       getByAddress: jest.fn().mockResolvedValue({ deviceId: 'device-1' })
     })
     peerState = peerStateOverride ?? createPeerStateMockedComponent()
+    // The default is "the map knows nothing about this wallet", which is also what a map that
+    // is switched off answers: the recovery path is unreachable without an entry.
+    presenceMap = createPresenceMapMockedComponent({ get: jest.fn().mockReturnValue(undefined) })
+    fetchComponent = createFetchMockedComponent({
+      fetch: jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => REALM_ISLANDS.body })
+    })
     const logs = createLoggerMockedComponent({})
 
     const built = await createClusterSubscriberComponent({
@@ -83,7 +102,9 @@ describe('cluster-subscriber component', () => {
       livekit,
       accessGate,
       playerConnectionDb,
-      peerState
+      peerState,
+      presenceMap,
+      fetch: fetchComponent
     })
     // The component fetches its logger once, synchronously, before its first await, so
     // this is already populated by the time createClusterSubscriberComponent resolves.
@@ -103,6 +124,15 @@ describe('cluster-subscriber component', () => {
   /** Delivers an event on the subscribed handler and lets its async chain settle. */
   async function deliver(subject: string, payload: Uint8Array): Promise<void> {
     handlerFor('cluster_change')(subject, payload)
+    await flushMacrotask()
+  }
+
+  /**
+   * Delivers a `peer.{wallet}.connect` and lets its async chain settle. The payload is empty by
+   * contract, so the handler must never read it.
+   */
+  async function deliverConnect(wallet: string): Promise<void> {
+    handlerFor('connect')(`peer.${wallet}.connect`, new Uint8Array())
     await flushMacrotask()
   }
 
@@ -148,6 +178,15 @@ describe('cluster-subscriber component', () => {
 
     it('should subscribe to cluster_change, queue-grouped', () => {
       expect(nats.subscribe).toHaveBeenCalledWith('peer.*.cluster_change', expect.any(Function), {
+        queue: 'comms-gatekeeper-cluster'
+      })
+    })
+
+    it('should subscribe to connect, queue-grouped too', () => {
+      // Queue-grouped for the same reason cluster_change is: one re-emit per connect, not one
+      // per replica. A re-send is idempotent for the client, but N tokens for one handshake
+      // would still be N messages it has to reconcile.
+      expect(nats.subscribe).toHaveBeenCalledWith('peer.*.connect', expect.any(Function), {
         queue: 'comms-gatekeeper-cluster'
       })
     })
@@ -631,6 +670,293 @@ describe('cluster-subscriber component', () => {
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
 
         expect(onUnhandledRejection).not.toHaveBeenCalled()
+      })
+    })
+
+    /**
+     * A9: ws-connector publishes `peer.{address}.connect` after every successful handshake, and
+     * this service answers it with the peer's *current* island. A reconnecting WebSocket used to
+     * get its room back from the client heartbeat that iteration 2 retires; without this it would
+     * sit roomless until Pulse next re-clustered it.
+     */
+    describe('and a connect arrives', () => {
+      describe('and the wallet is one this service already assigned', () => {
+        let decoded: IslandChangedMessage
+
+        beforeEach(async () => {
+          // Seeded rather than replayed through a cluster_change, so nothing but the connect
+          // path can be what publishes here.
+          peerState.set(WALLET, { clusterId: 'C5', room: 'island-C5', lastSeen: Date.now() })
+          livekit.generateCredentials.mockResolvedValue({ url: 'wss://livekit.example', token: 'fresh-jwt' })
+
+          await deliverConnect(WALLET)
+          decoded = IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array)
+        })
+
+        it('should publish exactly one island_changed for it', () => {
+          expect(nats.publish).toHaveBeenCalledTimes(1)
+          expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
+        })
+
+        it('should announce the room it is already in', () => {
+          expect(decoded.islandId).toBe('island-C5')
+        })
+
+        it('should mint a fresh token rather than replay one', () => {
+          // The stored assignment holds no token, and a reconnecting client needs one it can
+          // actually use: an expired JWT would leave it connected to nothing.
+          expect(livekit.generateCredentials).toHaveBeenCalledWith(WALLET, 'island-C5', { cast: [] }, false)
+          expect(decoded.connStr).toBe('livekit:wss://livekit.example?access_token=fresh-jwt')
+        })
+
+        it('should omit fromIslandId, because a re-send is not a move', () => {
+          expect(decoded.fromIslandId).toBeUndefined()
+        })
+
+        it('should never ask Pulse, since nothing had to be recovered', () => {
+          expect(fetchComponent.fetch).not.toHaveBeenCalled()
+        })
+
+        it('should count the re-send', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_total')
+          expect(metrics.increment).not.toHaveBeenCalledWith('island_resend_skipped_total')
+        })
+
+        it('should refresh the stored assignment, since the peer just proved it is here', () => {
+          expect(peerState.set).toHaveBeenLastCalledWith(
+            WALLET,
+            expect.objectContaining({ clusterId: 'C5', room: 'island-C5' })
+          )
+        })
+      })
+
+      describe('and the wallet is unknown but the presence map places it in a realm', () => {
+        let decoded: IslandChangedMessage
+
+        beforeEach(async () => {
+          presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
+
+          await deliverConnect(CLUSTERED_WALLET)
+          decoded = IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array)
+        })
+
+        it('should recover the cluster from Pulse for that realm', () => {
+          expect(fetchComponent.fetch).toHaveBeenCalledWith('https://pulse.example.com/realms/main/islands')
+        })
+
+        it('should announce the room of the island the answer places it in', () => {
+          expect(decoded.islandId).toBe('island-C2')
+          expect(livekit.generateCredentials).toHaveBeenCalledWith(CLUSTERED_WALLET, 'island-C2', { cast: [] }, false)
+        })
+
+        it('should omit fromIslandId here too', () => {
+          expect(decoded.fromIslandId).toBeUndefined()
+        })
+
+        it('should count the re-send', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_total')
+        })
+
+        it('should record the recovered assignment, so the next cluster_change chains off it', () => {
+          expect(peerState.set).toHaveBeenCalledWith(
+            CLUSTERED_WALLET,
+            expect.objectContaining({ clusterId: 'C2', room: 'island-C2' })
+          )
+        })
+      })
+
+      describe('and the wallet is unknown and the map places it in a world', () => {
+        beforeEach(async () => {
+          presenceMap.get.mockReturnValue({ realm: 'cozyfarm.dcl.eth', parcel: [0, 0] })
+
+          await deliverConnect(CLUSTERED_WALLET)
+        })
+
+        it('should ask Pulse about that realm, not about main', () => {
+          expect(fetchComponent.fetch).toHaveBeenCalledWith('https://pulse.example.com/realms/cozyfarm.dcl.eth/islands')
+        })
+      })
+
+      describe('and no island in the realm holds the wallet', () => {
+        beforeEach(async () => {
+          presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
+
+          // Standing in a realm is not the same fact as being clustered: Pulse clusters a peer
+          // shortly after it appears, and it will publish that assignment itself. WALLET is not
+          // among the addresses the pack's islands answer lists.
+          await deliverConnect(WALLET)
+        })
+
+        it('should publish nothing', () => {
+          expect(nats.publish).not.toHaveBeenCalled()
+          expect(livekit.generateCredentials).not.toHaveBeenCalled()
+        })
+
+        it('should count the skip', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total')
+          expect(metrics.increment).not.toHaveBeenCalledWith('island_resend_total')
+        })
+      })
+
+      describe('and Pulse cannot be reached', () => {
+        beforeEach(async () => {
+          presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
+          fetchComponent.fetch.mockRejectedValue(new Error('pulse unreachable'))
+
+          await deliverConnect(CLUSTERED_WALLET)
+        })
+
+        it('should publish nothing and count the skip', () => {
+          expect(nats.publish).not.toHaveBeenCalled()
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total')
+        })
+
+        it('should log the failure rather than throw into the reader loop', () => {
+          expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('pulse unreachable'))
+        })
+      })
+
+      describe('and Pulse answers with an error status', () => {
+        beforeEach(async () => {
+          presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
+          fetchComponent.fetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) } as any)
+
+          await deliverConnect(CLUSTERED_WALLET)
+        })
+
+        it('should publish nothing and count the skip', () => {
+          expect(nats.publish).not.toHaveBeenCalled()
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total')
+        })
+      })
+
+      describe('and nothing knows where the wallet is', () => {
+        beforeEach(async () => {
+          // The map is off, or on and does not hold this wallet: either way there is no realm to
+          // ask Pulse about. Pulse publishes the first assignment when the peer is clustered.
+          await deliverConnect(WALLET)
+        })
+
+        it('should mint nothing', () => {
+          expect(livekit.generateCredentials).not.toHaveBeenCalled()
+        })
+
+        it('should publish nothing', () => {
+          expect(nats.publish).not.toHaveBeenCalled()
+        })
+
+        it('should not ask Pulse about a realm it does not have', () => {
+          expect(fetchComponent.fetch).not.toHaveBeenCalled()
+        })
+
+        it('should count the skip', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total')
+        })
+      })
+
+      describe('and the wallet is banned', () => {
+        beforeEach(async () => {
+          accessGate.getAccessState.mockResolvedValue({ isBanned: true, isDenylisted: false })
+          peerState.set(WALLET, { clusterId: 'C5', room: 'island-C5', lastSeen: Date.now() })
+
+          await deliverConnect(WALLET)
+        })
+
+        it('should mint nothing', () => {
+          expect(livekit.generateCredentials).not.toHaveBeenCalled()
+        })
+
+        it('should publish nothing', () => {
+          expect(nats.publish).not.toHaveBeenCalled()
+        })
+
+        it('should count it as a moderation skip, exactly like a cluster_change', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_banned_skipped_total')
+          expect(metrics.increment).not.toHaveBeenCalledWith('island_resend_total')
+        })
+      })
+
+      describe('and the wallet arrives with checksum casing in the subject', () => {
+        beforeEach(async () => {
+          peerState.set(LOWER_CASE_WALLET, { clusterId: 'C5', room: 'island-C5', lastSeen: Date.now() })
+
+          await deliverConnect(MIXED_CASE_WALLET)
+        })
+
+        it('should look it up lower-cased, the way every other path stores it', () => {
+          expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${LOWER_CASE_WALLET}.island_changed`)
+        })
+      })
+
+      describe('and the subject carries no wallet token', () => {
+        beforeEach(async () => {
+          handlerFor('connect')('connect', new Uint8Array())
+          await flushMacrotask()
+        })
+
+        it('should warn and publish nothing', () => {
+          expect(logger.warn).toHaveBeenCalledWith('Cannot extract a wallet from subject connect')
+          expect(nats.publish).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and the payload is not empty', () => {
+        beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C5', room: 'island-C5', lastSeen: Date.now() })
+
+          // The contract says the payload is empty; the subject carries everything. Bytes that
+          // decode as nothing must therefore change nothing, rather than being read and rejected.
+          handlerFor('connect')(`peer.${WALLET}.connect`, new Uint8Array([0xff, 0xff, 0xff, 0xff]))
+          await flushMacrotask()
+        })
+
+        it('should ignore it and re-emit anyway', () => {
+          expect(nats.publish).toHaveBeenCalledTimes(1)
+          expect(IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array).islandId).toBe('island-C5')
+        })
+      })
+
+      describe('and a cluster_change for the same wallet is still minting', () => {
+        let stalledMint: ReturnType<typeof createDeferred<{ url: string; token: string }>>
+
+        beforeEach(async () => {
+          stalledMint = createDeferred<{ url: string; token: string }>()
+          livekit.generateCredentials
+            .mockImplementationOnce(() => stalledMint.promise)
+            .mockResolvedValueOnce({ url: 'wss://livekit.example', token: 'resend-jwt' })
+
+          handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C-NEW'))
+          handlerFor('connect')(`peer.${WALLET}.connect`, new Uint8Array())
+          await flushMacrotask()
+        })
+
+        it('should wait for it rather than re-sending the room it is about to leave', () => {
+          expect(nats.publish).not.toHaveBeenCalled()
+        })
+
+        it('should then re-send the room that assignment just established', async () => {
+          stalledMint.resolve({ url: 'wss://livekit.example', token: 'assignment-jwt' })
+          await flushMacrotask()
+
+          expect(nats.publish).toHaveBeenCalledTimes(2)
+          const resent = IslandChangedMessage.decode(nats.publish.mock.calls[1][1] as Uint8Array)
+          expect(resent.islandId).toBe('island-C-NEW')
+          expect(resent.fromIslandId).toBeUndefined()
+        })
+      })
+
+      describe('and the connection goes away while the re-send is being minted', () => {
+        beforeEach(async () => {
+          nats.publish.mockReturnValue(false)
+          peerState.set(WALLET, { clusterId: 'C5', room: 'island-C5', lastSeen: Date.now() })
+
+          await deliverConnect(WALLET)
+        })
+
+        it('should count the drop as a failure, not as a re-send', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_publish_failed_total')
+          expect(metrics.increment).not.toHaveBeenCalledWith('island_resend_total')
+        })
       })
     })
   })
