@@ -283,13 +283,36 @@ describe('hot-scenes component', () => {
       expect(component.getHotScenes().map((scene) => scene.id)).toEqual(['a-scene'])
     })
 
-    it('should be ready with an empty ranking when the map is primed and the main realm is genuinely empty', async () => {
+    it('should be ready with an empty ranking when a live map reports a genuinely empty main realm', async () => {
+      // Genuinely empty *and* live: the presence map reports itself ready only while a publisher
+      // is feeding it (or the prime is still young), so an empty ranking under a ready map is a
+      // fact about the city rather than the map an outage emptied.
       presenceMap.getParcelCounts.mockReturnValue([])
 
       await component.refresh()
 
       expect(component.getHotScenes()).toEqual([])
       expect(component.isReady()).toBe(true)
+    })
+
+    it('should keep the ranking it has when a sweep runs against a map with no live source', async () => {
+      await component.refresh()
+
+      // The publishers went silent and the reclaim sweep emptied the map, so it stopped reporting
+      // itself ready. The route answers 503 on that alone — but replacing the ranking with the
+      // empty one this sweep computes is what would be served the moment the map comes back,
+      // before the next sweep can rebuild it.
+      presenceMap.isReady.mockReturnValue(false)
+      presenceMap.getParcelCounts.mockReturnValue([{ parcel: [20, 20], peersCount: 9 }])
+      contentClient.fetchEntitiesByPointers.mockResolvedValue([
+        sceneEntity('another-scene', ['20,20'])
+      ] as unknown as Entity[])
+
+      await component.refresh()
+
+      expect(component.getHotScenes().map((scene) => scene.id)).toEqual(['a-scene'])
+      // Nor is the catalyst asked about counts nothing stands behind.
+      expect(contentClient.fetchEntitiesByPointers).toHaveBeenCalledTimes(1)
     })
   })
 

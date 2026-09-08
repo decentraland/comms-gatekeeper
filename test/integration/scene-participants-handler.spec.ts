@@ -336,11 +336,14 @@ test('GET /scene-participants resolved on the presence map', ({ components, stub
 
   // Jest reuses a worker process across spec files, so the flags must not outlive this suite —
   // and a key that was unset has to be deleted, not assigned the string "undefined".
-  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'LIVEKIT_PRESENCE_FALLBACK')
+  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'LIVEKIT_PRESENCE_FALLBACK', 'PULSE_URL')
 
   beforeStart(() => {
     process.env.PRESENCE_MAP_ENABLED = 'true'
     process.env.LIVEKIT_PRESENCE_FALLBACK = 'false'
+    // Required while the map is on, and pointed at a closed port: the map here is fed by this spec
+    // over the wire format, so the boot-time prime must not reach anything.
+    process.env.PULSE_URL = 'http://127.0.0.1:9'
   })
 
   afterAll(() => {
@@ -420,11 +423,14 @@ test('GET /scene-participants resolved on the presence map', ({ components, stub
  * deserted scene. The map is deliberately never fed here.
  */
 test('GET /scene-participants while the presence map is warming', ({ components, beforeStart }) => {
-  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'LIVEKIT_PRESENCE_FALLBACK')
+  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'LIVEKIT_PRESENCE_FALLBACK', 'PULSE_URL')
 
   beforeStart(() => {
     process.env.PRESENCE_MAP_ENABLED = 'true'
     process.env.LIVEKIT_PRESENCE_FALLBACK = 'false'
+    // Required while the map is on, and pointed at a closed port on purpose: the map must stay
+    // cold here, so the boot-time prime has to find nothing rather than be skipped.
+    process.env.PULSE_URL = 'http://127.0.0.1:9'
   })
 
   afterAll(() => {

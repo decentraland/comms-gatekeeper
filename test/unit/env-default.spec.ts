@@ -1,5 +1,10 @@
 import { readFileSync } from 'fs'
 import { createDotEnvConfigComponent } from '@well-known-components/env-config-provider'
+import { createPresenceMapComponent } from '../../src/logic/presence-map'
+import { createFetchMockedComponent } from '../mocks/fetch-mock'
+import { createLoggerMockedComponent } from '../mocks/logger-mock'
+import { createMetricsMockedComponent } from '../mocks/metrics-mock'
+import { createNatsMockedComponent } from '../mocks/nats-mock'
 import { snapshotEnv } from '../utils'
 
 /**
@@ -60,6 +65,39 @@ describe('.env.default', () => {
       await expect(config.getString('PRESENCE_MAP_ENABLED')).resolves.toBe('')
       await expect(config.getString('SHADOW_COMPARE_PRESENCE')).resolves.toBe('')
       await expect(config.getString('LIVEKIT_PRESENCE_FALLBACK')).resolves.toBe('true')
+    })
+  })
+
+  /**
+   * The composition, not the halves: the real config provider reading the file that ships in the
+   * image, handed to the real presence-map component. A `PULSE_URL` that no deployment sets is
+   * only a boot failure if these two agree about it being absent.
+   */
+  describe('when a program turns the presence map on without setting PULSE_URL', () => {
+    async function buildPresenceMap(): Promise<unknown> {
+      const config = await createDotEnvConfigComponent({ path: [PATH] })
+
+      return createPresenceMapComponent({
+        config,
+        logs: createLoggerMockedComponent({}),
+        metrics: createMetricsMockedComponent({}),
+        nats: createNatsMockedComponent({ isEnabled: jest.fn().mockReturnValue(true) }),
+        fetch: createFetchMockedComponent({})
+      })
+    }
+
+    it('should refuse to build the presence map rather than boot with nothing to prime from', async () => {
+      process.env.PRESENCE_MAP_ENABLED = 'true'
+
+      await expect(buildPresenceMap()).rejects.toThrow(
+        'Configuration: string PULSE_URL is required when PRESENCE_MAP_ENABLED is "true"'
+      )
+    })
+
+    describe('and the map is left off, as a no-config deploy leaves it', () => {
+      it('should build it anyway, because a deployment that runs without the map must not fail to boot', async () => {
+        await expect(buildPresenceMap()).resolves.toBeDefined()
+      })
     })
   })
 

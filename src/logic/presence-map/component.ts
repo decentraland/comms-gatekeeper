@@ -37,6 +37,12 @@ type ServerState = {
   frozen: boolean
   /** When the last batch of any kind was seen from this publisher, for the liveness TTL. */
   lastSeenAt: number
+  /**
+   * True once this publisher has sent a snapshot, which is the only batch that establishes what
+   * it knows. A publisher that opened with a delta is on the books — its silence still has to be
+   * timed — but it has told this map nothing, so it cannot be what makes the map answerable.
+   */
+  hasBaseline: boolean
 }
 
 type PeersAllResponse = {
@@ -67,6 +73,34 @@ function normalizeParcelKey(raw: string): string | undefined {
 }
 
 /**
+ * Resolves `PULSE_URL` for this boot, refusing to start a map that has nothing to prime from.
+ *
+ * Required while the map is on, and validated rather than merely present. `.env.default` ships
+ * inside the image and is a live config source, so a bare `PULSE_URL=` line resolves to `''` and
+ * would satisfy any required-key check — which is why the key is commented out there and why the
+ * value is checked here. Either way the operator who half-configured the cutover is told at boot
+ * instead of getting a prime that can never work: one warn line per restart and a service that
+ * 503s for up to a snapshot interval every time it is deployed.
+ *
+ * A deployment that leaves the map off must still boot whatever the value is, because nothing
+ * reads it there.
+ *
+ * @param enabled - Whether `PRESENCE_MAP_ENABLED` is on.
+ * @param value - The resolved `PULSE_URL`, if any.
+ * @returns The URL without trailing slashes, or `undefined` when the map is off and it is unset.
+ * @throws When the map is on and the value is missing or is not an absolute `http(s)` URL.
+ */
+function resolvePulseUrl(enabled: boolean, value: string | undefined): string | undefined {
+  if (!enabled) {
+    return value?.replace(/\/+$/, '')
+  }
+  if (value === undefined) {
+    throw new Error('Configuration: string PULSE_URL is required when PRESENCE_MAP_ENABLED is "true"')
+  }
+  return assertAbsoluteHttpUrl('PULSE_URL', value).replace(/\/+$/, '')
+}
+
+/**
  * Creates the NATS-fed map of where every online peer stands.
  *
  * It consumes Pulse's `engine.parcel_changes` (contract C1) with **no queue group** — every
@@ -83,7 +117,9 @@ function normalizeParcelKey(raw: string): string | undefined {
  *
  * Off unless `PRESENCE_MAP_ENABLED` is `'true'` and NATS is configured; when off it subscribes
  * to nothing, primes nothing and never becomes ready, which is byte-identical to not having the
- * component at all.
+ * component at all. On, it refuses to build without a usable `PULSE_URL` (see `resolvePulseUrl`).
+ *
+ * Readiness is a statement about now, not about the past: see `isReady`.
  *
  * @param components - The config, logs, metrics, nats and fetch components.
  * @returns The presence map component.
@@ -102,16 +138,7 @@ export async function createPresenceMapComponent(
   ])
 
   const enabled = enabledFlag === 'true'
-  // Validated rather than merely read, and only while the map is on. `.env.default` ships inside
-  // the image and is a live config source, so a bare `PULSE_URL=` line resolves to `''` and would
-  // satisfy any required-key check: an operator who half-configured it would get a prime that can
-  // never work — one warn line per restart, and a map that waits for its first snapshot every time
-  // — instead of being told. A deployment that leaves the map off must still boot, whatever the
-  // value is, because nothing reads it there.
-  const pulseUrl =
-    enabled && pulseUrlSetting !== undefined
-      ? assertAbsoluteHttpUrl('PULSE_URL', pulseUrlSetting).replace(/\/+$/, '')
-      : pulseUrlSetting?.replace(/\/+$/, '')
+  const pulseUrl = resolvePulseUrl(enabled, pulseUrlSetting)
   const primeTtlMs = positiveNumberOr(primeTtlSetting, DEFAULT_PRIME_TTL_MS)
   const serverTtlMs = positiveNumberOr(serverTtlSetting, DEFAULT_SERVER_TTL_MS)
   const reclaimIntervalMs = Math.max(1_000, Math.floor(Math.min(primeTtlMs, serverTtlMs) / RECLAIM_SWEEPS_PER_TTL))
@@ -273,7 +300,7 @@ export async function createPresenceMapComponent(
         applyChange(change, serverName, batch.seq)
       }
 
-      servers.set(serverName, { lastSeq: batch.seq, frozen: false, lastSeenAt: Date.now() })
+      servers.set(serverName, { lastSeq: batch.seq, frozen: false, lastSeenAt: Date.now(), hasBaseline: true })
       snapshotsApplied++
       metrics.increment('dcl_gatekeeper_presence_snapshots_total')
       reportSize()
@@ -286,7 +313,7 @@ export async function createPresenceMapComponent(
     if (!state) {
       // First thing heard from this publisher and it is not a snapshot: there is no baseline to
       // apply a delta on top of, so wait for its snapshot instead of inventing one.
-      servers.set(serverName, { lastSeq: batch.seq, frozen: true, lastSeenAt: Date.now() })
+      servers.set(serverName, { lastSeq: batch.seq, frozen: true, lastSeenAt: Date.now(), hasBaseline: false })
       metrics.increment('dcl_gatekeeper_presence_gaps_total')
       logger.warn(`First batch from ${serverName} is a delta (seq ${batch.seq}); waiting for its snapshot`)
       reportFrozen()
@@ -336,7 +363,8 @@ export async function createPresenceMapComponent(
 
   async function prime(): Promise<void> {
     if (!pulseUrl) {
-      logger.info('PULSE_URL is not set, skipping the presence-map prime; waiting for the first snapshot')
+      // Unreachable: `PULSE_URL` is required while the map is on, and this only runs then. Kept
+      // as the narrowing for the type the config read hands over.
       return
     }
 
@@ -383,14 +411,33 @@ export async function createPresenceMapComponent(
     }
   }
 
-  function isReady(): boolean {
-    if (snapshotsApplied > 0) {
-      return true
+  /**
+   * Whether a publisher that has given this map a baseline has been heard from inside its
+   * liveness TTL — the same TTL `reclaim` presumes a publisher gone on.
+   */
+  function hasLiveSource(now: number): boolean {
+    for (const state of servers.values()) {
+      if (state.hasBaseline && now - state.lastSeenAt < serverTtlMs) {
+        return true
+      }
     }
-    // The prime is a point-in-time HTTP read with no publisher behind it, and it expires with the
-    // entries it wrote: once it has, an unfed map holds nothing real, and reporting it as ready
-    // would serve "the city is deserted" as a fact instead of "we do not know yet".
-    return primedAt !== undefined && Date.now() - primedAt < primeTtlMs
+    return false
+  }
+
+  function isReady(): boolean {
+    const now = Date.now()
+    // Liveness, not history. A snapshot proves the map held something real *then* and says
+    // nothing about now: `reclaim` drops every entry of every publisher that has gone silent for
+    // `PRESENCE_SERVER_TTL_MS`, so a NATS restart or a Pulse roll empties the map while the
+    // process keeps running. Latching ready on the first snapshot ever applied would then serve
+    // "nobody is online" as a fact for as long as the outage lasts — the one answer both routes
+    // exist never to give — where 503 warming is the honest "we do not know". The same sweep that
+    // empties the map is what un-readies it.
+    //
+    // The prime is the second half of the same rule and for the same reason: a point-in-time HTTP
+    // read with no publisher behind it, trusted only while it is younger than
+    // `PRESENCE_PRIME_TTL_MS`.
+    return hasLiveSource(now) || (primedAt !== undefined && now - primedAt < primeTtlMs)
   }
 
   function frozenServers(): string[] {
