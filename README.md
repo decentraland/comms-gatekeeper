@@ -31,7 +31,7 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
 - **Scene Banning System**: Enables scene admins to ban users from specific scenes
 - **Request-to-Speak**: Implements moderated voice chat with speaker management
 - **Privacy Controls**: Manages user privacy settings and access control
-- **Presence Map**: Keeps the map of where every online player stands, fed by Pulse over NATS, and serves `GET /hot-scenes` and `GET /scene-participants` from it (behind `PRESENCE_MAP_ENABLED` / `LIVEKIT_PRESENCE_FALLBACK`). While no ranking has been computed from a primed map yet, `GET /hot-scenes` answers `503 {"ok":false,"error":"warming"}` (its readiness is its own: the map becomes ready when Pulse's `/peers?all=true` prime resolves, the ranking needs a catalyst sweep on top of that). `GET /scene-participants` instead answers from the LiveKit room lookup for as long as `LIVEKIT_PRESENCE_FALLBACK=true` (the default) — a cold map costs nothing while LiveKit is the served answer anyway — and answers the same `503 warming` once that flag is off, because the operator has then said LiveKit must not answer for that route
+- **Presence Map**: Keeps the map of where every online player stands, fed by Pulse over NATS, and serves `GET /hot-scenes` and `GET /scene-participants` from it (behind `PRESENCE_MAP_ENABLED` / `LIVEKIT_PRESENCE_FALLBACK`). While no ranking has been computed from a ready map yet, `GET /hot-scenes` answers `503 {"ok":false,"error":"warming"}` (its readiness is its own: the map becomes ready when Pulse's `/peers?all=true` prime resolves, the ranking needs a catalyst sweep on top of that). The map is ready only while a live source stands behind it — a publisher heard from within `PRESENCE_SERVER_TTL_MS`, or a prime younger than `PRESENCE_PRIME_TTL_MS` — so a NATS or Pulse outage that empties it takes both routes back to `503 warming` instead of reporting a deserted world as fact. `GET /scene-participants` instead answers from the LiveKit room lookup for as long as `LIVEKIT_PRESENCE_FALLBACK=true` (the default) — a cold map costs nothing while LiveKit is the served answer anyway — and answers the same `503 warming` once that flag is off, because the operator has then said LiveKit must not answer for that route
 
 ## Dependencies
 
@@ -138,9 +138,10 @@ See `.env.default` for available configuration options.
 
 `PULSE_URL` is the one key that file documents without defining: `.env.default` ships inside the
 image and is a live config source, so a bare `PULSE_URL=` line would resolve to an empty string
-that no required-key check can reject. It is commented out instead, and whatever a deployment does
-set is validated while `PRESENCE_MAP_ENABLED=true` — anything but an absolute `http(s)` URL fails
-the boot rather than becoming a prime that can never work.
+that no required-key check can reject. It is commented out instead, which is what lets the boot
+require it: while `PRESENCE_MAP_ENABLED=true` an absent value — or anything but an absolute
+`http(s)` URL — fails the boot rather than becoming a prime that can never work. With the map off
+nothing reads it, so a deployment that runs without the map boots whatever is there.
 
 ### Running the Service
 
@@ -197,6 +198,23 @@ This is intended, not a regression to flag: the content server already creates t
 so the mixed-case name was a room nobody else was in and every world participant lookup for such a
 world answered "nobody is here". Deploy it when a short drain is acceptable, and re-issue any
 stream-access key for a mixed-case world afterwards.
+
+### `presence_prefix_mismatch` is a diagnostic, and it can raise a false alarm
+
+On boot the service takes up to 25 of the worlds the worlds content server reports as live,
+computes each one's expected LiveKit room name with its own `COMMS_ROOM_PREFIX`, and asks LiveKit
+which of those rooms exist. None existing means this service is computing names nobody else uses —
+every world participant lookup would answer "nobody is here" forever — so it logs an error naming
+both prefixes and sets `presence_prefix_mismatch=1`. One existing room clears it, and so does
+anything inconclusive: no live worlds, fewer than three sampled, an unreachable content server or
+LiveKit. It never throws and never gates startup.
+
+The residual false positive: a live world can be legitimately roomless. `/live-data` lists worlds
+by name rather than by occupancy, so a world with nobody connected is still reported live, and a
+deployment whose comms adapter is not LiveKit has no rooms at all. A deployment where *every*
+sampled world is roomless therefore raises the gauge with a correct prefix configured. Requiring
+three sampled worlds makes that unlikely rather than impossible, so treat the gauge as a prompt to
+compare the two `COMMS_ROOM_PREFIX` values — not as proof on its own.
 
 ## Testing
 
