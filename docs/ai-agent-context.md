@@ -186,8 +186,9 @@ the first snapshot instead of warming for up to a minute. That read is the all-i
 carries no `server_name`, so its entries are *primed*: owned by nobody, taken over by the first
 publisher that mentions the wallet, and expiring on `PRESENCE_PRIME_TTL_MS` if none ever does.
 `PULSE_URL` is unset in `.env.default` (commented out, not emptied — an empty value satisfies
-`requireString`) and validated while the map is on: anything but an absolute `http(s)` URL fails
-the boot instead of becoming a prime that can never work.
+`requireString`), which is what lets it be required while the map is on: with
+`PRESENCE_MAP_ENABLED=true` an absent value, or anything but an absolute `http(s)` URL, fails the
+boot instead of becoming a prime that can never work. With the map off nothing reads it.
 
 **Produces** nothing on NATS. Two HTTP routes:
 
@@ -196,8 +197,11 @@ the boot instead of becoming a prime that can never work.
   that `parcels` lists every parcel of the scene rather than only the occupied ones. Recomputed
   on a timer (`HOT_SCENES_REFRESH_MS`) because the join needs catalyst metadata for every
   occupied tile; `503 {"ok":false,"error":"warming"}` until the first refresh that ran against a
-  primed map has completed (`hotScenes.isReady()`, not merely `presenceMap.isReady()` — the map
-  flips ready when the prime resolves, and the first sweep runs before that).
+  ready map has completed (`hotScenes.isReady()`, not merely `presenceMap.isReady()` — the map
+  flips ready when the prime resolves, and the first sweep runs before that), and again whenever
+  the map loses its live source. A sweep over a map that is not ready keeps the previous ranking
+  instead of publishing the empty one it would compute, so nothing empty is left waiting to be
+  served the moment the map comes back.
 - `GET /scene-participants` — unchanged shape, but the answer can now come from either
   implementation, selected by `LIVEKIT_PRESENCE_FALLBACK` (default `true` = LiveKit room
   membership, today's behaviour). `false` resolves it on the map — who is standing on the
@@ -215,7 +219,8 @@ a wrong answer rather than a stale one. A snapshot replaces only the entries its
 owns — never the primed ones and never another publisher's — so two Pulse instances cannot erase
 each other's peers. A publisher that says nothing at all for `PRESENCE_SERVER_TTL_MS` is presumed
 gone: its entries are dropped and its `seq` forgotten, because a retired replica emits no exits and
-would otherwise be counted as online for the life of this process. A `parcel`-absent entry is the
+would otherwise be counted as online for the life of this process — and once no publisher is left,
+the map stops reporting itself ready rather than serving what is now an empty map as a fact. A `parcel`-absent entry is the
 peer leaving. A `parcel` of `{}` on the wire is the world origin `(0,0)`, **present** — the two
 must not collapse into one another. A non-lowercase realm or address violates C1: counted and
 logged without the value, never a reason to drop state.
@@ -249,8 +254,14 @@ a bounded sample of them with `getWorldRoomName`, and asks LiveKit `listRooms(na
 those rooms exist. Live worlds have rooms, so if none of the computed names exists we are
 computing the wrong names: that logs an error naming the prefix with a sample world and room and
 raises `presence_prefix_mismatch`; one existing room clears it. It never throws and never gates
-startup, and "nothing observed" — no live worlds, an unreachable content server, an unreachable
-LiveKit — is logged with the gauge left at 0 rather than claimed as a mismatch. **Why not the
+startup, and "nothing conclusive observed" — no live worlds, fewer than
+`MIN_WORLDS_FOR_MISMATCH` (3) sampled, an unreachable content server, an unreachable LiveKit — is
+logged with the gauge left at 0 rather than claimed as a mismatch. **Residual risk:** a live world
+can be legitimately roomless (`/live-data` lists worlds by name, not by occupancy, so one with
+nobody connected is still reported live; a deployment on a non-LiveKit comms adapter has no rooms
+at all), so a deployment whose whole sample is roomless still raises the gauge. The three-world
+threshold makes that unlikely rather than impossible; the gauge gates nothing, so the cost is a
+false alarm on a diagnostic. **Why not the
 round trip:** asserting `worldName` -> `getWorldRoomName` -> `substring(prefix.length)` cannot
 observe the disagreement it exists for, because the content server publishes world names already
 stripped of *its own* prefix, so the trip succeeds by construction whatever our prefix is. Asking
@@ -270,6 +281,15 @@ LiveKit is a one-off diagnostic use of the room listing on boot, not a presence 
   mentions the wallet, and `PRESENCE_PRIME_TTL_MS` (90 s = snapshot interval plus margin) is what
   retires the ones nobody ever claims. Readiness expires with the prime too: an unfed map that has
   outlived it holds nothing real, and answering `503 warming` is honest where `200 []` is not.
+- **Readiness tracks liveness, not history.** `presenceMap.isReady()` is true only while a
+  publisher that has sent a snapshot has been heard from inside `PRESENCE_SERVER_TTL_MS`, or the
+  prime is younger than `PRESENCE_PRIME_TTL_MS`. It is deliberately *not* latched by "a snapshot
+  was applied once": the reclaim sweep drops every entry of every silent publisher, so a NATS
+  restart or a Pulse roll empties the map while this process keeps running — and a latched
+  readiness would then serve `200 []` and an empty address list, "nobody is online" as a fact, for
+  as long as the outage lasted. The same sweep that empties the map is the one that un-readies it,
+  and the first snapshot after the reconnect makes it ready again. A publisher whose first batch
+  was a delta does not count: it is frozen waiting for its snapshot and has told the map nothing.
 - **A silent publisher is presumed gone, on `PRESENCE_SERVER_TTL_MS`.** C1 promises a `server_name`
   is stable per *process*, and a scaled-down or replaced replica emits no exits for its peers, so
   nothing else would ever reclaim them (the base branch has the same problem and solves it with

@@ -300,9 +300,10 @@ paths:
         - `false`: **who is standing on the scene's parcels**, resolved on the presence map fed
           by Pulse's `engine.parcel_changes`. Addresses are sorted ascending and this
           service's own scene ban list is always subtracted, so a wallet banned seconds ago is
-          already absent from the answer. While the map has not been primed the route answers
-          `503` with `{"ok": false, "error": "warming"}`, the same body `/hot-scenes` serves:
-          it never reports an empty scene it is merely uncertain about.
+          already absent from the answer. While no live source stands behind the map — it has not
+          been primed yet, or no Pulse instance has fed it for `PRESENCE_SERVER_TTL_MS` — the
+          route answers `503` with `{"ok": false, "error": "warming"}`, the same body
+          `/hot-scenes` serves: it never reports an empty scene it is merely uncertain about.
 
         While `LIVEKIT_PRESENCE_FALLBACK` is `true` a cold presence map is invisible here — the
         LiveKit implementation is the served answer anyway, which is what every deploy does
@@ -400,11 +401,14 @@ paths:
         City) is counted — world peers are reported by the worlds content server instead.
 
         The ranking is recomputed on a timer (`HOT_SCENES_REFRESH_MS`), not per request, and
-        served from memory. Until the first refresh that ran against a primed map has completed
+        served from memory. Until the first refresh that ran against a ready map has completed
         the route answers `503` with `{"ok": false, "error": "warming"}`: a stale ranking is a
-        fine answer, an empty one would read as "Genesis City is deserted". The map being primed
+        fine answer, an empty one would read as "Genesis City is deserted". The map being ready
         is not enough on its own — it becomes ready the moment the boot-time prime resolves,
-        while the ranking also needs a catalyst sweep on top of it.
+        while the ranking also needs a catalyst sweep on top of it. The same `503` comes back if
+        the map ever loses its live source: a map no Pulse instance has fed for
+        `PRESENCE_SERVER_TTL_MS` is emptied by its own reclaim sweep, and "we do not know" is the
+        honest answer for as long as that lasts.
 
         This route was previously served by archipelago-stats, which is being decommissioned.
         The path and the response shape are unchanged.
