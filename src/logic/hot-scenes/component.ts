@@ -153,6 +153,17 @@ export async function createHotScenesComponent(
       // ready in the meantime did not feed the counts this ranking was built from.
       const mapWasReady = presenceMap.isReady()
 
+      if (!mapWasReady) {
+        // Nothing this sweep could compute describes anything: the map is either still priming or
+        // has just lost its last live publisher, in which case the reclaim sweep is emptying it.
+        // The route answers 503 on the map's own readiness meanwhile — but publishing the empty
+        // ranking this sweep would produce is what hands the next caller `200 []` the moment the
+        // map comes back, before the following sweep can rebuild it. The previous ranking is
+        // stale at worst; an empty one is wrong.
+        logger.debug('Skipping a /hot-scenes refresh: the presence map has no live source')
+        return
+      }
+
       const countPerTile = new Map<string, number>()
       for (const { parcel, peersCount } of presenceMap.getParcelCounts(MAIN_REALM)) {
         countPerTile.set(`${parcel[0]},${parcel[1]}`, peersCount)
@@ -161,11 +172,12 @@ export async function createHotScenesComponent(
       const tiles = [...countPerTile.keys()]
       hotScenes = tiles.length === 0 ? [] : buildRanking(await resolveScenes(tiles), countPerTile)
 
-      // Only a sweep that ran against a ready map produces an answer. The first one usually does
-      // not: components start in order, so this runs while the prime is still in flight, reads an
-      // empty map and would otherwise publish "Genesis City is deserted" as a fact. Nor does a
-      // sweep that threw — the "keep the previous ranking" guard has nothing to keep on sweep one.
-      if (mapWasReady && !ready) {
+      // Only a sweep that ran against a ready map produces an answer (the cold ones returned
+      // above). The first sweep usually is one: components start in order, so it runs while the
+      // prime is still in flight and would otherwise publish "Genesis City is deserted" as a
+      // fact. Nor does a sweep that threw certify — the "keep the previous ranking" guard has
+      // nothing to keep on sweep one.
+      if (!ready) {
         ready = true
         logger.info(`/hot-scenes is live with ${hotScenes.length} ranked scenes`)
       }

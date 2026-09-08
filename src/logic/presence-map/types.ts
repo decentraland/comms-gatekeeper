@@ -29,9 +29,12 @@ export type ParcelPeerCount = {
 
 export type IPresenceMapComponent = IBaseComponent & {
   /**
-   * Whether the map holds a usable view of the world: false until either the boot-time prime
-   * from Pulse succeeded or the first snapshot arrived on the feed. Callers that serve presence
-   * answer `503 warming` while this is false rather than reporting an empty world.
+   * Whether the map holds a usable view of the world *right now*: true only while a live source
+   * stands behind it — a publisher that has sent a snapshot and has been heard from within
+   * `PRESENCE_SERVER_TTL_MS`, or a boot-time prime younger than `PRESENCE_PRIME_TTL_MS`. It goes
+   * back to false when the last publisher is presumed gone and the prime has expired, because the
+   * same sweep that empties the map must stop it answering for the world: callers that serve
+   * presence answer `503 warming` while this is false rather than reporting an empty one.
    */
   isReady(): boolean
   /** Number of wallets currently held. */

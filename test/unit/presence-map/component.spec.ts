@@ -67,16 +67,32 @@ describe('presence-map component', () => {
   let fetchComponent: ReturnType<typeof createFetchMockedComponent>
   let logger: jest.Mocked<ILoggerComponent.ILogger>
 
+  type PrimedPeer = { address: string; parcel: [number, number]; realm: string }
+
   type BuildOptions = {
     settings?: Record<string, string | undefined>
     natsEnabled?: boolean
+    /**
+     * What `GET /peers?all=true` answers with. `[]` is how a spec that wants a feed-only map keeps
+     * the prime out of its way: `PULSE_URL` is required while the map is on, so leaving the key
+     * unset is a boot failure rather than a way to skip the prime.
+     */
+    primePeers?: PrimedPeer[]
   }
+
+  /** The peers the next prime resolves with, set by `build`. */
+  let primePeers: PrimedPeer[] = PEERS_ALL.body.peers
 
   function peersAllResponse(): any {
-    return { ok: true, status: 200, json: async () => ({ ok: true, peers: PEERS_ALL.body.peers }) }
+    return { ok: true, status: 200, json: async () => ({ ok: true, peers: primePeers }) }
   }
 
-  async function build({ settings = {}, natsEnabled = true }: BuildOptions = {}): Promise<IPresenceMapComponent> {
+  async function build({
+    settings = {},
+    natsEnabled = true,
+    primePeers: peers = PEERS_ALL.body.peers
+  }: BuildOptions = {}): Promise<IPresenceMapComponent> {
+    primePeers = peers
     const values: Record<string, string | undefined> = {
       PRESENCE_MAP_ENABLED: 'true',
       PULSE_URL: 'https://pulse.example.com',
@@ -149,7 +165,7 @@ describe('presence-map component', () => {
 
   describe('when replaying the contract scenario', () => {
     beforeEach(async () => {
-      await build({ settings: { PULSE_URL: undefined } })
+      await build()
     })
 
     it.each(REPLAY.steps.map((step, index) => [index, step.apply] as const))(
@@ -170,7 +186,7 @@ describe('presence-map component', () => {
 
   describe('when a sequence gap arrives', () => {
     beforeEach(async () => {
-      await build({ settings: { PULSE_URL: undefined } })
+      await build()
       apply('01-snapshot.bin')
       apply('02-delta-move.bin')
     })
@@ -241,7 +257,7 @@ describe('presence-map component', () => {
 
   describe('when a snapshot arrives', () => {
     beforeEach(async () => {
-      await build({ settings: { PULSE_URL: undefined } })
+      await build()
       apply('01-snapshot.bin')
       apply('09-second-server.bin')
     })
@@ -257,7 +273,7 @@ describe('presence-map component', () => {
 
   describe('when a departure arrives from a server that does not own the entry', () => {
     beforeEach(async () => {
-      await build({ settings: { PULSE_URL: undefined } })
+      await build()
       apply('01-snapshot.bin')
       apply('09-second-server.bin')
     })
@@ -275,7 +291,7 @@ describe('presence-map component', () => {
 
   describe('when a non-lowercase realm arrives on the wire', () => {
     beforeEach(async () => {
-      await build({ settings: { PULSE_URL: undefined } })
+      await build()
       apply('01-snapshot.bin')
       apply('02-delta-move.bin')
       apply('03-exit.bin')
@@ -306,7 +322,7 @@ describe('presence-map component', () => {
 
   describe('when looking peers up', () => {
     beforeEach(async () => {
-      await build({ settings: { PULSE_URL: undefined } })
+      await build()
       apply('01-snapshot.bin')
     })
 
@@ -364,6 +380,25 @@ describe('presence-map component', () => {
     })
   })
 
+  describe('when PULSE_URL is not configured at all', () => {
+    // Absence is a boot failure while the map is on, the same way an unusable value is: an
+    // operator who turned the map on and forgot the key gets told, instead of a service that
+    // 503s for up to a snapshot interval after every restart and says so in one info line.
+    it('should refuse to build while the presence map is on', async () => {
+      await expect(build({ settings: { PULSE_URL: undefined } })).rejects.toThrow(
+        'Configuration: string PULSE_URL is required when PRESENCE_MAP_ENABLED is "true"'
+      )
+    })
+
+    describe('and the presence map is off', () => {
+      it('should build anyway, because nothing reads the key there', async () => {
+        await expect(
+          build({ settings: { PRESENCE_MAP_ENABLED: undefined, PULSE_URL: undefined } })
+        ).resolves.toBeDefined()
+      })
+    })
+  })
+
   describe('when starting', () => {
     describe('and the presence map is enabled', () => {
       beforeEach(async () => {
@@ -414,18 +449,15 @@ describe('presence-map component', () => {
       })
     })
 
-    describe('and PULSE_URL is not configured', () => {
+    describe('and the prime finds nobody online', () => {
       beforeEach(async () => {
-        await build({ settings: { PULSE_URL: undefined } })
+        await build({ primePeers: [] })
         await start()
       })
 
-      it('should skip the prime and wait for the first snapshot to become ready', () => {
-        expect(fetchComponent.fetch).not.toHaveBeenCalled()
-        expect(component.isReady()).toBe(false)
-
-        apply('01-snapshot.bin')
-
+      it('should report itself ready with an empty map, because an answered read is a fact', () => {
+        expect(fetchComponent.fetch).toHaveBeenCalledWith('https://pulse.example.com/peers?all=true')
+        expect(component.size()).toBe(0)
         expect(component.isReady()).toBe(true)
       })
     })
@@ -565,6 +597,15 @@ describe('presence-map component', () => {
         expect(component.isReady()).toBe(false)
       })
 
+      it('should stay ready past the prime TTL once a publisher has taken the map over', () => {
+        apply('01-snapshot.bin')
+
+        now += PRIME_TTL_MS
+        component.reclaim()
+
+        expect(component.isReady()).toBe(true)
+      })
+
       it('should keep a primed peer a publisher re-asserted with a delta, not only with a snapshot', () => {
         // Ownership transfers on the first batch of any kind that mentions the wallet. A delta
         // only counts once the publisher has a baseline, so pulse-2 snapshots (about nobody)
@@ -622,7 +663,7 @@ describe('presence-map component', () => {
 
     describe('and a publisher has gone silent', () => {
       beforeEach(async () => {
-        await build({ settings: { PULSE_URL: undefined } })
+        await build()
         apply('01-snapshot.bin')
         apply('09-second-server.bin')
       })
@@ -679,9 +720,103 @@ describe('presence-map component', () => {
       })
     })
 
+    describe('and every publisher has gone silent', () => {
+      beforeEach(async () => {
+        // A feed-only map, primed with nobody: the prime's own readiness expires first (90 s
+        // against the publisher's 150 s), so what these assertions read is the liveness rule.
+        await build({ primePeers: [] })
+        await start()
+        apply('01-snapshot.bin')
+      })
+
+      it('should still report itself ready while the last publisher is inside its TTL', () => {
+        now += SERVER_TTL_MS - 1
+
+        expect(component.isReady()).toBe(true)
+      })
+
+      it('should stop reporting itself ready once the map has been emptied by the reclaim sweep', () => {
+        // The outage: NATS is restarted or Pulse is rolled, so no batch of any kind arrives. The
+        // sweep drops every entry of the publisher it presumes gone, and a map that reports itself
+        // ready with nothing in it answers "Genesis City is deserted" as a fact — the one answer
+        // both routes exist never to give.
+        now += SERVER_TTL_MS
+        component.reclaim()
+
+        expect(component.size()).toBe(0)
+        expect(component.isReady()).toBe(false)
+      })
+
+      it('should not wait for the sweep to say it does not know', () => {
+        // The sweep runs three times per TTL, so between two of them the entries are still there
+        // — but the publisher behind them is already presumed gone, and serving its state as fact
+        // is exactly what readiness must not do.
+        now += SERVER_TTL_MS
+
+        expect(component.isReady()).toBe(false)
+      })
+
+      it('should report itself ready again on the first snapshot after the outage', () => {
+        now += SERVER_TTL_MS
+        component.reclaim()
+
+        apply('01-snapshot.bin')
+
+        expect(component.isReady()).toBe(true)
+        expect(component.size()).toBe(5)
+      })
+
+      it('should keep reporting itself ready while any one publisher is still talking', () => {
+        apply('09-second-server.bin')
+        now += SERVER_TTL_MS
+
+        // pulse-1 is gone, pulse-2 is not: the map still has a live source behind it.
+        component.applyBatch(batchOf({ serverName: 'pulse-2', seq: 2, snapshot: true, changes: [] }))
+        component.reclaim()
+
+        expect(component.isReady()).toBe(true)
+      })
+    })
+
+    describe('and the only publisher heard from has never sent a snapshot', () => {
+      beforeEach(async () => {
+        await build({ primePeers: [] })
+        await start()
+      })
+
+      it('should not report itself ready, because a frozen publisher has told it nothing', () => {
+        // The prime has expired with nothing taking it over, and the only publisher heard from
+        // opened with a delta: there is no baseline to apply it on top of, so the map holds
+        // nothing. "A batch arrived" is not the same fact as "the map describes the world".
+        now += PRIME_TTL_MS
+        component.applyBatch(
+          batchOf({
+            serverName: 'pulse-9',
+            seq: 4,
+            changes: [{ address: W9, realm: 'main', parcel: { x: 1, y: 1 } }]
+          })
+        )
+
+        expect(component.frozenServers()).toEqual(['pulse-9'])
+        expect(component.isReady()).toBe(false)
+
+        // Its snapshot is the baseline, and that is what makes the map answerable again.
+        component.applyBatch(
+          batchOf({
+            serverName: 'pulse-9',
+            seq: 5,
+            snapshot: true,
+            changes: [{ address: W9, realm: 'main', parcel: { x: 1, y: 1 } }]
+          })
+        )
+
+        expect(component.isReady()).toBe(true)
+      })
+    })
+
     describe('and PRESENCE_SERVER_TTL_MS is configured', () => {
       beforeEach(async () => {
-        await build({ settings: { PULSE_URL: undefined, PRESENCE_SERVER_TTL_MS: '4000' } })
+        await build({ settings: { PRESENCE_SERVER_TTL_MS: '4000' } })
         apply('09-second-server.bin')
       })
 
@@ -702,7 +837,7 @@ describe('presence-map component', () => {
     it('should reclaim on its own timer', async () => {
       jest.useFakeTimers({ doNotFake: ['setImmediate'] })
 
-      await build({ settings: { PULSE_URL: undefined } })
+      await build({ primePeers: [] })
       await start()
       apply('09-second-server.bin')
       expect(component.size()).toBe(1)
@@ -715,7 +850,7 @@ describe('presence-map component', () => {
 
   describe('when a message arrives on the subscription', () => {
     beforeEach(async () => {
-      await build({ settings: { PULSE_URL: undefined } })
+      await build({ primePeers: [] })
       await start()
     })
 
