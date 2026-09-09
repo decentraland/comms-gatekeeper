@@ -29,7 +29,9 @@ export async function commsServerSceneHandler(
   const realmName = realm.serverName
   const isWorld = realmName.endsWith('.eth')
 
-  if (!livekit.isLocalPreview(realmName) && !sceneId) {
+  // Required on every realm, preview included: the room name is derived from it, and the
+  // preview branch used to accept its absence and build a room containing `undefined`.
+  if (!sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
@@ -40,9 +42,10 @@ export async function commsServerSceneHandler(
     throw new UnauthorizedError('Access denied, invalid server public key')
   }
 
-  if (livekit.isLocalPreview(realmName)) {
-    room = `preview-${sceneId}`
-  } else if (isWorld) {
+  // No preview branch here on purpose. A preview realm name is never `.eth`, so it falls
+  // through to the scene-room name below — which is what `/get-scene-adapter` mints for it.
+  // Any other name lands the authoritative server in a different room than its own clients.
+  if (isWorld) {
     // The caller may send the world name as the sceneId instead of the content hash.
     // Resolve the real sceneId from the world's about endpoint to ensure the room name
     // matches the one used by ban/stream/cast operations.

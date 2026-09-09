@@ -301,6 +301,50 @@ describe('RoomMetadataSyncComponent', () => {
       })
     })
 
+    describe('and the room belongs to a preview realm', () => {
+      beforeEach(async () => {
+        livekit.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: 'b64-preview-scene',
+          worldName: undefined,
+          realmName: 'LocalPreview',
+          roomType: RoomType.SCENE
+        })
+
+        await component.updateRoomMetadataForRoom(mockRoom)
+      })
+
+      it('should not attempt a place lookup, since a preview scene id resolves to no entity', () => {
+        expect(contentClient.fetchEntityById).not.toHaveBeenCalled()
+        expect(places.getPlaceByParcel).not.toHaveBeenCalled()
+      })
+
+      it('should not write room metadata', () => {
+        expect(livekit.updateRoomMetadata).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the room belongs to a preview world realm', () => {
+      beforeEach(async () => {
+        livekit.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: 'b64-preview-scene',
+          worldName: 'preview',
+          realmName: undefined,
+          roomType: RoomType.WORLD
+        })
+
+        await component.updateRoomMetadataForRoom(mockRoom)
+      })
+
+      it('should not attempt a place lookup', () => {
+        expect(places.getWorldScenePlaceByEntityId).not.toHaveBeenCalled()
+        expect(places.getWorldByName).not.toHaveBeenCalled()
+      })
+
+      it('should not write room metadata', () => {
+        expect(livekit.updateRoomMetadata).not.toHaveBeenCalled()
+      })
+    })
+
     describe('and the place lookup fails', () => {
       beforeEach(async () => {
         livekit.getRoomMetadataFromRoomName.mockReturnValue({
