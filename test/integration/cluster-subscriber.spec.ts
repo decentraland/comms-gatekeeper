@@ -148,9 +148,10 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
         accessGate: components.accessGate,
         playerConnectionDb: components.playerConnectionDb,
         peerState: components.peerState,
-        // The connect path's two recovery reads. This program leaves the presence map off, so
-        // the map holds nothing and the recovery is unreachable — a connect for a wallet no
-        // replica has assigned is a skip, which is what a deployment before the cutover does too.
+        // The connect path's two reads. This program leaves the presence map off, so nothing
+        // places a wallet in a realm, the Pulse islands read is unreachable and a connect falls
+        // back to what this replica remembers — which is what a deployment before the cutover
+        // does too. A connect for a wallet no replica has assigned is then a skip.
         presenceMap: components.presenceMap,
         fetch: components.fetch
       })
