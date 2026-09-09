@@ -462,6 +462,33 @@ describe('presence-map component', () => {
       })
     })
 
+    describe('and the prime is refused with an error status', () => {
+      let cancelBody: jest.Mock
+
+      beforeEach(async () => {
+        await build()
+        cancelBody = jest.fn().mockResolvedValue(undefined)
+        fetchComponent.fetch.mockResolvedValue({
+          ok: false,
+          status: 503,
+          body: { cancel: cancelBody },
+          json: async () => ({})
+        } as any)
+        await start()
+      })
+
+      it('should stay unready and warn rather than treat the refusal as an empty world', () => {
+        expect(component.isReady()).toBe(false)
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('HTTP 503'))
+      })
+
+      it('should release the response body before discarding it', () => {
+        // Otherwise the socket stays checked out of the undici pool with its bytes buffered -
+        // the reason every adapter in this repo cancels it (src/adapters/fetch.ts).
+        expect(cancelBody).toHaveBeenCalledTimes(1)
+      })
+    })
+
     describe('and the prime request fails', () => {
       beforeEach(async () => {
         await build()

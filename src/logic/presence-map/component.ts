@@ -373,6 +373,9 @@ export async function createPresenceMapComponent(
     try {
       const response = await fetch.fetch(url)
       if (!response.ok) {
+        // Release the undici body before discarding it, or the socket stays checked out of the
+        // pool with its bytes buffered (src/adapters/fetch.ts, and every adapter in this repo).
+        await response.body?.cancel().catch(() => undefined)
         logger.warn(`Priming the presence map from ${url} failed: HTTP ${response.status}`)
         return
       }

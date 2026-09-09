@@ -80,6 +80,9 @@ export async function createWorldRoomPrefixCheckComponent(
   async function readJson(path: string): Promise<any | undefined> {
     const response = await fetch.fetch(`${worldContentUrl}${path}`)
     if (!response.ok) {
+      // Release the undici body before discarding it, or the socket stays checked out of the
+      // pool with its bytes buffered (src/adapters/fetch.ts, and every adapter in this repo).
+      await response.body?.cancel().catch(() => undefined)
       logger.warn(`The worlds content server answered HTTP ${response.status} on ${path}`)
       return undefined
     }
