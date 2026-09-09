@@ -2,6 +2,7 @@ import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/c
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { START_COMPONENT } from '@well-known-components/interfaces'
 import { LRUCache } from 'lru-cache'
+import { cachedFetchComponent } from '../../adapters/fetch'
 import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
 import { positiveNumberOr } from '../../utils/config'
@@ -10,6 +11,18 @@ import { IClusterSubscriberComponent } from './types'
 const DEFAULT_BAN_CACHE_TTL_MS = 30_000
 const BAN_CACHE_MAX = 20_000
 const DEFAULT_QUEUE_GROUP = 'comms-gatekeeper-cluster'
+
+/**
+ * How long one realm's island board is reused for, and how many realms are held at once.
+ *
+ * Two seconds is short enough that a peer re-clustered mid-storm is answered with the new board
+ * on its next reconnect, and long enough that a ws-connector redeploy - every connected peer
+ * re-handshaking within seconds - reaches Pulse as one read per realm per replica instead of one
+ * per peer. The in-flight de-duplication the cache brings with it is the half that matters most:
+ * a storm's reads are concurrent, so they collapse onto a single request whatever the TTL is.
+ */
+const DEFAULT_ISLANDS_CACHE_TTL_MS = 2_000
+const ISLANDS_CACHE_MAX = 512
 
 /** Pulse's cluster feed: one subject per wallet, wildcarded. */
 const CLUSTER_CHANGE_SUBJECT = 'peer.*.cluster_change'
@@ -24,6 +37,20 @@ const CONNECT_SUBJECT = 'peer.*.connect'
 type RealmIslandsResponse = {
   islands?: { id?: string; peers?: { address?: string }[] }[]
 }
+
+/**
+ * Why a `connect` could not be answered, as the `reason` label of
+ * `island_resend_skipped_total`. Kept apart because they mean different things to an operator:
+ * `not_in_map` is expected for as long as `PRESENCE_MAP_ENABLED` is off, `not_clustered` is
+ * Pulse saying the peer is not in an island yet, and `lookup_failed` is an incident.
+ */
+type SkipReason = 'banned' | 'not_in_map' | 'not_clustered' | 'lookup_failed' | 'publish_failed' | 'error'
+
+/** Where a re-sent room came from, as the `source` label of `island_resend_total`. */
+type ClusterSource = 'pulse' | 'peer_state'
+
+/** The outcome of resolving which cluster a reconnecting wallet is in. */
+type Resolution = { clusterId: string; source: ClusterSource } | { skipReason: SkipReason }
 
 /**
  * Creates the subscriber that translates Pulse's cluster feed into LiveKit connection strings
@@ -66,19 +93,37 @@ export async function createClusterSubscriberComponent(
     components
   const logger = logs.getLogger('cluster-subscriber')
 
-  const [enabledFlag, queueGroupSetting, banCacheTtlSetting, pulseUrlSetting] = await Promise.all([
-    config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
-    config.getString('NATS_QUEUE_GROUP'),
-    config.getNumber('CLUSTER_BAN_CACHE_TTL_MS'),
-    config.getString('PULSE_URL')
-  ])
+  const [enabledFlag, queueGroupSetting, banCacheTtlSetting, islandsCacheTtlSetting, pulseUrlSetting] =
+    await Promise.all([
+      config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
+      config.getString('NATS_QUEUE_GROUP'),
+      config.getNumber('CLUSTER_BAN_CACHE_TTL_MS'),
+      config.getNumber('CLUSTER_ISLANDS_CACHE_TTL_MS'),
+      config.getString('PULSE_URL')
+    ])
 
   const enabled = enabledFlag === 'true'
   const queueGroup = queueGroupSetting || DEFAULT_QUEUE_GROUP
-  // Read unvalidated on purpose: the only caller is the connect recovery path, which is
+  // Read unvalidated on purpose: the only caller is the connect resolution path, which is
   // unreachable unless the presence map holds the wallet, which means the map is on — and the
   // presence-map component refuses to build with an unusable `PULSE_URL` while it is.
   const pulseUrl = pulseUrlSetting?.replace(/\/+$/, '')
+
+  // The repo's caching, request-collapsing fetch rather than a raw one: `peer.*.connect` is a
+  // per-handshake signal, so a reconnect storm would otherwise read the realm's entire island
+  // board once per peer. Its `fetchMethod` is also what releases the undici body on the
+  // non-ok path (src/adapters/fetch.ts), which a hand-rolled read here kept forgetting.
+  const islandsCache = (
+    await cachedFetchComponent(
+      { fetch, logs },
+      {
+        max: ISLANDS_CACHE_MAX,
+        // Guarded rather than `??`, like the ban cache: a configured 0 means "never expires"
+        // to lru-cache, which would pin every realm's board for the process's whole life.
+        ttl: positiveNumberOr(islandsCacheTtlSetting, DEFAULT_ISLANDS_CACHE_TTL_MS)
+      }
+    )
+  ).cache<RealmIslandsResponse>()
 
   // First ban cache in this service - the path was two uncached DB reads per event. A stale
   // hit is fine because banning also removes the participant from every live room.
@@ -142,12 +187,20 @@ export async function createClusterSubscriberComponent(
    *
    * @param wallet - The lower-cased wallet address.
    * @param clusterId - The cluster to announce.
-   * @param fromRoom - The room the peer is leaving, for `fromIslandId`. Absent on a first
-   * assignment and on a re-send, which is not a move.
+   * @param options.fromRoom - The room the peer is leaving, for `fromIslandId`. Absent on a
+   * first assignment and on a re-send, which is not a move.
+   * @param options.recordAssignment - Whether to store the assignment once it is on the wire.
+   * Only `cluster_change` may: it is the subject that *decides* the room, and refreshing an
+   * entry from a `connect` would renew the TTL of an assignment this replica may no longer own.
    * @returns Whether the message reached NATS. The caller counts its own success metric on it,
    * so the two subjects stay separable on the dashboard.
    */
-  async function mintAndPublish(wallet: string, clusterId: string, fromRoom?: string): Promise<boolean> {
+  async function mintAndPublish(
+    wallet: string,
+    clusterId: string,
+    options: { fromRoom?: string; recordAssignment: boolean }
+  ): Promise<boolean> {
+    const { fromRoom, recordAssignment } = options
     const room = livekit.getIslandRoomName(clusterId)
 
     const credentials = await livekit.generateCredentials(wallet, room, { cast: [] }, false)
@@ -184,7 +237,10 @@ export async function createClusterSubscriberComponent(
       return false
     }
 
-    peerState.set(wallet, { clusterId, room, lastSeen: Date.now() })
+    if (recordAssignment) {
+      peerState.set(wallet, { clusterId, room, lastSeen: Date.now() })
+    }
+
     return true
   }
 
@@ -201,58 +257,82 @@ export async function createClusterSubscriberComponent(
 
     // No suppression for a repeat/no-op assignment - Pulse only re-announces a cluster after
     // forgetting a peer, i.e. a reconnect that needs a fresh token (docs/ai-agent-context.md).
-    if (await mintAndPublish(wallet, clusterId, previous?.room)) {
+    if (await mintAndPublish(wallet, clusterId, { fromRoom: previous?.room, recordAssignment: true })) {
       metrics.increment('dcl_gatekeeper_cluster_published_total')
     }
   }
 
   /**
-   * Recovers the cluster a wallet is in from Pulse, for a `connect` this process holds no
-   * assignment for — a fresh or restarted replica, or an entry `CLUSTER_PEER_STATE_TTL_MS`
-   * retired.
+   * Reads one realm's island board from Pulse, through the per-realm cache.
    *
-   * Two reads, because neither alone is enough: the presence map says which realm the wallet
-   * stands in, and Pulse's `GET /realms/{realm}/islands` says which island of that realm holds
-   * it. With the map off there is no realm to ask about, so this returns nothing and the connect
-   * is skipped — which costs the peer nothing it was not already waiting for, since Pulse
-   * publishes the assignment itself as soon as the peer is clustered.
+   * Never throws: an unreachable Pulse is a skipped or fallen-back re-send, not a broken
+   * subscription.
    *
-   * Never throws: an unreachable Pulse is a skipped re-send, not a broken subscription.
-   *
-   * @param wallet - The lower-cased wallet address.
-   * @returns The cluster id, or `undefined` when it could not be established.
+   * @param realm - The realm to ask about, as the presence map spells it.
+   * @returns The board, or `undefined` when Pulse could not be asked.
    */
-  async function recoverClusterId(wallet: string): Promise<string | undefined> {
-    const realm = presenceMap.get(wallet)?.realm
-    if (!realm || !pulseUrl) {
-      return undefined
-    }
-
+  async function readIslands(realm: string, wallet: string): Promise<RealmIslandsResponse | undefined> {
     const url = `${pulseUrl}/realms/${encodeURIComponent(realm)}/islands`
 
     try {
-      const response = await fetch.fetch(url)
-      if (!response.ok) {
-        logger.warn(`Cannot recover the cluster of ${wallet} from ${url}: HTTP ${response.status}`)
-        return undefined
-      }
-
-      const body = (await response.json()) as RealmIslandsResponse
-
-      for (const island of body?.islands ?? []) {
-        if (island?.id && (island.peers ?? []).some((peer) => peer?.address?.toLowerCase() === wallet)) {
-          return island.id
-        }
-      }
-
-      // Standing in a realm is not the same fact as being clustered: Pulse clusters a peer
-      // shortly after it appears and publishes that first assignment itself.
-      logger.info(`No island in realm ${realm} holds ${wallet}; leaving the first assignment to Pulse`)
-      return undefined
+      // Rejects on a non-ok status too, with the status in the message, and releases the body
+      // before it does (src/adapters/fetch.ts).
+      return await islandsCache.fetch(url)
     } catch (error) {
-      logger.warn(`Cannot recover the cluster of ${wallet} from ${url}: ${getErrorMessage(error)}`)
+      logger.warn(`Cannot resolve the cluster of ${wallet} from ${url}: ${getErrorMessage(error)}`)
       return undefined
     }
+  }
+
+  /**
+   * Resolves which cluster a reconnecting wallet is in, in the order A9's revision pins.
+   *
+   * `peerState` is an in-process LRU written only by the replica the queue group handed that
+   * wallet's last `cluster_change` to, and `peer.*.cluster_change` and `peer.*.connect` are
+   * distributed independently — so the replica a `connect` lands on is usually *not* the one
+   * that recorded the assignment, and may be holding one another replica has since replaced.
+   * Nothing invalidates it: there is no broadcast and no shared store. A local hit therefore
+   * must never pre-empt the authoritative read:
+   *
+   * 1. The presence map places the wallet in a realm → Pulse's `GET /realms/{realm}/islands`
+   *    decides, including when it decides the peer is in no island (Pulse publishes the first
+   *    assignment itself once it clusters the peer).
+   * 2. Nothing places it in a realm — the map is off, or has not seen it — → `peerState`, which
+   *    is exactly right for a single-replica deployment and for the map-off window.
+   * 3. The map places it but Pulse cannot be asked → `peerState` as a stopgap, labelled as
+   *    such. A possibly superseded room beats no answer while the authority is unreachable, and
+   *    Pulse re-publishes the assignment itself once it is back.
+   *
+   * @param wallet - The lower-cased wallet address.
+   * @returns The cluster and where it came from, or why the connect cannot be answered.
+   */
+  async function resolveClusterId(wallet: string): Promise<Resolution> {
+    function remembered(): Resolution | undefined {
+      const clusterId = peerState.get(wallet)?.clusterId
+      return clusterId ? { clusterId, source: 'peer_state' } : undefined
+    }
+
+    const realm = presenceMap.get(wallet)?.realm
+    if (!realm || !pulseUrl) {
+      return remembered() ?? { skipReason: 'not_in_map' }
+    }
+
+    const board = await readIslands(realm, wallet)
+    if (!board) {
+      return remembered() ?? { skipReason: 'lookup_failed' }
+    }
+
+    for (const island of board.islands ?? []) {
+      if (island?.id && (island.peers ?? []).some((peer) => peer?.address?.toLowerCase() === wallet)) {
+        return { clusterId: island.id, source: 'pulse' }
+      }
+    }
+
+    // Standing in a realm is not the same fact as being clustered, and this is the authority
+    // saying so — so it outranks whatever this replica remembers, which would otherwise send the
+    // peer to a room Pulse has just said it is not in.
+    logger.info(`No island in realm ${realm} holds ${wallet}; leaving the first assignment to Pulse`)
+    return { skipReason: 'not_clustered' }
   }
 
   /**
@@ -264,28 +344,37 @@ export async function createClusterSubscriberComponent(
    *
    * A re-send carries no `fromIslandId` — the peer is not moving — and always a freshly minted
    * token, because a stored one would be expiring exactly when a reconnecting client needs it.
-   * Banned wallets are skipped the same way `cluster_change` skips them, and count the same
-   * moderation metric rather than `island_resend_skipped_total`, which is about connects this
-   * service could not answer.
+   * It also never writes `peerState`: which room this subject *announces* is decided by
+   * `resolveClusterId`, and only `cluster_change` decides which room a peer is in.
+   *
+   * Banned wallets are skipped the same way `cluster_change` skips them, counting the shared
+   * moderation metric — and also `island_resend_skipped_total{reason="banned"}`, so that every
+   * connect received is accounted for by exactly one of resent and skipped.
    *
    * @param wallet - The lower-cased wallet address.
    */
   async function processConnect(wallet: string): Promise<void> {
     if (await isBanned(wallet)) {
       metrics.increment('dcl_gatekeeper_cluster_banned_skipped_total')
+      metrics.increment('island_resend_skipped_total', { reason: 'banned' })
       logger.info(`Skipping the island re-send for banned wallet ${wallet}`)
       return
     }
 
-    const clusterId = peerState.get(wallet)?.clusterId ?? (await recoverClusterId(wallet))
-    if (!clusterId) {
-      metrics.increment('island_resend_skipped_total')
+    const resolved = await resolveClusterId(wallet)
+    if (!('clusterId' in resolved)) {
+      metrics.increment('island_resend_skipped_total', { reason: resolved.skipReason })
       return
     }
 
-    if (await mintAndPublish(wallet, clusterId)) {
-      metrics.increment('island_resend_total')
-      logger.debug(`Re-sent island ${clusterId} to ${wallet} after its handshake`)
+    const { clusterId, source } = resolved
+    if (await mintAndPublish(wallet, clusterId, { recordAssignment: false })) {
+      metrics.increment('island_resend_total', { source })
+      logger.debug(`Re-sent island ${clusterId} to ${wallet} after its handshake (from ${source})`)
+    } else {
+      // The publish failure counts its own metric inside mintAndPublish; this keeps the connect
+      // funnel exact rather than losing the event between the two counters.
+      metrics.increment('island_resend_skipped_total', { reason: 'publish_failed' })
     }
   }
 
@@ -355,7 +444,12 @@ export async function createClusterSubscriberComponent(
         return
       }
 
+      metrics.increment('dcl_gatekeeper_cluster_connect_events_received_total')
+
       void enqueue(wallet, () => processConnect(wallet)).catch((error) => {
+        // Counted as a skip as well, so `received = resent + skipped` holds through an
+        // unexpected failure (a LiveKit outage, say) instead of the event vanishing.
+        metrics.increment('island_resend_skipped_total', { reason: 'error' })
         logger.error(`Cannot process connect for ${wallet}: ${getErrorMessage(error)}`)
       })
     } catch (error) {

@@ -14,6 +14,14 @@ export const metricDeclarations = {
     help: 'Total cluster_change events received from Pulse',
     type: IMetricsComponent.CounterType
   },
+  dcl_gatekeeper_cluster_connect_events_received_total: {
+    help:
+      'Total peer.{address}.connect events received from ws-connector, i.e. handshakes this ' +
+      'replica was asked to answer. Every one of them is accounted for by exactly one increment ' +
+      'of island_resend_total or island_resend_skipped_total, so the answer rate is ' +
+      'island_resend_total / this',
+    type: IMetricsComponent.CounterType
+  },
   dcl_gatekeeper_cluster_tokens_minted_total: {
     help: 'Total LiveKit tokens minted for cluster rooms',
     type: IMetricsComponent.CounterType
@@ -80,16 +88,26 @@ export const metricDeclarations = {
   island_resend_total: {
     help:
       'Total island_changed messages re-sent because a peer reconnected (peer.{address}.connect), ' +
-      'as opposed to because it was assigned a new cluster',
-    type: IMetricsComponent.CounterType
+      'as opposed to because it was assigned a new cluster. source="pulse" is the authoritative ' +
+      'answer from GET /realms/{realm}/islands; source="peer_state" is this replica\'s own last ' +
+      'assignment, used when the presence map does not place the wallet in a realm or when Pulse ' +
+      'could not be asked, and a rising share of it with the map on is worth looking into',
+    type: IMetricsComponent.CounterType,
+    labelNames: ['source']
   },
   island_resend_skipped_total: {
     help:
-      'Total peer.{address}.connect events answered with nothing because no cluster could be ' +
-      'established for the wallet: unknown to this replica and either not in the presence map, ' +
-      'not in any island of its realm, or Pulse could not be asked. Pulse publishes the first ' +
-      'assignment itself once the peer is clustered',
-    type: IMetricsComponent.CounterType
+      'Total peer.{address}.connect events answered with nothing, by reason: banned (moderation, ' +
+      'also counted on dcl_gatekeeper_cluster_banned_skipped_total, which the cluster_change path ' +
+      'shares); not_in_map (nothing places the wallet in a realm and this replica holds no ' +
+      'assignment - expected while PRESENCE_MAP_ENABLED is off); not_clustered (Pulse says no ' +
+      'island holds it, and publishes the first assignment itself once it clusters the peer); ' +
+      'lookup_failed (Pulse could not be asked and there was nothing to fall back on - an ' +
+      'incident); publish_failed (NATS dropped the message); error (an unexpected failure, e.g. ' +
+      'the mint). Read against dcl_gatekeeper_cluster_connect_events_received_total, which this ' +
+      'and island_resend_total add up to',
+    type: IMetricsComponent.CounterType,
+    labelNames: ['reason']
   },
   presence_prefix_mismatch: {
     help:

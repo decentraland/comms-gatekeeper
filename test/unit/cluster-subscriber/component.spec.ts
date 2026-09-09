@@ -28,6 +28,16 @@ const REALM_ISLANDS = readFixtureJson<{ body: { islands: { id: string; peers: { 
 )
 /** A wallet the pack's islands answer places in `C2`, in the realm `main`. */
 const CLUSTERED_WALLET = '0x0000000000000000000000000000000000000002'
+/** Another one it places in `C1`, so a storm can span both islands of the same realm. */
+const OTHER_CLUSTERED_WALLET = '0x0000000000000000000000000000000000000001'
+
+/**
+ * A fresh `GET /realms/{realm}/islands` response per call, so a test can count how many the
+ * component actually issued.
+ */
+function islandsResponse(): any {
+  return { ok: true, status: 200, json: async () => REALM_ISLANDS.body }
+}
 
 const startOptions: IBaseComponent.ComponentStartOptions = {
   started: () => true,
@@ -58,12 +68,29 @@ describe('cluster-subscriber component', () => {
     peerStateOverride?: IPeerStateComponent
   }
 
-  async function build({
+  /**
+   * One subscriber replica, with mocks of its own — `peerState` included, which is what a
+   * deployed pod actually has: an in-process LRU no other replica can see, write or invalidate.
+   */
+  type Replica = {
+    component: IClusterSubscriberComponent
+    nats: ReturnType<typeof createNatsMockedComponent>
+    metrics: ReturnType<typeof createMetricsMockedComponent>
+    livekit: ReturnType<typeof createLivekitMockedComponent>
+    accessGate: ReturnType<typeof createAccessGateMockedComponent>
+    playerConnectionDb: ReturnType<typeof createPlayerConnectionDBMockedComponent>
+    peerState: IPeerStateComponent
+    presenceMap: ReturnType<typeof createPresenceMapMockedComponent>
+    fetch: ReturnType<typeof createFetchMockedComponent>
+    logger: jest.Mocked<ILoggerComponent.ILogger>
+  }
+
+  async function buildReplica({
     settings = {},
     numbers = {},
     natsEnabled = true,
     peerStateOverride
-  }: BuildOptions = {}): Promise<IClusterSubscriberComponent> {
+  }: BuildOptions = {}): Promise<Replica> {
     const values: Record<string, string | undefined> = {
       CLUSTER_SUBSCRIBER_ENABLED: 'true',
       NATS_QUEUE_GROUP: 'comms-gatekeeper-cluster',
@@ -75,50 +102,93 @@ describe('cluster-subscriber component', () => {
       getNumber: jest.fn().mockImplementation((key: string) => Promise.resolve(numbers[key]))
     })
 
-    nats = createNatsMockedComponent({ isEnabled: jest.fn().mockReturnValue(natsEnabled) })
-    metrics = createMetricsMockedComponent({})
-    livekit = createLivekitMockedComponent({
+    const replicaNats = createNatsMockedComponent({ isEnabled: jest.fn().mockReturnValue(natsEnabled) })
+    const replicaMetrics = createMetricsMockedComponent({})
+    const replicaLivekit = createLivekitMockedComponent({
       generateCredentials: jest.fn().mockResolvedValue({ url: 'wss://livekit.example', token: 'a-jwt' }),
       buildConnectionUrl: jest.fn((url: string, token: string) => `livekit:${url}?access_token=${token}`)
     })
-    accessGate = createAccessGateMockedComponent()
-    playerConnectionDb = createPlayerConnectionDBMockedComponent({
+    const replicaAccessGate = createAccessGateMockedComponent()
+    const replicaPlayerConnectionDb = createPlayerConnectionDBMockedComponent({
       getByAddress: jest.fn().mockResolvedValue({ deviceId: 'device-1' })
     })
-    peerState = peerStateOverride ?? createPeerStateMockedComponent()
+    const replicaPeerState = peerStateOverride ?? createPeerStateMockedComponent()
     // The default is "the map knows nothing about this wallet", which is also what a map that
-    // is switched off answers: the recovery path is unreachable without an entry.
-    presenceMap = createPresenceMapMockedComponent({ get: jest.fn().mockReturnValue(undefined) })
-    fetchComponent = createFetchMockedComponent({
-      fetch: jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => REALM_ISLANDS.body })
-    })
+    // is switched off answers: the Pulse lookup is unreachable without an entry.
+    const replicaPresenceMap = createPresenceMapMockedComponent({ get: jest.fn().mockReturnValue(undefined) })
+    const replicaFetch = createFetchMockedComponent({ fetch: jest.fn().mockImplementation(islandsResponse) })
     const logs = createLoggerMockedComponent({})
 
-    const built = await createClusterSubscriberComponent({
+    const component = await createClusterSubscriberComponent({
       config,
       logs,
-      metrics,
-      nats,
-      livekit,
-      accessGate,
-      playerConnectionDb,
-      peerState,
-      presenceMap,
-      fetch: fetchComponent
+      metrics: replicaMetrics,
+      nats: replicaNats,
+      livekit: replicaLivekit,
+      accessGate: replicaAccessGate,
+      playerConnectionDb: replicaPlayerConnectionDb,
+      peerState: replicaPeerState,
+      presenceMap: replicaPresenceMap,
+      fetch: replicaFetch
     })
-    // The component fetches its logger once, synchronously, before its first await, so
-    // this is already populated by the time createClusterSubscriberComponent resolves.
-    logger = logs.getLogger.mock.results[0].value
 
-    return built
+    return {
+      component,
+      nats: replicaNats,
+      metrics: replicaMetrics,
+      livekit: replicaLivekit,
+      accessGate: replicaAccessGate,
+      playerConnectionDb: replicaPlayerConnectionDb,
+      peerState: replicaPeerState,
+      presenceMap: replicaPresenceMap,
+      fetch: replicaFetch,
+      // The component fetches its own logger first, synchronously, before its first await, so
+      // this is already the cluster-subscriber logger by the time the factory resolves.
+      logger: logs.getLogger.mock.results[0].value
+    }
   }
 
-  function handlerFor(subjectFragment: string): NatsMessageHandler {
-    const call = nats.subscribe.mock.calls.find(([subject]) => String(subject).includes(subjectFragment))
+  /**
+   * Builds the one replica most of this suite works with, publishing its mocks as the shared
+   * `let`s above so every test reads them directly.
+   */
+  async function build(options: BuildOptions = {}): Promise<IClusterSubscriberComponent> {
+    const replica = await buildReplica(options)
+    ;({ nats, metrics, livekit, accessGate, playerConnectionDb, peerState, presenceMap, logger } = replica)
+    fetchComponent = replica.fetch
+
+    return replica.component
+  }
+
+  function handlerForNats(
+    natsMock: ReturnType<typeof createNatsMockedComponent>,
+    subjectFragment: string
+  ): NatsMessageHandler {
+    const call = natsMock.subscribe.mock.calls.find(([subject]) => String(subject).includes(subjectFragment))
     if (!call) {
       throw new Error(`no subscription matching ${subjectFragment}`)
     }
     return call[1] as NatsMessageHandler
+  }
+
+  function handlerFor(subjectFragment: string): NatsMessageHandler {
+    return handlerForNats(nats, subjectFragment)
+  }
+
+  /** Delivers a `peer.{wallet}.connect` to one specific replica and lets its chain settle. */
+  async function deliverConnectTo(replica: Replica, wallet: string): Promise<void> {
+    handlerForNats(replica.nats, 'connect')(`peer.${wallet}.connect`, new Uint8Array())
+    await flushMacrotask()
+  }
+
+  /** The jest mock behind a mocked component method, for a test that has to reset or count it. */
+  function asMock(fn: unknown): jest.Mock {
+    return fn as jest.Mock
+  }
+
+  /** Every increment of one metric, as the label objects the calls carried. */
+  function incrementsOf(metricsMock: ReturnType<typeof createMetricsMockedComponent>, metric: string): unknown[][] {
+    return metricsMock.increment.mock.calls.filter(([name]) => name === metric).map((call) => call.slice(1))
   }
 
   /** Delivers an event on the subscribed handler and lets its async chain settle. */
@@ -685,8 +755,10 @@ describe('cluster-subscriber component', () => {
 
         beforeEach(async () => {
           // Seeded rather than replayed through a cluster_change, so nothing but the connect
-          // path can be what publishes here.
+          // path can be what publishes here. The map holds nothing for it, which is what makes
+          // the local assignment the fallback A9's revision allows.
           peerState.set(WALLET, { clusterId: 'C5', room: 'island-C5', lastSeen: Date.now() })
+          asMock(peerState.set).mockClear()
           livekit.generateCredentials.mockResolvedValue({ url: 'wss://livekit.example', token: 'fresh-jwt' })
 
           await deliverConnect(WALLET)
@@ -717,16 +789,16 @@ describe('cluster-subscriber component', () => {
           expect(fetchComponent.fetch).not.toHaveBeenCalled()
         })
 
-        it('should count the re-send', () => {
-          expect(metrics.increment).toHaveBeenCalledWith('island_resend_total')
-          expect(metrics.increment).not.toHaveBeenCalledWith('island_resend_skipped_total')
+        it('should count the re-send, marked as having come from the local fallback', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_total', { source: 'peer_state' })
+          expect(incrementsOf(metrics, 'island_resend_skipped_total')).toHaveLength(0)
         })
 
-        it('should refresh the stored assignment, since the peer just proved it is here', () => {
-          expect(peerState.set).toHaveBeenLastCalledWith(
-            WALLET,
-            expect.objectContaining({ clusterId: 'C5', room: 'island-C5' })
-          )
+        it('should not write peerState, because only a cluster_change may', () => {
+          // A9's revision: a connect never refreshes an entry. Refreshing renews the TTL of an
+          // assignment this replica may no longer own, so a flaky client - exactly the
+          // population that generates connects - would be re-sent the same room forever.
+          expect(peerState.set).not.toHaveBeenCalled()
         })
       })
 
@@ -753,15 +825,14 @@ describe('cluster-subscriber component', () => {
           expect(decoded.fromIslandId).toBeUndefined()
         })
 
-        it('should count the re-send', () => {
-          expect(metrics.increment).toHaveBeenCalledWith('island_resend_total')
+        it('should count the re-send, marked as authoritative', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_total', { source: 'pulse' })
         })
 
-        it('should record the recovered assignment, so the next cluster_change chains off it', () => {
-          expect(peerState.set).toHaveBeenCalledWith(
-            CLUSTERED_WALLET,
-            expect.objectContaining({ clusterId: 'C2', room: 'island-C2' })
-          )
+        it('should not record what it read, because only a cluster_change writes peerState', () => {
+          // The store stays the record of what *this* replica was told to publish. A connect
+          // reads through it to Pulse instead of teaching it anything.
+          expect(peerState.set).not.toHaveBeenCalled()
         })
       })
 
@@ -792,9 +863,11 @@ describe('cluster-subscriber component', () => {
           expect(livekit.generateCredentials).not.toHaveBeenCalled()
         })
 
-        it('should count the skip', () => {
-          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total')
-          expect(metrics.increment).not.toHaveBeenCalledWith('island_resend_total')
+        it('should count the skip as "Pulse says it is in no island"', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total', {
+            reason: 'not_clustered'
+          })
+          expect(incrementsOf(metrics, 'island_resend_total')).toHaveLength(0)
         })
       })
 
@@ -806,9 +879,11 @@ describe('cluster-subscriber component', () => {
           await deliverConnect(CLUSTERED_WALLET)
         })
 
-        it('should publish nothing and count the skip', () => {
+        it('should publish nothing and count the skip as a failed lookup', () => {
           expect(nats.publish).not.toHaveBeenCalled()
-          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total')
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total', {
+            reason: 'lookup_failed'
+          })
         })
 
         it('should log the failure rather than throw into the reader loop', () => {
@@ -816,17 +891,51 @@ describe('cluster-subscriber component', () => {
         })
       })
 
-      describe('and Pulse answers with an error status', () => {
+      describe('and Pulse cannot be reached but this replica does hold an assignment', () => {
         beforeEach(async () => {
           presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
-          fetchComponent.fetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) } as any)
+          fetchComponent.fetch.mockRejectedValue(new Error('pulse unreachable'))
+          peerState.set(CLUSTERED_WALLET, { clusterId: 'C9', room: 'island-C9', lastSeen: Date.now() })
 
           await deliverConnect(CLUSTERED_WALLET)
         })
 
-        it('should publish nothing and count the skip', () => {
+        it('should fall back to what it remembers rather than leave the peer roomless', () => {
+          // Deliberate, and the one case where the local entry is used although the map knows the
+          // wallet: with no authoritative answer available, a possibly superseded room beats no
+          // answer at all, and Pulse re-publishes the assignment itself once it is back. The
+          // label is what separates this from an authoritative re-send on a dashboard.
+          expect(IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array).islandId).toBe('island-C9')
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_total', { source: 'peer_state' })
+        })
+      })
+
+      describe('and Pulse answers with an error status', () => {
+        let cancelBody: jest.Mock
+
+        beforeEach(async () => {
+          presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
+          cancelBody = jest.fn().mockResolvedValue(undefined)
+          fetchComponent.fetch.mockResolvedValue({
+            ok: false,
+            status: 503,
+            body: { cancel: cancelBody },
+            json: async () => ({})
+          } as any)
+
+          await deliverConnect(CLUSTERED_WALLET)
+        })
+
+        it('should publish nothing and count the skip as a failed lookup', () => {
           expect(nats.publish).not.toHaveBeenCalled()
-          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total')
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total', {
+            reason: 'lookup_failed'
+          })
+        })
+
+        it('should release the response body rather than leaving the socket checked out', () => {
+          // Through the repo's cached-fetch component, which cancels it on every error path.
+          expect(cancelBody).toHaveBeenCalledTimes(1)
         })
       })
 
@@ -849,8 +958,8 @@ describe('cluster-subscriber component', () => {
           expect(fetchComponent.fetch).not.toHaveBeenCalled()
         })
 
-        it('should count the skip', () => {
-          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total')
+        it('should count the skip as "the map does not place it anywhere"', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total', { reason: 'not_in_map' })
         })
       })
 
@@ -872,7 +981,17 @@ describe('cluster-subscriber component', () => {
 
         it('should count it as a moderation skip, exactly like a cluster_change', () => {
           expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_banned_skipped_total')
-          expect(metrics.increment).not.toHaveBeenCalledWith('island_resend_total')
+          expect(incrementsOf(metrics, 'island_resend_total')).toHaveLength(0)
+        })
+
+        it('should also count it in the connect funnel, so the funnel adds up', () => {
+          // The moderation counter is shared with the cluster_change path, so it cannot be the
+          // banned term of "received = resent + skipped". This label is.
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total', { reason: 'banned' })
+        })
+
+        it('should never ask Pulse about a wallet it must not answer', () => {
+          expect(fetchComponent.fetch).not.toHaveBeenCalled()
         })
       })
 
@@ -955,8 +1074,221 @@ describe('cluster-subscriber component', () => {
 
         it('should count the drop as a failure, not as a re-send', () => {
           expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_publish_failed_total')
-          expect(metrics.increment).not.toHaveBeenCalledWith('island_resend_total')
+          expect(incrementsOf(metrics, 'island_resend_total')).toHaveLength(0)
         })
+
+        it('should count it in the connect funnel too, so the funnel still adds up', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('island_resend_skipped_total', {
+            reason: 'publish_failed'
+          })
+        })
+      })
+    })
+  })
+
+  /**
+   * The property no single-component test can reach, and the one A9's revision turns on:
+   * `peerState` is an in-process LRU, so the replica a queue-grouped `connect` lands on is
+   * generally not the one that recorded that wallet's last assignment - and may be holding one
+   * that another replica has since replaced. Two replicas, two `peerState`s, one broker.
+   */
+  describe('when two replicas share the queue group', () => {
+    let stale: Replica
+    let current: Replica
+
+    beforeEach(async () => {
+      stale = await buildReplica()
+      current = await buildReplica()
+      await stale.component[START_COMPONENT]!(startOptions)
+      await current.component[START_COMPONENT]!(startOptions)
+    })
+
+    describe('and each of them recorded a different assignment for one wallet', () => {
+      beforeEach(() => {
+        // What the queue group actually does: `peer.*.cluster_change` is distributed to one
+        // arbitrary member per message, with no affinity to the member that got the last one.
+        // `stale` minted island-C1; `current` minted island-C2, which superseded it; nothing
+        // told `stale`, because there is no broadcast and no shared store.
+        stale.peerState.set(CLUSTERED_WALLET, { clusterId: 'C1', room: 'island-C1', lastSeen: Date.now() })
+        current.peerState.set(CLUSTERED_WALLET, { clusterId: 'C2', room: 'island-C2', lastSeen: Date.now() })
+        // Both replicas' maps place the wallet in `main`; the pack's islands answer puts it in C2.
+        stale.presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
+        current.presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
+      })
+
+      describe('and the connect is delivered to the one holding the superseded assignment', () => {
+        let resent: IslandChangedMessage
+
+        beforeEach(async () => {
+          await deliverConnectTo(stale, CLUSTERED_WALLET)
+          resent = IslandChangedMessage.decode(stale.nats.publish.mock.calls[0][1] as Uint8Array)
+        })
+
+        it('should mint the room the wallet is actually in, not the one it remembers', () => {
+          expect(resent.islandId).toBe('island-C2')
+          expect(stale.livekit.generateCredentials).toHaveBeenCalledWith(
+            CLUSTERED_WALLET,
+            'island-C2',
+            { cast: [] },
+            false
+          )
+        })
+
+        it('should ask Pulse even though it holds a local assignment', () => {
+          expect(stale.fetch.fetch).toHaveBeenCalledWith('https://pulse.example.com/realms/main/islands')
+        })
+
+        it('should count the re-send as authoritative', () => {
+          expect(stale.metrics.increment).toHaveBeenCalledWith('island_resend_total', { source: 'pulse' })
+        })
+
+        it('should leave its superseded entry exactly as it was, TTL included', () => {
+          // Renewing it here is what would make the wrong room permanent for a client that
+          // keeps reconnecting, so a connect must not write at all.
+          expect(stale.peerState.get(CLUSTERED_WALLET)).toEqual(
+            expect.objectContaining({ clusterId: 'C1', room: 'island-C1' })
+          )
+        })
+
+        it('should not have made the other replica do anything', () => {
+          expect(current.nats.publish).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and the connect is delivered to the one holding the current assignment', () => {
+        it('should mint the same room, from the same authoritative read', async () => {
+          await deliverConnectTo(current, CLUSTERED_WALLET)
+
+          const resent = IslandChangedMessage.decode(current.nats.publish.mock.calls[0][1] as Uint8Array)
+          expect(resent.islandId).toBe('island-C2')
+          expect(current.fetch.fetch).toHaveBeenCalledWith('https://pulse.example.com/realms/main/islands')
+        })
+      })
+    })
+  })
+
+  /**
+   * A9's revision requires the islands read to be cached per realm and de-duplicated in flight:
+   * a ws-connector redeploy re-handshakes every connected peer at once, and one full
+   * cluster-board read per connect would arrive at Pulse as a second storm.
+   */
+  describe('when a reconnect storm arrives', () => {
+    let replica: Replica
+
+    /** Every address the pack's islands answer lists, i.e. peers Pulse can place. */
+    const stormWallets = REALM_ISLANDS.body.islands.flatMap((island) => island.peers.map((peer) => peer.address))
+
+    beforeEach(async () => {
+      replica = await buildReplica()
+      await replica.component[START_COMPONENT]!(startOptions)
+    })
+
+    describe('and every reconnecting peer stands in the same realm', () => {
+      beforeEach(async () => {
+        replica.presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
+
+        const handler = handlerForNats(replica.nats, 'connect')
+        // Delivered without awaiting in between, which is how a broker delivers a storm: every
+        // one of these misses the cache at the same moment.
+        for (const wallet of stormWallets) {
+          handler(`peer.${wallet}.connect`, new Uint8Array())
+        }
+        await flushMacrotask()
+      })
+
+      it('should ask Pulse exactly once, not once per connect', () => {
+        expect(replica.fetch.fetch).toHaveBeenCalledTimes(1)
+      })
+
+      it('should still answer every one of them', () => {
+        expect(replica.nats.publish).toHaveBeenCalledTimes(stormWallets.length)
+        expect(incrementsOf(replica.metrics, 'island_resend_total')).toHaveLength(stormWallets.length)
+      })
+
+      it('should serve a later reconnect from the cache while it is fresh', async () => {
+        await deliverConnectTo(replica, stormWallets[0])
+
+        expect(replica.fetch.fetch).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('and the reconnecting peers are spread over two realms', () => {
+      it('should ask once per realm', async () => {
+        replica.presenceMap.get.mockImplementation((wallet: string) => ({
+          realm: wallet === CLUSTERED_WALLET ? 'main' : 'cozyfarm.dcl.eth',
+          parcel: [0, 0]
+        }))
+
+        const handler = handlerForNats(replica.nats, 'connect')
+        for (const wallet of stormWallets) {
+          handler(`peer.${wallet}.connect`, new Uint8Array())
+        }
+        await flushMacrotask()
+
+        expect(replica.fetch.fetch).toHaveBeenCalledTimes(2)
+        expect(replica.fetch.fetch).toHaveBeenCalledWith('https://pulse.example.com/realms/main/islands')
+        expect(replica.fetch.fetch).toHaveBeenCalledWith('https://pulse.example.com/realms/cozyfarm.dcl.eth/islands')
+      })
+    })
+
+    describe('and the cache entry has expired', () => {
+      it('should read Pulse again rather than answer from a stale board', async () => {
+        // 1 ms rather than the 2 s default, so the expiry is real time and not a faked clock.
+        replica = await buildReplica({ numbers: { CLUSTER_ISLANDS_CACHE_TTL_MS: 1 } })
+        await replica.component[START_COMPONENT]!(startOptions)
+        replica.presenceMap.get.mockReturnValue({ realm: 'main', parcel: [147, -3] })
+
+        await deliverConnectTo(replica, CLUSTERED_WALLET)
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        await deliverConnectTo(replica, CLUSTERED_WALLET)
+
+        expect(replica.fetch.fetch).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    /**
+     * Finding 7 of round 3: an operator has to be able to compute what fraction of handshakes
+     * got an island back, which needs a received counter and the two skip reasons apart.
+     */
+    describe('and the storm covers every outcome the funnel has', () => {
+      let received: number
+      let resent: number
+      let skipped: number
+
+      beforeEach(async () => {
+        const handler = handlerForNats(replica.nats, 'connect')
+
+        // 1. answered from Pulse; 2. banned; 3. Pulse places it in no island; 4. not in the map.
+        replica.presenceMap.get.mockImplementation((wallet: string) =>
+          wallet === WALLET ? undefined : { realm: 'main', parcel: [147, -3] }
+        )
+        replica.accessGate.getAccessState.mockImplementation(async ({ address }: { address: string }) => ({
+          isBanned: address === OTHER_CLUSTERED_WALLET,
+          isDenylisted: false
+        }))
+
+        for (const wallet of [CLUSTERED_WALLET, OTHER_CLUSTERED_WALLET, MIXED_CASE_WALLET, WALLET]) {
+          handler(`peer.${wallet}.connect`, new Uint8Array())
+        }
+        await flushMacrotask()
+
+        received = incrementsOf(replica.metrics, 'dcl_gatekeeper_cluster_connect_events_received_total').length
+        resent = incrementsOf(replica.metrics, 'island_resend_total').length
+        skipped = incrementsOf(replica.metrics, 'island_resend_skipped_total').length
+      })
+
+      it('should count every connect it received', () => {
+        expect(received).toBe(4)
+      })
+
+      it('should account for each of them exactly once', () => {
+        expect(resent + skipped).toBe(received)
+      })
+
+      it('should keep the skip reasons apart', () => {
+        expect(incrementsOf(replica.metrics, 'island_resend_skipped_total')).toEqual(
+          expect.arrayContaining([[{ reason: 'banned' }], [{ reason: 'not_clustered' }], [{ reason: 'not_in_map' }]])
+        )
       })
     })
   })
