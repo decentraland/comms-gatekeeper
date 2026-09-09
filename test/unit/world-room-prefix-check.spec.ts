@@ -239,6 +239,38 @@ describe('world-room prefix check', () => {
     })
   })
 
+  describe('when the worlds content server answers with an error status', () => {
+    let cancelBody: jest.Mock
+
+    beforeEach(async () => {
+      cancelBody = jest.fn().mockResolvedValue(undefined)
+      fetchComponent = createFetchMockedComponent({
+        fetch: jest.fn().mockResolvedValue({
+          ok: false,
+          status: 503,
+          body: { cancel: cancelBody },
+          json: async () => ({})
+        })
+      })
+      await build()
+    })
+
+    it('should not claim a mismatch it could not observe', async () => {
+      await expect(component.check()).resolves.toBe(true)
+
+      expect(metrics.observe).not.toHaveBeenCalledWith('presence_prefix_mismatch', {}, 1)
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('HTTP 503'))
+    })
+
+    it('should release each response body before discarding it', async () => {
+      await component.check()
+
+      // Both reads (/live-data and /status) are refused here, and neither may leave its socket
+      // checked out of the undici pool (src/adapters/fetch.ts).
+      expect(cancelBody).toHaveBeenCalledTimes(2)
+    })
+  })
+
   describe('when the worlds content server cannot be reached', () => {
     beforeEach(async () => {
       fetchComponent = createFetchMockedComponent({
