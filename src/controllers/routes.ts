@@ -47,6 +47,7 @@ import { getAllActiveCommunityVoiceChatsHandler } from './handlers/get-all-activ
 import { commsServerSceneHandler } from './handlers/comms-server-scene-handler'
 import { worldBanCheckHandler } from './handlers/world-ban-check-handler'
 import { getSceneParticipantsHandler } from './handlers/scene-participants-handler'
+import { getHotScenesHandler } from './handlers/hot-scenes-handler'
 import {
   streamerTokenHandler,
   watcherTokenHandler,
@@ -133,6 +134,10 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   // Scene participants endpoint (public, for places integration)
   router.get('/scene-participants', getSceneParticipantsHandler)
+
+  // Hot scenes endpoint (public, for places integration). Took over from archipelago-stats:
+  // same path, same bare-array shape, peer positions now read from Pulse's presence map.
+  router.get('/hot-scenes', getHotScenesHandler)
 
   router.post('/mute', muteHandler)
 

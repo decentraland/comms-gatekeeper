@@ -161,6 +161,33 @@ describe('when getting room info', () => {
   })
 })
 
+describe('when listing rooms by name', () => {
+  const rooms = [{ name: 'world-cozyfarm.dcl.eth' }, { name: 'world-other.dcl.eth' }] as Room[]
+
+  describe('and some of the names exist', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([rooms[0]])
+    })
+
+    it('should pass the names through and answer with the rooms that exist', async () => {
+      const result = await livekitComponent.listRooms(['world-cozyfarm.dcl.eth', 'world-other.dcl.eth'])
+
+      expect(result).toEqual([rooms[0]])
+      expect(listRoomsSpy).toHaveBeenCalledWith(['world-cozyfarm.dcl.eth', 'world-other.dcl.eth'])
+    })
+  })
+
+  describe('and LiveKit cannot be reached', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockRejectedValue(new Error('Network error'))
+    })
+
+    it('should reject, so a caller cannot read the failure as "no such room"', async () => {
+      await expect(livekitComponent.listRooms(['world-cozyfarm.dcl.eth'])).rejects.toThrow('Network error')
+    })
+  })
+})
+
 describe('when getting or creating a room', () => {
   const roomName = 'test-room'
   const mockRoom = {
@@ -326,6 +353,14 @@ describe('when getting a world room name', () => {
     const result = livekitComponent.getWorldRoomName(worldName)
     expect(result).toBe('world-env-test-world')
   })
+
+  // The worlds content server lower-cases the world name when it creates the room
+  // (getWorldRoomConnectionString), and world names reach this service in whatever case the
+  // caller typed. Without this the room name misses and every lookup answers "nobody is here".
+  it('should lower-case the world name, because that is how the room was created', () => {
+    const result = livekitComponent.getWorldRoomName('CozyFarm.DCL.eth')
+    expect(result).toBe('world-env-cozyfarm.dcl.eth')
+  })
 })
 
 describe('when getting a world scene room name', () => {
@@ -334,6 +369,11 @@ describe('when getting a world scene room name', () => {
     const sceneId = 'bafkreiabcdef123'
     const result = livekitComponent.getWorldSceneRoomName(worldName, sceneId)
     expect(result).toBe('world-prod-scene-room-test-world-bafkreiabcdef123')
+  })
+
+  it('should lower-case the world name but leave the scene id untouched', () => {
+    const result = livekitComponent.getWorldSceneRoomName('CozyFarm.DCL.eth', 'bafkreiAbcDef123')
+    expect(result).toBe('world-prod-scene-room-cozyfarm.dcl.eth-bafkreiAbcDef123')
   })
 })
 

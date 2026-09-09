@@ -41,6 +41,9 @@ import { INatsComponent } from './adapters/nats'
 import { IPeerStateComponent } from './adapters/peer-state'
 import { IAccessGateComponent } from './logic/access-gate'
 import { IClusterSubscriberComponent } from './logic/cluster-subscriber/types'
+import { IPresenceMapComponent } from './logic/presence-map/types'
+import { IHotScenesComponent } from './logic/hot-scenes/types'
+import { IWorldRoomPrefixCheckComponent } from './logic/world-room-prefix-check/types'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -95,6 +98,9 @@ export type BaseComponents = {
   peerState: IPeerStateComponent
   accessGate: IAccessGateComponent
   clusterSubscriber: IClusterSubscriberComponent
+  presenceMap: IPresenceMapComponent
+  hotScenes: IHotScenesComponent
+  worldRoomPrefixCheck: IWorldRoomPrefixCheckComponent
 }
 
 export type AppComponents = BaseComponents & {

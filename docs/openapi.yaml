@@ -283,14 +283,34 @@ paths:
       summary: Get scene participants
       security: []
       description: |
-        Retrieves the list of participant wallet addresses connected to a scene or world room.
+        Retrieves the list of participant wallet addresses in a scene or world.
 
         **Query Parameters:**
         - `pointer` + `realm_name`: For scene rooms (pointer is the base parcel, e.g., "-7,-2"). The scene ID is resolved from the catalyst. realm_name defaults to "main".
-        - `realm_name` alone: Treated as a world name (e.g., "mycoolworld.dcl.eth")
+        - `realm_name` alone: Treated as a world name (e.g., "mycoolworld.dcl.eth"); matched case-insensitively.
 
         **Response:**
-        Returns an array of wallet addresses (lowercase, 42 characters) of users currently connected to the room. Returns an empty array if the room doesn't exist or has no participants.
+        Returns an array of wallet addresses (lowercase, 42 characters). Returns an empty array if nobody is there.
+
+        **Semantic shift (iteration 2).** Two implementations answer this route, selected by
+        `LIVEKIT_PRESENCE_FALLBACK`, and they answer subtly different questions:
+
+        - `true` (the default today): **who is connected to the scene's LiveKit room** — the
+          room membership this service has always reported.
+        - `false`: **who is standing on the scene's parcels**, resolved on the presence map fed
+          by Pulse's `engine.parcel_changes`. Addresses are sorted ascending and this
+          service's own scene ban list is always subtracted, so a wallet banned seconds ago is
+          already absent from the answer. While no live source stands behind the map — it has not
+          been primed yet, or no Pulse instance has fed it for `PRESENCE_SERVER_TTL_MS` — the
+          route answers `503` with `{"ok": false, "error": "warming"}`, the same body
+          `/hot-scenes` serves: it never reports an empty scene it is merely uncertain about.
+
+        While `LIVEKIT_PRESENCE_FALLBACK` is `true` a cold presence map is invisible here — the
+        LiveKit implementation is the served answer anyway, which is what every deploy does
+        until the flag is turned off.
+
+        The response shape is identical either way. The flag is removed at the end of the
+        rollout, leaving the parcel-based answer.
       parameters:
         - name: pointer
           in: query
@@ -348,6 +368,121 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '503':
+          description: |
+            The presence map has not been primed yet and `LIVEKIT_PRESENCE_FALLBACK` is `false`,
+            so there is no other implementation allowed to answer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: warming
+      tags:
+        - Communications
+
+  /hot-scenes:
+    get:
+      operationId: getHotScenes
+      summary: Get the busiest Genesis City scenes
+      security: []
+      description: |
+        Returns the busiest Genesis City scenes, ranked by how many players are standing on
+        them, as a **bare array** (no `{ok, data}` envelope) of at most 100 entries ordered by
+        `usersTotalCount` descending.
+
+        Player positions come from the presence map fed by Pulse's `engine.parcel_changes`;
+        scene metadata comes from the catalyst and is cached. Only the main realm (Genesis
+        City) is counted — world peers are reported by the worlds content server instead.
+
+        The ranking is recomputed on a timer (`HOT_SCENES_REFRESH_MS`), not per request, and
+        served from memory. Until the first refresh that ran against a ready map has completed
+        the route answers `503` with `{"ok": false, "error": "warming"}`: a stale ranking is a
+        fine answer, an empty one would read as "Genesis City is deserted". The map being ready
+        is not enough on its own — it becomes ready the moment the boot-time prime resolves,
+        while the ranking also needs a catalyst sweep on top of it. The same `503` comes back if
+        the map ever loses its live source: a map no Pulse instance has fed for
+        `PRESENCE_SERVER_TTL_MS` is emptied by its own reclaim sweep, and "we do not know" is the
+        honest answer for as long as that lasts.
+
+        This route was previously served by archipelago-stats, which is being decommissioned.
+        The path and the response shape are unchanged.
+      responses:
+        '200':
+          description: The current ranking
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required:
+                    - id
+                    - name
+                    - baseCoords
+                    - usersTotalCount
+                    - parcels
+                  properties:
+                    id:
+                      type: string
+                      description: Scene entity id
+                      example: bafkreiabc123456789scene
+                    name:
+                      type: string
+                      description: Scene title, from its metadata
+                      example: My Scene
+                    baseCoords:
+                      type: array
+                      description: The scene's base parcel, as [x, y]
+                      items:
+                        type: integer
+                      minItems: 2
+                      maxItems: 2
+                      example: [10, 10]
+                    usersTotalCount:
+                      type: integer
+                      description: Players standing on any of the scene's parcels
+                      example: 22
+                    parcels:
+                      type: array
+                      description: Every parcel of the scene, as [x, y] pairs — not only the occupied ones
+                      items:
+                        type: array
+                        items:
+                          type: integer
+                        minItems: 2
+                        maxItems: 2
+                      example: [[10, 10], [10, 11]]
+                    thumbnail:
+                      type: string
+                      description: Resolved navmap thumbnail URL, when the scene has one
+                    creator:
+                      type: string
+                      description: Scene contact name, from its metadata
+                    projectId:
+                      type: string
+                      description: Builder project id, from its metadata
+                    description:
+                      type: string
+                      description: Scene description, from its metadata
+        '503':
+          description: No ranking has been computed from a primed presence map yet
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: warming
       tags:
         - Communications
 

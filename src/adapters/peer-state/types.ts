@@ -17,6 +17,11 @@ export type IPeerStateComponent = IBaseComponent & {
   /**
    * Records a peer's current assignment, replacing any previous one and resetting its TTL.
    *
+   * Only the `cluster_change` path may call this: it is the signal that decides which room a peer
+   * is in. A `peer.*.connect` re-send reads the store but never writes it, because renewing the
+   * TTL of an entry this replica may no longer own would make a superseded room permanent for a
+   * client that keeps reconnecting.
+   *
    * @param wallet - The lower-cased wallet address.
    * @param assignment - The assignment to store.
    */

@@ -199,3 +199,30 @@ export function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) 
 export function flushMacrotask(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve))
 }
+
+/**
+ * Remembers the current value of some environment variables and returns the function that puts
+ * them back.
+ *
+ * Written because the obvious restore is wrong: `process.env.X = previous` stores the **string**
+ * `"undefined"` when the key was unset, `createDotEnvConfigComponent` then skips the
+ * `.env.default` entry because the key is already present, and `config.getNumber('X')` throws
+ * `should be a number, got string (undefined)` in every later program built in that jest worker.
+ * A key that was unset has to be deleted, not assigned.
+ *
+ * @param keys - The variables to snapshot.
+ * @returns A function restoring each of them to exactly what it was, unset included.
+ */
+export function snapshotEnv(...keys: string[]): () => void {
+  const previous = keys.map((key) => [key, process.env[key]] as const)
+
+  return () => {
+    for (const [key, value] of previous) {
+      if (value === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = value
+      }
+    }
+  }
+}

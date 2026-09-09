@@ -12,6 +12,7 @@ import {
   ForbiddenError
 } from '../../types/errors'
 import { LandPermissionsNotFoundError } from '../../adapters/lands'
+import { PresenceMapWarmingError, presenceWarmingResponse } from '../../logic/presence-map/warming'
 import { PlayerAlreadyBannedError, BanNotFoundError } from '../../logic/user-moderation/errors'
 import {
   InvalidStreamingKeyError,
@@ -50,6 +51,12 @@ export async function errorHandler(
           error: error.message
         }
       }
+    }
+
+    // Before ServiceUnavailableError: the warming answer carries the contract's own body
+    // (`{ok:false,error:'warming'}`), not the generic `{error: message}` one.
+    if (error instanceof PresenceMapWarmingError) {
+      return presenceWarmingResponse()
     }
 
     if (error instanceof ServiceUnavailableError) {

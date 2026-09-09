@@ -19,6 +19,7 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
   - [Installation](#installation)
   - [Configuration](#configuration)
   - [Running the Service](#running-the-service)
+- [Rollout notes](#rollout-notes)
 - [Testing](#testing)
 
 ## Features
@@ -30,10 +31,14 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
 - **Scene Banning System**: Enables scene admins to ban users from specific scenes
 - **Request-to-Speak**: Implements moderated voice chat with speaker management
 - **Privacy Controls**: Manages user privacy settings and access control
+- **Presence Map**: Keeps the map of where every online player stands, fed by Pulse over NATS, and serves `GET /hot-scenes` and `GET /scene-participants` from it (behind `PRESENCE_MAP_ENABLED` / `LIVEKIT_PRESENCE_FALLBACK`). While no ranking has been computed from a ready map yet, `GET /hot-scenes` answers `503 {"ok":false,"error":"warming"}` (its readiness is its own: the map becomes ready when Pulse's `/peers?all=true` prime resolves, the ranking needs a catalyst sweep on top of that). The map is ready only while a live source stands behind it — a publisher heard from within `PRESENCE_SERVER_TTL_MS`, or a prime younger than `PRESENCE_PRIME_TTL_MS` — so a NATS or Pulse outage that empties it takes both routes back to `503 warming` instead of reporting a deserted world as fact. `GET /scene-participants` instead answers from the LiveKit room lookup for as long as `LIVEKIT_PRESENCE_FALLBACK=true` (the default) — a cold map costs nothing while LiveKit is the served answer anyway — and answers the same `503 warming` once that flag is off, because the operator has then said LiveKit must not answer for that route
+
+- **Island Re-send on Reconnect**: Answers ws-connector's `peer.{address}.connect` by re-minting and re-publishing the peer's current `island_changed`, so a reconnecting WebSocket gets its room back (see "Why a reconnect needs a re-send" below)
 
 ## Dependencies
 
 - **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Separate communication channel for Archipelago rooms
+- **[Pulse](https://github.com/decentraland/Pulse)**: The source of online-player information. Publishes per-peer cluster assignments and parcel changes over NATS, and serves `GET /peers?all=true`, which this service reads once on boot to prime its presence map, and `GET /realms/{realm}/islands`, which it reads to recover the cluster of a reconnecting peer it has no assignment for
 - **[Catalyst](https://github.com/decentraland/catalyst)**: Content server for scene metadata and validation
 - **[Places API](https://github.com/decentraland/places-api)**: Scene and place information
 - **[Social Service](https://github.com/decentraland/social-service-ea)**: User relationships and social data
@@ -133,6 +138,13 @@ cp .env.default .env
 
 See `.env.default` for available configuration options.
 
+`PULSE_URL` is the one key that file documents without defining: `.env.default` ships inside the
+image and is a live config source, so a bare `PULSE_URL=` line would resolve to an empty string
+that no required-key check can reject. It is commented out instead, which is what lets the boot
+require it: while `PRESENCE_MAP_ENABLED=true` an absent value — or anything but an absolute
+`http(s)` URL — fails the boot rather than becoming a prime that can never work. With the map off
+nothing reads it, so a deployment that runs without the map boots whatever is there.
+
 ### Running the Service
 
 #### Setting up the environment
@@ -165,6 +177,88 @@ For watch mode with automatic rebuilds:
 ```bash
 yarn dev
 ```
+
+## Rollout notes
+
+### World room names are lower-cased (one-time rename)
+
+`getWorldRoomName` and `getWorldSceneRoomName` now lower-case the world name before building the
+LiveKit room name, so this service computes the same names the worlds content server creates. It is
+not confined to the presence path: the same helpers build the room a client's **token** is issued
+for (`comms-scene-handler`, `comms-server-scene-handler`), the room Cast uses, and the room name the
+scene **stream-access** rows persist.
+
+For a world whose name reaches this service in mixed case, that means, at the deploy:
+
+- sessions connected before it stay in `…-MyWorld.dcl.eth-<sceneId>` while everyone admitted after
+  it joins `…-myworld.dcl.eth-<sceneId>`; the two rooms cannot hear each other until the old
+  sessions drain (they are LiveKit sessions, so minutes, not hours);
+- an RTMP stream-access row created before the deploy still points at the old room name, so a live
+  stream started before the deploy has to be re-issued to reach the new one.
+
+This is intended, not a regression to flag: the content server already creates the lower-cased room,
+so the mixed-case name was a room nobody else was in and every world participant lookup for such a
+world answered "nobody is here". Deploy it when a short drain is acceptable, and re-issue any
+stream-access key for a mixed-case world afterwards.
+
+### `presence_prefix_mismatch` is a diagnostic, and it can raise a false alarm
+
+On boot the service takes up to 25 of the worlds the worlds content server reports as live,
+computes each one's expected LiveKit room name with its own `COMMS_ROOM_PREFIX`, and asks LiveKit
+which of those rooms exist. None existing means this service is computing names nobody else uses —
+every world participant lookup would answer "nobody is here" forever — so it logs an error naming
+both prefixes and sets `presence_prefix_mismatch=1`. One existing room clears it, and so does
+anything inconclusive: no live worlds, fewer than three sampled, an unreachable content server or
+LiveKit. It never throws and never gates startup.
+
+The residual false positive: a live world can be legitimately roomless. `/live-data` lists worlds
+by name rather than by occupancy, so a world with nobody connected is still reported live, and a
+deployment whose comms adapter is not LiveKit has no rooms at all. A deployment where *every*
+sampled world is roomless therefore raises the gauge with a correct prefix configured. Requiring
+three sampled worlds makes that unlikely rather than impossible, so treat the gauge as a prompt to
+compare the two `COMMS_ROOM_PREFIX` values — not as proof on its own.
+
+### Why a reconnect needs a re-send
+
+Pulse publishes a cluster assignment when the clustering *changes*, and iteration 2 retires the
+client heartbeat that used to hand a reconnecting WebSocket its room back. Between the two, a peer
+whose socket dropped while standing still had nothing to tell it which island to rejoin — for a
+peer standing still, "the next cluster change" is never.
+
+So ws-connector publishes `peer.{address}.connect` after every successful handshake, and this
+service (behind `CLUSTER_SUBSCRIBER_ENABLED`, the same flag as the cluster feed) answers it by
+re-minting a token for the peer's **current** island and re-publishing
+`engine.peer.{address}.island_changed` for it. The message carries no `fromIslandId`, because a
+re-send is not a move, and the token is always freshly minted: a stored one would be expiring
+exactly when a reconnecting client needs it. Nothing publishes the subject until ws-connector
+starts doing so, so subscribing to it changes nothing on its own.
+
+**Which island it re-sends is read from Pulse, not from memory.** The per-wallet assignment store
+this service keeps is an in-process LRU written only by the replica that received the wallet's last
+`cluster_change`, and the two subjects are queue-grouped independently — so the replica a connect
+lands on is usually not the one that recorded the assignment, and may be holding one that has since
+been replaced. The resolution order is therefore:
+
+1. The presence map places the wallet in a realm → Pulse's `GET /realms/{realm}/islands` decides,
+   including when it says the peer is in no island yet (Pulse publishes that first assignment
+   itself). The read is cached per realm for `CLUSTER_ISLANDS_CACHE_TTL_MS` (2 s) and concurrent
+   reads for one realm collapse onto a single request, so a ws-connector redeploy — every peer
+   re-handshaking at once — reaches Pulse as one read per realm per replica.
+2. Nothing places it in a realm (`PRESENCE_MAP_ENABLED` off, or a peer the map has not seen) → the
+   local store, which is exactly right for a single-replica deployment.
+3. The map places it but Pulse cannot be asked → the local store as a stopgap, counted separately
+   so it is visible: a possibly superseded room beats no answer while the authority is down.
+
+A connect never writes the local store — only a `cluster_change` does, since it is the signal that
+decides which room a peer is in. Otherwise a reconnect would keep renewing the entry's lifetime and
+a flaky client would be re-sent the same room indefinitely.
+
+Every connect received is accounted for by exactly one increment of `island_resend_total`
+(`source="pulse"` or `source="peer_state"`) or `island_resend_skipped_total` (`reason="banned"`,
+`"not_in_map"`, `"not_clustered"`, `"lookup_failed"`, `"publish_failed"` or `"error"`), against
+`dcl_gatekeeper_cluster_connect_events_received_total` — so the answer rate is a division, and an
+expected skip is distinguishable from an incident. Banned wallets are skipped exactly like a cluster
+change, and also count the shared moderation metric.
 
 ## Testing
 

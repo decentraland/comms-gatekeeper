@@ -1,6 +1,8 @@
 import { ParticipantInfo } from 'livekit-server-sdk'
 import { Entity, EntityType } from '@dcl/schemas'
 import { test } from '../components'
+import { decodeParcelChangesFixture, readFixtureJson } from '../fixtures/iteration-2/loader'
+import { snapshotEnv } from '../utils'
 
 test('GET /scene-participants', ({ components, stubComponents, spyComponents }) => {
   const mockParticipants = [
@@ -315,5 +317,130 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
         expect(body.error).toContain('Either pointer with realm_name or a world realm_name must be provided')
       })
     })
+  })
+})
+
+/**
+ * The C3 path: the answer resolved on Pulse's presence map instead of on LiveKit room
+ * membership. `LIVEKIT_PRESENCE_FALLBACK=false` is what flips it, and it is set through
+ * `beforeStart` because the component reads the flag once, when it is built.
+ *
+ * The map is fed the contract pack's own bytes (`01-snapshot.bin`), so the presence state these
+ * cases resolve against is exactly the one `parcel_changes/replay.json` pins.
+ */
+test('GET /scene-participants resolved on the presence map', ({ components, stubComponents, beforeStart }) => {
+  const LAND = readFixtureJson<any>('scene-participants/land.json')
+  const WORLD = readFixtureJson<any>('scene-participants/world.json')
+  const WORLD_POINTER = readFixtureJson<any>('scene-participants/world-pointer.json')
+  const BANNED = readFixtureJson<any>('scene-participants/banned-filtered.json')
+
+  // Jest reuses a worker process across spec files, so the flags must not outlive this suite —
+  // and a key that was unset has to be deleted, not assigned the string "undefined".
+  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'LIVEKIT_PRESENCE_FALLBACK', 'PULSE_URL')
+
+  beforeStart(() => {
+    process.env.PRESENCE_MAP_ENABLED = 'true'
+    process.env.LIVEKIT_PRESENCE_FALLBACK = 'false'
+    // Required while the map is on, and pointed at a closed port: the map here is fed by this spec
+    // over the wire format, so the boot-time prime must not reach anything.
+    process.env.PULSE_URL = 'http://127.0.0.1:9'
+  })
+
+  afterAll(() => {
+    restoreEnv()
+  })
+
+  beforeEach(() => {
+    components.presenceMap.applyBatch(decodeParcelChangesFixture('01-snapshot.bin'))
+    stubComponents.places.getPlaceByParcel.mockResolvedValue({ id: 'land-place' } as any)
+    stubComponents.places.getWorldByName.mockResolvedValue({ id: 'world-place' } as any)
+    stubComponents.places.getWorldScenePlaceByEntityId.mockResolvedValue({ id: 'world-scene-place' } as any)
+    stubComponents.sceneBanManager.listBannedAddresses.mockResolvedValue([])
+  })
+
+  describe('when asking about a Genesis City pointer', () => {
+    beforeEach(() => {
+      stubComponents.contentClient.fetchEntitiesByPointers.mockResolvedValue(LAND.catalyst.returns)
+    })
+
+    it('should answer with the peers standing on the scene, not with a LiveKit room membership', async () => {
+      const response = await components.localFetch.fetch(LAND.request.replace('GET ', ''))
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual(LAND.body)
+      expect(stubComponents.livekit.listRoomParticipants).not.toHaveBeenCalled()
+    })
+
+    describe('and one of them is banned from the place', () => {
+      beforeEach(() => {
+        stubComponents.sceneBanManager.listBannedAddresses.mockResolvedValue(BANNED.gatekeeperBans)
+      })
+
+      it('should leave the banned wallet out', async () => {
+        const response = await components.localFetch.fetch(BANNED.request.replace('GET ', ''))
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual(BANNED.body)
+      })
+    })
+  })
+
+  describe('when asking about a whole world', () => {
+    it('should answer case-insensitively on the realm name', async () => {
+      const mixedCase = await components.localFetch.fetch(WORLD.request.replace('GET ', ''))
+      const lowerCase = await components.localFetch.fetch('/scene-participants?realm_name=cozyfarm.dcl.eth')
+
+      expect(mixedCase.status).toBe(200)
+      expect(await mixedCase.json()).toEqual(WORLD.body)
+      expect(await lowerCase.json()).toEqual(WORLD.body)
+    })
+  })
+
+  describe('when asking about one scene of a world', () => {
+    beforeEach(() => {
+      const testCase = WORLD_POINTER.cases[0]
+      stubComponents.worlds.fetchWorldSceneByPointer.mockResolvedValue({
+        worldName: testCase.worlds.fetchWorldSceneByPointer.worldName,
+        deployer: '0x0000000000000000000000000000000000000000',
+        entityId: testCase.worlds.returns.id,
+        parcels: testCase.worlds.returns.metadata.scene.parcels
+      })
+    })
+
+    it('should answer with the peers standing on that scene only', async () => {
+      const response = await components.localFetch.fetch(WORLD_POINTER.cases[0].request.replace('GET ', ''))
+
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual(WORLD_POINTER.cases[0].body)
+    })
+  })
+})
+
+/**
+ * The cold-map answer. `LIVEKIT_PRESENCE_FALLBACK=false` says "do not answer from LiveKit", so
+ * before the map is primed this route has nothing to answer with — and says so with the same
+ * `503 {"ok":false,"error":"warming"}` body `/hot-scenes` serves, rather than reporting a
+ * deserted scene. The map is deliberately never fed here.
+ */
+test('GET /scene-participants while the presence map is warming', ({ components, beforeStart }) => {
+  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'LIVEKIT_PRESENCE_FALLBACK', 'PULSE_URL')
+
+  beforeStart(() => {
+    process.env.PRESENCE_MAP_ENABLED = 'true'
+    process.env.LIVEKIT_PRESENCE_FALLBACK = 'false'
+    // Required while the map is on, and pointed at a closed port on purpose: the map must stay
+    // cold here, so the boot-time prime has to find nothing rather than be skipped.
+    process.env.PULSE_URL = 'http://127.0.0.1:9'
+  })
+
+  afterAll(() => {
+    restoreEnv()
+  })
+
+  it('should answer 503 warming, exactly as /hot-scenes does', async () => {
+    const response = await components.localFetch.fetch('/scene-participants?realm_name=cozyfarm.dcl.eth')
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ ok: false, error: 'warming' })
   })
 })

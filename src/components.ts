@@ -61,6 +61,9 @@ import { createNatsComponent } from './adapters/nats'
 import { createPeerStateComponent } from './adapters/peer-state'
 import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
+import { createPresenceMapComponent } from './logic/presence-map'
+import { createHotScenesComponent } from './logic/hot-scenes'
+import { createWorldRoomPrefixCheckComponent } from './logic/world-room-prefix-check'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -248,10 +251,24 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     userModeration
   })
 
+  const presenceMap = await createPresenceMapComponent({ config, logs, metrics, nats, fetch: tracedFetch })
+
+  const hotScenes = await createHotScenesComponent({ config, logs, presenceMap, contentClient })
+
+  const worldRoomPrefixCheck = await createWorldRoomPrefixCheckComponent(
+    { config, logs, metrics, fetch: tracedFetch, livekit },
+    { checkOnStart: isProduction }
+  )
+
   const sceneParticipants = await createSceneParticipantsComponent({
+    config,
     livekit,
     contentClient,
     worlds,
+    places,
+    sceneBanManager,
+    presenceMap,
+    metrics,
     logs
   })
 
@@ -290,7 +307,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     livekit,
     accessGate,
     playerConnectionDb,
-    peerState
+    peerState,
+    presenceMap,
+    fetch: tracedFetch
   })
 
   const livekitWebhook = createLivekitWebhookComponent()
@@ -350,6 +369,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     nats,
     peerState,
     accessGate,
-    clusterSubscriber
+    clusterSubscriber,
+    presenceMap,
+    hotScenes,
+    worldRoomPrefixCheck
   }
 }

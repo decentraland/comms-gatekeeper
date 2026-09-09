@@ -1,0 +1,11 @@
+{
+  "handshake": {
+    "address": "0x00000000000000000000000000000000000000AB",
+    "realm": "CozyFarm.dcl.eth"
+  },
+  "parcel": {
+    "x": 5,
+    "y": 6
+  },
+  "expected": "06-mixed-case.json"
+}

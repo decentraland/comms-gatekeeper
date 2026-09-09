@@ -1,0 +1,25 @@
+{
+  "contract": "C3",
+  "presenceState": "parcel_changes/replay.json steps[0].map (after 01-snapshot)",
+  "cases": [
+    {
+      "request": "GET /scene-participants?pointer=0,0&realm_name=cozyfarm.dcl.eth",
+      "worlds": {
+        "fetchWorldSceneByPointer": { "worldName": "cozyfarm.dcl.eth", "pointer": "0,0" },
+        "returns": { "id": "bafy-world-scene", "metadata": { "scene": { "base": "0,0", "parcels": ["0,0", "0,1"] } } }
+      },
+      "resolution": "addresses = map.where(realm == 'cozyfarm.dcl.eth' && parcel in worldScene.parcels), sorted asc",
+      "status": 200,
+      "body": { "ok": true, "data": { "addresses": ["0x0000000000000000000000000000000000000003"] } }
+    },
+    {
+      "request": "GET /scene-participants?pointer=5,5&realm_name=cozyfarm.dcl.eth",
+      "worlds": {
+        "fetchWorldSceneByPointer": { "worldName": "cozyfarm.dcl.eth", "pointer": "5,5" },
+        "returns": { "id": "bafy-world-scene-b", "metadata": { "scene": { "base": "5,5", "parcels": ["5,5"] } } }
+      },
+      "status": 200,
+      "body": { "ok": true, "data": { "addresses": [] } }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "contract": "C3 (always minus gatekeeper's own ban list)",
+  "presenceState": "parcel_changes/replay.json steps[0].map (after 01-snapshot)",
+  "request": "GET /scene-participants?pointer=-1,0&realm_name=main",
+  "catalyst": "same as land.json",
+  "gatekeeperBans": ["0x0000000000000000000000000000000000000004"],
+  "note": "closes the <= 30 s window between a ban and Pulse's BanEnforcer eviction; the banned wallet is still present in the map but never listed",
+  "status": 200,
+  "body": {
+    "ok": true,
+    "data": {
+      "addresses": ["0x0000000000000000000000000000000000000001"]
+    }
+  }
+}

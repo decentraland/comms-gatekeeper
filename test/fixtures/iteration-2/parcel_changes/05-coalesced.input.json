@@ -1,0 +1,24 @@
+{
+  "serverName": "pulse-1",
+  "window": [
+    {
+      "at": 1788515574304,
+      "address": "0x0000000000000000000000000000000000000003",
+      "realm": "cozyfarm.dcl.eth",
+      "parcel": {
+        "x": 2,
+        "y": 2
+      }
+    },
+    {
+      "at": 1788515575004,
+      "address": "0x0000000000000000000000000000000000000003",
+      "realm": "cozyfarm.dcl.eth",
+      "parcel": {
+        "x": 3,
+        "y": 4
+      }
+    }
+  ],
+  "expected": "05-coalesced.json"
+}
