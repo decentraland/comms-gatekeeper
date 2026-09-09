@@ -134,20 +134,42 @@ when the clustering *changes*. Without the re-send, a peer whose socket dropped 
 still would sit roomless until something re-clustered it, which for a peer standing still is
 never.
 
-A wallet this replica has no assignment for — a fresh or restarted replica, or an entry
-`CLUSTER_PEER_STATE_TTL_MS` retired — is recovered in two reads: the presence map says which realm
-the wallet stands in, and Pulse's `GET /realms/{realm}/islands` says which island of that realm
-holds it. With the presence map off there is no realm to ask about, so the connect is skipped and
-counted (`island_resend_skipped_total`) rather than guessed at; that costs the peer nothing it was
-not already waiting for, since Pulse publishes the assignment itself once the peer is clustered.
-Standing in a realm is also not the same fact as being clustered, so a wallet in no island is the
-same skip. Banned wallets are skipped exactly like a `cluster_change`, and count the same
-moderation metric. Everything for one wallet runs on one serialization chain across both subjects,
-so a re-send can never race an assignment and announce the room the peer is leaving.
+**Which room a re-send announces** is *not* read out of `peerState` first. That store is an
+in-process LRU written only by the replica the queue group handed the wallet's last
+`cluster_change` to, and `peer.*.cluster_change` and `peer.*.connect` are two independent
+distributions over the same group, so the replica a connect lands on is usually not the one that
+recorded the assignment — and may hold one that another replica has already replaced, with nothing
+to invalidate it. The order is therefore:
+
+1. **The presence map places the wallet in a realm** → Pulse's `GET /realms/{realm}/islands`
+   decides, matched on `peers[*].address` lower-cased. This is authoritative, *including* its
+   negative answer: a wallet in no island is a skip (`not_clustered`), because standing in a realm
+   is not the same fact as being clustered and Pulse publishes the first assignment itself.
+2. **Nothing places it in a realm** — the map is off, or has not seen it — → `peerState`, which is
+   exactly right for a single-replica deployment and for the map-off window (`not_in_map` when it
+   holds nothing either).
+3. **The map places it but Pulse cannot be asked** → `peerState` as a stopgap, counted
+   `island_resend_total{source="peer_state"}`: a possibly superseded room beats no answer while the
+   authority is unreachable, and Pulse re-publishes the assignment once it is back
+   (`lookup_failed` when there is nothing to fall back on).
+
+A connect **never writes `peerState`** — only `cluster_change` does. Writing here would renew the
+TTL of an assignment this replica may no longer own, so a flaky client (exactly the population that
+generates connects) would keep being re-sent the same room and the entry would never expire.
+
+The islands read goes through the repo's cached-fetch component, keyed by URL, so it is cached per
+realm for `CLUSTER_ISLANDS_CACHE_TTL_MS` (2 s) and concurrent misses collapse onto one request:
+a ws-connector redeploy re-handshakes every connected peer at once, and one full cluster-board read
+per connect would reach Pulse as a second storm during the first one.
+
+Banned wallets are skipped exactly like a `cluster_change`, and count the same moderation metric.
+Everything for one wallet runs on one serialization chain across both subjects, so a re-send can
+never race an assignment and announce the room the peer is leaving.
 
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
-bounded per-wallet assignment store, whose only consumer is `fromIslandId`) and
+bounded per-wallet assignment store — **per replica**, written only by `cluster_change`, read by
+`fromIslandId` and as the connect re-send's fallback) and
 `src/logic/access-gate/` (the platform-ban + deny-list lookup shared with the two signed-fetch
 token handlers). Island room names come from `livekit.getIslandRoomName`, alongside every other
 room-name builder in that adapter.
@@ -164,6 +186,19 @@ feed archipelago-stats, but are deliberately unused here — both retire in iter
 service prefix because the iteration-2 contract pins them). `dcl_gatekeeper_cluster_published_total`
 counts only what a `cluster_change` published, so the two subjects stay separable; a re-send that
 NATS dropped counts `dcl_gatekeeper_cluster_publish_failed_total`, never a re-send.
+
+**The connect funnel adds up**, so a dashboard can state an answer rate rather than a trend:
+`dcl_gatekeeper_cluster_connect_events_received_total` counts every `peer.*.connect` with a wallet
+in its subject, and each one lands on exactly one increment of `island_resend_total` (labelled
+`source="pulse"` or `source="peer_state"`) or of `island_resend_skipped_total` (labelled
+`reason=` `banned` | `not_in_map` | `not_clustered` | `lookup_failed` | `publish_failed` |
+`error`). So the answer rate is `island_resend_total / …connect_events_received_total`, and the
+reasons that mean "expected" (`not_in_map` while the map is off, `not_clustered` before Pulse has
+clustered the peer) are separable from the ones that mean "incident" (`lookup_failed`,
+`publish_failed`, `error`). A banned connect is counted twice on purpose: once on the shared
+`dcl_gatekeeper_cluster_banned_skipped_total` (moderation activity across both subjects) and once
+as `island_resend_skipped_total{reason="banned"}` (this funnel's banned term). A rising
+`source="peer_state"` share with the map on means the authoritative read is failing.
 
 **Dependency pin (temporary).** `@dcl/protocol` is pinned to a CDN *branch* tarball
 (`dcl-protocol-1.0.0-33890257211.commit-7dc9cee.tgz`) because no npm registry release ships

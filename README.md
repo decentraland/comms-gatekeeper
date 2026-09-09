@@ -233,12 +233,32 @@ re-send is not a move, and the token is always freshly minted: a stored one woul
 exactly when a reconnecting client needs it. Nothing publishes the subject until ws-connector
 starts doing so, so subscribing to it changes nothing on its own.
 
-A wallet this replica holds no assignment for is recovered from the presence map (which realm the
-wallet stands in) plus Pulse's `GET /realms/{realm}/islands` (which island of that realm holds it).
-With `PRESENCE_MAP_ENABLED` off there is no realm to ask about, so the connect is skipped and
-counted on `island_resend_skipped_total` instead of guessed at — Pulse publishes the assignment
-itself once the peer is clustered, so the peer waits no longer than it already would. Successful
-re-sends count `island_resend_total`; banned wallets are skipped exactly like a cluster change.
+**Which island it re-sends is read from Pulse, not from memory.** The per-wallet assignment store
+this service keeps is an in-process LRU written only by the replica that received the wallet's last
+`cluster_change`, and the two subjects are queue-grouped independently — so the replica a connect
+lands on is usually not the one that recorded the assignment, and may be holding one that has since
+been replaced. The resolution order is therefore:
+
+1. The presence map places the wallet in a realm → Pulse's `GET /realms/{realm}/islands` decides,
+   including when it says the peer is in no island yet (Pulse publishes that first assignment
+   itself). The read is cached per realm for `CLUSTER_ISLANDS_CACHE_TTL_MS` (2 s) and concurrent
+   reads for one realm collapse onto a single request, so a ws-connector redeploy — every peer
+   re-handshaking at once — reaches Pulse as one read per realm per replica.
+2. Nothing places it in a realm (`PRESENCE_MAP_ENABLED` off, or a peer the map has not seen) → the
+   local store, which is exactly right for a single-replica deployment.
+3. The map places it but Pulse cannot be asked → the local store as a stopgap, counted separately
+   so it is visible: a possibly superseded room beats no answer while the authority is down.
+
+A connect never writes the local store — only a `cluster_change` does, since it is the signal that
+decides which room a peer is in. Otherwise a reconnect would keep renewing the entry's lifetime and
+a flaky client would be re-sent the same room indefinitely.
+
+Every connect received is accounted for by exactly one increment of `island_resend_total`
+(`source="pulse"` or `source="peer_state"`) or `island_resend_skipped_total` (`reason="banned"`,
+`"not_in_map"`, `"not_clustered"`, `"lookup_failed"`, `"publish_failed"` or `"error"`), against
+`dcl_gatekeeper_cluster_connect_events_received_total` — so the answer rate is a division, and an
+expected skip is distinguishable from an incident. Banned wallets are skipped exactly like a cluster
+change, and also count the shared moderation metric.
 
 ## Testing
 
