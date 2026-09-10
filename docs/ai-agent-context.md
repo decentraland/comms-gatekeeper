@@ -79,6 +79,8 @@ The ban enforcement that matters for scene access happens at comms-gatekeeper (p
 - **Token issuance** (`/scene-adapter`, `/island-adapter`): generate LiveKit tokens for scene and island rooms — the primary entry point to the platform
 - **Scene administration** (`/scene-admin`): add/remove scene admins
 - **Moderation** (`/scene-bans`, `/users/{address}/bans`, `/users/{address}/warnings`, `/bans`): ban/unban/warn users at scene scope or platform scope; platform moderation endpoints require the moderator role via Signed Fetch
+- **Ban checks for other services** (`/users/{address}/ban-status`, `/worlds/{worldName}/parcels/{baseParcel}/users/{address}/ban-status`): bearer-token endpoints used by worlds-content-server before it issues a world token. The platform one takes an `X-Device-Id` header (not a query parameter — the request logger writes the query string at INFO) and matches a ban on the address **or** the recorded device, so a device ban survives a wallet switch
+- **Connection recording for other services** (`/users/{address}/connection-info`): bearer-token endpoint worlds-content-server posts to when issuing a world token. This service records the same info inline on its own token paths; worlds does not pass through those, so without it a worlds-only player would be banned with no device captured
 - **Streaming** (`/scene-stream-access`): RTMP URL and key lifecycle for content creators
 - **Voice chat** (`/private-voice-chat`, `/community-voice-chat`): session creation, speaker management, request-to-speak
 - **Webhooks** (`/livekit-webhook`): receive LiveKit server events (room created/destroyed, participant joined/left)
