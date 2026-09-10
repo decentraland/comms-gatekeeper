@@ -1,8 +1,9 @@
+import { Events } from '@dcl/schemas'
 import { test } from '../../components'
 import { VoiceChatUserStatus } from '../../../src/adapters/db/types'
 import { setCommunityUserStatus } from '../../db-utils'
 
-test('Community voice chat expiration job', ({ components }) => {
+test('Community voice chat expiration job', ({ components, spyComponents }) => {
   const communityId = 'test-community-expiration'
   const moderatorAddress = '0x1234567890123456789012345678901234567890'
   const memberAddress = '0x1234567890123456789012345678901234567891'
@@ -42,7 +43,7 @@ test('Community voice chat expiration job', ({ components }) => {
       it('should NOT be deleted by the expiration job', async () => {
         // Test the direct database function - active moderator should keep room alive
         const expiredRoomsBefore = await components.voiceDB.deleteExpiredCommunityVoiceChats()
-        expect(expiredRoomsBefore).not.toContain(roomName)
+        expect(expiredRoomsBefore.map((expiredRoom) => expiredRoom.roomName)).not.toContain(roomName)
 
         // Run the full expiration job
         await components.voice.expireCommunityVoiceChats()
@@ -74,7 +75,7 @@ test('Community voice chat expiration job', ({ components }) => {
       it('should NOT be deleted by the expiration job', async () => {
         // Test the direct database function to ensure consistency - THIS WOULD HAVE FAILED BEFORE THE FIX
         const expiredRoomsBefore = await components.voiceDB.deleteExpiredCommunityVoiceChats()
-        expect(expiredRoomsBefore).not.toContain(roomName)
+        expect(expiredRoomsBefore.map((expiredRoom) => expiredRoom.roomName)).not.toContain(roomName)
 
         // Run the full expiration job
         await components.voice.expireCommunityVoiceChats()
@@ -107,7 +108,7 @@ test('Community voice chat expiration job', ({ components }) => {
       it('should be deleted by the expiration job', async () => {
         // Test the direct database function - moderator inactive beyond both TTLs
         const expiredRooms = await components.voiceDB.deleteExpiredCommunityVoiceChats()
-        expect(expiredRooms).toContain(roomName)
+        expect(expiredRooms).toContainEqual({ roomName, participantCount: 1 })
 
         // Verify the room was deleted
         const usersAfterExpiration = await components.voiceDB.getCommunityUsersInRoom(roomName)
@@ -150,7 +151,7 @@ test('Community voice chat expiration job', ({ components }) => {
         // Moderator is no longer "active" but we haven't reached the no-moderator TTL
         // Test the direct database function to ensure consistency
         const expiredRooms = await components.voiceDB.deleteExpiredCommunityVoiceChats()
-        expect(expiredRooms).not.toContain(roomName)
+        expect(expiredRooms.map((expiredRoom) => expiredRoom.roomName)).not.toContain(roomName)
 
         // Verify the room still exists
         const usersAfterExpiration = await components.voiceDB.getCommunityUsersInRoom(roomName)
@@ -181,7 +182,7 @@ test('Community voice chat expiration job', ({ components }) => {
         // Room should be destroyed - no active moderators for longer than no-moderator TTL
         // Test the direct database function to ensure consistency
         const expiredRooms = await components.voiceDB.deleteExpiredCommunityVoiceChats()
-        expect(expiredRooms).toContain(roomName)
+        expect(expiredRooms).toContainEqual({ roomName, participantCount: 1 })
 
         // Verify the room was deleted
         const usersAfterExpiration = await components.voiceDB.getCommunityUsersInRoom(roomName)
@@ -223,7 +224,7 @@ test('Community voice chat expiration job', ({ components }) => {
 
         // Test the direct database function - should delete room despite active members
         const expiredRooms = await components.voiceDB.deleteExpiredCommunityVoiceChats()
-        expect(expiredRooms).toContain(roomName)
+        expect(expiredRooms).toContainEqual({ roomName, participantCount: 2 })
 
         // Verify the room was deleted
         const usersAfterExpiration = await components.voiceDB.getCommunityUsersInRoom(roomName)
@@ -241,11 +242,41 @@ test('Community voice chat expiration job', ({ components }) => {
     it('should be deleted by the expiration job immediately', async () => {
       // Test the direct database function - no moderators should delete room immediately
       const expiredRooms = await components.voiceDB.deleteExpiredCommunityVoiceChats()
-      expect(expiredRooms).toContain(roomName)
+      expect(expiredRooms).toContainEqual({ roomName, participantCount: 1 })
 
       // Verify the room was deleted
       const usersAfterExpiration = await components.voiceDB.getCommunityUsersInRoom(roomName)
       expect(usersAfterExpiration).toHaveLength(0)
+    })
+  })
+
+  describe('when running the full expiration job over a room that has no moderators', () => {
+    beforeEach(async () => {
+      await components.voiceDB.joinUserToCommunityRoom(memberAddress, roomName, false)
+
+      spyComponents.livekit.deleteRoom.mockResolvedValue(undefined)
+      spyComponents.analytics.fireEvent.mockReturnValue(undefined)
+      spyComponents.publisher.publishMessage.mockResolvedValue({ MessageId: 'a-message-id', $metadata: {} })
+    })
+
+    afterEach(() => {
+      spyComponents.livekit.deleteRoom.mockRestore()
+      spyComponents.analytics.fireEvent.mockRestore()
+      spyComponents.publisher.publishMessage.mockRestore()
+    })
+
+    // An expiring room is by definition absent from every "active community voice chats" query, so
+    // sourcing the participant count from one used to leave the count at 0 and swallow the event.
+    it('should publish the ended event with the participants the room had', async () => {
+      await components.voice.expireCommunityVoiceChats()
+
+      expect(spyComponents.publisher.publishMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: Events.Type.STREAMING,
+          subType: Events.SubType.Streaming.COMMUNITY_STREAMING_ENDED,
+          metadata: expect.objectContaining({ communityId, totalParticipants: 1 })
+        })
+      )
     })
   })
 })
