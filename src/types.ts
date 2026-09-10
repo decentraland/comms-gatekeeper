@@ -39,6 +39,7 @@ import { IModeratorComponent } from './logic/moderator'
 import { IFeaturesComponent } from '@dcl/features-component'
 import { INatsComponent } from './adapters/nats'
 import { IPeerStateComponent } from './adapters/peer-state'
+import { IAssignmentMirrorComponent } from './adapters/assignment-mirror'
 import { IAccessGateComponent } from './logic/access-gate'
 import { IClusterSubscriberComponent } from './logic/cluster-subscriber/types'
 
@@ -93,6 +94,7 @@ export type BaseComponents = {
   features: IFeaturesComponent
   nats: INatsComponent
   peerState: IPeerStateComponent
+  assignmentMirror: IAssignmentMirrorComponent
   accessGate: IAccessGateComponent
   clusterSubscriber: IClusterSubscriberComponent
 }

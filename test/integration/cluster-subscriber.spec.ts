@@ -4,6 +4,7 @@ import { RoomType } from '@dcl/schemas'
 import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { createHmac } from 'crypto'
 import { connect, NatsConnection } from 'nats'
+import { createAssignmentMirrorComponent } from '../../src/adapters/assignment-mirror'
 import { createNatsComponent } from '../../src/adapters/nats'
 import { createClusterSubscriberComponent } from '../../src/logic/cluster-subscriber'
 import { IClusterSubscriberComponent } from '../../src/logic/cluster-subscriber/types'
@@ -21,6 +22,7 @@ const ALLOWED_WALLET = '0x3333333333333333333333333333333333333333'
 // suite, so reusing one would leak a previous test's assignment into the next fromIslandId.
 const REASSIGNED_WALLET = '0x4444444444444444444444444444444444444444'
 const QUEUE_GROUP_WALLET = '0x5555555555555555555555555555555555555555'
+const RECONNECT_WALLET = '0x7777777777777777777777777777777777777777'
 const DENYLISTED_WALLET = '0x6666666666666666666666666666666666666666'
 
 const startOptions = {
@@ -131,6 +133,9 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
     } as any
 
     const replicaNats = await createNatsComponent({ config, logs: components.logs, metrics: components.metrics })
+    // One per replica, as in production: the mirror is process-local, and a shared instance
+    // would hide whether the un-grouped subscription really reaches every replica.
+    const replicaMirror = await createAssignmentMirrorComponent({ config })
 
     return {
       nats: replicaNats,
@@ -142,7 +147,8 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
         livekit: components.livekit,
         accessGate: components.accessGate,
         playerConnectionDb: components.playerConnectionDb,
-        peerState: components.peerState
+        peerState: components.peerState,
+        assignmentMirror: replicaMirror
       })
     }
   }
@@ -314,6 +320,35 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
       publishClusterChange(QUEUE_GROUP_WALLET, 'C30')
 
       expect(await nextIslandChanged(5000)).toBeDefined()
+      expect(await nextIslandChanged(1500)).toBeUndefined()
+    })
+
+    it('should answer a reconnect exactly once, naming the latest cluster', async () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      // The property no unit test can reach, and the one this design got wrong first time
+      // round. Minting is queue-grouped, so each replica only records the events it was
+      // handed: replica A can end up holding C40 while replica B holds C41. When both then
+      // answer the same reconnect, the client is told to join two rooms and settles in
+      // whichever arrives last - which may be the stale one. Feeding the mirror from an
+      // un-grouped subscription is what makes both replicas agree, and grouping the connect
+      // is what stops both of them replying.
+      publishClusterChange(RECONNECT_WALLET, 'C40')
+      expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C40')
+
+      publishClusterChange(RECONNECT_WALLET, 'C41')
+      expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C41')
+
+      // The real livekit adapter is in play here, and holdsParticipant deliberately rejects
+      // rather than reporting absence when it cannot reach LiveKit - which is always, in a
+      // test with no LiveKit server. Stub just this lookup; minting stays real.
+      jest.spyOn(components.livekit, 'holdsParticipant').mockResolvedValue(false)
+
+      publisher.publish(`peer.${RECONNECT_WALLET}.connect`)
+
+      expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C41')
       expect(await nextIslandChanged(1500)).toBeUndefined()
     })
   })

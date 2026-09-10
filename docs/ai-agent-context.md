@@ -107,6 +107,8 @@ assignment into a LiveKit connection string. Behind `CLUSTER_SUBSCRIBER_ENABLED`
 | Subject | Payload | Use |
 |---|---|---|
 | `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` | drives minting; queue-grouped so one replica handles each event |
+| `peer.{addr}.cluster_change` (again) | `decentraland.pulse.PeerClusterChange` | refreshes the assignment mirror only; **not** queue-grouped, so every replica records every assignment |
+| `peer.{addr}.connect` | none | a comms session started; re-announces the wallet's island. Queue-grouped, so exactly one replica answers |
 
 **Produces** `engine.peer.{addr}.island_changed` (`IslandChangedMessage`) — WS Connector
 subscribes to the literal subject and needs no change. `peers` is published empty:
@@ -114,6 +116,44 @@ unity-explorer reads only `connStr`.
 
 **Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
 room name → `generateCredentials(wallet, room, { cast: [] }, false)` → publish.
+
+**Reconnects.** Pulse's feed is edge-triggered: it stays silent while a peer's cluster is
+unchanged. A client whose websocket drops and comes back without the crowd moving would
+therefore never be given a room, because nothing else in iteration 1 can originate an island
+— WS Connector is a pure forwarder, and `archipelago-core`, which used to cover this by
+forgetting the peer on disconnect and re-creating it on the next heartbeat, is gone. The
+`peer.{addr}.connect` subscription closes that gap by replaying the wallet's assignment through
+the same mint-and-publish path, so the client gets a freshly minted token rather than the
+expired one it was last sent.
+
+Resolution reads `src/adapters/assignment-mirror/`, not peer state. Minting is queue-grouped, so
+a replica's peer state covers only the events it was handed; two replicas answering one
+reconnect from it would name different clusters, and the client would settle in whichever
+arrived last. The mirror is written from the second, un-grouped `cluster_change` subscription so
+every replica agrees, and the connect subscription is grouped so only one of them replies.
+
+The re-announcement is skipped when `livekit.holdsParticipant` reports the wallet already in
+that room: only the signalling socket has to have dropped for the event to fire, and handing a
+connection string to a peer already in the room puts two participants under one identity, which
+LiveKit resolves by evicting the existing one. That lookup **fails closed** — `holdsParticipant`
+rejects rather than reporting absence, and a rejection skips the re-announcement. This is
+deliberate and the opposite of the ban gate's fail-open: a LiveKit outage coincides with mass
+reconnects (a WS Connector deploy reconnects everyone at once), and reading "cannot tell" as
+"not in the room" would end every one of those sessions. `dcl_gatekeeper_cluster_reannounce_*`
+counts each branch so the suppression can be told apart from a lookup that never succeeds.
+
+**Known limitations.** A replica that has just started has an empty mirror and cannot answer a
+reconnect until each wallet's next genuine cluster change; because the connect subscription is
+grouped, a connect routed to such a replica is dropped rather than passed on. Entries also age
+out after `CLUSTER_ASSIGNMENT_MIRROR_TTL_MS` (1 h default), so a peer that has stood still
+longer than that is unresolvable. Both show up as
+`dcl_gatekeeper_cluster_reannounce_unresolved_total`.
+
+**Deploy order.** On clients without the same-island guard in `ArchipelagoIslandRoom`
+(unity-explorer, unmerged at the time of writing), being told to join a room they already hold
+triggers `DuplicateIdentity`, which stops the reconnection loop for the rest of the session and
+shows an exit-only modal. `holdsParticipant` is what keeps that from happening, which is why its
+failure mode must stay closed.
 
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the

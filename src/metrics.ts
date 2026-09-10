@@ -29,6 +29,26 @@ export const metricDeclarations = {
   dcl_gatekeeper_cluster_banned_skipped_total: {
     help: 'Total cluster_change events skipped because the wallet is banned or denylisted',
     type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_connects_received_total: {
+    help: 'Total peer connect events received from WS Connector',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_reannounce_attempted_total: {
+    help: "Total peer connect events that went on to re-announce the wallet's island",
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_reannounce_suppressed_total: {
+    help: 'Total peer connect events skipped because LiveKit already holds the wallet',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_reannounce_unresolved_total: {
+    help: 'Total peer connect events skipped because no cluster is known for the wallet',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_reannounce_check_failed_total: {
+    help: 'Total peer connect events skipped because the LiveKit participant lookup failed',
+    type: IMetricsComponent.CounterType
   }
 }
 

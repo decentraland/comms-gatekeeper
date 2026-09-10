@@ -66,6 +66,8 @@ export type ILivekitComponent = IBaseComponent & {
   removeIngress: (ingressId: string) => Promise<IngressInfo | undefined>
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
   getParticipantInfo: (roomId: string, participantId: string) => Promise<ParticipantInfo | null>
+  /** Rejects on a failed lookup instead of reporting the identity as absent. */
+  holdsParticipant: (roomId: string, participantId: string) => Promise<boolean>
   listRoomParticipants: (roomName: string) => Promise<ParticipantInfo[]>
   updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>
   updateParticipantPermissions: (

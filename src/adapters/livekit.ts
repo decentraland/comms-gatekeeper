@@ -431,6 +431,30 @@ export async function createLivekitComponent(
     }
   }
 
+  /**
+   * Whether `roomId` currently holds a participant under this identity.
+   *
+   * Unlike {@link getParticipantInfo}, a failed lookup rejects instead of reading as "absent",
+   * so a caller whose safe default is not "absent" can tell the two apart. A room that does not
+   * exist is reported as absent rather than an error, and costs a single call.
+   *
+   * @param roomId - The room to inspect.
+   * @param participantId - The identity to look for, compared case-insensitively.
+   * @returns Whether the identity is currently in the room.
+   */
+  async function holdsParticipant(roomId: string, participantId: string): Promise<boolean> {
+    // listRooms, not listParticipants, decides the absent case: it answers with an empty array
+    // for a room that does not exist, so absence stays distinguishable from a transport error.
+    const rooms = await roomClient.listRooms([roomId])
+    if (rooms.length === 0) {
+      return false
+    }
+
+    const participants = await roomClient.listParticipants(roomId)
+    const target = participantId.toLowerCase()
+    return participants.some((participant) => participant.identity?.toLowerCase() === target)
+  }
+
   async function listRoomParticipants(roomName: string): Promise<ParticipantInfo[]> {
     try {
       return await roomClient.listParticipants(roomName)
@@ -617,6 +641,7 @@ export async function createLivekitComponent(
     appendToRoomMetadataArray,
     removeFromRoomMetadataArray,
     getParticipantInfo,
+    holdsParticipant,
     listRoomParticipants,
     generateCredentials,
     getWorldRoomName,

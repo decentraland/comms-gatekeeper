@@ -2,6 +2,7 @@ import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/c
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { START_COMPONENT } from '@well-known-components/interfaces'
 import { LRUCache } from 'lru-cache'
+import { NatsMessageHandler } from '../../adapters/nats'
 import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
 import { positiveNumberOr } from '../../utils/config'
@@ -22,6 +23,11 @@ const DEFAULT_QUEUE_GROUP = 'comms-gatekeeper-cluster'
  * 4. Publish `engine.peer.{wallet}.island_changed`, carrying the previous room as `fromIslandId`.
  * 5. Record the new assignment in peer state.
  *
+ * Per inbound `peer.*.connect` (a peer's comms session starting), the wallet's last known
+ * island is re-announced through the same path, unless LiveKit already lists it in that room.
+ * Pulse's feed only speaks when a peer's cluster changes, so without this a client that
+ * reconnects standing still is never given a room.
+ *
  * Off unless `CLUSTER_SUBSCRIBER_ENABLED` is `'true'` and NATS is configured; when off it
  * subscribes to nothing and is byte-identical to not having the component at all.
  *
@@ -33,10 +39,19 @@ const DEFAULT_QUEUE_GROUP = 'comms-gatekeeper-cluster'
 export async function createClusterSubscriberComponent(
   components: Pick<
     AppComponents,
-    'config' | 'logs' | 'metrics' | 'nats' | 'livekit' | 'accessGate' | 'playerConnectionDb' | 'peerState'
+    | 'config'
+    | 'logs'
+    | 'metrics'
+    | 'nats'
+    | 'livekit'
+    | 'accessGate'
+    | 'playerConnectionDb'
+    | 'peerState'
+    | 'assignmentMirror'
   >
 ): Promise<IClusterSubscriberComponent> {
-  const { config, logs, metrics, nats, livekit, accessGate, playerConnectionDb, peerState } = components
+  const { config, logs, metrics, nats, livekit, accessGate, playerConnectionDb, peerState, assignmentMirror } =
+    components
   const logger = logs.getLogger('cluster-subscriber')
 
   const [enabledFlag, queueGroupSetting, banCacheTtlSetting] = await Promise.all([
@@ -154,14 +169,52 @@ export async function createClusterSubscriberComponent(
     peerState.set(wallet, { clusterId, room, lastSeen: Date.now() })
   }
 
-  // Serializes processClusterChange per wallet - an out-of-order mint would publish a
-  // superseded room and corrupt the next fromIslandId, and two concurrent cache misses could
-  // race on banCache. Keyed per wallet so one slow wallet can't stall the rest.
+  // Re-announces the wallet's island because its comms session just started: Pulse's feed is
+  // silent while a peer's cluster is unchanged (docs/ai-agent-context.md).
+  async function processPeerConnect(wallet: string): Promise<void> {
+    const clusterId = assignmentMirror.get(wallet)
+    if (!clusterId) {
+      metrics.increment('dcl_gatekeeper_cluster_reannounce_unresolved_total')
+      return
+    }
+
+    let alreadyInRoom: boolean
+    try {
+      alreadyInRoom = await livekit.holdsParticipant(livekit.getIslandRoomName(clusterId), wallet)
+    } catch (error) {
+      // FAILS CLOSED, unlike the ban gate above, and for the opposite reason. Only the
+      // signalling socket has to have dropped for this event to fire, so the peer is often
+      // still in its room; announcing it there again puts two participants under one identity
+      // and LiveKit ends the live one. Reading "cannot tell" as "not in the room" would do
+      // that to every reconnecting peer at once, which is exactly when this lookup is most
+      // likely to fail - a ws-connector deploy reconnects everyone in seconds. Leaving a
+      // stranded peer stranded costs it one more reconnect; the other way costs it its session.
+      metrics.increment('dcl_gatekeeper_cluster_reannounce_check_failed_total')
+      logger.warn(
+        `Cannot tell whether ${wallet} already holds its island, not re-announcing: ${getErrorMessage(error)}`
+      )
+      return
+    }
+
+    if (alreadyInRoom) {
+      metrics.increment('dcl_gatekeeper_cluster_reannounce_suppressed_total')
+      return
+    }
+
+    metrics.increment('dcl_gatekeeper_cluster_reannounce_attempted_total')
+    await processClusterChange(wallet, clusterId)
+  }
+
+  // Serializes per wallet - an out-of-order mint would publish a superseded room and corrupt
+  // the next fromIslandId, and two concurrent cache misses could race on banCache. Connects
+  // share the chain with cluster changes, so within one process a reconnect cannot interleave
+  // with a move; across replicas nothing does, as the queue group has no per-wallet affinity.
+  // Keyed per wallet so one slow wallet can't stall the rest.
   const walletChains = new Map<string, Promise<void>>()
 
-  function enqueueClusterChange(wallet: string, clusterId: string): Promise<void> {
+  function enqueue(wallet: string, task: () => Promise<void>): Promise<void> {
     const previous = walletChains.get(wallet) ?? Promise.resolve()
-    const result = previous.then(() => processClusterChange(wallet, clusterId))
+    const result = previous.then(task)
     // Must never reject, or later events queued behind it would stay stuck. The caller still
     // sees this event's own rejection via the returned `result` promise.
     const tail = result.catch(() => {})
@@ -174,34 +227,63 @@ export async function createClusterSubscriberComponent(
     return result
   }
 
-  function handleClusterChange(subject: string, data: Uint8Array): void {
-    // Kept small and synchronous, with every path guarded. A throw escaping here unwinds
-    // into the NATS client's reader loop and stops delivery on every subject.
-    try {
-      // Wallet is the token after `peer.`.
-      const wallet = subject.split('.')[1]?.toLowerCase()
-      if (!wallet) {
-        logger.warn(`Cannot extract a wallet from subject ${subject}`)
-        return
+  /**
+   * Wraps a subscription callback so nothing escapes it and the wallet is parsed once.
+   *
+   * nats.js invokes these from its own reader loop, so a throw that escapes one of them stops
+   * delivery on every subject on the connection, not just this one.
+   *
+   * @param what - Short name of the message kind, used in the error log.
+   * @param handle - Receives the lower-cased wallet from the subject.
+   * @returns A callback safe to hand to `nats.subscribe`.
+   */
+  function guarded(what: string, handle: (wallet: string, data: Uint8Array) => void): NatsMessageHandler {
+    return (subject, data) => {
+      try {
+        // Wallet is the token after `peer.`.
+        const wallet = subject.split('.')[1]?.toLowerCase()
+        if (!wallet) {
+          logger.warn(`Cannot extract a wallet from subject ${subject}`)
+          return
+        }
+
+        handle(wallet, data)
+      } catch (error) {
+        logger.error(`Cannot process ${what} message on ${subject}: ${getErrorMessage(error)}`)
       }
-
-      const change = PeerClusterChange.decode(data)
-      metrics.increment('dcl_gatekeeper_cluster_events_received_total')
-
-      // After the received-counter: this is a payload problem, not a decode one. Protobuf
-      // decodes a missing cluster_id as '', and unguarded that would dump every such peer into
-      // one shared `island-` room.
-      if (!change.clusterId) {
-        logger.warn(`Cannot process cluster_change for ${wallet}: empty clusterId`)
-        return
-      }
-
-      void enqueueClusterChange(wallet, change.clusterId).catch((error) => {
-        logger.error(`Cannot process cluster_change for ${wallet}: ${getErrorMessage(error)}`)
-      })
-    } catch (error) {
-      logger.error(`Cannot process cluster_change message on ${subject}: ${getErrorMessage(error)}`)
     }
+  }
+
+  function handleClusterChange(wallet: string, data: Uint8Array): void {
+    const change = PeerClusterChange.decode(data)
+    metrics.increment('dcl_gatekeeper_cluster_events_received_total')
+
+    // After the received-counter: this is a payload problem, not a decode one. Protobuf
+    // decodes a missing cluster_id as '', and unguarded that would dump every such peer into
+    // one shared `island-` room.
+    if (!change.clusterId) {
+      logger.warn(`Cannot process cluster_change for ${wallet}: empty clusterId`)
+      return
+    }
+
+    void enqueue(wallet, () => processClusterChange(wallet, change.clusterId)).catch((error) => {
+      logger.error(`Cannot process cluster_change for ${wallet}: ${getErrorMessage(error)}`)
+    })
+  }
+
+  function handleAssignmentMirror(wallet: string, data: Uint8Array): void {
+    const { clusterId } = PeerClusterChange.decode(data)
+    if (clusterId) {
+      assignmentMirror.set(wallet, clusterId)
+    }
+  }
+
+  function handlePeerConnect(wallet: string): void {
+    metrics.increment('dcl_gatekeeper_cluster_connects_received_total')
+
+    void enqueue(wallet, () => processPeerConnect(wallet)).catch((error) => {
+      logger.error(`Cannot process connect for ${wallet}: ${getErrorMessage(error)}`)
+    })
   }
 
   async function start(): Promise<void> {
@@ -216,7 +298,18 @@ export async function createClusterSubscriberComponent(
 
     // Queue-grouped: without it, N replicas would each mint and publish for every event,
     // giving each client N island_changed messages with N different tokens.
-    nats.subscribe('peer.*.cluster_change', handleClusterChange, { queue: queueGroup })
+    nats.subscribe('peer.*.cluster_change', guarded('cluster_change', handleClusterChange), { queue: queueGroup })
+
+    // Same subject again, this time with no queue group, so every replica sees every
+    // assignment. This copy only refreshes the mirror; minting stays exclusive to the grouped
+    // subscription above. Without it a replica knows only the assignments it happened to be
+    // handed, and two replicas would re-announce the same wallet to different rooms.
+    nats.subscribe('peer.*.cluster_change', guarded('cluster_change', handleAssignmentMirror))
+
+    // Grouped like minting, and for the same reason: the mirror leaves every replica able to
+    // answer a reconnect, so ungrouped they all would, and the client would be told to join
+    // one room once per replica - every join after the first evicting the one before it.
+    nats.subscribe('peer.*.connect', guarded('connect', handlePeerConnect), { queue: queueGroup })
 
     // Not awaited - well-known-components gates HTTP readiness (/health/ready, /health/startup)
     // on start() resolving, and connect() can stall ~20s per unreachable broker address before
