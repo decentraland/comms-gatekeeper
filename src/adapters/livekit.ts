@@ -44,7 +44,9 @@ export async function createLivekitComponent(
     previewHost,
     previewApiKey,
     previewSecret,
-    allowLocalPreview
+    allowLocalPreview,
+    prodApiHost,
+    previewApiHost
   ] = await Promise.all([
     config.requireString('COMMS_ROOM_PREFIX'),
     config.requireString('WORLD_ROOM_PREFIX'),
@@ -56,18 +58,23 @@ export async function createLivekitComponent(
     config.requireString('PREVIEW_LIVEKIT_HOST'),
     config.requireString('PREVIEW_LIVEKIT_API_KEY'),
     config.requireString('PREVIEW_LIVEKIT_API_SECRET'),
-    config.getString('ALLOW_LOCAL_PREVIEW')
+    config.getString('ALLOW_LOCAL_PREVIEW'),
+    config.getString('PROD_LIVEKIT_API_HOST'),
+    config.getString('PREVIEW_LIVEKIT_API_HOST')
   ])
 
-  const normalizedProdHost = !prodHost.startsWith('wss://') ? `wss://${prodHost}` : prodHost
+  const prodEndpoints = normalizeLivekitEndpoints(prodHost, prodApiHost)
+  const previewEndpoints = normalizeLivekitEndpoints(previewHost, previewApiHost)
 
-  const normalizedPreviewHost = !previewHost.startsWith('wss://') ? `wss://${previewHost}` : previewHost
+  const prodSettings: LivekitSettings = { host: prodEndpoints.clientHost, apiKey: prodApiKey, secret: prodSecret }
+  const previewSettings: LivekitSettings = {
+    host: previewEndpoints.clientHost,
+    apiKey: previewApiKey,
+    secret: previewSecret
+  }
 
-  const prodSettings: LivekitSettings = { host: normalizedProdHost, apiKey: prodApiKey, secret: prodSecret }
-  const previewSettings: LivekitSettings = { host: normalizedPreviewHost, apiKey: previewApiKey, secret: previewSecret }
-
-  const roomClient = new RoomServiceClient(normalizedProdHost, prodApiKey, prodSecret)
-  const ingressClient = new IngressClient(normalizedProdHost, prodApiKey, prodSecret)
+  const roomClient = new RoomServiceClient(prodEndpoints.apiHost, prodApiKey, prodSecret)
+  const ingressClient = new IngressClient(prodEndpoints.apiHost, prodApiKey, prodSecret)
   const receiver = new WebhookReceiver(prodApiKey, prodSecret)
 
   async function generateCredentials(
@@ -632,4 +639,25 @@ export async function createLivekitComponent(
     removeIngress,
     getWebhookEvent
   }
+}
+
+function normalizeLivekitEndpoints(
+  clientHost: string,
+  configuredApiHost?: string
+): {
+  clientHost: string
+  apiHost: string
+} {
+  // Keep component initialization compatible with tests and deployments that
+  // intentionally leave LiveKit disabled. The required configuration is
+  // still validated when a real room operation is attempted.
+  if (!clientHost) {
+    return { clientHost, apiHost: configuredApiHost || clientHost }
+  }
+
+  const clientUrl = clientHost.includes('://') ? clientHost : `wss://${clientHost}`
+  const parsed = new URL(clientUrl)
+  const apiHost = configuredApiHost || `${parsed.protocol === 'ws:' ? 'http:' : 'https:'}//${parsed.host}`
+
+  return { clientHost: clientUrl, apiHost }
 }

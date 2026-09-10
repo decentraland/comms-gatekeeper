@@ -8,6 +8,29 @@ import { StreamingMetadata } from '../types/notification.type'
 //TODO: inject the URL through definitions
 const METADATA_IMAGE_URL = 'https://assets-cdn.decentraland.org/streaming/streaming-notification.png'
 
+/**
+ * Metadata fields this service reads, in the spelling explorer clients send them.
+ *
+ * Declaring them enables @dcl/crypto-middleware's legacy-payload fallback: unity, godot and bevy
+ * still sign the pre-6.0.0 payload, which folds the metadata, and every one of these fields is
+ * camelCase — so their requests cannot verify under the current format until those three client
+ * releases ship, and they cannot be deployed atomically with this service.
+ *
+ * The list is what keeps the fallback from reopening the bypass it exists around: a legacy request
+ * delivering any of these under a different spelling is refused rather than read as absent.
+ * Derived from the reads below and in the cast/private-message handlers — keep it in step with them.
+ */
+export const CANONICAL_METADATA_KEYS = [
+  'signer',
+  'intent',
+  'sceneId',
+  'parcel',
+  'realmName',
+  'deviceIdentifier',
+  'realm.hostname',
+  'realm.serverName'
+]
+
 export async function oldValidate<T extends string>(
   context: HandlerContextWithPath<'fetch' | 'config', T>
 ): Promise<Omit<AuthData, 'realm' | 'isWorld'>> {
@@ -17,7 +40,8 @@ export async function oldValidate<T extends string>(
   let verification: DecentralandSignatureData<AuthData>
   try {
     verification = await verify(context.request.method, path.pathname, Object.fromEntries(context.request.headers), {
-      fetcher: fetch
+      fetcher: fetch,
+      canonicalMetadataKeys: CANONICAL_METADATA_KEYS
     })
   } catch (e) {
     throw new UnauthorizedError('Access denied, invalid signed-fetch request')
@@ -53,7 +77,8 @@ export async function validate<T extends string>(
 
   try {
     verification = await verify(context.request.method, path.pathname, Object.fromEntries(context.request.headers), {
-      fetcher: fetch
+      fetcher: fetch,
+      canonicalMetadataKeys: CANONICAL_METADATA_KEYS
     })
   } catch (e) {
     throw new UnauthorizedError('Access denied, invalid signed-fetch request')

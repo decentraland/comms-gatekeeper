@@ -80,10 +80,19 @@ export function createRoomMetadataSyncComponent(
     await cache.set(cooldownKey, true, WEBHOOK_REFRESH_COOLDOWN_SECONDS)
 
     try {
-      const { sceneId, worldName, roomType } = livekit.getRoomMetadataFromRoomName(room.name)
+      const { sceneId, worldName, realmName, roomType } = livekit.getRoomMetadataFromRoomName(room.name)
 
       if (roomType !== RoomType.SCENE && roomType !== RoomType.WORLD) {
         logger.warn(`Room ${room.name} is not a scene or world room, skipping metadata refresh`)
+        return
+      }
+
+      // Preview rooms have no place behind them — their sceneId is a local `b64-` preview id,
+      // so the entity lookup below can only fail, and the catch releases the cooldown, leaving
+      // every join and leave to retry it. Checked by realm name only, like the webhook event
+      // handlers, so it holds regardless of ALLOW_LOCAL_PREVIEW.
+      if (livekit.isPreviewRealmName(realmName) || livekit.isPreviewRealmName(worldName)) {
+        logger.debug(`Skipping metadata refresh for preview realm: ${realmName ?? worldName}`)
         return
       }
 

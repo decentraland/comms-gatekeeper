@@ -25,6 +25,7 @@ export interface ICastComponent {
     sceneId: string
     realmName: string
     walletAddress: string
+    deviceIdentifier?: string
   }): Promise<GenerateStreamLinkResult>
 
   /**
@@ -36,14 +37,6 @@ export interface ICastComponent {
    * @throws {ExpiredStreamingKeyError} If the streaming key has expired
    */
   validateStreamerToken(streamingKey: string, identity: string): Promise<ValidateStreamerTokenResult>
-
-  /**
-   * Generates watcher credentials for a specific room.
-   * @param roomId - The LiveKit room ID to join
-   * @param identity - Display name for the watcher
-   * @returns LiveKit credentials for the watcher
-   */
-  generateWatcherCredentials(roomId: string, identity: string): Promise<GenerateWatcherCredentialsResult>
 
   /**
    * Generates watcher credentials by resolving a location to a room.
@@ -60,7 +53,8 @@ export interface ICastComponent {
     location: string,
     identity: string,
     watcherAddress: string,
-    parcel?: string
+    parcel?: string,
+    deviceIdentifier?: string
   ): Promise<GenerateWatcherCredentialsResult>
 
   /**
@@ -108,6 +102,8 @@ export interface GenerateStreamLinkParams {
   worldName?: string
   sceneId: string
   realmName: string
+  /** From signed-fetch metadata when the caller sends one; no current client does. */
+  deviceIdentifier?: string
 }
 
 export interface GenerateStreamLinkResult {

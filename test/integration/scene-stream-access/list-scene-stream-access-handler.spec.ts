@@ -338,4 +338,76 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     const body = await response.json()
     expect(body.error).toBe('Streaming access not found')
   })
+
+  // Retrieval hands over a key that validateStreamerToken honours without a wallet check, so it
+  // needs the same gate as minting.
+  describe('when the requesting admin has an active platform ban', () => {
+    const bannedBy = '0x0000000000000000000000000000000000000099'
+
+    beforeEach(async () => {
+      await components.userModerationDb.createBan({
+        bannedAddress: owner.authChain[0].payload.toLowerCase(),
+        bannedBy,
+        reason: 'Harassment'
+      })
+    })
+
+    afterEach(async () => {
+      await components.database.query('DELETE FROM user_bans')
+      await components.database.query('DELETE FROM player_connection_info')
+    })
+
+    it('should respond with a 403 and no streaming key', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        { method: 'GET', metadata: metadataLand },
+        owner
+      )
+      const body = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(body).not.toHaveProperty('streaming_key')
+    })
+
+    it('should not read the existing access', async () => {
+      await makeRequest(components.localFetch, '/scene-stream-access', { method: 'GET', metadata: metadataLand }, owner)
+
+      expect(stubComponents.sceneStreamAccessManager.getAccess).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when the requesting admin last connected from a device another wallet is banned on', () => {
+    const bannedBy = '0x0000000000000000000000000000000000000099'
+
+    beforeEach(async () => {
+      await components.playerConnectionDb.upsertPlayerConnection({
+        address: owner.authChain[0].payload.toLowerCase(),
+        ipAddress: '1.2.3.4',
+        deviceId: 'banned-device'
+      })
+      await components.userModerationDb.createBan({
+        bannedAddress: '0x0000000000000000000000000000000000000001',
+        bannedBy,
+        reason: 'Evasion',
+        bannedDeviceId: 'banned-device'
+      })
+    })
+
+    afterEach(async () => {
+      await components.database.query('DELETE FROM user_bans')
+      await components.database.query('DELETE FROM player_connection_info')
+    })
+
+    it('should respond with a 403 even though the admin has no ban of their own', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        { method: 'GET', metadata: metadataLand },
+        owner
+      )
+
+      expect(response.status).toBe(403)
+    })
+  })
 })

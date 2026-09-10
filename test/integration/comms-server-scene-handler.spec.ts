@@ -156,26 +156,69 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
     })
   })
 
-  describe('when handling LocalPreview realm', () => {
-    beforeEach(() => {
+  describe('when handling a LocalPreview realm', () => {
+    const previewSceneId = 'b64-preview-scene'
+    const previewRoomName = 'genesis-city-prd-scene-room-LocalPreview:b64-preview-scene'
+
+    let response: Awaited<ReturnType<typeof makeRequest>>
+
+    beforeEach(async () => {
       validateResult.identity = 'any-identity'
       validateResult.realm.serverName = 'LocalPreview'
+      validateResult.sceneId = previewSceneId
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
       stubComponents.livekit.isLocalPreview.mockReturnValue(true)
-    })
+      stubComponents.livekit.getSceneRoomName.mockReturnValue(previewRoomName)
 
-    it('should allow any identity for LocalPreview realm', async () => {
-      const response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
+      response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({})
       })
+    })
 
+    it('should respond with a 200 and the adapter connection url for any identity', async () => {
       expect(response.status).toBe(200)
-      const body = await response.json()
-      expect(body.adapter).toBe('wss://livekit.example.com?token=mock-token')
+      await expect(response.json()).resolves.toEqual(
+        expect.objectContaining({ adapter: 'wss://livekit.example.com?token=mock-token' })
+      )
+    })
+
+    it('should derive the room from the realm and scene id, as /get-scene-adapter does', () => {
+      expect(stubComponents.livekit.getSceneRoomName).toHaveBeenCalledWith('LocalPreview', previewSceneId)
+    })
+
+    it('should mint the token for that scene room rather than a preview-prefixed one', () => {
+      expect(stubComponents.livekit.generateCredentials).toHaveBeenCalledWith(
+        'authoritative-server',
+        previewRoomName,
+        expect.anything(),
+        false
+      )
+    })
+
+    describe('and the request carries no sceneId', () => {
+      beforeEach(async () => {
+        validateResult.sceneId = undefined
+        jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
+
+        response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        })
+      })
+
+      it('should respond with a 400 and the missing-sceneId error instead of naming a room after undefined', async () => {
+        expect(response.status).toBe(400)
+        await expect(response.json()).resolves.toEqual(
+          expect.objectContaining({ error: 'Access denied, invalid signed-fetch request, no sceneId' })
+        )
+      })
     })
   })
 

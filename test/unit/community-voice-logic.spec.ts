@@ -14,9 +14,13 @@ import { createVoiceDBMockedComponent } from '../mocks/voice-db-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createConfigMockedComponent } from '../mocks/config-mock'
 import { createPublisherMockedComponent } from '../mocks/publisher-mock'
+import { createUserModerationMockedComponent } from '../mocks/user-moderation-mock'
+import { makeBan } from './user-moderation/utils'
+import { ForbiddenError } from '../../src/types/errors'
 
 describe('CommunityVoiceLogic', () => {
   let voiceComponent: IVoiceComponent
+  let mockUserModeration: ReturnType<typeof createUserModerationMockedComponent>
   let mockVoiceDB: jest.Mocked<IVoiceDBComponent>
   let mockLivekit: jest.Mocked<ILivekitComponent>
   let mockLogs: jest.Mocked<ILoggerComponent>
@@ -71,12 +75,15 @@ describe('CommunityVoiceLogic', () => {
 
     mockPublisher = createPublisherMockedComponent()
 
+    mockUserModeration = createUserModerationMockedComponent()
+
     voiceComponent = createVoiceComponent({
       voiceDB: mockVoiceDB,
       livekit: mockLivekit,
       logs: mockLogs,
       analytics: mockAnalytics,
-      publisher: mockPublisher
+      publisher: mockPublisher,
+      userModeration: mockUserModeration
     })
   })
 
@@ -766,6 +773,71 @@ describe('CommunityVoiceLogic', () => {
         livekit.getCommunityVoiceChatRoomName(validCommunityId),
         validUserAddress
       )
+    })
+  })
+
+  describe('when getting community voice chat credentials and the user has an active platform ban', () => {
+    beforeEach(() => {
+      mockUserModeration.getActiveBanForConnection.mockResolvedValue({
+        isBanned: true,
+        ban: makeBan({ bannedAddress: validUserAddress })
+      })
+    })
+
+    describe('and the user is joining an existing stage', () => {
+      it('should reject with a ForbiddenError stating the user is platform-banned', async () => {
+        await expect(
+          voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+            validCommunityId,
+            validUserAddress,
+            CommunityRole.Member,
+            undefined,
+            CommunityVoiceChatAction.JOIN
+          )
+        ).rejects.toThrow(new ForbiddenError('Access denied, platform-banned user'))
+      })
+
+      it('should not issue any LiveKit credentials', async () => {
+        await expect(
+          voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+            validCommunityId,
+            validUserAddress,
+            CommunityRole.Member,
+            undefined,
+            CommunityVoiceChatAction.JOIN
+          )
+        ).rejects.toThrow(ForbiddenError)
+
+        expect(mockLivekit.generateCredentials).not.toHaveBeenCalled()
+      })
+
+      it('should not join the user to the community room', async () => {
+        await expect(
+          voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+            validCommunityId,
+            validUserAddress,
+            CommunityRole.Member,
+            undefined,
+            CommunityVoiceChatAction.JOIN
+          )
+        ).rejects.toThrow(ForbiddenError)
+
+        expect(mockVoiceDB.joinUserToCommunityRoom).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the user is an owner creating a new stage', () => {
+      it('should reject with a ForbiddenError, because a community role does not override a platform ban', async () => {
+        await expect(
+          voiceComponent.getCommunityVoiceChatCredentialsWithRole(
+            validCommunityId,
+            validUserAddress,
+            CommunityRole.Owner,
+            undefined,
+            CommunityVoiceChatAction.CREATE
+          )
+        ).rejects.toThrow(new ForbiddenError('Access denied, platform-banned user'))
+      })
     })
   })
 })
