@@ -108,7 +108,7 @@ assignment into a LiveKit connection string. Behind `CLUSTER_SUBSCRIBER_ENABLED`
 |---|---|---|
 | `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` | drives minting; queue-grouped so one replica handles each event |
 | `peer.{addr}.cluster_change` (again) | `decentraland.pulse.PeerClusterChange` | refreshes the assignment mirror only; **not** queue-grouped, so every replica records every assignment |
-| `peer.{addr}.connect` | none | a comms session started; re-announces the wallet's island. Queue-grouped, so exactly one replica answers |
+| `peer.{addr}.connect` | the publishing socket's session id, UTF-8 — ignored here, and read only by WS Connector's own replicas | a comms session started; re-announces the wallet's island. Queue-grouped, so exactly one replica answers |
 
 **Produces** `engine.peer.{addr}.island_changed` (`IslandChangedMessage`) — WS Connector
 subscribes to the literal subject and needs no change. `peers` is published empty:
