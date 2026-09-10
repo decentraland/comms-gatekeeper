@@ -5297,6 +5297,23 @@ protobufjs@^7.2.4:
     "@types/node" ">=13.7.0"
     long "^5.3.2"
 
+protobufjs@^7.6.5:
+  version "7.6.6"
+  resolved "https://registry.yarnpkg.com/protobufjs/-/protobufjs-7.6.6.tgz#7a3923e8e32b0ee2ff689f8eed6e455c090ac67e"
+  integrity sha512-dYDWdjSl5RNb7SgPxGQcRU+GtvP7s2fpkrY0r432PcOIaZ0/rBcxEZnQN67iJhFuQiVw754JDoPruPCNdGsbjg==
+  dependencies:
+    "@protobufjs/aspromise" "^1.1.2"
+    "@protobufjs/base64" "^1.1.2"
+    "@protobufjs/codegen" "^2.0.5"
+    "@protobufjs/eventemitter" "^1.1.1"
+    "@protobufjs/fetch" "^1.1.1"
+    "@protobufjs/float" "^1.0.2"
+    "@protobufjs/path" "^1.1.2"
+    "@protobufjs/pool" "^1.1.0"
+    "@protobufjs/utf8" "^1.1.1"
+    "@types/node" ">=13.7.0"
+    long "^5.3.2"
+
 pstree.remy@^1.1.8:
   version "1.1.8"
   resolved "https://registry.npmjs.org/pstree.remy/-/pstree.remy-1.1.8.tgz"

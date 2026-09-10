@@ -69,7 +69,7 @@ The Comms Gatekeeper is the access authority for player-to-player interaction in
 
 There are two token paths in the real-time layer, and comms-gatekeeper mints both:
 
-1. **Pulse cluster feed → comms-gatekeeper → LiveKit (NATS):** Pulse owns peer clustering and publishes each peer's cluster assignment on `peer.{addr}.cluster_change`. This service's cluster subscriber (see below) consumes that feed, mints the LiveKit token itself, and re-publishes the legacy `island_changed` message — `connStr` is a LiveKit connection string with an embedded token (`livekit:{host}?access_token={jwt}`) — on `engine.peer.{addr}.island_changed`, which WS Connector forwards to the client unchanged. This token grants access to the island room. This replaces the hop Archipelago Core used to own; Archipelago Core is being decommissioned.
+1. **Pulse cluster feed → comms-gatekeeper → LiveKit (NATS):** Pulse owns peer clustering and publishes each peer's cluster assignment on `peer.{addr}.cluster_change`. This service's cluster subscriber (see below) consumes that feed, mints the LiveKit token itself, and re-publishes the `island_changed` message — `connStr` is a LiveKit connection string with an embedded token (`livekit:{host}?access_token={jwt}`) — on the legacy `engine.peer.{addr}.island_changed`, which WS Connector forwards to the client unchanged, or, behind `ISLAND_CHANGED_SESSION_ADDRESSED`, on the session-addressed `engine.peer.{addr}.island_changed.{session}`, which WS Connector forwards only to the socket holding that session. This token grants access to the island room. This replaces the hop Archipelago Core used to own; Archipelago Core is being decommissioned.
 
 2. **Client → comms-gatekeeper (signed fetch):** For scene-specific rooms and for Hammurabi bots, the caller explicitly requests a token from comms-gatekeeper. This path is used when the `CommsTransportWrapper` adapter is `comms-gatekeeper` (the default for Genesis City scenes). Hammurabi bots authenticate here using `PROCESS_PRIVATE_KEY`.
 
@@ -106,16 +106,18 @@ assignment into a LiveKit connection string. Behind `CLUSTER_SUBSCRIBER_ENABLED`
 
 | Subject | Payload | Use |
 |---|---|---|
-| `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` | drives minting; queue-grouped so one replica handles each event |
-| `peer.{addr}.cluster_change` (again) | `decentraland.pulse.PeerClusterChange` | refreshes the assignment mirror only; **not** queue-grouped, so every replica records every assignment |
-| `peer.{addr}.connect` | the publishing socket's session id, UTF-8 — ignored here, and read only by WS Connector's own replicas | a comms session started; re-announces the wallet's island. Queue-grouped, so exactly one replica answers |
+| `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` with `session`, `displaced_session`, `displaced_cluster_id` (decoded locally in `pulse-cluster-change.ts` until the protocol pin carries them) | drives minting; queue-grouped so one replica handles each event |
+| `peer.{addr}.cluster_change` (again) | `decentraland.pulse.PeerClusterChange` with `session`, `displaced_session`, `displaced_cluster_id` (decoded locally in `pulse-cluster-change.ts` until the protocol pin carries them) | refreshes the assignment mirror only; **not** queue-grouped, so every replica records every assignment |
+| `peer.{addr}.connect` | the connecting socket's session key (its auth chain's ephemeral address), UTF-8; a non-address payload is an older WS Connector | a comms session started; re-announces the wallet's island. Queue-grouped, so exactly one replica answers |
 
 **Produces** `engine.peer.{addr}.island_changed` (`IslandChangedMessage`) — WS Connector
-subscribes to the literal subject and needs no change. `peers` is published empty:
-unity-explorer reads only `connStr`.
+subscribes to the literal subject and needs no change — or, behind `ISLAND_CHANGED_SESSION_ADDRESSED`,
+`engine.peer.{addr}.island_changed.{session}` — WS Connector forwards the five-token subject only to
+the socket holding that session. `peers` is published empty: unity-explorer reads only `connStr`.
 
 **Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
-room name → `generateCredentials(wallet, room, { cast: [] }, false)` → publish.
+evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false)` →
+publish.
 
 **Reconnects.** Pulse's feed is edge-triggered: it stays silent while a peer's cluster is
 unchanged. A client whose websocket drops and comes back without the crowd moving would
@@ -125,6 +127,17 @@ forgetting the peer on disconnect and re-creating it on the next heartbeat, is g
 `peer.{addr}.connect` subscription closes that gap by replaying the wallet's assignment through
 the same mint-and-publish path, so the client gets a freshly minted token rather than the
 expired one it was last sent.
+
+**Takeovers.** When a `cluster_change` names a `displaced_session`, that wallet's participant is removed
+from `island-{displaced_cluster_id}` with every token minted before that instant revoked, and only then
+is the new session's token minted — LiveKit revokes `nbf < revokeTokenTs` at second granularity, so the
+order is what keeps the new token valid. Three attempts, `CLUSTER_TAKEOVER_RETRY_DELAY_MS` × attempt apart. A
+not-found answer means the displaced participant had already left; it is counted as
+`dcl_gatekeeper_cluster_takeover_absent_total`, not retried, and — because LiveKit records the revocation
+only with a removal — its cached token stays valid until it expires (at most five minutes). The
+displaced client reconnects against a revoked token and, once it re-handshakes, its `connect` names a
+session other than the one Pulse last published, so it is not re-announced either. No client change is
+involved; a superseded client loops without success by decision.
 
 Resolution reads `src/adapters/assignment-mirror/`, not peer state. Minting is queue-grouped, so
 a replica's peer state covers only the events it was handed; two replicas answering one
@@ -141,6 +154,11 @@ deliberate and the opposite of the ban gate's fail-open: a LiveKit outage coinci
 reconnects (a WS Connector deploy reconnects everyone at once), and reading "cannot tell" as
 "not in the room" would end every one of those sessions. `dcl_gatekeeper_cluster_reannounce_*`
 counts each branch so the suppression can be told apart from a lookup that never succeeds.
+
+One more gate precedes that lookup. A `connect` whose session differs from the one the mirror recorded
+for the wallet is skipped (`…reannounce_skipped_other_session_total`): that device was displaced. A
+repeated string for a room the client was just handed is de-duplicated by WS Connector, which knows
+what it delivered to which socket; gatekeeper keeps no timing state.
 
 **Known limitations.** A replica that has just started has an empty mirror and cannot answer a
 reconnect until each wallet's next genuine cluster change; because the connect subscription is
@@ -169,7 +187,10 @@ prefix is required so this service's own webhook handlers classify these rooms a
 **Not consumed:** `peer.*.heartbeat` and `peer.*.disconnect` survive iteration 1 and still
 feed archipelago-stats, but are deliberately unused here — both retire in iteration 2.
 
-**Metrics:** `dcl_gatekeeper_cluster_*_total` and `dcl_gatekeeper_nats_connected`.
+**Metrics:** `dcl_gatekeeper_cluster_*_total` (including `dcl_gatekeeper_cluster_takeover_evicted_total`,
+`dcl_gatekeeper_cluster_takeover_failed_total`, `dcl_gatekeeper_cluster_takeover_absent_total` and
+`dcl_gatekeeper_cluster_reannounce_skipped_other_session_total`)
+and `dcl_gatekeeper_nats_connected`.
 
 **Dependency pin (temporary).** `@dcl/protocol` is pinned to a CDN *branch* tarball
 (`dcl-protocol-1.0.0-30550755753.commit-b0705a3.tgz`) because no npm registry release ships
@@ -178,7 +199,9 @@ feed archipelago-stats, but are deliberately unused here — both retire in iter
 checked: `1.0.0-30376440685.commit-2726089`. Branch builds are not permanent: the CDN artifact
 can vanish once the source branch is rebuilt or deleted, which is exactly what broke
 archipelago-workers before it moved to a registry pin. Repin to an exact registry version as
-soon as a release containing `pulse_clusters` lands.
+soon as a release containing `pulse_clusters` lands. Fields 3–5 (`session`, `displaced_session`,
+`displaced_cluster_id`) are decoded locally in `pulse-cluster-change.ts` until that repin, since
+the pinned build predates them.
 
 **Deliberate choices — do not "fix" these without reading why:**
 
@@ -192,7 +215,7 @@ soon as a release containing `pulse_clusters` lands.
   can carry, that is Pulse's to solve by capping or splitting clusters.
 - **Processing is serialized per wallet** (`walletChains` in the component). Without it, two
   events for one wallet can have their mints resolve out of order, so an older event publishes
-  a superseded room and corrupts the next `fromIslandId`.
+  a stale room and corrupts the next `fromIslandId`.
 
 **Known limitation.** That serialization is process-local, and queue groups have no per-wallet
 affinity, so two events for one wallet can still race across replicas. Narrow trigger (Pulse's

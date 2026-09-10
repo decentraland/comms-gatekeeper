@@ -1310,3 +1310,35 @@ describe('when removing a participant from all rooms', () => {
     })
   })
 })
+
+describe('when removing a participant', () => {
+  const roomName = 'island-C5'
+  const identity = '0x1111111111111111111111111111111111111111'
+
+  beforeEach(() => {
+    removeParticipantSpy.mockResolvedValue(undefined)
+  })
+
+  describe('and no revocation instant is given', () => {
+    it('should only disconnect them, leaving the token they hold usable', async () => {
+      await livekitComponent.removeParticipant(roomName, identity)
+
+      expect(removeParticipantSpy).toHaveBeenCalledWith(roomName, identity, undefined)
+    })
+  })
+
+  describe('and a revocation instant is given', () => {
+    // LiveKit compares this against the token's `nbf`, which is in SECONDS. Sending
+    // milliseconds would put it ~1000x into the future and revoke every token for this
+    // identity, including the replacement session's, locking the wallet out of the room.
+    it('should pass it as whole seconds, matching the unit nbf is expressed in', async () => {
+      const revokeBefore = new Date(1_700_000_123_456)
+
+      await livekitComponent.removeParticipant(roomName, identity, revokeBefore)
+
+      expect(removeParticipantSpy).toHaveBeenCalledWith(roomName, identity, {
+        revokeTokenTs: BigInt(1_700_000_123)
+      })
+    })
+  })
+})

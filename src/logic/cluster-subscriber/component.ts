@@ -1,16 +1,19 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
-import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { START_COMPONENT } from '@well-known-components/interfaces'
 import { LRUCache } from 'lru-cache'
 import { NatsMessageHandler } from '../../adapters/nats'
 import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
 import { positiveNumberOr } from '../../utils/config'
+import { decodePulseClusterChange, PulseClusterChange } from './pulse-cluster-change'
 import { IClusterSubscriberComponent } from './types'
 
 const DEFAULT_BAN_CACHE_TTL_MS = 30_000
 const BAN_CACHE_MAX = 20_000
 const DEFAULT_QUEUE_GROUP = 'comms-gatekeeper-cluster'
+const DEFAULT_TAKEOVER_RETRY_DELAY_MS = 100
+const TAKEOVER_ATTEMPTS = 3
+const SESSION_KEY = /^0x[0-9a-f]{40}$/
 
 /**
  * Creates the subscriber that translates Pulse's cluster feed into LiveKit connection strings
@@ -19,14 +22,19 @@ const DEFAULT_QUEUE_GROUP = 'comms-gatekeeper-cluster'
  * Per inbound `peer.*.cluster_change`:
  * 1. Extract the wallet from the subject and decode the payload, discarding anything malformed.
  * 2. Serialize per wallet, then run the platform-access gate, skipping banned or deny-listed peers.
+ * 2b. When the event names a displaced session, remove that participant from the cluster it was
+ * last published into, revoking its tokens, before minting.
  * 3. Mint a LiveKit token for the cluster's island room.
- * 4. Publish `engine.peer.{wallet}.island_changed`, carrying the previous room as `fromIslandId`.
+ * 4. Publish `engine.peer.{wallet}.island_changed` — or, when `ISLAND_CHANGED_SESSION_ADDRESSED`
+ * is on and the event names a session, `engine.peer.{wallet}.island_changed.{session}` — carrying
+ * the previous room as `fromIslandId`.
  * 5. Record the new assignment in peer state.
  *
  * Per inbound `peer.*.connect` (a peer's comms session starting), the wallet's last known
- * island is re-announced through the same path, unless LiveKit already lists it in that room.
- * Pulse's feed only speaks when a peer's cluster changes, so without this a client that
- * reconnects standing still is never given a room.
+ * island is re-announced through the same path, unless the connecting session differs from the
+ * one last recorded for the wallet (that device was displaced) or LiveKit already lists the
+ * wallet in that room. Pulse's feed only speaks when a peer's cluster changes, so without this
+ * a client that reconnects standing still is never given a room.
  *
  * Off unless `CLUSTER_SUBSCRIBER_ENABLED` is `'true'` and NATS is configured; when off it
  * subscribes to nothing and is byte-identical to not having the component at all.
@@ -54,14 +62,21 @@ export async function createClusterSubscriberComponent(
     components
   const logger = logs.getLogger('cluster-subscriber')
 
-  const [enabledFlag, queueGroupSetting, banCacheTtlSetting] = await Promise.all([
-    config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
-    config.getString('NATS_QUEUE_GROUP'),
-    config.getNumber('CLUSTER_BAN_CACHE_TTL_MS')
-  ])
+  const [enabledFlag, queueGroupSetting, banCacheTtlSetting, sessionAddressedFlag, retryDelaySetting] =
+    await Promise.all([
+      config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
+      config.getString('NATS_QUEUE_GROUP'),
+      config.getNumber('CLUSTER_BAN_CACHE_TTL_MS'),
+      config.getString('ISLAND_CHANGED_SESSION_ADDRESSED'),
+      config.getNumber('CLUSTER_TAKEOVER_RETRY_DELAY_MS')
+    ])
 
   const enabled = enabledFlag === 'true'
   const queueGroup = queueGroupSetting || DEFAULT_QUEUE_GROUP
+  const sessionAddressed = sessionAddressedFlag === 'true'
+  // `??` on purpose: a configured 0 is a real value here (no sleep before retrying), unlike
+  // the lru-cache bounds below.
+  const takeoverRetryDelayMs = retryDelaySetting ?? DEFAULT_TAKEOVER_RETRY_DELAY_MS
 
   // First ban cache in this service - the path was two uncached DB reads per event. A stale
   // hit is fine because banning also removes the participant from every live room.
@@ -119,14 +134,20 @@ export async function createClusterSubscriberComponent(
     return banned
   }
 
-  async function processClusterChange(wallet: string, clusterId: string): Promise<void> {
+  async function processClusterChange(wallet: string, change: PulseClusterChange): Promise<void> {
     if (await isBanned(wallet)) {
       metrics.increment('dcl_gatekeeper_cluster_banned_skipped_total')
-      logger.info(`Skipping banned wallet ${wallet} assigned to cluster ${clusterId}`)
+      logger.info(`Skipping banned wallet ${wallet} assigned to cluster ${change.clusterId}`)
       return
     }
 
-    const room = livekit.getIslandRoomName(clusterId)
+    // Before the mint: LiveKit revokes tokens whose nbf is before the stamp at second
+    // granularity, so the new session's token must not exist yet when the stamp is taken.
+    if (change.displacedSession) {
+      await evictDisplacedSession(wallet, change)
+    }
+
+    const room = livekit.getIslandRoomName(change.clusterId)
 
     // No suppression for a repeat/no-op assignment - Pulse only re-announces a cluster after
     // forgetting a peer, i.e. a reconnect that needs a fresh token (docs/ai-agent-context.md).
@@ -145,10 +166,18 @@ export async function createClusterSubscriberComponent(
       message.fromIslandId = previous.room
     }
 
+    // Addressed to the session when both sides can: an older Pulse sends no session, a malformed
+    // one must never become subject tokens, and the four-token subject is what WS Connector
+    // forwards until it subscribes to the five-token one.
+    const subject =
+      sessionAddressed && SESSION_KEY.test(change.session)
+        ? `engine.peer.${wallet}.island_changed.${change.session}`
+        : `engine.peer.${wallet}.island_changed`
+
     let delivered: boolean
     try {
       // Never hoist a shared encoder across the mint's await above - that would corrupt frames.
-      delivered = nats.publish(`engine.peer.${wallet}.island_changed`, IslandChangedMessage.encode(message).finish())
+      delivered = nats.publish(subject, IslandChangedMessage.encode(message).finish())
     } catch (error) {
       metrics.increment('dcl_gatekeeper_cluster_publish_failed_total')
       logger.error(`Failed to publish island_changed for ${wallet}: ${getErrorMessage(error)}`)
@@ -166,21 +195,74 @@ export async function createClusterSubscriberComponent(
     }
 
     metrics.increment('dcl_gatekeeper_cluster_published_total')
-    peerState.set(wallet, { clusterId, room, lastSeen: Date.now() })
+    peerState.set(wallet, { clusterId: change.clusterId, room, lastSeen: Date.now() })
+  }
+
+  // Removes the displaced session's participant from the room it was last published into and
+  // revokes every token minted for the wallet before now. Retried: this runs on a background
+  // feed with nobody to report to, and a transient LiveKit error would otherwise leave two
+  // sessions in comms until one of them leaves.
+  async function evictDisplacedSession(wallet: string, change: PulseClusterChange): Promise<void> {
+    if (!change.displacedClusterId) {
+      metrics.increment('dcl_gatekeeper_cluster_takeover_failed_total')
+      logger.warn(`Cannot evict displaced session ${change.displacedSession} of ${wallet}: no displaced cluster named`)
+      return
+    }
+
+    const room = livekit.getIslandRoomName(change.displacedClusterId)
+    for (let attempt = 1; attempt <= TAKEOVER_ATTEMPTS; attempt++) {
+      try {
+        await livekit.removeParticipant(room, wallet, new Date())
+        metrics.increment('dcl_gatekeeper_cluster_takeover_evicted_total')
+        return
+      } catch (error) {
+        if ((error as { code?: string })?.code === 'not_found') {
+          // The participant had already left, so there is nothing to remove and LiveKit
+          // records no revocation for it.
+          metrics.increment('dcl_gatekeeper_cluster_takeover_absent_total')
+          logger.debug(
+            `Displaced session ${change.displacedSession} of ${wallet} was no longer in ${room}; nothing to remove`
+          )
+          return
+        }
+        if (attempt === TAKEOVER_ATTEMPTS) {
+          metrics.increment('dcl_gatekeeper_cluster_takeover_failed_total')
+          logger.warn(
+            `Cannot evict displaced session ${change.displacedSession} of ${wallet} from ${room}: ${getErrorMessage(error)}`
+          )
+          return
+        }
+        // Skipped rather than scheduled at 0ms: a real timer, even a zero one, is a macrotask,
+        // so `CLUSTER_TAKEOVER_RETRY_DELAY_MS=0` is a genuine no-sleep retry rather than one
+        // that merely rounds down to the platform's minimum timer resolution.
+        const delayMs = takeoverRetryDelayMs * attempt
+        if (delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs))
+        }
+      }
+    }
   }
 
   // Re-announces the wallet's island because its comms session just started: Pulse's feed is
   // silent while a peer's cluster is unchanged (docs/ai-agent-context.md).
-  async function processPeerConnect(wallet: string): Promise<void> {
-    const clusterId = assignmentMirror.get(wallet)
-    if (!clusterId) {
+  async function processPeerConnect(wallet: string, session: string): Promise<void> {
+    const entry = assignmentMirror.get(wallet)
+    if (!entry) {
       metrics.increment('dcl_gatekeeper_cluster_reannounce_unresolved_total')
+      return
+    }
+
+    // A connect from a device other than the one Pulse last published for is a displaced session
+    // coming back; handing it the room would put it next to the live one under one identity.
+    // A payload that is not a session key comes from an older WS Connector and cannot be judged.
+    if (SESSION_KEY.test(session) && entry.session && entry.session !== session) {
+      metrics.increment('dcl_gatekeeper_cluster_reannounce_skipped_other_session_total')
       return
     }
 
     let alreadyInRoom: boolean
     try {
-      alreadyInRoom = await livekit.holdsParticipant(livekit.getIslandRoomName(clusterId), wallet)
+      alreadyInRoom = await livekit.holdsParticipant(livekit.getIslandRoomName(entry.clusterId), wallet)
     } catch (error) {
       // FAILS CLOSED, unlike the ban gate above, and for the opposite reason. Only the
       // signalling socket has to have dropped for this event to fire, so the peer is often
@@ -202,10 +284,16 @@ export async function createClusterSubscriberComponent(
     }
 
     metrics.increment('dcl_gatekeeper_cluster_reannounce_attempted_total')
-    await processClusterChange(wallet, clusterId)
+    await processClusterChange(wallet, {
+      clusterId: entry.clusterId,
+      realm: '',
+      session: entry.session,
+      displacedSession: '',
+      displacedClusterId: ''
+    })
   }
 
-  // Serializes per wallet - an out-of-order mint would publish a superseded room and corrupt
+  // Serializes per wallet - an out-of-order mint would publish a stale room and corrupt
   // the next fromIslandId, and two concurrent cache misses could race on banCache. Connects
   // share the chain with cluster changes, so within one process a reconnect cannot interleave
   // with a move; across replicas nothing does, as the queue group has no per-wallet affinity.
@@ -254,8 +342,14 @@ export async function createClusterSubscriberComponent(
     }
   }
 
+  // Lower-cases the session once at decode time, so every consumer of a decoded change - minting,
+  // the mirror, and the session-addressed subject choice - agrees on its casing.
+  function normalizeChange(change: PulseClusterChange): PulseClusterChange {
+    return { ...change, session: change.session.toLowerCase() }
+  }
+
   function handleClusterChange(wallet: string, data: Uint8Array): void {
-    const change = PeerClusterChange.decode(data)
+    const change = normalizeChange(decodePulseClusterChange(data))
     metrics.increment('dcl_gatekeeper_cluster_events_received_total')
 
     // After the received-counter: this is a payload problem, not a decode one. Protobuf
@@ -266,22 +360,23 @@ export async function createClusterSubscriberComponent(
       return
     }
 
-    void enqueue(wallet, () => processClusterChange(wallet, change.clusterId)).catch((error) => {
+    void enqueue(wallet, () => processClusterChange(wallet, change)).catch((error) => {
       logger.error(`Cannot process cluster_change for ${wallet}: ${getErrorMessage(error)}`)
     })
   }
 
   function handleAssignmentMirror(wallet: string, data: Uint8Array): void {
-    const { clusterId } = PeerClusterChange.decode(data)
+    const { clusterId, session } = normalizeChange(decodePulseClusterChange(data))
     if (clusterId) {
-      assignmentMirror.set(wallet, clusterId)
+      assignmentMirror.set(wallet, { clusterId, session })
     }
   }
 
-  function handlePeerConnect(wallet: string): void {
+  function handlePeerConnect(wallet: string, data: Uint8Array): void {
     metrics.increment('dcl_gatekeeper_cluster_connects_received_total')
+    const session = Buffer.from(data).toString('utf8').toLowerCase()
 
-    void enqueue(wallet, () => processPeerConnect(wallet)).catch((error) => {
+    void enqueue(wallet, () => processPeerConnect(wallet, session)).catch((error) => {
       logger.error(`Cannot process connect for ${wallet}: ${getErrorMessage(error)}`)
     })
   }

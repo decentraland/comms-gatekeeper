@@ -127,7 +127,12 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
           NATS_URL: NATS_TEST_URL,
           NATS_QUEUE_GROUP: 'comms-gatekeeper-cluster-test'
         })[key],
-      getNumber: async () => undefined,
+      // Zeroed rather than left undefined: undefined falls back to the production default
+      // (100ms takeover retry), which is not what this file means to exercise.
+      getNumber: async (key: string) =>
+        ({
+          CLUSTER_TAKEOVER_RETRY_DELAY_MS: 0
+        })[key],
       requireString: async () => '',
       requireNumber: async () => 0
     } as any

@@ -297,8 +297,17 @@ export async function createLivekitComponent(
     })
   }
 
-  async function removeParticipant(roomId: string, participantId: string): Promise<void> {
-    await roomClient.removeParticipant(roomId, participantId)
+  async function removeParticipant(
+    roomId: string,
+    participantId: string,
+    revokeTokensMintedBefore?: Date
+  ): Promise<void> {
+    // Seconds, matching the `nbf` unit LiveKit compares it against.
+    const options = revokeTokensMintedBefore
+      ? { revokeTokenTs: BigInt(Math.floor(revokeTokensMintedBefore.getTime() / 1000)) }
+      : undefined
+
+    await roomClient.removeParticipant(roomId, participantId, options)
   }
 
   async function removeParticipantFromAllRooms(participantIdentity: string): Promise<void> {

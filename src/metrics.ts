@@ -49,6 +49,22 @@ export const metricDeclarations = {
   dcl_gatekeeper_cluster_reannounce_check_failed_total: {
     help: 'Total peer connect events skipped because the LiveKit participant lookup failed',
     type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_takeover_evicted_total: {
+    help: 'Total displaced sessions removed from their island room, with their tokens revoked, before the new session was minted',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_takeover_failed_total: {
+    help: 'Total displaced sessions whose LiveKit removal failed after every retry',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_takeover_absent_total: {
+    help: 'Total displaced sessions that had already left their island room when the takeover arrived; nothing was removed or revoked',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_reannounce_skipped_other_session_total: {
+    help: 'Total peer connect events skipped because the connecting session is not the one Pulse last published for the wallet',
+    type: IMetricsComponent.CounterType
   }
 }
 
