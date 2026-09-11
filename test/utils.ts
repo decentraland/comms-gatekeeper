@@ -178,3 +178,24 @@ export async function getIdentityForAccount(account: ReturnType<typeof createUns
     Authenticator.createSignature(account, message)
   )
 }
+
+/**
+ * Lets a test hold a mocked async call open and resolve it on its own schedule.
+ */
+export function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+
+  return { promise, resolve }
+}
+
+/**
+ * Yields to the macrotask queue, letting every already-queued promise chain settle. Needed
+ * when the code under test kicks off detached async work (`void somePromise`) that nothing
+ * in the test naturally awaits.
+ */
+export function flushMacrotask(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve))
+}

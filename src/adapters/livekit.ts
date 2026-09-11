@@ -209,11 +209,26 @@ export async function createLivekitComponent(
     return roomName.replace(`${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-`, '')
   }
 
+  function getIslandRoomName(islandName: string): string {
+    return `${ISLAND_ROOM_PREFIX}${islandName}`
+  }
+
   function getIslandNameFromRoomName(roomName: string): string {
     return roomName.replace(ISLAND_ROOM_PREFIX, '')
   }
 
   function getRoomMetadataFromRoomName(roomName: string): RoomMetadata {
+    // Island room: island-{islandName}. Checked first, ahead of the scene and world
+    // branches, because those match on configurable prefixes that are empty by default —
+    // `roomName.startsWith('')` is always true, so an empty SCENE_ROOM_PREFIX would
+    // swallow every island room and report it to SNS as a scene with a bogus realm.
+    // `island-` is a literal prefix no other room shape in this service produces, so
+    // matching it first cannot reclassify anything else.
+    if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
+      const islandName = getIslandNameFromRoomName(roomName)
+      return { islandName, roomType: RoomType.ISLAND }
+    }
+
     // Scene room: {sceneRoomPrefix}{realmName}:{sceneId}
     if (roomName.startsWith(sceneRoomPrefix)) {
       const [realmName, sceneId] = roomName.replace(sceneRoomPrefix, '').split(':')
@@ -237,12 +252,6 @@ export async function createLivekitComponent(
     if (commsRoomPrefix && roomName.startsWith(commsRoomPrefix)) {
       const worldName = roomName.slice(commsRoomPrefix.length)
       return { worldName, roomType: RoomType.WORLD }
-    }
-
-    // Island room: island-{islandName}
-    if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
-      const islandName = getIslandNameFromRoomName(roomName)
-      return { islandName, roomType: RoomType.ISLAND }
     }
 
     // Community voice chat: {COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-{communityId}
@@ -288,8 +297,17 @@ export async function createLivekitComponent(
     })
   }
 
-  async function removeParticipant(roomId: string, participantId: string): Promise<void> {
-    await roomClient.removeParticipant(roomId, participantId)
+  async function removeParticipant(
+    roomId: string,
+    participantId: string,
+    revokeTokensMintedBefore?: Date
+  ): Promise<void> {
+    // Seconds, matching the `nbf` unit LiveKit compares it against.
+    const options = revokeTokensMintedBefore
+      ? { revokeTokenTs: BigInt(Math.floor(revokeTokensMintedBefore.getTime() / 1000)) }
+      : undefined
+
+    await roomClient.removeParticipant(roomId, participantId, options)
   }
 
   async function removeParticipantFromAllRooms(participantIdentity: string): Promise<void> {
@@ -420,6 +438,30 @@ export async function createLivekitComponent(
       )
       return null
     }
+  }
+
+  /**
+   * Whether `roomId` currently holds a participant under this identity.
+   *
+   * Unlike {@link getParticipantInfo}, a failed lookup rejects instead of reading as "absent",
+   * so a caller whose safe default is not "absent" can tell the two apart. A room that does not
+   * exist is reported as absent rather than an error, and costs a single call.
+   *
+   * @param roomId - The room to inspect.
+   * @param participantId - The identity to look for, compared case-insensitively.
+   * @returns Whether the identity is currently in the room.
+   */
+  async function holdsParticipant(roomId: string, participantId: string): Promise<boolean> {
+    // listRooms, not listParticipants, decides the absent case: it answers with an empty array
+    // for a room that does not exist, so absence stays distinguishable from a transport error.
+    const rooms = await roomClient.listRooms([roomId])
+    if (rooms.length === 0) {
+      return false
+    }
+
+    const participants = await roomClient.listParticipants(roomId)
+    const target = participantId.toLowerCase()
+    return participants.some((participant) => participant.identity?.toLowerCase() === target)
   }
 
   async function listRoomParticipants(roomName: string): Promise<ParticipantInfo[]> {
@@ -608,6 +650,7 @@ export async function createLivekitComponent(
     appendToRoomMetadataArray,
     removeFromRoomMetadataArray,
     getParticipantInfo,
+    holdsParticipant,
     listRoomParticipants,
     generateCredentials,
     getWorldRoomName,
@@ -617,6 +660,7 @@ export async function createLivekitComponent(
     getCallIdFromRoomName,
     getCommunityVoiceChatRoomName,
     getCommunityIdFromRoomName,
+    getIslandRoomName,
     getIslandNameFromRoomName,
     getRoomMetadataFromRoomName,
     getRoomName,

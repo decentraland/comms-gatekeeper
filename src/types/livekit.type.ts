@@ -47,7 +47,16 @@ export type ILivekitComponent = IBaseComponent & {
     metadata?: Record<string, unknown>
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
-  removeParticipant: (roomId: string, participantId: string) => Promise<void>
+  /**
+   * Disconnects a participant from a room.
+   *
+   * @param roomId - The room to remove them from.
+   * @param participantId - The participant's identity.
+   * @param revokeTokensMintedBefore - When given, every token for this identity minted before
+   * this instant stops working, so the client cannot simply reconnect with the one it holds.
+   * Tokens carry an `nbf` of their mint time, so a token minted after this instant survives.
+   */
+  removeParticipant: (roomId: string, participantId: string, revokeTokensMintedBefore?: Date) => Promise<void>
   getWorldRoomName: (worldName: string) => string
   getWorldSceneRoomName: (worldName: string, sceneId: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
@@ -55,6 +64,8 @@ export type ILivekitComponent = IBaseComponent & {
   getCallIdFromRoomName: (roomName: string) => string
   getCommunityVoiceChatRoomName: (communityId: string) => string
   getCommunityIdFromRoomName: (roomName: string) => string
+  /** Builds the LiveKit room name for an island. The `island-` prefix is required, not cosmetic. */
+  getIslandRoomName: (islandName: string) => string
   getIslandNameFromRoomName: (roomName: string) => string
   getRoomMetadataFromRoomName: (roomName: string) => RoomMetadata
   getRoomName: (realmName: string, params: GetRoomNameParams) => string
@@ -64,6 +75,8 @@ export type ILivekitComponent = IBaseComponent & {
   removeIngress: (ingressId: string) => Promise<IngressInfo | undefined>
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
   getParticipantInfo: (roomId: string, participantId: string) => Promise<ParticipantInfo | null>
+  /** Rejects on a failed lookup instead of reporting the identity as absent. */
+  holdsParticipant: (roomId: string, participantId: string) => Promise<boolean>
   listRoomParticipants: (roomName: string) => Promise<ParticipantInfo[]>
   updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>
   updateParticipantPermissions: (

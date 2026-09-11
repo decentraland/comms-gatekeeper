@@ -12,5 +12,12 @@ services:
       - POSTGRES_DB=comms_gatekeeper
     ports:
       - '5450:5432'
+  nats:
+    container_name: 'comms_gatekeeper_nats'
+    image: 'nats:2.10-alpine'
+    restart: always
+    ports:
+      - '4222:4222'
+      - '8222:8222'
 volumes:
   postgres_volume:
