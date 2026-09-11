@@ -69,7 +69,7 @@ The Comms Gatekeeper is the access authority for player-to-player interaction in
 
 There are two token paths in the real-time layer, and comms-gatekeeper mints both:
 
-1. **Pulse cluster feed → comms-gatekeeper → LiveKit (NATS):** Pulse owns peer clustering and publishes each peer's cluster assignment on `peer.{addr}.cluster_change`. This service's cluster subscriber (see below) consumes that feed, mints the LiveKit token itself, and re-publishes the `island_changed` message — `connStr` is a LiveKit connection string with an embedded token (`livekit:{host}?access_token={jwt}`) — on the legacy `engine.peer.{addr}.island_changed`, which WS Connector forwards to the client unchanged, or, behind `ISLAND_CHANGED_SESSION_ADDRESSED`, on the session-addressed `engine.peer.{addr}.island_changed.{session}`, which WS Connector forwards only to the socket holding that session. This token grants access to the island room. This replaces the hop Archipelago Core used to own; Archipelago Core is being decommissioned.
+1. **Pulse cluster feed → comms-gatekeeper → LiveKit (NATS):** Pulse owns peer clustering and publishes each peer's cluster assignment on `peer.{addr}.cluster_change`. This service's cluster subscriber (see below) consumes that feed, mints the LiveKit token itself, and re-publishes the `island_changed` message — `connStr` is a LiveKit connection string with an embedded token (`livekit:{host}?access_token={jwt}`) — on the session-addressed `engine.peer.{addr}.island_changed.{session}` whenever the event names a valid session, which WS Connector forwards only to the socket holding that session, or on the legacy `engine.peer.{addr}.island_changed` when it does not (an older Pulse), which WS Connector forwards to the client unchanged. This token grants access to the island room. This replaces the hop Archipelago Core used to own; Archipelago Core is being decommissioned.
 
 2. **Client → comms-gatekeeper (signed fetch):** For scene-specific rooms and for Hammurabi bots, the caller explicitly requests a token from comms-gatekeeper. This path is used when the `CommsTransportWrapper` adapter is `comms-gatekeeper` (the default for Genesis City scenes). Hammurabi bots authenticate here using `PROCESS_PRIVATE_KEY`.
 
@@ -106,14 +106,15 @@ assignment into a LiveKit connection string. Behind `CLUSTER_SUBSCRIBER_ENABLED`
 
 | Subject | Payload | Use |
 |---|---|---|
-| `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` with `session`, `displaced_session`, `displaced_cluster_id` (decoded locally in `pulse-cluster-change.ts` until the protocol pin carries them) | drives minting; queue-grouped so one replica handles each event |
-| `peer.{addr}.cluster_change` (again) | `decentraland.pulse.PeerClusterChange` with `session`, `displaced_session`, `displaced_cluster_id` (decoded locally in `pulse-cluster-change.ts` until the protocol pin carries them) | refreshes the assignment mirror only; **not** queue-grouped, so every replica records every assignment |
+| `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` with `session`, `displaced_session`, `displaced_cluster_id` | drives minting; queue-grouped so one replica handles each event |
+| `peer.{addr}.cluster_change` (again) | `decentraland.pulse.PeerClusterChange` with `session`, `displaced_session`, `displaced_cluster_id` | refreshes the assignment mirror only; **not** queue-grouped, so every replica records every assignment |
 | `peer.{addr}.connect` | the connecting socket's session key (its auth chain's ephemeral address), UTF-8; a non-address payload is an older WS Connector | a comms session started; re-announces the wallet's island. Queue-grouped, so exactly one replica answers |
 
-**Produces** `engine.peer.{addr}.island_changed` (`IslandChangedMessage`) — WS Connector
-subscribes to the literal subject and needs no change — or, behind `ISLAND_CHANGED_SESSION_ADDRESSED`,
-`engine.peer.{addr}.island_changed.{session}` — WS Connector forwards the five-token subject only to
-the socket holding that session. `peers` is published empty: unity-explorer reads only `connStr`.
+**Produces** `engine.peer.{addr}.island_changed.{session}` (`IslandChangedMessage`) whenever the event
+names a valid session — WS Connector forwards the five-token subject only to the socket holding that
+session — or the legacy `engine.peer.{addr}.island_changed` when it does not (an older Pulse). `peers`
+is published empty: unity-explorer reads only `connStr`. WS Connector must already subscribe to the
+five-token subject in an environment before this runs.
 
 **Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
 evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false)` →
@@ -192,16 +193,14 @@ feed archipelago-stats, but are deliberately unused here — both retire in iter
 `dcl_gatekeeper_cluster_reannounce_skipped_other_session_total`)
 and `dcl_gatekeeper_nats_connected`.
 
-**Dependency pin (temporary).** `@dcl/protocol` is pinned to a CDN *branch* tarball
-(`dcl-protocol-1.0.0-30550755753.commit-b0705a3.tgz`) because no npm registry release ships
-`proto/decentraland/pulse/pulse_clusters.proto` (generated as
-`out-js/decentraland/pulse/pulse_clusters.gen`, which the subscriber imports) — newest release
-checked: `1.0.0-30376440685.commit-2726089`. Branch builds are not permanent: the CDN artifact
-can vanish once the source branch is rebuilt or deleted, which is exactly what broke
-archipelago-workers before it moved to a registry pin. Repin to an exact registry version as
-soon as a release containing `pulse_clusters` lands. Fields 3–5 (`session`, `displaced_session`,
-`displaced_cluster_id`) are decoded locally in `pulse-cluster-change.ts` until that repin, since
-the pinned build predates them.
+**Dependency pin (temporary).** `@dcl/protocol` is pinned to the CDN branch tarball
+`dcl-protocol-1.0.0-34523473551.commit-3ef4c52.tgz` because no npm registry release yet carries
+`proto/decentraland/pulse/pulse_clusters.proto` with the `session`, `displaced_session` and
+`displaced_cluster_id` fields. CDN branch tarballs are not permanent: the artifact can vanish
+once the source branch is rebuilt or deleted — this is what broke archipelago-workers before it
+moved to a registry pin — so `yarn install --frozen-lockfile` in CI and the Docker build would
+fail. Repin to an exact registry version as soon as a release carrying `pulse_clusters.proto`
+fields 3–5 lands.
 
 **Deliberate choices — do not "fix" these without reading why:**
 

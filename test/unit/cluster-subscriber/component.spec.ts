@@ -1,4 +1,5 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
+import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { ILoggerComponent, IBaseComponent, START_COMPONENT } from '@well-known-components/interfaces'
 import { NatsMessageHandler } from '../../../src/adapters/nats'
 import { createPeerStateComponent, IPeerStateComponent } from '../../../src/adapters/peer-state'
@@ -13,10 +14,6 @@ import { createAssignmentMirrorMockedComponent } from '../../mocks/assignment-mi
 import { createPeerStateMockedComponent } from '../../mocks/peer-state-mock'
 import { createPlayerConnectionDBMockedComponent } from '../../mocks/player-connection-db-mock'
 import { createDeferred, flushMacrotask } from '../../utils'
-import {
-  encodePulseClusterChange,
-  PulseClusterChange
-} from '../../../src/logic/cluster-subscriber/pulse-cluster-change'
 
 const WALLET = '0x1111111111111111111111111111111111111111'
 // Has actual hex letters, unlike WALLET, so upper/lower-casing it is not a no-op.
@@ -33,9 +30,16 @@ function clusterChange(
   clusterId: string,
   realm = 'main',
   session = '',
-  displaced: Partial<PulseClusterChange> = {}
+  displaced: Partial<PeerClusterChange> = {}
 ): Uint8Array {
-  return encodePulseClusterChange({ clusterId, realm, session, ...displaced })
+  return PeerClusterChange.encode({
+    clusterId,
+    realm,
+    session,
+    displacedSession: '',
+    displacedClusterId: '',
+    ...displaced
+  }).finish()
 }
 
 describe('cluster-subscriber component', () => {
@@ -360,13 +364,8 @@ describe('cluster-subscriber component', () => {
       })
     })
 
-    describe('and session-addressed publishing is on', () => {
-      beforeEach(async () => {
-        component = await build({ settings: { ISLAND_CHANGED_SESSION_ADDRESSED: 'true' } })
-        await component[START_COMPONENT]!(startOptions)
-      })
-
-      it('should publish on the session-addressed subject when the event carries a session', async () => {
+    describe('and the event names a session', () => {
+      it('should publish on the session-addressed subject', async () => {
         await deliver(
           `peer.${WALLET}.cluster_change`,
           clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
@@ -377,28 +376,27 @@ describe('cluster-subscriber component', () => {
         )
       })
 
-      it('should fall back to the legacy subject when an older Pulse sends no session', async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
-
-        expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
-      })
-
-      it('should fall back to the legacy subject when the session is not a valid session key', async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', 'not-a-key'))
-
-        expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
-      })
-
       it('should never publish the same event on both subjects', async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', '0xbb'))
+        await deliver(
+          `peer.${WALLET}.cluster_change`,
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
+        )
 
         expect(nats.publish).toHaveBeenCalledTimes(1)
       })
     })
 
-    describe('and session-addressed publishing is off', () => {
-      it('should publish on the legacy subject even when the event carries a session', async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', '0xbb'))
+    describe('and the event names a malformed session', () => {
+      it('should fall back to the legacy subject', async () => {
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', 'not-a-key'))
+
+        expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
+      })
+    })
+
+    describe('and an older Pulse sends no session', () => {
+      it('should fall back to the legacy subject', async () => {
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
 
         expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
       })
@@ -433,6 +431,12 @@ describe('cluster-subscriber component', () => {
 
       it('should re-announce', () => {
         expect(nats.publish).toHaveBeenCalledTimes(1)
+      })
+
+      it('should re-announce on the session-addressed subject', () => {
+        expect(nats.publish.mock.calls[0][0]).toBe(
+          `engine.peer.${WALLET}.island_changed.0xbb00000000000000000000000000000000000000`
+        )
       })
     })
 

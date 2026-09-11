@@ -183,7 +183,16 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
   }
 
   function publishClusterChange(wallet: string, clusterId: string): void {
-    publisher.publish(`peer.${wallet}.cluster_change`, PeerClusterChange.encode({ clusterId, realm: 'main' }).finish())
+    publisher.publish(
+      `peer.${wallet}.cluster_change`,
+      PeerClusterChange.encode({
+        clusterId,
+        realm: 'main',
+        session: '',
+        displacedSession: '',
+        displacedClusterId: ''
+      }).finish()
+    )
   }
 
   describe('when an allowed wallet is assigned to a cluster', () => {

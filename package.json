@@ -66,7 +66,7 @@
     "@dcl/http-tracer-component": "^2.0.1",
     "@dcl/memory-cache-component": "^2.4.3",
     "@dcl/metrics": "^1.0.1",
-    "@dcl/protocol": "https://sdk-team-cdn.decentraland.org/@dcl/protocol/branch//dcl-protocol-1.0.0-30550755753.commit-b0705a3.tgz",
+    "@dcl/protocol": "https://sdk-team-cdn.decentraland.org/@dcl/protocol/branch//dcl-protocol-1.0.0-34523473551.commit-3ef4c52.tgz",
     "@dcl/schema-validator-component": "^1.0.1",
     "@dcl/schemas": "25.2.0",
     "@dcl/sns-component": "^3.1.5",
@@ -81,7 +81,6 @@
     "livekit-server-sdk": "2.15.4",
     "lru-cache": "^10.1.0",
     "nats": "2.29.3",
-    "protobufjs": "^7.6.5",
     "sql-template-strings": "^2.2.2"
   }
 }

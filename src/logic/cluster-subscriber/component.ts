@@ -1,11 +1,11 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
+import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { START_COMPONENT } from '@well-known-components/interfaces'
 import { LRUCache } from 'lru-cache'
 import { NatsMessageHandler } from '../../adapters/nats'
 import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
 import { positiveNumberOr } from '../../utils/config'
-import { decodePulseClusterChange, PulseClusterChange } from './pulse-cluster-change'
 import { IClusterSubscriberComponent } from './types'
 
 const DEFAULT_BAN_CACHE_TTL_MS = 30_000
@@ -25,8 +25,8 @@ const SESSION_KEY = /^0x[0-9a-f]{40}$/
  * 2b. When the event names a displaced session, remove that participant from the cluster it was
  * last published into, revoking its tokens, before minting.
  * 3. Mint a LiveKit token for the cluster's island room.
- * 4. Publish `engine.peer.{wallet}.island_changed` — or, when `ISLAND_CHANGED_SESSION_ADDRESSED`
- * is on and the event names a session, `engine.peer.{wallet}.island_changed.{session}` — carrying
+ * 4. Publish `engine.peer.{wallet}.island_changed.{session}` when the event names a valid session,
+ * or the legacy `engine.peer.{wallet}.island_changed` when it does not (an older Pulse) — carrying
  * the previous room as `fromIslandId`.
  * 5. Record the new assignment in peer state.
  *
@@ -38,6 +38,9 @@ const SESSION_KEY = /^0x[0-9a-f]{40}$/
  *
  * Off unless `CLUSTER_SUBSCRIBER_ENABLED` is `'true'` and NATS is configured; when off it
  * subscribes to nothing and is byte-identical to not having the component at all.
+ *
+ * WS Connector must already subscribe to the session-addressed, five-token subject before this
+ * runs, since a session-named event is published there unconditionally.
  *
  * @param components - The config, logs, metrics, nats, livekit, access gate, player connection
  * database and peer state components.
@@ -62,18 +65,15 @@ export async function createClusterSubscriberComponent(
     components
   const logger = logs.getLogger('cluster-subscriber')
 
-  const [enabledFlag, queueGroupSetting, banCacheTtlSetting, sessionAddressedFlag, retryDelaySetting] =
-    await Promise.all([
-      config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
-      config.getString('NATS_QUEUE_GROUP'),
-      config.getNumber('CLUSTER_BAN_CACHE_TTL_MS'),
-      config.getString('ISLAND_CHANGED_SESSION_ADDRESSED'),
-      config.getNumber('CLUSTER_TAKEOVER_RETRY_DELAY_MS')
-    ])
+  const [enabledFlag, queueGroupSetting, banCacheTtlSetting, retryDelaySetting] = await Promise.all([
+    config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
+    config.getString('NATS_QUEUE_GROUP'),
+    config.getNumber('CLUSTER_BAN_CACHE_TTL_MS'),
+    config.getNumber('CLUSTER_TAKEOVER_RETRY_DELAY_MS')
+  ])
 
   const enabled = enabledFlag === 'true'
   const queueGroup = queueGroupSetting || DEFAULT_QUEUE_GROUP
-  const sessionAddressed = sessionAddressedFlag === 'true'
   // `??` on purpose: a configured 0 is a real value here (no sleep before retrying), unlike
   // the lru-cache bounds below.
   const takeoverRetryDelayMs = retryDelaySetting ?? DEFAULT_TAKEOVER_RETRY_DELAY_MS
@@ -134,7 +134,7 @@ export async function createClusterSubscriberComponent(
     return banned
   }
 
-  async function processClusterChange(wallet: string, change: PulseClusterChange): Promise<void> {
+  async function processClusterChange(wallet: string, change: PeerClusterChange): Promise<void> {
     if (await isBanned(wallet)) {
       metrics.increment('dcl_gatekeeper_cluster_banned_skipped_total')
       logger.info(`Skipping banned wallet ${wallet} assigned to cluster ${change.clusterId}`)
@@ -166,13 +166,12 @@ export async function createClusterSubscriberComponent(
       message.fromIslandId = previous.room
     }
 
-    // Addressed to the session when both sides can: an older Pulse sends no session, a malformed
-    // one must never become subject tokens, and the four-token subject is what WS Connector
-    // forwards until it subscribes to the five-token one.
-    const subject =
-      sessionAddressed && SESSION_KEY.test(change.session)
-        ? `engine.peer.${wallet}.island_changed.${change.session}`
-        : `engine.peer.${wallet}.island_changed`
+    // Addressed to the session whenever the event names a valid one: an older Pulse sends no
+    // session, and a malformed one must never become subject tokens, so both fall back to the
+    // legacy four-token subject.
+    const subject = SESSION_KEY.test(change.session)
+      ? `engine.peer.${wallet}.island_changed.${change.session}`
+      : `engine.peer.${wallet}.island_changed`
 
     let delivered: boolean
     try {
@@ -202,7 +201,7 @@ export async function createClusterSubscriberComponent(
   // revokes every token minted for the wallet before now. Retried: this runs on a background
   // feed with nobody to report to, and a transient LiveKit error would otherwise leave two
   // sessions in comms until one of them leaves.
-  async function evictDisplacedSession(wallet: string, change: PulseClusterChange): Promise<void> {
+  async function evictDisplacedSession(wallet: string, change: PeerClusterChange): Promise<void> {
     if (!change.displacedClusterId) {
       metrics.increment('dcl_gatekeeper_cluster_takeover_failed_total')
       logger.warn(`Cannot evict displaced session ${change.displacedSession} of ${wallet}: no displaced cluster named`)
@@ -344,12 +343,12 @@ export async function createClusterSubscriberComponent(
 
   // Lower-cases the session once at decode time, so every consumer of a decoded change - minting,
   // the mirror, and the session-addressed subject choice - agrees on its casing.
-  function normalizeChange(change: PulseClusterChange): PulseClusterChange {
+  function normalizeChange(change: PeerClusterChange): PeerClusterChange {
     return { ...change, session: change.session.toLowerCase() }
   }
 
   function handleClusterChange(wallet: string, data: Uint8Array): void {
-    const change = normalizeChange(decodePulseClusterChange(data))
+    const change = normalizeChange(PeerClusterChange.decode(data))
     metrics.increment('dcl_gatekeeper_cluster_events_received_total')
 
     // After the received-counter: this is a payload problem, not a decode one. Protobuf
@@ -366,7 +365,7 @@ export async function createClusterSubscriberComponent(
   }
 
   function handleAssignmentMirror(wallet: string, data: Uint8Array): void {
-    const { clusterId, session } = normalizeChange(decodePulseClusterChange(data))
+    const { clusterId, session } = normalizeChange(PeerClusterChange.decode(data))
     if (clusterId) {
       assignmentMirror.set(wallet, { clusterId, session })
     }
