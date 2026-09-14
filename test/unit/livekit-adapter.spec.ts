@@ -7,8 +7,8 @@ import {
   ParticipantInfo
 } from 'livekit-server-sdk'
 import { RoomType } from '@dcl/schemas'
-import { createKeyedQueueComponent } from '../../src/adapters/keyed-queue'
 import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX, createLivekitComponent } from '../../src/adapters/livekit'
+import { createKeyedQueueTestComponent } from '../utils'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 
 let livekitComponent: ILivekitComponent
@@ -51,7 +51,7 @@ async function buildLivekitComponent(
   const values: Record<string, string> = { ...DEFAULT_LIVEKIT_CONFIG, ...configOverrides }
 
   return createLivekitComponent({
-    roomMetadataQueue: await createKeyedQueueComponent(),
+    roomMetadataQueue: await createKeyedQueueTestComponent(),
     config: {
       requireString: jest
         .fn()
@@ -251,7 +251,7 @@ describe('when checking if a realm is a local preview', () => {
 
   it('should return false when ALLOW_LOCAL_PREVIEW is not enabled', async () => {
     const componentWithoutPreview = await createLivekitComponent({
-      roomMetadataQueue: await createKeyedQueueComponent(),
+      roomMetadataQueue: await createKeyedQueueTestComponent(),
       config: {
         requireString: jest.fn().mockResolvedValue('test'),
         getString: jest.fn().mockReturnValue(''),
@@ -305,7 +305,7 @@ describe('when checking if a realm name is a preview realm', () => {
 
   it('should return true even when ALLOW_LOCAL_PREVIEW is not enabled', async () => {
     const componentWithoutPreview = await createLivekitComponent({
-      roomMetadataQueue: await createKeyedQueueComponent(),
+      roomMetadataQueue: await createKeyedQueueTestComponent(),
       config: {
         requireString: jest.fn().mockResolvedValue('test'),
         getString: jest.fn().mockReturnValue(''),

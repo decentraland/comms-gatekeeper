@@ -1,6 +1,6 @@
 import { RoomServiceClient, Room, AccessToken, IngressClient, WebhookReceiver } from 'livekit-server-sdk'
-import { createKeyedQueueComponent } from '../../src/adapters/keyed-queue'
 import { createLivekitComponent } from '../../src/adapters/livekit'
+import { createKeyedQueueTestComponent } from '../utils'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 
 describe('when writing room metadata concurrently', () => {
@@ -22,7 +22,7 @@ describe('when writing room metadata concurrently', () => {
     jest.spyOn(WebhookReceiver.prototype, 'receive').mockResolvedValue(undefined as any)
 
     livekitComponent = await createLivekitComponent({
-      roomMetadataQueue: await createKeyedQueueComponent(),
+      roomMetadataQueue: await createKeyedQueueTestComponent(),
       config: {
         requireString: jest.fn().mockResolvedValue('test'),
         getString: jest.fn().mockImplementation((key: string) => {

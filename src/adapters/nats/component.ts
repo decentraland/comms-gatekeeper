@@ -1,8 +1,17 @@
-import { connect as natsConnect, ErrorCode, Events, NatsConnection, NatsError, QueuedIterator, Status } from 'nats'
+import {
+  connect as natsConnect,
+  ErrorCode,
+  Events,
+  NatsConnection,
+  NatsError,
+  QueuedIterator,
+  Status,
+  Subscription
+} from 'nats'
 import { STOP_COMPONENT } from '@well-known-components/interfaces'
 import { getErrorMessage } from '../../logic/errors'
 import { AppComponents } from '../../types'
-import { INatsComponent, NatsMessageHandler, NatsSubscribeOptions } from './types'
+import { INatsComponent, NatsMessageHandler, NatsSubscribeOptions, NatsSubscription } from './types'
 
 // Delay before retrying a failed connection. Mirrors Pulse's 5 s supervision loop.
 const RECONNECT_DELAY_MS = 5000
@@ -11,6 +20,8 @@ type Registration = {
   subject: string
   handler: NatsMessageHandler
   queue?: string
+  /** The client-side subscription while a connection is up; what `unsubscribe` cancels. */
+  live?: Subscription
 }
 
 /**
@@ -23,7 +34,8 @@ type Registration = {
  * 1. With `NATS_URL` unset the component is inert — `connect()` logs and returns, `publish()`
  *    and `subscribe()` are harmless no-ops, and nothing about startup can fail.
  * 2. `subscribe()` records a registration and activates it immediately if a connection exists;
- *    otherwise `connect()` activates every pending registration once the link opens.
+ *    otherwise `connect()` activates every pending registration once the link opens. The handle
+ *    it returns cancels both: the registration and, when up, the live subscription.
  * 3. Connection failures never propagate. They schedule a retry `RECONNECT_DELAY_MS` later and
  *    keep doing so until `[STOP_COMPONENT]` runs.
  *
@@ -64,6 +76,10 @@ export async function createNatsComponent(
     statusIterator?.stop()
     statusIterator = undefined
     connection = undefined
+    // Whatever was live died with the connection; the next connect() activates afresh.
+    for (const registration of registrations) {
+      registration.live = undefined
+    }
     setConnected(false)
   }
 
@@ -72,7 +88,7 @@ export async function createNatsComponent(
       return
     }
 
-    connection.subscribe(registration.subject, {
+    registration.live = connection.subscribe(registration.subject, {
       queue: registration.queue,
       callback: (err, message) => {
         if (err) {
@@ -215,10 +231,29 @@ export async function createNatsComponent(
     }
   }
 
-  function subscribe(subject: string, handler: NatsMessageHandler, options?: NatsSubscribeOptions): void {
+  function subscribe(subject: string, handler: NatsMessageHandler, options?: NatsSubscribeOptions): NatsSubscription {
     const registration: Registration = { subject, handler, queue: options?.queue }
     registrations.push(registration)
     activate(registration)
+
+    function unsubscribe(): void {
+      // Out of the list first, so a reconnect landing mid-call cannot activate it again.
+      const index = registrations.indexOf(registration)
+      if (index !== -1) {
+        registrations.splice(index, 1)
+      }
+
+      const live = registration.live
+      registration.live = undefined
+      try {
+        live?.unsubscribe()
+      } catch (error) {
+        // A subscription on a connection that already closed has nothing left to cancel.
+        logger.debug(`Could not cancel the subscription on ${subject}: ${getErrorMessage(error)}`)
+      }
+    }
+
+    return { unsubscribe }
   }
 
   function publish(subject: string, data: Uint8Array): boolean {

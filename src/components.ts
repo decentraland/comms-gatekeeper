@@ -97,7 +97,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   instrumentHttpServerWithRequestLogger({ server, logger: logs })
 
-  const roomMetadataQueue = await createKeyedQueueComponent()
+  const roomMetadataQueue = await createKeyedQueueComponent({ config, logs })
   const livekit = await createLivekitComponent({ config, logs, roomMetadataQueue })
   const nats = await createNatsComponent({ config, logs, metrics })
   const peerState = await createPeerStateComponent({ config })
@@ -308,7 +308,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     logs
   })
 
-  const clusterWalletQueue = await createKeyedQueueComponent()
+  const clusterWalletQueue = await createKeyedQueueComponent({ config, logs })
   const clusterSubscriber = await createClusterSubscriberComponent({
     config,
     logs,

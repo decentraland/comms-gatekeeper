@@ -1,7 +1,7 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
-import { START_COMPONENT } from '@well-known-components/interfaces'
-import { NatsMessageHandler } from '../../adapters/nats'
+import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
+import { NatsMessageHandler, NatsSubscription } from '../../adapters/nats'
 import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
 import { IClusterSubscriberComponent, MirrorEntry } from './types'
@@ -34,6 +34,11 @@ const SESSION_KEY = /^0x[0-9a-f]{40}$/
  *
  * Off unless `CLUSTER_SUBSCRIBER_ENABLED` is `'true'` and NATS is configured; when off it
  * subscribes to nothing and is byte-identical to not having the component at all.
+ *
+ * On stop it unsubscribes from all three subjects. Components stop in reverse creation order,
+ * so this runs first, then the wallet queue drains whatever is mid-flight, and only then does
+ * the NATS adapter close its connection. An event arriving after the unsubscribe goes to
+ * another member of the queue group instead of being minted against a closing connection.
  *
  * WS Connector must already subscribe to the session-addressed, five-token subject before this
  * runs, since a session-named event is published there unconditionally.
@@ -349,6 +354,8 @@ export async function createClusterSubscriberComponent(
       })
   }
 
+  const subscriptions: NatsSubscription[] = []
+
   async function start(): Promise<void> {
     if (!enabled) {
       logger.info('Cluster subscriber is disabled (CLUSTER_SUBSCRIBER_ENABLED is not "true")')
@@ -361,18 +368,20 @@ export async function createClusterSubscriberComponent(
 
     // Queue-grouped: without it, N replicas would each mint and publish for every event,
     // giving each client N island_changed messages with N different tokens.
-    nats.subscribe('peer.*.cluster_change', guarded('cluster_change', handleClusterChange), { queue: queueGroup })
+    subscriptions.push(
+      nats.subscribe('peer.*.cluster_change', guarded('cluster_change', handleClusterChange), { queue: queueGroup })
+    )
 
     // Same subject again, this time with no queue group, so every replica sees every
     // assignment. This copy only refreshes the mirror; minting stays exclusive to the grouped
     // subscription above. Without it a replica knows only the assignments it happened to be
     // handed, and two replicas would re-announce the same wallet to different rooms.
-    nats.subscribe('peer.*.cluster_change', guarded('cluster_change', handleAssignmentMirror))
+    subscriptions.push(nats.subscribe('peer.*.cluster_change', guarded('cluster_change', handleAssignmentMirror)))
 
     // Grouped like minting, and for the same reason: the mirror leaves every replica able to
     // answer a reconnect, so ungrouped they all would, and the client would be told to join
     // one room once per replica - every join after the first evicting the one before it.
-    nats.subscribe('peer.*.connect', guarded('connect', handlePeerConnect), { queue: queueGroup })
+    subscriptions.push(nats.subscribe('peer.*.connect', guarded('connect', handlePeerConnect), { queue: queueGroup }))
 
     // Not awaited - well-known-components gates HTTP readiness (/health/ready, /health/startup)
     // on start() resolving, and connect() can stall ~20s per unreachable broker address before
@@ -383,5 +392,16 @@ export async function createClusterSubscriberComponent(
     logger.info(`Cluster subscriber started (queue group: ${queueGroup})`)
   }
 
-  return { [START_COMPONENT]: start }
+  async function stop(): Promise<void> {
+    if (subscriptions.length === 0) {
+      return
+    }
+
+    for (const subscription of subscriptions.splice(0)) {
+      subscription.unsubscribe()
+    }
+    logger.info('Cluster subscriber stopped taking events')
+  }
+
+  return { [START_COMPONENT]: start, [STOP_COMPONENT]: stop }
 }

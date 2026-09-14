@@ -2,8 +2,7 @@ import { ICacheStorageComponent } from '@dcl/core-commons'
 import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
-import { ILoggerComponent, IBaseComponent, START_COMPONENT } from '@well-known-components/interfaces'
-import { createKeyedQueueComponent } from '../../../src/adapters/keyed-queue'
+import { ILoggerComponent, IBaseComponent, START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { NatsMessageHandler } from '../../../src/adapters/nats'
 import { createPeerStateComponent, IPeerStateComponent } from '../../../src/adapters/peer-state'
 import { createClusterSubscriberComponent, IClusterSubscriberComponent } from '../../../src/logic/cluster-subscriber'
@@ -14,7 +13,7 @@ import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createMetricsMockedComponent } from '../../mocks/metrics-mock'
 import { createNatsMockedComponent } from '../../mocks/nats-mock'
 import { createPeerStateMockedComponent } from '../../mocks/peer-state-mock'
-import { createDeferred, flushMacrotask } from '../../utils'
+import { createDeferred, createKeyedQueueTestComponent, flushMacrotask } from '../../utils'
 
 const WALLET = '0x1111111111111111111111111111111111111111'
 // Has actual hex letters, unlike WALLET, so upper/lower-casing it is not a no-op.
@@ -103,7 +102,7 @@ describe('cluster-subscriber component', () => {
       peerState,
       assignmentMirror,
       // Real, like the mirror: the ordering tests below depend on genuine per-wallet serialization.
-      clusterWalletQueue: await createKeyedQueueComponent()
+      clusterWalletQueue: await createKeyedQueueTestComponent()
     })
     // The component fetches its logger once, synchronously, before its first await, so
     // this is already populated by the time createClusterSubscriberComponent resolves.
@@ -179,6 +178,10 @@ describe('cluster-subscriber component', () => {
     it('should not connect', () => {
       expect(nats.connect).not.toHaveBeenCalled()
     })
+
+    it('should stop with nothing to unsubscribe', async () => {
+      await expect(component[STOP_COMPONENT]!()).resolves.toBeUndefined()
+    })
   })
 
   describe('when NATS is not configured', () => {
@@ -224,6 +227,24 @@ describe('cluster-subscriber component', () => {
 
     it('should connect', () => {
       expect(nats.connect).toHaveBeenCalled()
+    })
+
+    describe('and the component is stopped', () => {
+      beforeEach(async () => {
+        await component[STOP_COMPONENT]!()
+      })
+
+      it('should cancel every one of its three subscriptions', () => {
+        const handles = nats.subscribe.mock.results.map((result) => result.value.unsubscribe as jest.Mock)
+        expect(handles).toHaveLength(3)
+        for (const unsubscribe of handles) {
+          expect(unsubscribe).toHaveBeenCalledTimes(1)
+        }
+      })
+
+      it('should log that it stopped taking events', () => {
+        expect(logger.info).toHaveBeenCalledWith('Cluster subscriber stopped taking events')
+      })
     })
 
     describe('and the queue group is not configured', () => {

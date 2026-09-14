@@ -6,7 +6,8 @@ export const createNatsMockedComponent = (
 ): jest.Mocked<INatsComponent> => {
   return {
     connect: jest.fn().mockResolvedValue(undefined),
-    subscribe: jest.fn(),
+    // Each call hands back its own handle, so a test can check which subscriptions were cancelled.
+    subscribe: jest.fn().mockImplementation(() => ({ unsubscribe: jest.fn() })),
     // Defaults to a delivered publish; override with `false` to exercise the dropped path.
     publish: jest.fn().mockReturnValue(true),
     isEnabled: jest.fn().mockReturnValue(true),

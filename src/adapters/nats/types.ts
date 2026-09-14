@@ -7,6 +7,15 @@ export type NatsSubscribeOptions = {
   queue?: string
 }
 
+export type NatsSubscription = {
+  /**
+   * Stops delivering to the handler: drops the registration, so a later reconnect does not
+   * restore it, and cancels the live subscription when the link is up. Safe to call more than
+   * once, and before the connection has ever opened.
+   */
+  unsubscribe(): void
+}
+
 export type INatsComponent = IBaseComponent & {
   /**
    * Opens the connection to the broker and activates every registered subscription.
@@ -24,8 +33,9 @@ export type INatsComponent = IBaseComponent & {
    * @param subject - The subject to subscribe to, wildcards included.
    * @param handler - Invoked per message. Must not throw; an escaping throw is caught and logged.
    * @param options - Optional queue group, so exactly one member of the group handles each message.
+   * @returns A handle to cancel the subscription with.
    */
-  subscribe(subject: string, handler: NatsMessageHandler, options?: NatsSubscribeOptions): void
+  subscribe(subject: string, handler: NatsMessageHandler, options?: NatsSubscribeOptions): NatsSubscription
   /**
    * Publishes a message.
    *

@@ -1,5 +1,9 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
 
+/**
+ * A per-key serial queue. On stop it drains: it waits for every key's in-flight and queued
+ * tasks, up to `KEYED_QUEUE_DRAIN_TIMEOUT_MS`, then gives up on whatever is still running.
+ */
 export type IKeyedQueueComponent = IBaseComponent & {
   /**
    * Runs `task` once every task queued earlier under `key` has settled. Tasks under different

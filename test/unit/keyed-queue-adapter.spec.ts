@@ -1,11 +1,30 @@
+import { ILoggerComponent, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { createKeyedQueueComponent, IKeyedQueueComponent } from '../../src/adapters/keyed-queue'
+import { createConfigMockedComponent } from '../mocks/config-mock'
+import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createDeferred, flushMacrotask } from '../utils'
 
 describe('keyed queue adapter', () => {
   let queue: IKeyedQueueComponent
+  let logger: jest.Mocked<ILoggerComponent.ILogger>
+
+  async function build(drainTimeoutMs?: number): Promise<IKeyedQueueComponent> {
+    const config = createConfigMockedComponent({
+      getNumber: jest
+        .fn()
+        .mockImplementation((key: string) =>
+          Promise.resolve(key === 'KEYED_QUEUE_DRAIN_TIMEOUT_MS' ? drainTimeoutMs : undefined)
+        )
+    })
+    const logs = createLoggerMockedComponent({})
+    const component = await createKeyedQueueComponent({ config, logs })
+    logger = logs.getLogger.mock.results[0].value
+
+    return component
+  }
 
   beforeEach(async () => {
-    queue = await createKeyedQueueComponent()
+    queue = await build()
   })
 
   describe('when two tasks are queued under the same key', () => {
@@ -137,6 +156,105 @@ describe('keyed queue adapter', () => {
     })
 
     it('should keep the key pending', () => {
+      expect(queue.pending()).toBe(1)
+    })
+  })
+
+  describe('when stopped with nothing queued', () => {
+    it('should stop at once', async () => {
+      await expect(queue[STOP_COMPONENT]!()).resolves.toBeUndefined()
+    })
+  })
+
+  describe('when stopped while a task is still running', () => {
+    let task: ReturnType<typeof createDeferred<void>>
+    let stopped: jest.Mock
+    let stopping: Promise<void>
+
+    beforeEach(async () => {
+      task = createDeferred<void>()
+      stopped = jest.fn()
+      void queue.enqueue('wallet-a', () => task.promise)
+
+      stopping = queue[STOP_COMPONENT]!().then(() => stopped())
+      await flushMacrotask()
+    })
+
+    afterEach(async () => {
+      task.resolve()
+      await stopping
+    })
+
+    it('should keep waiting for it', () => {
+      expect(stopped).not.toHaveBeenCalled()
+    })
+
+    describe('and the task finishes', () => {
+      beforeEach(async () => {
+        task.resolve()
+        await stopping
+      })
+
+      it('should finish stopping', () => {
+        expect(stopped).toHaveBeenCalled()
+      })
+
+      it('should have drained every key', () => {
+        expect(queue.pending()).toBe(0)
+      })
+    })
+  })
+
+  describe('when a task queues more work under its key during the drain', () => {
+    let first: ReturnType<typeof createDeferred<void>>
+    let second: ReturnType<typeof createDeferred<void>>
+    let stopped: jest.Mock
+    let stopping: Promise<void>
+
+    beforeEach(async () => {
+      first = createDeferred<void>()
+      second = createDeferred<void>()
+      stopped = jest.fn()
+      void queue.enqueue('wallet-a', async () => {
+        await first.promise
+        void queue.enqueue('wallet-a', () => second.promise)
+      })
+
+      stopping = queue[STOP_COMPONENT]!().then(() => stopped())
+      first.resolve()
+      await flushMacrotask()
+    })
+
+    afterEach(async () => {
+      second.resolve()
+      await stopping
+    })
+
+    it('should keep waiting for the work queued during the drain', () => {
+      expect(stopped).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when a task outlives the drain deadline', () => {
+    let task: ReturnType<typeof createDeferred<void>>
+
+    beforeEach(async () => {
+      queue = await build(50)
+      task = createDeferred<void>()
+      void queue.enqueue('wallet-a', () => task.promise)
+
+      await queue[STOP_COMPONENT]!()
+    })
+
+    afterEach(() => {
+      task.resolve()
+    })
+
+    it('should warn about the key it gave up on', () => {
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('wallet-a'))
+    })
+
+    it('should leave the key pending', () => {
       expect(queue.pending()).toBe(1)
     })
   })

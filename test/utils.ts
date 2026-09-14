@@ -2,6 +2,9 @@ import { AuthChain, AuthIdentity, AuthLinkType, Authenticator, IdentityType } fr
 import { AUTH_CHAIN_HEADER_PREFIX, AUTH_METADATA_HEADER, AUTH_TIMESTAMP_HEADER } from '@dcl/crypto-middleware'
 import { createUnsafeIdentity } from '@dcl/crypto/dist/crypto'
 import { getAuthHeaders } from '@dcl/test-helpers'
+import { createKeyedQueueComponent, IKeyedQueueComponent } from '../src/adapters/keyed-queue'
+import { createConfigMockedComponent } from './mocks/config-mock'
+import { createLoggerMockedComponent } from './mocks/logger-mock'
 
 export const owner: AuthIdentity = {
   ephemeralIdentity: {
@@ -198,4 +201,15 @@ export function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) 
  */
 export function flushMacrotask(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve))
+}
+
+/**
+ * A real keyed queue over mocked config and logs, for specs whose subject depends on genuine
+ * per-key serialization. Drain timeout left at its default.
+ */
+export function createKeyedQueueTestComponent(): Promise<IKeyedQueueComponent> {
+  return createKeyedQueueComponent({
+    config: createConfigMockedComponent({ getNumber: jest.fn().mockResolvedValue(undefined) }),
+    logs: createLoggerMockedComponent({})
+  })
 }

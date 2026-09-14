@@ -227,6 +227,61 @@ describe('nats-adapter', () => {
       })
     })
 
+    describe('and a subscription is cancelled before connecting', () => {
+      beforeEach(async () => {
+        natsConnectMock.mockResolvedValue(buildConnection() as any)
+        nats = await build('localhost:4222')
+
+        nats.subscribe('peer.*.connect', jest.fn()).unsubscribe()
+        await nats.connect()
+      })
+
+      it('should never activate it on the connection', () => {
+        expect(subscribeSpy).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and a subscription is cancelled while connected', () => {
+      let liveUnsubscribe: jest.Mock
+
+      beforeEach(async () => {
+        natsConnectMock.mockResolvedValue(buildConnection() as any)
+        liveUnsubscribe = jest.fn()
+        subscribeSpy.mockReturnValue({ unsubscribe: liveUnsubscribe })
+        nats = await build('localhost:4222')
+        await nats.connect()
+
+        const subscription = nats.subscribe('peer.*.connect', jest.fn())
+        subscription.unsubscribe()
+        subscription.unsubscribe()
+      })
+
+      it('should cancel the live subscription exactly once', () => {
+        expect(liveUnsubscribe).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('and the live subscription refuses to cancel', () => {
+      let cancel: () => void
+
+      beforeEach(async () => {
+        natsConnectMock.mockResolvedValue(buildConnection() as any)
+        subscribeSpy.mockReturnValue({
+          unsubscribe: jest.fn().mockImplementation(() => {
+            throw new Error('connection closed')
+          })
+        })
+        nats = await build('localhost:4222')
+        await nats.connect()
+
+        cancel = () => nats.subscribe('peer.*.connect', jest.fn()).unsubscribe()
+      })
+
+      it('should swallow the failure, since there is nothing left to cancel', () => {
+        expect(cancel).not.toThrow()
+      })
+    })
+
     describe('and a message arrives', () => {
       let handler: jest.Mock
 

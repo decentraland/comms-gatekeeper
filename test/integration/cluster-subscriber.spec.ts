@@ -5,12 +5,12 @@ import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfac
 import { createHmac } from 'crypto'
 import { connect, NatsConnection } from 'nats'
 import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
-import { createKeyedQueueComponent } from '../../src/adapters/keyed-queue'
 import { createNatsComponent } from '../../src/adapters/nats'
 import { createClusterSubscriberComponent } from '../../src/logic/cluster-subscriber'
 import { IClusterSubscriberComponent } from '../../src/logic/cluster-subscriber/types'
 import { INatsComponent } from '../../src/adapters/nats'
 import { test } from '../components'
+import { createKeyedQueueTestComponent } from '../utils'
 
 // This spec is the only one in the suite that exercises the real `livekit` adapter instead of
 // a stub: `generateCredentials` mints a JWT locally via `AccessToken.toJwt()` (HMAC signing, no
@@ -155,7 +155,7 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
         peerState: components.peerState,
         assignmentMirror: replicaMirror,
         // One per replica, like the mirror: the queue is process-local state.
-        clusterWalletQueue: await createKeyedQueueComponent()
+        clusterWalletQueue: await createKeyedQueueTestComponent()
       })
     }
   }

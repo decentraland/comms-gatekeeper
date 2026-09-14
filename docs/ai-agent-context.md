@@ -179,12 +179,19 @@ triggers `DuplicateIdentity`, which stops the reconnection loop for the rest of 
 shows an exit-only modal. `holdsParticipant` is what keeps that from happening, which is why its
 failure mode must stay closed.
 
+**Shutdown.** Components stop in reverse creation order. The subscriber stops first and cancels
+its three subscriptions, so events after that point go to another replica in the queue group.
+The wallet queue then drains whatever is mid-flight, bounded by `KEYED_QUEUE_DRAIN_TIMEOUT_MS`
+(5 s default), and only then does the NATS adapter drain its connection. A mint that was
+underway when the signal arrived therefore still publishes.
+
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
 bounded per-wallet assignment store, whose only consumer is `fromIslandId`), the assignment
 mirror (a dedicated `@dcl/memory-cache-component` instance, see **Reconnects**),
 `src/adapters/keyed-queue/` (the per-key serial queue the subscriber orders each wallet's events
-and connects with; the LiveKit adapter uses its own instance to order room-metadata writes) and
+and connects with; the LiveKit adapter uses its own instance to order room-metadata writes; both
+drain in-flight tasks on stop, bounded by `KEYED_QUEUE_DRAIN_TIMEOUT_MS`) and
 `src/logic/access-gate/` (the platform-ban + deny-list lookup shared with the two signed-fetch
 token handlers, with an opt-in result cache, a dedicated `@dcl/memory-cache-component` instance,
 that only the subscriber uses). Island room names
