@@ -1126,6 +1126,76 @@ describe('when listing room participants', () => {
   })
 })
 
+describe('when checking whether a room holds a participant', () => {
+  const roomName = 'island-C5'
+  const identity = '0xAaBb0000000000000000000000000000000000cD'
+  let result: boolean
+
+  beforeEach(() => {
+    // The spies are shared with every other block in this file and never cleared between them.
+    listRoomsSpy.mockClear()
+    listParticipantsSpy.mockClear()
+  })
+
+  afterEach(() => {
+    listParticipantsSpy.mockReset()
+  })
+
+  describe('when the room lists the identity', () => {
+    beforeEach(async () => {
+      listParticipantsSpy.mockResolvedValue([{ identity: identity.toLowerCase() }, { identity: 'someone-else' }])
+
+      result = await livekitComponent.holdsParticipant(roomName, identity)
+    })
+
+    it('should report it present, matching the identity case-insensitively', () => {
+      expect(result).toBe(true)
+    })
+
+    it('should ask LiveKit for the participants alone, without listing rooms first', () => {
+      expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
+      expect(listRoomsSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when the room exists but does not list the identity', () => {
+    beforeEach(async () => {
+      listParticipantsSpy.mockResolvedValue([{ identity: 'someone-else' }])
+
+      result = await livekitComponent.holdsParticipant(roomName, identity)
+    })
+
+    it('should report it absent', () => {
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('when the room does not exist', () => {
+    beforeEach(async () => {
+      // What LiveKit answers for a room that never existed or has already closed.
+      listParticipantsSpy.mockRejectedValue(
+        Object.assign(new Error('requested room does not exist'), { code: 'not_found' })
+      )
+
+      result = await livekitComponent.holdsParticipant(roomName, identity)
+    })
+
+    it('should report it absent rather than failing', () => {
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('when LiveKit cannot be reached', () => {
+    beforeEach(() => {
+      listParticipantsSpy.mockRejectedValue(new Error('livekit unreachable'))
+    })
+
+    it('should reject, so the caller can tell a failed lookup from absence', async () => {
+      await expect(livekitComponent.holdsParticipant(roomName, identity)).rejects.toThrow('livekit unreachable')
+    })
+  })
+})
+
 describe('when removing a participant from all rooms', () => {
   let participantIdentity: string
 
