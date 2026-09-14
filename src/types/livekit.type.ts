@@ -34,6 +34,18 @@ export type RoomMetadata = {
 
 export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
 
+/** One participant found under a queried identity, tagged with its owning comms session. */
+export type ParticipantHold = {
+  /**
+   * The identity exactly as LiveKit listed it - not necessarily the queried identity's casing.
+   * Removal must use this string: LiveKit matches identity exactly, and a foreign or legacy
+   * mint can be checksum-cased.
+   */
+  identity: string
+  /** Lower-cased `dclsession` attribute, or `null` when the participant carries none. */
+  session: string | null
+}
+
 export type ILivekitComponent = IBaseComponent & {
   isLocalPreview: (realmName: string | undefined) => boolean
   isPreviewRealmName: (realmName: string | undefined) => boolean
@@ -44,7 +56,9 @@ export type ILivekitComponent = IBaseComponent & {
     roomId: string,
     permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    /** Custom LiveKit participant attributes, e.g. the owning comms session under `dclsession`. */
+    attributes?: Record<string, string>
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
   /**
@@ -82,7 +96,7 @@ export type ILivekitComponent = IBaseComponent & {
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
   getParticipantInfo: (roomId: string, participantId: string) => Promise<ParticipantInfo | null>
   /** Rejects on a failed lookup instead of reporting the identity as absent. */
-  holdsParticipant: (roomId: string, participantId: string) => Promise<boolean>
+  listParticipantsHolding: (roomId: string, identity: string) => Promise<ParticipantHold[]>
   listRoomParticipants: (roomName: string) => Promise<ParticipantInfo[]>
   updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>
   updateParticipantPermissions: (

@@ -125,8 +125,14 @@ is published empty: unity-explorer reads only `connStr`. WS Connector must alrea
 five-token subject in an environment before this runs.
 
 **Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
-evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false)` →
-publish.
+park the displaced session first, when it names a different, valid one (F4, see Parking below) →
+evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false,
+undefined, attributes)`, stamping the minting session as the `dclsession` LiveKit participant attribute
+whenever it is a valid session key (an older Pulse or a malformed value mints no attribute) → publish.
+The attribute key has no separators on purpose (F1a): LiveKit camel-cases a key containing `.`, `_` or
+`-` on `listParticipants` (a token attribute of `dcl.session`, `dcl_session` or `dcl-session` all come
+back as `dclSession`), so `dclsession` is the only spelling that round-trips intact - the reader
+tolerates nothing else.
 
 **Reconnects.** Pulse's feed is edge-triggered: it stays silent while a peer's cluster is
 unchanged. A client whose websocket drops and comes back without the crowd moving would
@@ -138,15 +144,70 @@ the same mint-and-publish path, so the client gets a freshly minted token rather
 expired one it was last sent.
 
 **Takeovers.** When a `cluster_change` names a `displaced_session`, that wallet's participant is removed
-from `island-{displaced_cluster_id}` with every token minted before that instant revoked, and only then
-is the new session's token minted — LiveKit revokes `nbf < revokeTokenTs` at second granularity, so the
-order is what keeps the new token valid. Three attempts, `CLUSTER_TAKEOVER_RETRY_DELAY_MS` × attempt apart. A
+from `island-{displaced_cluster_id}` with every token minted before the revocation stamp revoked, and
+only then is the new session's token minted — LiveKit revokes `nbf < revokeTokenTs` at second
+granularity, so the order is what keeps the new token valid. The stamp is this event's **receipt
+second** — `Date.now()` captured when the handler first sees the event, not "now" at removal time —
+taken once and reused for every attempt (F2a): a retry after a transient failure can then never revoke
+a token minted for the new session by another replica's connect-path re-announce in between. Three
+attempts, `CLUSTER_TAKEOVER_RETRY_DELAY_MS` × attempt apart. A
 not-found answer means the displaced participant had already left; it is counted as
 `dcl_gatekeeper_cluster_takeover_absent_total`, not retried, and — because LiveKit records the revocation
 only with a removal — its cached token stays valid until it expires (at most five minutes). The
-displaced client reconnects against a revoked token and, once it re-handshakes, its `connect` names a
-session other than the one Pulse last published, so it is not re-announced either. No client change is
-involved; a superseded client loops without success by decision.
+displaced client reconnects against a revoked token - and, on a LiveKit build that does not enforce
+revocation on a fresh join, may succeed anyway (see Parking below) - and once it re-handshakes, its
+`connect` names a session other than the one Pulse last published: parked when the mirror still
+remembers that session as displaced for the wallet, or otherwise not re-announced, exactly as the
+Reconnects section below describes. No client change is involved; a superseded client loops without
+success by decision.
+
+Before the removal, when the displaced cluster is the same room the new session is about to join,
+another replica's connect-path self-heal (see Reconnects below) may already have evicted the displaced
+device and re-announced the new session into it: removing by `wallet`, identity-wide, would then kick
+the very device this whole fix protects (N1). The direct path lists that room's holders first in that
+case, skips the removal entirely when every holder already carries the new session
+(`dcl_gatekeeper_cluster_takeover_skipped_live_total`), and otherwise removes by the exact identity or
+identities LiveKit listed - never `wallet` wholesale - deduped, the same as the connect path's own
+self-heal (I1). A listing failure falls through to the identity-wide removal, fail-closed towards
+eviction, same as everywhere else in this pipeline.
+
+**Parking (F4).** livekit-server v1.13.6 does not enforce token revocation on a fresh join - measured
+with the stamp at "now", in the future, against a minute-old token, with or without an `iat` claim, all
+accepted. The eviction above ends the displaced device's current media session, but a removed device's
+island room re-joins with its original connection string after its own backoff, and that fresh join is
+let back in. In a shared room LiveKit then disconnects the **live** participant under that identity
+instead (`DUPLICATE_IDENTITY`, which the client treats as final) - eviction alone cannot enforce "the
+first must not re-join".
+
+What every client does honour is its latest island assignment. So, before evicting or minting for the
+new session, `processClusterChange` parks a genuinely different, valid displaced session: it mints that
+session a token into a private room `island-parked-{first 16 hex chars of the session}` (the `island-`
+prefix so clients, and this service's own webhook handlers, treat it as an ordinary island) and
+publishes that as an `IslandChangedMessage` to the displaced session's own five-token subject -
+indistinguishable from any other island reassignment, so no client change is needed. A successful
+publish counts `dcl_gatekeeper_cluster_takeover_parked_total`; a mint or publish failure instead counts
+the existing `dcl_gatekeeper_cluster_publish_failed_total`, logs, and never blocks the eviction or the
+live mint that follow - parking must not be able to strand the live session.
+
+The assignment mirror also remembers, per wallet, the sessions Pulse has named - or that this replica
+has inferred, when the wallet's live session simply changed without an explicit `displaced_session` -
+as displaced: a small, capped (8), oldest-first window (`MirrorEntry.displaced`), which forgets a
+session the instant it becomes the wallet's live one again (B2) - a session cannot be simultaneously
+live and displaced, and leaving it in the window would make it a candidate for parking on its own next
+reconnect. A `peer.{wallet}.connect` from one of those remembered sessions - its ws socket dropped and
+it re-handshook after being displaced - is judged, after the ban gate, on positive evidence from
+LiveKit rather than on the remembered-displaced fact alone (B2): only when some holder of the wallet's
+identity in its last known room still carries the mirror's live session is it parked
+(`dcl_gatekeeper_cluster_reannounce_parked_total`, see Reconnects below). Without that evidence - the
+live device has already left, or LiveKit cannot be read - or when the connecting session is neither the
+mirror's live one nor a remembered displaced one, it keeps today's `…skipped_other_session_total`: the
+connecting session re-handshakes with the exact same key a returning device would use, so it may simply
+be that device signing back in, or a new one Pulse has not published for yet, and Pulse's own
+`cluster_change`, if it is legitimate, follows and assigns it normally.
+
+The parked client ends up alone in a room nobody else is ever assigned to, functionally "no comms" -
+the accepted outcome for a superseded client; it recovers only by signing in again. Parked rooms close
+on LiveKit's empty timeout, same as any other island room nobody is left in.
 
 Resolution reads `src/adapters/assignment-mirror/`, not peer state. Minting is queue-grouped, so
 a replica's peer state covers only the events it was handed; two replicas answering one
@@ -154,20 +215,60 @@ reconnect from it would name different clusters, and the client would settle in 
 arrived last. The mirror is written from the second, un-grouped `cluster_change` subscription so
 every replica agrees, and the connect subscription is grouped so only one of them replies.
 
-The re-announcement is skipped when `livekit.holdsParticipant` reports the wallet already in
-that room: only the signalling socket has to have dropped for the event to fire, and handing a
-connection string to a peer already in the room puts two participants under one identity, which
-LiveKit resolves by evicting the existing one. That lookup **fails closed** — `holdsParticipant`
-rejects rather than reporting absence, and a rejection skips the re-announcement. This is
-deliberate and the opposite of the ban gate's fail-open: a LiveKit outage coincides with mass
-reconnects (a WS Connector deploy reconnects everyone at once), and reading "cannot tell" as
-"not in the room" would end every one of those sessions. `dcl_gatekeeper_cluster_reannounce_*`
-counts each branch so the suppression can be told apart from a lookup that never succeeds.
+The re-announcement classifies whoever `livekit.listParticipantsHolding` finds under the wallet's
+identity in its last known room (only the signalling socket has to have dropped for a `connect` to
+fire, so the peer is often still in its room, and handing it a connection string again would put two
+participants under one identity, which LiveKit resolves by evicting the existing one). The
+classification is only **judgeable** when both the connecting session and the mirror's recorded one
+are real session keys — an older WS Connector's connect payload names none, and an older Pulse's
+assignment mints no attribute, so no holder could ever carry one to compare:
+
+- **Judgeable**, by each holder's `dclsession` attribute:
+  - a match with the connecting session is the device already in it — suppress
+    (`…reannounce_suppressed_total`).
+  - a **different, valid** session is a displaced device that outlived its eviction (a stale mirror
+    entry, a takeover retry still in flight on another replica, or an unrevoked re-join) — removed by
+    the exact identity LiveKit listed it under (never the wallet — LiveKit matches identity exactly,
+    and a foreign or legacy mint can be checksum-cased) with the same receipt-second revocation stamp
+    the direct takeover path uses (`…reannounce_evicted_stale_total`; a `not_found` on the removal
+    counts the same, since another replica or the direct takeover path may have just beaten it to
+    it), then falls through to the re-announce below. If that removal fails for any other reason, the
+    re-announce is abandoned instead — minting next to a displaced participant that refused to leave
+    is exactly the race this guards against (`…reannounce_stale_evict_failed_total`).
+  - **no attribute** is "cannot tell", not "stale": a LiveKit without attribute support, a pre-deploy
+    token, or a genuinely legacy mint all look like this, and evicting on it would kick a live device
+    on every one of its reconnects. Suppressed, never evicted (`…reannounce_suppressed_total`), same
+    as a match — self-healing the takeover race still works, because a device this gatekeeper
+    actually displaced always carries its own session attribute. **LiveKit without attribute support
+    degrades to today's behaviour, it does not regress.**
+- **Not judgeable** (either side is not a session key): any holder at all is read as already in — the
+  identity-only check this replaced (`…reannounce_suppressed_total`).
+- nobody there is a plain reconnect (`…reannounce_attempted_total`, as before).
+
+The listing itself still **fails closed** — it rejects rather than reporting nobody home, and a
+rejection skips the re-announcement (`…reannounce_check_failed_total`). This is deliberate and the
+opposite of the ban gate's fail-open: a LiveKit outage coincides with mass reconnects (a WS Connector
+deploy reconnects everyone at once), and reading "cannot tell" as "not in the room" would end every
+one of those sessions. `dcl_gatekeeper_cluster_reannounce_*` counts each branch so they can be told
+apart.
+
+Self-healing (the different-valid-session branch above) depends on the mint always stamping the
+session (the pipeline above), which in turn requires the LiveKit deployment to support participant
+attributes (introduced in LiveKit server 1.6). Without that support every holder looks attribute-less
+and is suppressed — the same behaviour this service had before session-awareness, not a regression.
+Verify the deployed version to know which of the two an environment gets.
 
 One more gate precedes that lookup. A `connect` whose session differs from the one the mirror recorded
-for the wallet is skipped (`…reannounce_skipped_other_session_total`): that device was displaced. A
-repeated string for a room the client was just handed is de-duplicated by WS Connector, which knows
-what it delivered to which socket; gatekeeper keeps no timing state.
+for the wallet is a displaced device coming back - or that very device signing back in, since Explorer
+persists its ephemeral identity and re-handshakes with the same session key it lost. When the mirror
+still remembers that session as one it displaced for the wallet before (F4), it MAY be parked instead
+(`…reannounce_parked_total`) rather than being handed the room it was just removed from - but only after
+the ban gate, and only when LiveKit shows a holder of the wallet's identity still carrying the mirror's
+live session (B2): that positive evidence is what tells a leftover displaced device apart from the same
+device signing back in, which by then finds no such holder and falls through, exactly like an
+unrecognised session, to `…skipped_other_session_total`. A repeated string for a room the client was
+just handed is de-duplicated by WS Connector, which knows what it delivered to which socket; gatekeeper
+keeps no timing state.
 
 **Known limitations.** A replica that has just started has an empty mirror and cannot answer a
 reconnect until each wallet's next genuine cluster change; because the connect subscription is
@@ -179,8 +280,8 @@ longer than that is unresolvable. Both show up as
 **Deploy order.** On clients without the same-island guard in `ArchipelagoIslandRoom`
 (unity-explorer, unmerged at the time of writing), being told to join a room they already hold
 triggers `DuplicateIdentity`, which stops the reconnection loop for the rest of the session and
-shows an exit-only modal. `holdsParticipant` is what keeps that from happening, which is why its
-failure mode must stay closed.
+shows an exit-only modal. The classification above is what keeps that from happening to the device
+genuinely still there, which is why a failed lookup must stay closed.
 
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
@@ -197,8 +298,12 @@ prefix is required so this service's own webhook handlers classify these rooms a
 feed archipelago-stats, but are deliberately unused here — both retire in iteration 2.
 
 **Metrics:** `dcl_gatekeeper_cluster_*_total` (including `dcl_gatekeeper_cluster_takeover_evicted_total`,
-`dcl_gatekeeper_cluster_takeover_failed_total`, `dcl_gatekeeper_cluster_takeover_absent_total` and
-`dcl_gatekeeper_cluster_reannounce_skipped_other_session_total`)
+`dcl_gatekeeper_cluster_takeover_failed_total`, `dcl_gatekeeper_cluster_takeover_absent_total`,
+`dcl_gatekeeper_cluster_takeover_skipped_live_total`, `dcl_gatekeeper_cluster_takeover_parked_total`,
+`dcl_gatekeeper_cluster_reannounce_skipped_other_session_total`,
+`dcl_gatekeeper_cluster_reannounce_evicted_stale_total`,
+`dcl_gatekeeper_cluster_reannounce_stale_evict_failed_total` and
+`dcl_gatekeeper_cluster_reannounce_parked_total`)
 and `dcl_gatekeeper_nats_connected`.
 
 **Dependency pin (temporary).** `@dcl/protocol` is pinned to the CDN branch tarball

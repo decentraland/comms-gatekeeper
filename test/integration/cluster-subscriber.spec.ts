@@ -355,10 +355,10 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
       publishClusterChange(RECONNECT_WALLET, 'C41')
       expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C41')
 
-      // The real livekit adapter is in play here, and holdsParticipant deliberately rejects
-      // rather than reporting absence when it cannot reach LiveKit - which is always, in a
-      // test with no LiveKit server. Stub just this lookup; minting stays real.
-      jest.spyOn(components.livekit, 'holdsParticipant').mockResolvedValue(false)
+      // The real livekit adapter is in play here, and listParticipantsHolding deliberately
+      // rejects rather than reporting nobody home when it cannot reach LiveKit - which is
+      // always, in a test with no LiveKit server. Stub just this lookup; minting stays real.
+      jest.spyOn(components.livekit, 'listParticipantsHolding').mockResolvedValue([])
 
       publisher.publish(`peer.${RECONNECT_WALLET}.connect`)
 

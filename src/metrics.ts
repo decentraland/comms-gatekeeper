@@ -35,11 +35,11 @@ export const metricDeclarations = {
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_reannounce_attempted_total: {
-    help: "Total peer connect events that went on to re-announce the wallet's island",
+    help: "Total peer connect events that went on to re-announce the wallet's island without evicting a stale participant first (see …evicted_stale_total for the ones that did)",
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_reannounce_suppressed_total: {
-    help: 'Total peer connect events skipped because LiveKit already holds the wallet',
+    help: 'Total peer connect events skipped because the room already accounted for the connecting identity: the same session, a session attribute LiveKit could not classify, or sessions that were not comparable at all',
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_reannounce_unresolved_total: {
@@ -121,6 +121,26 @@ export const metricDeclarations = {
       'exists, and 0 whenever nothing conclusive could be observed (no live worlds, fewer than ' +
       'three sampled, an unreachable content server or LiveKit)',
     type: IMetricsComponent.GaugeType
+  },
+  dcl_gatekeeper_cluster_reannounce_evicted_stale_total: {
+    help: 'Total displaced participants removed from an island room, with their tokens revoked, by a connect re-announce before minting the connecting session',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_reannounce_stale_evict_failed_total: {
+    help: 'Total connect re-announces abandoned because removing a displaced participant from the island room failed',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_takeover_skipped_live_total: {
+    help: "Total takeover removals skipped because every holder under the wallet's identity already carried the new session - another replica's connect re-announce had already healed it in (N1)",
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_takeover_parked_total: {
+    help: 'Total displaced sessions minted a token into a private parked room and published to, ahead of their eviction and the new session mint (F4)',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_reannounce_parked_total: {
+    help: 'Total peer connect events from a session the mirror remembers as previously displaced for the wallet, parked instead of ignored (F4)',
+    type: IMetricsComponent.CounterType
   }
 }
 
