@@ -294,8 +294,12 @@ paths:
 
         **Presence semantics (iteration 2).** The route returns wallets standing on the scene's
         parcels or in the requested world realm, using Pulse's parcel-change feed.
-        Addresses are sorted ascending and the service's scene ban list is subtracted.
-        The response envelope is unchanged.
+        Addresses are sorted ascending and the service's scene ban list is subtracted when
+        the place and ban-list lookups succeed. If either lookup fails, the service logs a
+        warning and returns the unfiltered presence list with HTTP 200. The response envelope
+        is unchanged and contains no indicator that filtering was skipped. During such failures,
+        the list can include banned wallets and overstate the ban-filtered participant count.
+        This presence response is informational and must not be used as an authorization check.
 
         Until the map has a live source, or after all sources have expired, the route answers
         `503` with `{"ok": false, "error": "warming"}`. The same warming response is used

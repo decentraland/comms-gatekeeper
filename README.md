@@ -141,6 +141,25 @@ See `.env.default` for available configuration options.
 The key is documented but left commented out in `.env.default`. Without NATS, local startup
 logs a warning and both presence routes answer `503 warming`.
 
+### Presence limits and caches
+
+`HOT_SCENES_LIMIT` fixes `/hot-scenes` at 100 results, preserving the previous archipelago-stats
+limit. `MAX_DISPLACED_SESSIONS` keeps the eight most recently displaced sessions per wallet for
+reconnect parking and drops the oldest when that window fills. Both are code constants; changing
+either requires a code change and deployment.
+
+The hot-scenes cache holds up to 20,000 parcel-pointer entries, including empty-parcel misses,
+with its own `HOT_SCENES_SCENE_TTL_MS` (default five minutes). The content client separately caches
+entities by ID and by pointer; each cache uses `CONTENT_CLIENT_CACHE_MAX` (default 1,000 entries)
+and `CONTENT_CLIENT_CACHE_TTL` (default five minutes). Scene data can be retained in both layers.
+The larger hot-scenes cache lets repeated city-wide sweeps reuse entries without repeatedly
+cycling through the smaller content-client pointer cache. These are entry-count bounds, not byte
+limits. Hot-scenes cache misses still use the content client, so its TTL also affects when fresh
+Catalyst metadata is fetched.
+
+For the behavior of participant counts when place or ban-list lookups fail, see the
+`/scene-participants` description in [the API specification](docs/openapi.yaml).
+
 ### Running the Service
 
 #### Setting up the environment
