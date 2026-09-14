@@ -7,7 +7,11 @@ import {
   ParticipantInfo
 } from 'livekit-server-sdk'
 import { RoomType } from '@dcl/schemas'
-import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX, createLivekitComponent } from '../../src/adapters/livekit'
+import {
+  COMMUNITY_VOICE_CHAT_ROOM_PREFIX,
+  ISLAND_SESSION_ATTRIBUTE,
+  createLivekitComponent
+} from '../../src/adapters/livekit'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 
 let livekitComponent: ILivekitComponent
@@ -326,6 +330,14 @@ describe('when getting a world room name', () => {
     const result = livekitComponent.getWorldRoomName(worldName)
     expect(result).toBe('world-env-test-world')
   })
+
+  // The worlds content server lower-cases the world name when it creates the room
+  // (getWorldRoomConnectionString), and world names reach this service in whatever case the
+  // caller typed. Without this the room name misses and every lookup answers "nobody is here".
+  it('should lower-case the world name, because that is how the room was created', () => {
+    const result = livekitComponent.getWorldRoomName('CozyFarm.DCL.eth')
+    expect(result).toBe('world-env-cozyfarm.dcl.eth')
+  })
 })
 
 describe('when getting a world scene room name', () => {
@@ -334,6 +346,11 @@ describe('when getting a world scene room name', () => {
     const sceneId = 'bafkreiabcdef123'
     const result = livekitComponent.getWorldSceneRoomName(worldName, sceneId)
     expect(result).toBe('world-prod-scene-room-test-world-bafkreiabcdef123')
+  })
+
+  it('should lower-case the world name but leave the scene id untouched', () => {
+    const result = livekitComponent.getWorldSceneRoomName('CozyFarm.DCL.eth', 'bafkreiAbcDef123')
+    expect(result).toBe('world-prod-scene-room-cozyfarm.dcl.eth-bafkreiAbcDef123')
   })
 })
 
@@ -593,6 +610,50 @@ describe('when generating credentials', () => {
 
       expect(payload.nbf).toBeGreaterThanOrEqual(beforeIssuance)
       expect(payload.nbf).toBeLessThanOrEqual(afterIssuance)
+    })
+
+    it('should stamp the given attributes onto the token', async () => {
+      accessTokenToJwtSpy.mockRestore()
+
+      const result = await livekitComponent.generateCredentials(identity, roomId, permissions, false, undefined, {
+        'dcl.session': '0xabc0000000000000000000000000000000000000'
+      })
+      const payload = JSON.parse(Buffer.from(result.token.split('.')[1], 'base64url').toString('utf8')) as {
+        attributes?: Record<string, string>
+      }
+
+      expect(payload.attributes).toEqual({ 'dcl.session': '0xabc0000000000000000000000000000000000000' })
+    })
+
+    it('should carry no attributes claim when none are given', async () => {
+      accessTokenToJwtSpy.mockRestore()
+
+      const result = await livekitComponent.generateCredentials(identity, roomId, permissions, false)
+      const payload = JSON.parse(Buffer.from(result.token.split('.')[1], 'base64url').toString('utf8')) as {
+        attributes?: Record<string, string>
+      }
+
+      expect(payload.attributes).toBeUndefined()
+    })
+
+    it('should leave metadata untouched when attributes are also given', async () => {
+      accessTokenToJwtSpy.mockRestore()
+
+      const result = await livekitComponent.generateCredentials(
+        identity,
+        roomId,
+        permissions,
+        false,
+        { displayName: 'Test User' },
+        { 'dcl.session': '0xabc0000000000000000000000000000000000000' }
+      )
+      const payload = JSON.parse(Buffer.from(result.token.split('.')[1], 'base64url').toString('utf8')) as {
+        metadata?: string
+        attributes?: Record<string, string>
+      }
+
+      expect(JSON.parse(payload.metadata!)).toEqual({ displayName: 'Test User' })
+      expect(payload.attributes).toEqual({ 'dcl.session': '0xabc0000000000000000000000000000000000000' })
     })
 
     it('should log community token timestamps without exposing the token', async () => {
@@ -1122,6 +1183,95 @@ describe('when listing room participants', () => {
 
       expect(result).toEqual([])
       expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
+    })
+  })
+})
+
+describe('when listing participants holding an identity', () => {
+  const roomName = 'island-C5'
+  const identity = '0x1111111111111111111111111111111111111111'
+
+  describe('when the room does not exist', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([])
+    })
+
+    it('should return no holders', async () => {
+      const result = await livekitComponent.listParticipantsHolding(roomName, identity)
+
+      expect(result).toEqual([])
+    })
+  })
+
+  describe('when the room exists', () => {
+    beforeEach(() => {
+      listRoomsSpy.mockResolvedValue([{ name: roomName } as Room])
+    })
+
+    it('should tag a matching participant with its lower-cased session attribute', async () => {
+      listParticipantsSpy.mockResolvedValue([
+        {
+          sid: 'PA_1',
+          identity,
+          attributes: { [ISLAND_SESSION_ATTRIBUTE]: '0xBB00000000000000000000000000000000000000' }
+        } as unknown as ParticipantInfo
+      ])
+
+      const result = await livekitComponent.listParticipantsHolding(roomName, identity)
+
+      expect(result).toEqual([{ identity, session: '0xbb00000000000000000000000000000000000000' }])
+    })
+
+    it('should read the dclsession attribute and ignore dotted or camel-cased variants (F1a)', async () => {
+      // What LiveKit itself would return for a token minted with a separator-containing key:
+      // `dcl.session` and `dcl_session` both camel-case to `dclSession` on listParticipants.
+      // Alongside a genuine `dclsession` entry, only the latter must be read.
+      listParticipantsSpy.mockResolvedValue([
+        {
+          sid: 'PA_1',
+          identity,
+          attributes: {
+            'dcl.session': '0xaa00000000000000000000000000000000000000',
+            dclSession: '0xbb00000000000000000000000000000000000000',
+            dclsession: '0xcc00000000000000000000000000000000000000'
+          }
+        } as unknown as ParticipantInfo
+      ])
+
+      const result = await livekitComponent.listParticipantsHolding(roomName, identity)
+
+      expect(result).toEqual([{ identity, session: '0xcc00000000000000000000000000000000000000' }])
+    })
+
+    it('should report null for a participant with no session attribute', async () => {
+      listParticipantsSpy.mockResolvedValue([{ sid: 'PA_1', identity, attributes: {} } as unknown as ParticipantInfo])
+
+      const result = await livekitComponent.listParticipantsHolding(roomName, identity)
+
+      expect(result).toEqual([{ identity, session: null }])
+    })
+
+    it('should carry the exact identity LiveKit listed, not the queried casing', async () => {
+      listParticipantsSpy.mockResolvedValue([
+        { sid: 'PA_1', identity: identity.toUpperCase(), attributes: {} } as unknown as ParticipantInfo
+      ])
+
+      const result = await livekitComponent.listParticipantsHolding(roomName, identity)
+
+      // Matched case-insensitively, but the identity a caller must remove by is the one LiveKit
+      // actually listed - a foreign or legacy mint can be checksum-cased, and LiveKit's own
+      // removal matches identity exactly.
+      expect(result).toEqual([{ identity: identity.toUpperCase(), session: null }])
+    })
+
+    it('should return no holders when nobody in the room matches the identity', async () => {
+      listParticipantsSpy.mockResolvedValue([
+        { sid: 'PA_1', identity: '0xsomeoneelse', attributes: {} } as unknown as ParticipantInfo
+      ])
+
+      const result = await livekitComponent.listParticipantsHolding(roomName, identity)
+
+      expect(result).toEqual([])
     })
   })
 })

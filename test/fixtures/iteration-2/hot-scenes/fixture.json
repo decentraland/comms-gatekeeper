@@ -1,0 +1,84 @@
+{
+  "source": "Copied from archipelago-workers/stats/test/unit/hot-scenes-handler.spec.ts (see reference/). The gatekeeper /hot-scenes port must reproduce these results from its presence map.",
+  "rules": [
+    "input = per-parcel peer counts of the MAIN realm only (world peers are ignored)",
+    "occupied tiles are joined with Catalyst scene entities (fetchEntitiesByPointers), cached; a tile whose entity has no metadata or no metadata.scene is skipped",
+    "one HotSceneInfo per scene: usersTotalCount = sum of peers over the scene's parcels; parcels = every parcel of the scene (not only occupied ones) as [x,y]; baseCoords from metadata.scene.base",
+    "thumbnail = calculateThumbnail(entity) exactly as reference/content.ts (relative navmapThumbnail -> `${contentUrl}/contents/${hash}` via the entity's content list; unresolvable -> undefined)",
+    "creator = metadata.contact.name, projectId = metadata.source.projectId, description = metadata.display.description, name = metadata.display.title",
+    "result sorted by usersTotalCount desc, truncated to 100, served as a BARE ARRAY (no envelope)",
+    "503 {\"ok\":false,\"error\":\"warming\"} until the presence map has been primed"
+  ],
+  "cases": [
+    {
+      "name": "ok",
+      "scenes": {
+        "10,10": {
+          "id": 1,
+          "metadata": {
+            "contact": { "name": "creator" },
+            "source": { "projectId": "project-id" },
+            "scene": { "base": "10,10", "parcels": ["10,10", "10,11"] },
+            "display": { "title": "test", "description": "a test" }
+          }
+        }
+      },
+      "mainRealmParcelCounts": [
+        { "parcel": [10, 10], "peersCount": 10 },
+        { "parcel": [10, 11], "peersCount": 12 }
+      ],
+      "calculateThumbnail": "thumb.jpg",
+      "expected": [
+        {
+          "id": 1,
+          "name": "test",
+          "baseCoords": [10, 10],
+          "usersTotalCount": 22,
+          "parcels": [[10, 10], [10, 11]],
+          "thumbnail": "thumb.jpg",
+          "creator": "creator",
+          "projectId": "project-id",
+          "description": "a test"
+        }
+      ]
+    },
+    {
+      "name": "should not crash when a scene has no metadata",
+      "fetchScenesReturns": [
+        { "id": "scene-no-metadata", "content": [], "pointers": ["10,10"] },
+        {
+          "id": "scene-with-metadata",
+          "content": [],
+          "pointers": ["10,10"],
+          "metadata": { "scene": { "base": "10,10", "parcels": ["10,10"] }, "display": { "title": "valid" } }
+        }
+      ],
+      "mainRealmParcelCounts": [{ "parcel": [10, 10], "peersCount": 1 }],
+      "calculateThumbnail": null,
+      "expectedIds": ["scene-with-metadata"]
+    },
+    {
+      "name": "should not crash when scene metadata has no scene field",
+      "fetchScenesReturns": [
+        { "id": "scene-partial-metadata", "content": [], "pointers": ["10,10"], "metadata": { "display": { "title": "partial" } } }
+      ],
+      "mainRealmParcelCounts": [{ "parcel": [10, 10], "peersCount": 1 }],
+      "calculateThumbnail": null,
+      "expectedIds": []
+    },
+    {
+      "name": "world peers never reach /hot-scenes",
+      "scenes": {
+        "0,0": {
+          "id": "world-origin-scene",
+          "metadata": { "scene": { "base": "0,0", "parcels": ["0,0"] }, "display": { "title": "origin" } }
+        }
+      },
+      "presence": [
+        { "address": "0x0000000000000000000000000000000000000003", "realm": "cozyfarm.dcl.eth", "parcel": [0, 0] }
+      ],
+      "calculateThumbnail": null,
+      "expected": []
+    }
+  ]
+}

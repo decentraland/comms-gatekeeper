@@ -17,6 +17,7 @@ import {
   ILivekitComponent,
   LivekitCredentials,
   LivekitSettings,
+  ParticipantHold,
   ParticipantPermissions,
   RoomMetadata
 } from '../types/livekit.type'
@@ -25,6 +26,15 @@ import { isErrorWithMessage } from '../logic/errors'
 export const COMMUNITY_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-community'
 export const PRIVATE_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-private-'
 export const ISLAND_ROOM_PREFIX = 'island-'
+/**
+ * LiveKit token/participant attribute key carrying the owning comms session
+ * (docs/ai-agent-context.md). No separators on purpose (F1a): LiveKit camel-cases a key
+ * containing `.`, `_` or `-` on `listParticipants` (e.g. a token attribute of `dcl.session`,
+ * `dcl_session` or `dcl-session` all come back as `dclSession`), so a key with no separators is
+ * the only one that round-trips intact. The reader tolerates nothing else - a lookup for the
+ * wrong key is exactly the "cannot tell -> suppress" that made the first ghost run fail.
+ */
+export const ISLAND_SESSION_ATTRIBUTE = 'dclsession'
 
 export async function createLivekitComponent(
   components: Pick<AppComponents, 'config' | 'logs'>
@@ -82,7 +92,8 @@ export async function createLivekitComponent(
     roomId: string,
     permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    attributes?: Record<string, string>
   ): Promise<LivekitCredentials> {
     const settings = forPreview ? previewSettings : prodSettings
     const allSources = permissions.cast.includes(identity)
@@ -90,9 +101,14 @@ export async function createLivekitComponent(
     const token = new AccessToken(settings.apiKey, settings.secret, {
       identity,
       name,
+      // Metadata is untouched by `attributes` - Unity parses island participant metadata
+      // (RemoteMetadata.cs / IslandMetadata), which is why the session cannot ride there.
       metadata: metadata ? JSON.stringify(metadata) : undefined,
       ttl: 5 * 60 // 5 minutes
     })
+    if (attributes) {
+      token.attributes = attributes
+    }
 
     const canPublishSources = allSources ? undefined : [TrackSource.MICROPHONE]
     token.addGrant({
@@ -176,17 +192,27 @@ export async function createLivekitComponent(
    * Gets the world room name without sceneId.
    * Used for world-wide operations like getting all participants in a world.
    * Uses the COMMS_ROOM_PREFIX which matches the world content server prefix.
+   *
+   * The world name is lower-cased because that is how the room exists: the worlds content
+   * server lower-cases it when it mints the connection string. World names reach this service
+   * in whatever case the caller typed, and a room name that differs by one capital letter is
+   * simply a different room — every lookup against it answers "nobody is here" rather than
+   * failing, so the mismatch is invisible until someone notices an empty world.
    */
   function getWorldRoomName(worldName: string): string {
-    return `${commsRoomPrefix}${worldName}`
+    return `${commsRoomPrefix}${worldName.toLowerCase()}`
   }
 
   /**
    * Gets the world scene room name with sceneId.
    * Used for scene-specific operations within a world.
+   *
+   * The world name is lower-cased for the same reason as in {@link getWorldRoomName}. The scene
+   * id is left as it stands: it is a content hash, and the worlds content server does not
+   * change its case either.
    */
   function getWorldSceneRoomName(worldName: string, sceneId: string): string {
-    return `${worldRoomPrefix}${worldName}-${sceneId}`
+    return `${worldRoomPrefix}${worldName.toLowerCase()}-${sceneId}`
   }
 
   function getSceneRoomName(realmName: string, sceneId: string): string {
@@ -441,27 +467,37 @@ export async function createLivekitComponent(
   }
 
   /**
-   * Whether `roomId` currently holds a participant under this identity.
+   * Lists every participant `roomId` currently holds under this identity, each tagged with the
+   * comms session it was minted for.
    *
-   * Unlike {@link getParticipantInfo}, a failed lookup rejects instead of reading as "absent",
-   * so a caller whose safe default is not "absent" can tell the two apart. A room that does not
-   * exist is reported as absent rather than an error, and costs a single call.
+   * A failed lookup rejects instead of reading as "nobody", so a caller whose safe default is
+   * not "absent" (the connect re-announce fails closed on this) can tell the two apart. A room
+   * that does not exist reports no holders rather than an error, and costs a single call.
    *
    * @param roomId - The room to inspect.
-   * @param participantId - The identity to look for, compared case-insensitively.
-   * @returns Whether the identity is currently in the room.
+   * @param identity - The identity to look for, compared case-insensitively.
+   * @returns One entry per matching participant: the exact identity LiveKit listed it under
+   * (not necessarily this call's `identity` casing - a foreign or legacy mint can be
+   * checksum-cased, and removal must use the same string LiveKit does) and the lower-cased
+   * `dclsession` attribute it was minted with, or `null` when it carries none (an older mint,
+   * or a token minted before this attribute existed).
    */
-  async function holdsParticipant(roomId: string, participantId: string): Promise<boolean> {
+  async function listParticipantsHolding(roomId: string, identity: string): Promise<ParticipantHold[]> {
     // listRooms, not listParticipants, decides the absent case: it answers with an empty array
     // for a room that does not exist, so absence stays distinguishable from a transport error.
     const rooms = await roomClient.listRooms([roomId])
     if (rooms.length === 0) {
-      return false
+      return []
     }
 
     const participants = await roomClient.listParticipants(roomId)
-    const target = participantId.toLowerCase()
-    return participants.some((participant) => participant.identity?.toLowerCase() === target)
+    const target = identity.toLowerCase()
+    return participants
+      .filter((participant) => participant.identity?.toLowerCase() === target)
+      .map((participant) => {
+        const raw = participant.attributes?.[ISLAND_SESSION_ATTRIBUTE]
+        return { identity: participant.identity, session: raw ? raw.toLowerCase() : null }
+      })
   }
 
   async function listRoomParticipants(roomName: string): Promise<ParticipantInfo[]> {
@@ -650,7 +686,7 @@ export async function createLivekitComponent(
     appendToRoomMetadataArray,
     removeFromRoomMetadataArray,
     getParticipantInfo,
-    holdsParticipant,
+    listParticipantsHolding,
     listRoomParticipants,
     generateCredentials,
     getWorldRoomName,

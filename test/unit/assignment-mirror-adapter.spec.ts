@@ -16,11 +16,11 @@ describe('assignment mirror adapter', () => {
 
   describe('when an assignment is recorded', () => {
     beforeEach(() => {
-      mirror.set(WALLET, { clusterId: 'C5', session: '0xaa' })
+      mirror.set(WALLET, { clusterId: 'C5', session: '0xaa', receivedAt: 1_000, displaced: [] })
     })
 
-    it('should return the cluster and the session', () => {
-      expect(mirror.get(WALLET)).toEqual({ clusterId: 'C5', session: '0xaa' })
+    it('should return the cluster, the session, the receipt time and the displaced sessions', () => {
+      expect(mirror.get(WALLET)).toEqual({ clusterId: 'C5', session: '0xaa', receivedAt: 1_000, displaced: [] })
     })
 
     it('should count it', () => {
@@ -29,11 +29,11 @@ describe('assignment mirror adapter', () => {
 
     describe('and a later assignment replaces it', () => {
       beforeEach(() => {
-        mirror.set(WALLET, { clusterId: 'C6', session: '0xbb' })
+        mirror.set(WALLET, { clusterId: 'C6', session: '0xbb', receivedAt: 2_000, displaced: ['0xaa'] })
       })
 
       it('should return only the latest', () => {
-        expect(mirror.get(WALLET)).toEqual({ clusterId: 'C6', session: '0xbb' })
+        expect(mirror.get(WALLET)).toEqual({ clusterId: 'C6', session: '0xbb', receivedAt: 2_000, displaced: ['0xaa'] })
         expect(mirror.size()).toBe(1)
       })
     })

@@ -14,9 +14,12 @@
 - Manages streaming access lifecycle with expiration and TTL
 - Handles user privacy settings and access control
 - Integrates with LiveKit webhooks for real-time event handling
+- **Keeps the presence map**: consumes Pulse's `engine.parcel_changes` and knows where every online player
+  stands, which is what `GET /hot-scenes` and `GET /scene-participants` are answered from
 
-**Communication Pattern:** Synchronous HTTP REST API with Signed Fetch authentication (ADR-44), plus an
-asynchronous NATS subscription that feeds the cluster subscriber (island rooms, see below).
+**Communication Pattern:** Synchronous HTTP REST API with Signed Fetch authentication (ADR-44), plus two
+asynchronous NATS subscriptions: one feeds the cluster subscriber (island rooms) and one feeds the presence
+map (`/hot-scenes`, `/scene-participants`). Both are described below.
 
 **Technology Stack:**
 
@@ -25,7 +28,8 @@ asynchronous NATS subscription that feeds the cluster subscriber (island rooms, 
 - HTTP Framework: @dcl/http-server
 - Database: PostgreSQL (via @well-known-components/pg-component)
 - Communication: LiveKit Server SDK for token generation and room management
-- Messaging: NATS (`nats` client, thin custom adapter) for Pulse's cluster feed, behind `CLUSTER_SUBSCRIBER_ENABLED`
+- Messaging: NATS (`nats` client, thin custom adapter) for Pulse's cluster feed (behind
+  `CLUSTER_SUBSCRIBER_ENABLED`) and its parcel-changes feed (whenever `NATS_URL` is configured)
 - Component Architecture: @well-known-components (logger, metrics, http-server, pg-component, env-config-provider)
 
 **External Dependencies:**
@@ -38,9 +42,11 @@ asynchronous NATS subscription that feeds the cluster subscriber (island rooms, 
 - **AWS SNS**: Event notifications for streaming and communication events
 - **NATS**: Message broker carrying Pulse's `cluster_change` feed, which this service consumes, and its
   re-published `island_changed`
-- **Pulse**: Owns peer clustering and cluster sizing (replacing Archipelago Core); publishes per-peer cluster
-  assignments over NATS. It also publishes an `engine.islands` topology snapshot, which this service does
-  not consume — that one feeds archipelago-stats
+- **Pulse**: The source of online-player information (replacing Archipelago Core and archipelago-stats). Owns
+  peer clustering and cluster sizing and publishes per-peer cluster assignments over NATS; also publishes
+  `engine.parcel_changes`, the feed this service's presence map consumes, and serves `GET /peers?all=true`,
+  read once on boot to prime that map. It also publishes an `engine.islands` topology snapshot, which this
+  service does not consume
 
 **Key Concepts:**
 
@@ -89,6 +95,8 @@ Both paths enforce bans synchronously in this service, before a token is issued.
 - **Streaming** (`/scene-stream-access`): RTMP URL and key lifecycle for content creators
 - **Voice chat** (`/private-voice-chat`, `/community-voice-chat`): session creation, speaker management, request-to-speak
 - **Webhooks** (`/livekit-webhook`): receive LiveKit server events (room created/destroyed, participant joined/left)
+- **Presence** (`/hot-scenes`, `/scene-participants`): public, unauthenticated reads of who is where, taken
+  over from archipelago-stats (see the presence map section below)
 
 **Authentication Notes:**
 
@@ -117,8 +125,14 @@ is published empty: unity-explorer reads only `connStr`. WS Connector must alrea
 five-token subject in an environment before this runs.
 
 **Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
-evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false)` →
-publish.
+park the displaced session first, when it names a different, valid one (F4, see Parking below) →
+evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false,
+undefined, attributes)`, stamping the minting session as the `dclsession` LiveKit participant attribute
+whenever it is a valid session key (an older Pulse or a malformed value mints no attribute) → publish.
+The attribute key has no separators on purpose (F1a): LiveKit camel-cases a key containing `.`, `_` or
+`-` on `listParticipants` (a token attribute of `dcl.session`, `dcl_session` or `dcl-session` all come
+back as `dclSession`), so `dclsession` is the only spelling that round-trips intact - the reader
+tolerates nothing else.
 
 **Reconnects.** Pulse's feed is edge-triggered: it stays silent while a peer's cluster is
 unchanged. A client whose websocket drops and comes back without the crowd moving would
@@ -130,15 +144,70 @@ the same mint-and-publish path, so the client gets a freshly minted token rather
 expired one it was last sent.
 
 **Takeovers.** When a `cluster_change` names a `displaced_session`, that wallet's participant is removed
-from `island-{displaced_cluster_id}` with every token minted before that instant revoked, and only then
-is the new session's token minted — LiveKit revokes `nbf < revokeTokenTs` at second granularity, so the
-order is what keeps the new token valid. Three attempts, `CLUSTER_TAKEOVER_RETRY_DELAY_MS` × attempt apart. A
+from `island-{displaced_cluster_id}` with every token minted before the revocation stamp revoked, and
+only then is the new session's token minted — LiveKit revokes `nbf < revokeTokenTs` at second
+granularity, so the order is what keeps the new token valid. The stamp is this event's **receipt
+second** — `Date.now()` captured when the handler first sees the event, not "now" at removal time —
+taken once and reused for every attempt (F2a): a retry after a transient failure can then never revoke
+a token minted for the new session by another replica's connect-path re-announce in between. Three
+attempts, `CLUSTER_TAKEOVER_RETRY_DELAY_MS` × attempt apart. A
 not-found answer means the displaced participant had already left; it is counted as
 `dcl_gatekeeper_cluster_takeover_absent_total`, not retried, and — because LiveKit records the revocation
 only with a removal — its cached token stays valid until it expires (at most five minutes). The
-displaced client reconnects against a revoked token and, once it re-handshakes, its `connect` names a
-session other than the one Pulse last published, so it is not re-announced either. No client change is
-involved; a superseded client loops without success by decision.
+displaced client reconnects against a revoked token - and, on a LiveKit build that does not enforce
+revocation on a fresh join, may succeed anyway (see Parking below) - and once it re-handshakes, its
+`connect` names a session other than the one Pulse last published: parked when the mirror still
+remembers that session as displaced for the wallet, or otherwise not re-announced, exactly as the
+Reconnects section below describes. No client change is involved; a superseded client loops without
+success by decision.
+
+Before the removal, when the displaced cluster is the same room the new session is about to join,
+another replica's connect-path self-heal (see Reconnects below) may already have evicted the displaced
+device and re-announced the new session into it: removing by `wallet`, identity-wide, would then kick
+the very device this whole fix protects (N1). The direct path lists that room's holders first in that
+case, skips the removal entirely when every holder already carries the new session
+(`dcl_gatekeeper_cluster_takeover_skipped_live_total`), and otherwise removes by the exact identity or
+identities LiveKit listed - never `wallet` wholesale - deduped, the same as the connect path's own
+self-heal (I1). A listing failure falls through to the identity-wide removal, fail-closed towards
+eviction, same as everywhere else in this pipeline.
+
+**Parking (F4).** livekit-server v1.13.6 does not enforce token revocation on a fresh join - measured
+with the stamp at "now", in the future, against a minute-old token, with or without an `iat` claim, all
+accepted. The eviction above ends the displaced device's current media session, but a removed device's
+island room re-joins with its original connection string after its own backoff, and that fresh join is
+let back in. In a shared room LiveKit then disconnects the **live** participant under that identity
+instead (`DUPLICATE_IDENTITY`, which the client treats as final) - eviction alone cannot enforce "the
+first must not re-join".
+
+What every client does honour is its latest island assignment. So, before evicting or minting for the
+new session, `processClusterChange` parks a genuinely different, valid displaced session: it mints that
+session a token into a private room `island-parked-{first 16 hex chars of the session}` (the `island-`
+prefix so clients, and this service's own webhook handlers, treat it as an ordinary island) and
+publishes that as an `IslandChangedMessage` to the displaced session's own five-token subject -
+indistinguishable from any other island reassignment, so no client change is needed. A successful
+publish counts `dcl_gatekeeper_cluster_takeover_parked_total`; a mint or publish failure instead counts
+the existing `dcl_gatekeeper_cluster_publish_failed_total`, logs, and never blocks the eviction or the
+live mint that follow - parking must not be able to strand the live session.
+
+The assignment mirror also remembers, per wallet, the sessions Pulse has named - or that this replica
+has inferred, when the wallet's live session simply changed without an explicit `displaced_session` -
+as displaced: a small, capped (8), oldest-first window (`MirrorEntry.displaced`), which forgets a
+session the instant it becomes the wallet's live one again (B2) - a session cannot be simultaneously
+live and displaced, and leaving it in the window would make it a candidate for parking on its own next
+reconnect. A `peer.{wallet}.connect` from one of those remembered sessions - its ws socket dropped and
+it re-handshook after being displaced - is judged, after the ban gate, on positive evidence from
+LiveKit rather than on the remembered-displaced fact alone (B2): only when some holder of the wallet's
+identity in its last known room still carries the mirror's live session is it parked
+(`dcl_gatekeeper_cluster_reannounce_parked_total`, see Reconnects below). Without that evidence - the
+live device has already left, or LiveKit cannot be read - or when the connecting session is neither the
+mirror's live one nor a remembered displaced one, it keeps today's `…skipped_other_session_total`: the
+connecting session re-handshakes with the exact same key a returning device would use, so it may simply
+be that device signing back in, or a new one Pulse has not published for yet, and Pulse's own
+`cluster_change`, if it is legitimate, follows and assigns it normally.
+
+The parked client ends up alone in a room nobody else is ever assigned to, functionally "no comms" -
+the accepted outcome for a superseded client; it recovers only by signing in again. Parked rooms close
+on LiveKit's empty timeout, same as any other island room nobody is left in.
 
 Resolution reads `src/adapters/assignment-mirror/`, not peer state. Minting is queue-grouped, so
 a replica's peer state covers only the events it was handed; two replicas answering one
@@ -146,20 +215,60 @@ reconnect from it would name different clusters, and the client would settle in 
 arrived last. The mirror is written from the second, un-grouped `cluster_change` subscription so
 every replica agrees, and the connect subscription is grouped so only one of them replies.
 
-The re-announcement is skipped when `livekit.holdsParticipant` reports the wallet already in
-that room: only the signalling socket has to have dropped for the event to fire, and handing a
-connection string to a peer already in the room puts two participants under one identity, which
-LiveKit resolves by evicting the existing one. That lookup **fails closed** — `holdsParticipant`
-rejects rather than reporting absence, and a rejection skips the re-announcement. This is
-deliberate and the opposite of the ban gate's fail-open: a LiveKit outage coincides with mass
-reconnects (a WS Connector deploy reconnects everyone at once), and reading "cannot tell" as
-"not in the room" would end every one of those sessions. `dcl_gatekeeper_cluster_reannounce_*`
-counts each branch so the suppression can be told apart from a lookup that never succeeds.
+The re-announcement classifies whoever `livekit.listParticipantsHolding` finds under the wallet's
+identity in its last known room (only the signalling socket has to have dropped for a `connect` to
+fire, so the peer is often still in its room, and handing it a connection string again would put two
+participants under one identity, which LiveKit resolves by evicting the existing one). The
+classification is only **judgeable** when both the connecting session and the mirror's recorded one
+are real session keys — an older WS Connector's connect payload names none, and an older Pulse's
+assignment mints no attribute, so no holder could ever carry one to compare:
+
+- **Judgeable**, by each holder's `dclsession` attribute:
+  - a match with the connecting session is the device already in it — suppress
+    (`…reannounce_suppressed_total`).
+  - a **different, valid** session is a displaced device that outlived its eviction (a stale mirror
+    entry, a takeover retry still in flight on another replica, or an unrevoked re-join) — removed by
+    the exact identity LiveKit listed it under (never the wallet — LiveKit matches identity exactly,
+    and a foreign or legacy mint can be checksum-cased) with the same receipt-second revocation stamp
+    the direct takeover path uses (`…reannounce_evicted_stale_total`; a `not_found` on the removal
+    counts the same, since another replica or the direct takeover path may have just beaten it to
+    it), then falls through to the re-announce below. If that removal fails for any other reason, the
+    re-announce is abandoned instead — minting next to a displaced participant that refused to leave
+    is exactly the race this guards against (`…reannounce_stale_evict_failed_total`).
+  - **no attribute** is "cannot tell", not "stale": a LiveKit without attribute support, a pre-deploy
+    token, or a genuinely legacy mint all look like this, and evicting on it would kick a live device
+    on every one of its reconnects. Suppressed, never evicted (`…reannounce_suppressed_total`), same
+    as a match — self-healing the takeover race still works, because a device this gatekeeper
+    actually displaced always carries its own session attribute. **LiveKit without attribute support
+    degrades to today's behaviour, it does not regress.**
+- **Not judgeable** (either side is not a session key): any holder at all is read as already in — the
+  identity-only check this replaced (`…reannounce_suppressed_total`).
+- nobody there is a plain reconnect (`…reannounce_attempted_total`, as before).
+
+The listing itself still **fails closed** — it rejects rather than reporting nobody home, and a
+rejection skips the re-announcement (`…reannounce_check_failed_total`). This is deliberate and the
+opposite of the ban gate's fail-open: a LiveKit outage coincides with mass reconnects (a WS Connector
+deploy reconnects everyone at once), and reading "cannot tell" as "not in the room" would end every
+one of those sessions. `dcl_gatekeeper_cluster_reannounce_*` counts each branch so they can be told
+apart.
+
+Self-healing (the different-valid-session branch above) depends on the mint always stamping the
+session (the pipeline above), which in turn requires the LiveKit deployment to support participant
+attributes (introduced in LiveKit server 1.6). Without that support every holder looks attribute-less
+and is suppressed — the same behaviour this service had before session-awareness, not a regression.
+Verify the deployed version to know which of the two an environment gets.
 
 One more gate precedes that lookup. A `connect` whose session differs from the one the mirror recorded
-for the wallet is skipped (`…reannounce_skipped_other_session_total`): that device was displaced. A
-repeated string for a room the client was just handed is de-duplicated by WS Connector, which knows
-what it delivered to which socket; gatekeeper keeps no timing state.
+for the wallet is a displaced device coming back - or that very device signing back in, since Explorer
+persists its ephemeral identity and re-handshakes with the same session key it lost. When the mirror
+still remembers that session as one it displaced for the wallet before (F4), it MAY be parked instead
+(`…reannounce_parked_total`) rather than being handed the room it was just removed from - but only after
+the ban gate, and only when LiveKit shows a holder of the wallet's identity still carrying the mirror's
+live session (B2): that positive evidence is what tells a leftover displaced device apart from the same
+device signing back in, which by then finds no such holder and falls through, exactly like an
+unrecognised session, to `…skipped_other_session_total`. A repeated string for a room the client was
+just handed is de-duplicated by WS Connector, which knows what it delivered to which socket; gatekeeper
+keeps no timing state.
 
 **Known limitations.** A replica that has just started has an empty mirror and cannot answer a
 reconnect until each wallet's next genuine cluster change; because the connect subscription is
@@ -171,8 +280,8 @@ longer than that is unresolvable. Both show up as
 **Deploy order.** On clients without the same-island guard in `ArchipelagoIslandRoom`
 (unity-explorer, unmerged at the time of writing), being told to join a room they already hold
 triggers `DuplicateIdentity`, which stops the reconnection loop for the rest of the session and
-shows an exit-only modal. `holdsParticipant` is what keeps that from happening, which is why its
-failure mode must stay closed.
+shows an exit-only modal. The classification above is what keeps that from happening to the device
+genuinely still there, which is why a failed lookup must stay closed.
 
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
@@ -189,18 +298,22 @@ prefix is required so this service's own webhook handlers classify these rooms a
 feed archipelago-stats, but are deliberately unused here — both retire in iteration 2.
 
 **Metrics:** `dcl_gatekeeper_cluster_*_total` (including `dcl_gatekeeper_cluster_takeover_evicted_total`,
-`dcl_gatekeeper_cluster_takeover_failed_total`, `dcl_gatekeeper_cluster_takeover_absent_total` and
-`dcl_gatekeeper_cluster_reannounce_skipped_other_session_total`)
+`dcl_gatekeeper_cluster_takeover_failed_total`, `dcl_gatekeeper_cluster_takeover_absent_total`,
+`dcl_gatekeeper_cluster_takeover_skipped_live_total`, `dcl_gatekeeper_cluster_takeover_parked_total`,
+`dcl_gatekeeper_cluster_reannounce_skipped_other_session_total`,
+`dcl_gatekeeper_cluster_reannounce_evicted_stale_total`,
+`dcl_gatekeeper_cluster_reannounce_stale_evict_failed_total` and
+`dcl_gatekeeper_cluster_reannounce_parked_total`)
 and `dcl_gatekeeper_nats_connected`.
 
 **Dependency pin (temporary).** `@dcl/protocol` is pinned to the CDN branch tarball
-`dcl-protocol-1.0.0-34523473551.commit-3ef4c52.tgz` because no npm registry release yet carries
+`dcl-protocol-1.0.0-34523473551.commit-3ef4c52.tgz` (which also includes pulse_presence) because no npm registry release yet carries
 `proto/decentraland/pulse/pulse_clusters.proto` with the `session`, `displaced_session` and
 `displaced_cluster_id` fields. CDN branch tarballs are not permanent: the artifact can vanish
 once the source branch is rebuilt or deleted — this is what broke archipelago-workers before it
 moved to a registry pin — so `yarn install --frozen-lockfile` in CI and the Docker build would
 fail. Repin to an exact registry version as soon as a release carrying `pulse_clusters.proto`
-fields 3–5 lands.
+fields 3–5 and pulse_presence lands.
 
 **Deliberate choices — do not "fix" these without reading why:**
 
@@ -222,3 +335,115 @@ dwell debounce spaces a peer's events ~3 s apart) and self-correcting on the nex
 a real fix needs wallet-hash-partitioned consumers. Symptom to watch for: `publish_failed`
 clean, but users report being in a voice room whose members they cannot hear.
 
+
+**Reconnect race guards.** A connect handler revalidates its captured assignment after each
+lookup, before stale-holder eviction, after the ban check, and immediately before publication
+after credentials are minted. A newer mirror event invalidates the reply. Missing or malformed
+holder session attributes suppress reannouncement. Same-room takeover retries list holders again
+so a retry cannot knowingly remove the winner another replica has admitted.
+
+## Presence map (`/hot-scenes`, `/scene-participants`)
+
+Iteration 2 makes Pulse the only source of online-player information. archipelago-stats is
+decommissioned and this service takes over the two routes that answered "who is where".
+Enabled whenever `NATS_URL` is configured, independently of the island subscriber. Without NATS,
+startup logs a warning and both routes answer `503 warming`.
+
+**Consumes**:
+
+| Subject | Payload | Use |
+|---|---|---|
+| `engine.parcel_changes` | `decentraland.pulse.ParcelChangesBatch` | the presence map; **no queue group** — every replica needs the whole map |
+
+Plus one HTTP read on boot: `GET {PULSE_URL}/peers?all=true`, so the routes can answer before
+the first snapshot instead of warming for up to a minute. That read is the all-instances list and
+carries no `server_name`, so its entries are *primed*: owned by nobody, taken over by the first
+publisher that mentions the wallet, and expiring on `PRESENCE_PRIME_TTL_MS` if none ever does.
+`PULSE_URL` is left commented out in `.env.default`. With `NATS_URL` configured it is required
+and must be an absolute HTTP(S) URL; startup rejects missing, empty or malformed values.
+Without NATS, no prime or subscription runs.
+
+**Produces** nothing on NATS. Two HTTP routes:
+
+- `GET /hot-scenes` — bare array of at most 100 `HotSceneInfo`, main realm only, ordered by
+  `usersTotalCount` descending. Ranking logic ported from archipelago-stats verbatim, including
+  that `parcels` lists every parcel of the scene rather than only the occupied ones. Recomputed
+  on a timer (`HOT_SCENES_REFRESH_MS`) because the join needs catalyst metadata for every
+  occupied tile; `503 {"ok":false,"error":"warming"}` until the first refresh that ran against a
+  ready map has completed (`hotScenes.isReady()`, not merely `presenceMap.isReady()` — the map
+  flips ready when the prime resolves, and the first sweep runs before that), and again whenever
+  the map loses its live source. A sweep over a map that is not ready keeps the previous ranking
+  instead of publishing the empty one it would compute, so nothing empty is left waiting to be
+  served the moment the map comes back.
+- `GET /scene-participants` — `{"ok":true,"data":{"addresses":[…]}}`, resolved only on the
+  presence map. A main-realm pointer selects the Catalyst scene parcels, a world name selects
+  that realm, and world plus pointer selects the world scene parcels. Realm lookups are case-insensitive.
+  The scene ban list is subtracted; a cold map raises the shared `PresenceMapWarmingError`
+  and answers `503 {"ok":false,"error":"warming"}`.
+
+**Consumer rule (contract C1), the part that matters:** `lastSeq` is kept per `server_name`. On
+a sequence gap the publisher is *frozen* and the current state keeps being served until that
+publisher's next snapshot (Pulse guarantees one within 60 s). The map is never dropped, because
+an empty `/hot-scenes` reads as "Genesis City is deserted" to every caller downstream, which is
+a wrong answer rather than a stale one. A snapshot replaces only the entries its own publisher
+owns — never the primed ones and never another publisher's — so two Pulse instances cannot erase
+each other's peers. A publisher that says nothing at all for `PRESENCE_SERVER_TTL_MS` is presumed
+gone: its entries are dropped and its `seq` forgotten, because a retired replica emits no exits and
+would otherwise be counted as online for the life of this process — and once no publisher is left,
+the map stops reporting itself ready rather than serving what is now an empty map as a fact. A `parcel`-absent entry is the
+peer leaving. A `parcel` of `{}` on the wire is the world origin `(0,0)`, **present** — the two
+must not collapse into one another. A non-lowercase realm or address violates C1: counted and
+logged without the value, never a reason to drop state.
+
+**Layout:** `src/logic/presence-map/` owns the subscription and indexes; `src/logic/hot-scenes/`
+precomputes the ranking; `src/adapters/scene-participants.ts` resolves scene and world membership.
+
+**Rollout:** deploy Pulse's parcel-change publisher before this service, with `NATS_URL` and
+`PULSE_URL` injected. Validate previous and new deployment answers externally, then deploy the
+realm-provider proxy. Roll back with the previous image; keep archipelago-stats and heartbeats
+alive until dependent consumers have migrated. See README rollout notes for proxy rollback order.
+
+**Metrics:** `dcl_gatekeeper_presence_*` counts batches, snapshots, gaps, contract violations,
+map size, frozen publishers and `reclaimed_total{reason=prime_expired|server_gone}`.
+LiveKit room naming remains relevant to tokens, kicks and capacity; presence answers use Pulse.
+
+**Deliberate choices — do not "fix" these without reading why:**
+
+- **No queue group on `engine.parcel_changes`**, unlike `peer.*.cluster_change`. That feed drives
+  an action that must happen exactly once (minting and publishing a token); this one builds local
+  state that every replica serves from, so every replica must see every batch.
+- **The prime is discarded when a snapshot beats it, but never wiped by one.** A prime still in
+  flight when the first snapshot lands is dropped: folding an older HTTP read into a newer snapshot
+  would resurrect peers it just retired. A prime that landed first, though, survives every
+  publisher's snapshot — `/peers?all=true` is the all-realms *all-instances* list, so the entries a
+  snapshot does not mention may well belong to a Pulse whose own snapshot is up to 60 s away, and
+  dropping them would report an empty Genesis City. They are owned by nobody until a publisher
+  mentions the wallet, and `PRESENCE_PRIME_TTL_MS` (90 s = snapshot interval plus margin) is what
+  retires the ones nobody ever claims. Readiness expires with the prime too: an unfed map that has
+  outlived it holds nothing real, and answering `503 warming` is honest where `200 []` is not.
+- **Readiness tracks liveness, not history.** `presenceMap.isReady()` is true only while a
+  publisher that has sent a snapshot has been heard from inside `PRESENCE_SERVER_TTL_MS`, or the
+  prime is younger than `PRESENCE_PRIME_TTL_MS`. It is deliberately *not* latched by "a snapshot
+  was applied once": the reclaim sweep drops every entry of every silent publisher, so a NATS
+  restart or a Pulse roll empties the map while this process keeps running — and a latched
+  readiness would then serve `200 []` and an empty address list, "nobody is online" as a fact, for
+  as long as the outage lasted. The same sweep that empties the map is the one that un-readies it,
+  and the first snapshot after the reconnect makes it ready again. A publisher whose first batch
+  was a delta does not count: it is frozen waiting for its snapshot and has told the map nothing.
+- **A silent publisher is presumed gone, on `PRESENCE_SERVER_TTL_MS`.** C1 promises a `server_name`
+  is stable per *process*, and a scaled-down or replaced replica emits no exits for its peers, so
+  nothing else would ever reclaim them (the base branch has the same problem and solves it with
+  `CLUSTER_PEER_STATE_TTL_MS`). 150 s is 2.5 snapshot intervals: silence that long is a process
+  that is not there, not one that is quiet. Both this and the prime expiry run in one sweep on a
+  timer, because neither has any traffic to hang off — the entries that need reclaiming are exactly
+  the ones nothing is publishing about.
+- **A departure is only honoured from the publisher that owns the entry.** Ordering between two
+  Pulse instances is not guaranteed, so a peer reconnecting to another instance can deliver the
+  old instance's exit after the new one's placement; honouring it would drop a peer who is very
+  much online.
+- **`/hot-scenes` keeps the previous ranking when a refresh fails**, and has its own tile cache
+  separate from the content client's pointer cache. A city-wide sweep through the shared cache
+  would evict the single-scene lookups `/scene-participants` depends on on every refresh.
+- **The ban filter fails open.** If the place cannot be resolved the answer is served unfiltered,
+  preserving the previous route's behavior; refusing to answer would be a
+  regression against the behaviour being replaced.

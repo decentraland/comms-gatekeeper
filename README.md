@@ -19,6 +19,7 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
   - [Installation](#installation)
   - [Configuration](#configuration)
   - [Running the Service](#running-the-service)
+- [Rollout notes](#rollout-notes)
 - [Testing](#testing)
 
 ## Features
@@ -30,10 +31,12 @@ This server interacts with LiveKit for voice communication, PostgreSQL for scene
 - **Scene Banning System**: Enables scene admins to ban users from specific scenes
 - **Request-to-Speak**: Implements moderated voice chat with speaker management
 - **Privacy Controls**: Manages user privacy settings and access control
+- **Presence Map**: Uses Pulse's parcel-change feed to serve `GET /hot-scenes` and `GET /scene-participants`. Both routes answer `503 {"ok":false,"error":"warming"}` until the map has a live source; hot scenes also waits for its first ranking. Scene participants means wallets standing on scene parcels or in a world, filtered by the scene ban list.
 
 ## Dependencies
 
 - **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Separate communication channel for Archipelago rooms
+- **[Pulse](https://github.com/decentraland/Pulse)**: The source of online-player information. Publishes per-peer cluster assignments and parcel changes over NATS, and serves `GET /peers?all=true`, which this service reads once on boot to prime its presence map
 - **[Catalyst](https://github.com/decentraland/catalyst)**: Content server for scene metadata and validation
 - **[Places API](https://github.com/decentraland/places-api)**: Scene and place information
 - **[Social Service](https://github.com/decentraland/social-service-ea)**: User relationships and social data
@@ -133,6 +136,30 @@ cp .env.default .env
 
 See `.env.default` for available configuration options.
 
+`NATS_URL` enables the presence map independently of island minting. With NATS configured,
+`PULSE_URL` must be an absolute HTTP(S) URL; missing, empty or invalid values fail startup.
+The key is documented but left commented out in `.env.default`. Without NATS, local startup
+logs a warning and both presence routes answer `503 warming`.
+
+### Presence limits and caches
+
+`HOT_SCENES_LIMIT` fixes `/hot-scenes` at 100 results, preserving the previous archipelago-stats
+limit. `MAX_DISPLACED_SESSIONS` keeps the eight most recently displaced sessions per wallet for
+reconnect parking and drops the oldest when that window fills. Both are code constants; changing
+either requires a code change and deployment.
+
+The hot-scenes cache holds up to 20,000 parcel-pointer entries, including empty-parcel misses,
+with its own `HOT_SCENES_SCENE_TTL_MS` (default five minutes). The content client separately caches
+entities by ID and by pointer; each cache uses `CONTENT_CLIENT_CACHE_MAX` (default 1,000 entries)
+and `CONTENT_CLIENT_CACHE_TTL` (default five minutes). Scene data can be retained in both layers.
+The larger hot-scenes cache lets repeated city-wide sweeps reuse entries without repeatedly
+cycling through the smaller content-client pointer cache. These are entry-count bounds, not byte
+limits. Hot-scenes cache misses still use the content client, so its TTL also affects when fresh
+Catalyst metadata is fetched.
+
+For the behavior of participant counts when place or ban-list lookups fail, see the
+`/scene-participants` description in [the API specification](docs/openapi.yaml).
+
 ### Running the Service
 
 #### Setting up the environment
@@ -165,6 +192,46 @@ For watch mode with automatic rebuilds:
 ```bash
 yarn dev
 ```
+
+## Rollout notes
+
+### Pulse presence cutover
+
+Deploy the session-aware WS Connector and Pulse cluster feed before the gatekeeper island subscriber.
+Deploy Pulse's `engine.parcel_changes` publisher before this image, and inject `NATS_URL` and
+`PULSE_URL` first. Compare the previous deployment's presence answers with these routes using
+the external migration harness. Deploy realm-provider's `/hot-scenes` proxy after gatekeeper is stable.
+
+Rollback is the previous gatekeeper image. Keep archipelago-stats and its client heartbeat publishers
+available until dependent consumers have completed their rollout, and roll back the realm-provider
+proxy first if it already depends on gatekeeper's `/hot-scenes`.
+
+This PR also carries the previously uncommitted session parking fixes: displaced sessions receive
+a session-addressed assignment to a private `island-parked-*` room, and island tokens carry the
+`dclsession` participant attribute. Verify LiveKit participant-attribute support (server 1.6 or later)
+before rollout. The temporary protocol tarball includes both Pulse schemas; replace it with the
+registry release before merging.
+
+### World room names are lower-cased (one-time rename)
+
+`getWorldRoomName` and `getWorldSceneRoomName` now lower-case the world name before building the
+LiveKit room name, so this service computes the same names the worlds content server creates. It is
+not confined to the presence path: the same helpers build the room a client's **token** is issued
+for (`comms-scene-handler`, `comms-server-scene-handler`), the room Cast uses, and the room name the
+scene **stream-access** rows persist.
+
+For a world whose name reaches this service in mixed case, that means, at the deploy:
+
+- sessions connected before it stay in `…-MyWorld.dcl.eth-<sceneId>` while everyone admitted after
+  it joins `…-myworld.dcl.eth-<sceneId>`; the two rooms cannot hear each other until the old
+  sessions drain (they are LiveKit sessions, so minutes, not hours);
+- an RTMP stream-access row created before the deploy still points at the old room name, so a live
+  stream started before the deploy has to be re-issued to reach the new one.
+
+This is intended, not a regression to flag: the content server already creates the lower-cased room,
+so the mixed-case name was a room nobody else was in and every world participant lookup for such a
+world answered "nobody is here". Deploy it when a short drain is acceptable, and re-issue any
+stream-access key for a mixed-case world afterwards.
 
 ## Testing
 
