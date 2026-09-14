@@ -98,11 +98,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const nats = await createNatsComponent({ config, logs, metrics })
   const peerState = await createPeerStateComponent({ config })
 
-  // The cluster subscriber's record of the assignment Pulse last published per wallet. Its own
-  // instance rather than a namespace in `cache` below: it holds one entry per connected wallet
-  // and would otherwise compete for slots with room-metadata-sync's cooldown keys. Guarded with
-  // positiveNumberOr rather than `??` because the library reads a ttl of 0 as never expiring
-  // and rejects a max of 0 at construction time.
+  // Dedicated instance so mirror entries never compete with room-metadata-sync's cooldown keys in
+  // `cache`. Guarded because the library reads ttl 0 as never expiring and rejects max 0.
   const [mirrorMaxSetting, mirrorTtlSetting] = await Promise.all([
     config.getNumber('CLUSTER_ASSIGNMENT_MIRROR_MAX'),
     config.getNumber('CLUSTER_ASSIGNMENT_MIRROR_TTL_MS')

@@ -374,12 +374,9 @@ export async function createClusterSubscriberComponent(
       return
     }
 
-    // No per-call TTL: the mirror instance is built with its own default, and every `set`
-    // restarts it. The per-call parameter on this API is in seconds, not milliseconds, so
-    // leaving it off also keeps that unit mismatch out of this path. Not awaited because the
-    // in-memory backend applies the write synchronously, before `set` returns, which is what
-    // lets a connect queued right behind this event resolve the entry; a backend that did not
-    // would need this write moved into the wallet chain.
+    // Not awaited: the in-memory backend applies the write synchronously, before `set` returns,
+    // so a connect queued right behind this event already sees the entry. A backend that did
+    // not would need this write moved into the wallet chain.
     void assignmentMirror.set<MirrorEntry>(wallet, { clusterId, session }).catch((error) => {
       logger.error(`Cannot record the assignment of ${wallet}: ${getErrorMessage(error)}`)
     })
