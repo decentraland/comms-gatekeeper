@@ -1,3 +1,5 @@
+import { ICacheStorageComponent } from '@dcl/core-commons'
+import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { ILoggerComponent, IBaseComponent, START_COMPONENT } from '@well-known-components/interfaces'
@@ -10,7 +12,6 @@ import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createMetricsMockedComponent } from '../../mocks/metrics-mock'
 import { createNatsMockedComponent } from '../../mocks/nats-mock'
-import { createAssignmentMirrorMockedComponent } from '../../mocks/assignment-mirror-mock'
 import { createPeerStateMockedComponent } from '../../mocks/peer-state-mock'
 import { createPlayerConnectionDBMockedComponent } from '../../mocks/player-connection-db-mock'
 import { createDeferred, flushMacrotask } from '../../utils'
@@ -50,7 +51,7 @@ describe('cluster-subscriber component', () => {
   let accessGate: ReturnType<typeof createAccessGateMockedComponent>
   let playerConnectionDb: ReturnType<typeof createPlayerConnectionDBMockedComponent>
   let peerState: IPeerStateComponent
-  let assignmentMirror: ReturnType<typeof createAssignmentMirrorMockedComponent>
+  let assignmentMirror: ICacheStorageComponent
   let logger: jest.Mocked<ILoggerComponent.ILogger>
 
   type BuildOptions = {
@@ -58,13 +59,15 @@ describe('cluster-subscriber component', () => {
     numbers?: Record<string, number | undefined>
     natsEnabled?: boolean
     peerStateOverride?: IPeerStateComponent
+    assignmentMirrorOverride?: ICacheStorageComponent
   }
 
   async function build({
     settings = {},
     numbers = {},
     natsEnabled = true,
-    peerStateOverride
+    peerStateOverride,
+    assignmentMirrorOverride
   }: BuildOptions = {}): Promise<IClusterSubscriberComponent> {
     const values: Record<string, string | undefined> = {
       CLUSTER_SUBSCRIBER_ENABLED: 'true',
@@ -89,7 +92,9 @@ describe('cluster-subscriber component', () => {
       getByAddress: jest.fn().mockResolvedValue({ deviceId: 'device-1' })
     })
     peerState = peerStateOverride ?? createPeerStateMockedComponent()
-    assignmentMirror = createAssignmentMirrorMockedComponent()
+    // The real in-memory cache, as in production: the tests below depend on read-your-writes
+    // between the un-grouped mirror subscription and a connect queued behind it.
+    assignmentMirror = assignmentMirrorOverride ?? createInMemoryCacheComponent()
     const logs = createLoggerMockedComponent({})
 
     const built = await createClusterSubscriberComponent({
@@ -1068,6 +1073,37 @@ describe('cluster-subscriber component', () => {
 
       it('should count the failure', () => {
         expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_publish_failed_total')
+      })
+    })
+
+    describe('and the mirror rejects a write', () => {
+      let onUnhandledRejection: jest.Mock
+
+      beforeEach(async () => {
+        onUnhandledRejection = jest.fn()
+        process.on('unhandledRejection', onUnhandledRejection)
+
+        component = await build({
+          assignmentMirrorOverride: {
+            ...createInMemoryCacheComponent(),
+            set: jest.fn().mockRejectedValue(new Error('mirror unavailable'))
+          }
+        })
+        await component[START_COMPONENT]!(startOptions)
+
+        await deliverToMirrorOnly(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
+      })
+
+      afterEach(() => {
+        process.off('unhandledRejection', onUnhandledRejection)
+      })
+
+      it('should log the wallet whose assignment it could not record', () => {
+        expect(logger.error).toHaveBeenCalledWith(expect.stringContaining(`Cannot record the assignment of ${WALLET}`))
+      })
+
+      it('should leave no unhandled rejection behind', () => {
+        expect(onUnhandledRejection).not.toHaveBeenCalled()
       })
     })
 

@@ -140,7 +140,10 @@ displaced client reconnects against a revoked token and, once it re-handshakes, 
 session other than the one Pulse last published, so it is not re-announced either. No client change is
 involved; a superseded client loops without success by decision.
 
-Resolution reads `src/adapters/assignment-mirror/`, not peer state. Minting is queue-grouped, so
+Resolution reads the assignment mirror, not peer state. The mirror is a `@dcl/memory-cache-component`
+instance dedicated to the subscriber, wired in `src/components.ts` and sized by
+`CLUSTER_ASSIGNMENT_MIRROR_MAX` / `CLUSTER_ASSIGNMENT_MIRROR_TTL_MS`, holding a
+`MirrorEntry` (cluster and owning session) per lower-cased wallet. Minting is queue-grouped, so
 a replica's peer state covers only the events it was handed; two replicas answering one
 reconnect from it would name different clusters, and the client would settle in whichever
 arrived last. The mirror is written from the second, un-grouped `cluster_change` subscription so
@@ -176,7 +179,8 @@ failure mode must stay closed.
 
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
-bounded per-wallet assignment store, whose only consumer is `fromIslandId`) and
+bounded per-wallet assignment store, whose only consumer is `fromIslandId`), the assignment
+mirror (a dedicated `@dcl/memory-cache-component` instance, see **Reconnects**) and
 `src/logic/access-gate/` (the platform-ban + deny-list lookup shared with the two signed-fetch
 token handlers). Island room names come from `livekit.getIslandRoomName`, alongside every other
 room-name builder in that adapter.

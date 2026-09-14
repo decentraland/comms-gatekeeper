@@ -39,7 +39,6 @@ import { IModeratorComponent } from './logic/moderator'
 import { IFeaturesComponent } from '@dcl/features-component'
 import { INatsComponent } from './adapters/nats'
 import { IPeerStateComponent } from './adapters/peer-state'
-import { IAssignmentMirrorComponent } from './adapters/assignment-mirror'
 import { IAccessGateComponent } from './logic/access-gate'
 import { IClusterSubscriberComponent } from './logic/cluster-subscriber/types'
 
@@ -94,7 +93,12 @@ export type BaseComponents = {
   features: IFeaturesComponent
   nats: INatsComponent
   peerState: IPeerStateComponent
-  assignmentMirror: IAssignmentMirrorComponent
+  /**
+   * The assignment Pulse last published per wallet, keyed by lower-cased wallet and holding a
+   * cluster-subscriber `MirrorEntry`. A cache instance dedicated to the cluster subscriber, sized
+   * by `CLUSTER_ASSIGNMENT_MIRROR_MAX` and `CLUSTER_ASSIGNMENT_MIRROR_TTL_MS`.
+   */
+  assignmentMirror: ICacheStorageComponent
   accessGate: IAccessGateComponent
   clusterSubscriber: IClusterSubscriberComponent
 }

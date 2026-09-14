@@ -4,7 +4,7 @@ import { RoomType } from '@dcl/schemas'
 import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { createHmac } from 'crypto'
 import { connect, NatsConnection } from 'nats'
-import { createAssignmentMirrorComponent } from '../../src/adapters/assignment-mirror'
+import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { createNatsComponent } from '../../src/adapters/nats'
 import { createClusterSubscriberComponent } from '../../src/logic/cluster-subscriber'
 import { IClusterSubscriberComponent } from '../../src/logic/cluster-subscriber/types'
@@ -140,7 +140,7 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
     const replicaNats = await createNatsComponent({ config, logs: components.logs, metrics: components.metrics })
     // One per replica, as in production: the mirror is process-local, and a shared instance
     // would hide whether the un-grouped subscription really reaches every replica.
-    const replicaMirror = await createAssignmentMirrorComponent({ config })
+    const replicaMirror = createInMemoryCacheComponent()
 
     return {
       nats: replicaNats,

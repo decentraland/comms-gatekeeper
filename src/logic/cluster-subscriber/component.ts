@@ -6,7 +6,7 @@ import { NatsMessageHandler } from '../../adapters/nats'
 import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
 import { positiveNumberOr } from '../../utils/config'
-import { IClusterSubscriberComponent } from './types'
+import { IClusterSubscriberComponent, MirrorEntry } from './types'
 
 const DEFAULT_BAN_CACHE_TTL_MS = 30_000
 const BAN_CACHE_MAX = 20_000
@@ -43,7 +43,11 @@ const SESSION_KEY = /^0x[0-9a-f]{40}$/
  * runs, since a session-named event is published there unconditionally.
  *
  * @param components - The config, logs, metrics, nats, livekit, access gate, player connection
- * database and peer state components.
+ * database and peer state components, plus the assignment mirror: a cache instance dedicated to
+ * this subscriber, sized by `CLUSTER_ASSIGNMENT_MIRROR_MAX` and `CLUSTER_ASSIGNMENT_MIRROR_TTL_MS`,
+ * holding the assignment Pulse last published for each wallet. It is separate from peer state
+ * because minting is queue-grouped, so peer state covers only the events this replica was
+ * handed; the mirror is fed from an un-grouped subscription so every replica agrees.
  * @returns The cluster subscriber component. It only exposes a lifecycle hook; everything else
  * it does is driven by the feed.
  */
@@ -245,7 +249,7 @@ export async function createClusterSubscriberComponent(
   // Re-announces the wallet's island because its comms session just started: Pulse's feed is
   // silent while a peer's cluster is unchanged (docs/ai-agent-context.md).
   async function processPeerConnect(wallet: string, session: string): Promise<void> {
-    const entry = assignmentMirror.get(wallet)
+    const entry = await assignmentMirror.get<MirrorEntry>(wallet)
     if (!entry) {
       metrics.increment('dcl_gatekeeper_cluster_reannounce_unresolved_total')
       return
@@ -366,9 +370,19 @@ export async function createClusterSubscriberComponent(
 
   function handleAssignmentMirror(wallet: string, data: Uint8Array): void {
     const { clusterId, session } = normalizeChange(PeerClusterChange.decode(data))
-    if (clusterId) {
-      assignmentMirror.set(wallet, { clusterId, session })
+    if (!clusterId) {
+      return
     }
+
+    // No per-call TTL: the mirror instance is built with its own default, and every `set`
+    // restarts it. The per-call parameter on this API is in seconds, not milliseconds, so
+    // leaving it off also keeps that unit mismatch out of this path. Not awaited because the
+    // in-memory backend applies the write synchronously, before `set` returns, which is what
+    // lets a connect queued right behind this event resolve the entry; a backend that did not
+    // would need this write moved into the wallet chain.
+    void assignmentMirror.set<MirrorEntry>(wallet, { clusterId, session }).catch((error) => {
+      logger.error(`Cannot record the assignment of ${wallet}: ${getErrorMessage(error)}`)
+    })
   }
 
   function handlePeerConnect(wallet: string, data: Uint8Array): void {
