@@ -98,30 +98,6 @@ export const metricDeclarations = {
     type: IMetricsComponent.CounterType,
     labelNames: ['reason']
   },
-  // Named without the dcl_gatekeeper_ prefix on purpose: the iteration-2 contract pins these two
-  // names and the rollout dashboards look for them verbatim.
-  presence_shadow_diff: {
-    help: 'Addresses differing between the LiveKit and presence-map answers to /scene-participants',
-    type: IMetricsComponent.CounterType,
-    labelNames: ['kind']
-  },
-  presence_shadow_compare_total: {
-    help:
-      'Total /scene-participants shadow comparisons that actually produced two answers to compare. ' +
-      'Read presence_shadow_diff against this one: a flat compare count is a shadow that never ran, ' +
-      'which is not the same fact as the two sources agreeing',
-    type: IMetricsComponent.CounterType,
-    labelNames: ['kind']
-  },
-  presence_prefix_mismatch: {
-    help:
-      '1 when none of the LiveKit rooms this service computes for the worlds the content server ' +
-      'reports as live exists and at least three such worlds were sampled, i.e. when ' +
-      "COMMS_ROOM_PREFIX most likely disagrees with the content server's; 0 when at least one " +
-      'exists, and 0 whenever nothing conclusive could be observed (no live worlds, fewer than ' +
-      'three sampled, an unreachable content server or LiveKit)',
-    type: IMetricsComponent.GaugeType
-  },
   dcl_gatekeeper_cluster_reannounce_evicted_stale_total: {
     help: 'Total displaced participants removed from an island room, with their tokens revoked, by a connect re-announce before minting the connecting session',
     type: IMetricsComponent.CounterType

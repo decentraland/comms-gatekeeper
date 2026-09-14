@@ -93,11 +93,7 @@ describe('presence-map component', () => {
     primePeers: peers = PEERS_ALL.body.peers
   }: BuildOptions = {}): Promise<IPresenceMapComponent> {
     primePeers = peers
-    const values: Record<string, string | undefined> = {
-      PRESENCE_MAP_ENABLED: 'true',
-      PULSE_URL: 'https://pulse.example.com',
-      ...settings
-    }
+    const values: Record<string, string | undefined> = { PULSE_URL: 'https://pulse.example.com', ...settings }
     const config = createConfigMockedComponent({
       getString: jest.fn().mockImplementation((key: string) => Promise.resolve(values[key])),
       getNumber: jest
@@ -373,9 +369,9 @@ describe('presence-map component', () => {
       )
     })
 
-    describe('and the presence map is off', () => {
-      it('should build anyway, because a deployment that runs without the map must not fail to boot', async () => {
-        await expect(build({ settings: { PRESENCE_MAP_ENABLED: undefined, PULSE_URL: '' } })).resolves.toBeDefined()
+    describe('and NATS is not configured', () => {
+      it('should build anyway, because a local run without the feed must still boot', async () => {
+        await expect(build({ natsEnabled: false, settings: { PULSE_URL: '' } })).resolves.toBeDefined()
       })
     })
   })
@@ -384,23 +380,21 @@ describe('presence-map component', () => {
     // Absence is a boot failure while the map is on, the same way an unusable value is: an
     // operator who turned the map on and forgot the key gets told, instead of a service that
     // 503s for up to a snapshot interval after every restart and says so in one info line.
-    it('should refuse to build while the presence map is on', async () => {
+    it('should refuse to build while NATS is configured', async () => {
       await expect(build({ settings: { PULSE_URL: undefined } })).rejects.toThrow(
-        'Configuration: string PULSE_URL is required when PRESENCE_MAP_ENABLED is "true"'
+        'Configuration: string PULSE_URL is required when NATS_URL is set'
       )
     })
 
-    describe('and the presence map is off', () => {
+    describe('and NATS is not configured', () => {
       it('should build anyway, because nothing reads the key there', async () => {
-        await expect(
-          build({ settings: { PRESENCE_MAP_ENABLED: undefined, PULSE_URL: undefined } })
-        ).resolves.toBeDefined()
+        await expect(build({ natsEnabled: false, settings: { PULSE_URL: undefined } })).resolves.toBeDefined()
       })
     })
   })
 
   describe('when starting', () => {
-    describe('and the presence map is enabled', () => {
+    describe('and NATS is configured', () => {
       beforeEach(async () => {
         await build()
         await start()
@@ -423,29 +417,20 @@ describe('presence-map component', () => {
       })
     })
 
-    describe('and the presence map is disabled', () => {
-      beforeEach(async () => {
-        await build({ settings: { PRESENCE_MAP_ENABLED: undefined } })
-        await start()
-      })
-
-      it('should subscribe to nothing, prime nothing and stay unready', () => {
-        expect(nats.subscribe).not.toHaveBeenCalled()
-        expect(nats.connect).not.toHaveBeenCalled()
-        expect(fetchComponent.fetch).not.toHaveBeenCalled()
-        expect(component.isReady()).toBe(false)
-      })
-    })
-
     describe('and NATS is not configured', () => {
       beforeEach(async () => {
         await build({ natsEnabled: false })
         await start()
       })
 
-      it('should stay idle rather than subscribe to a broker it has no address for', () => {
+      it('should stay idle and warn that both presence routes will remain warming', () => {
         expect(nats.subscribe).not.toHaveBeenCalled()
+        expect(nats.connect).not.toHaveBeenCalled()
+        expect(fetchComponent.fetch).not.toHaveBeenCalled()
         expect(component.isReady()).toBe(false)
+        expect(logger.warn).toHaveBeenCalledWith(
+          'NATS_URL is not set; /hot-scenes and /scene-participants will answer 503 warming'
+        )
       })
     })
 

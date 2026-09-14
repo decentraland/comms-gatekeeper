@@ -42,7 +42,7 @@ function snapshotForFixtureCounts(): ParcelChangesBatch {
   )
 }
 
-test('GET /hot-scenes while the presence map is off', ({ components }) => {
+test('GET /hot-scenes without NATS', ({ components }) => {
   it('should answer 503 warming rather than report a deserted city', async () => {
     const response = await components.localFetch.fetch('/hot-scenes')
 
@@ -52,14 +52,14 @@ test('GET /hot-scenes while the presence map is off', ({ components }) => {
 })
 
 test('GET /hot-scenes from the presence map', ({ components, stubComponents, beforeStart }) => {
-  // Jest reuses a worker process across spec files, so the flags must not outlive this suite —
+  // Jest reuses a worker process across spec files, so the settings must not outlive this suite —
   // and a key that was unset has to be deleted, not assigned the string "undefined", which
   // config.getNumber then rejects for every program built afterwards in this worker.
-  const restoreEnv = snapshotEnv('PRESENCE_MAP_ENABLED', 'HOT_SCENES_REFRESH_MS', 'PULSE_URL')
+  const restoreEnv = snapshotEnv('NATS_URL', 'HOT_SCENES_REFRESH_MS', 'PULSE_URL')
 
   beforeStart(() => {
-    process.env.PRESENCE_MAP_ENABLED = 'true'
-    // Required while the map is on, and deliberately pointed at a closed port: the map here is
+    process.env.NATS_URL = process.env.NATS_TEST_URL ?? 'localhost:4222'
+    // Required while NATS is configured, and deliberately pointed at a closed port: the map here is
     // fed by this spec over the wire format, so the prime must not reach anything. The refused
     // request is caught and logged as one warn line, which is what a program whose Pulse is
     // unreachable does in production too.

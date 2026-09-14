@@ -51,7 +51,7 @@ describe('hot-scenes component', () => {
   let contentClient: ReturnType<typeof createContentClientMockedComponent>
 
   async function build(options: { settings?: Record<string, string | undefined>; map?: IPresenceMapComponent } = {}) {
-    const values: Record<string, string | undefined> = { PRESENCE_MAP_ENABLED: 'true', ...options.settings }
+    const values: Record<string, string | undefined> = { ...options.settings }
     const config = createConfigMockedComponent({
       getString: jest.fn().mockImplementation((key: string) => Promise.resolve(values[key])),
       getNumber: jest
@@ -88,7 +88,13 @@ describe('hot-scenes component', () => {
           // format, so "world peers never reach /hot-scenes" is a property of the map lookup and
           // not of a hand-written stub.
           const realMap = await createPresenceMapComponent({
-            config: createConfigMockedComponent({ getString: jest.fn().mockResolvedValue(undefined) }),
+            config: createConfigMockedComponent({
+              getString: jest
+                .fn()
+                .mockImplementation((key: string) =>
+                  Promise.resolve(key === 'PULSE_URL' ? 'https://pulse.example.com' : undefined)
+                )
+            }),
             logs: createLoggerMockedComponent({}),
             metrics: createMetricsMockedComponent({}),
             nats: createNatsMockedComponent({}),
@@ -321,7 +327,7 @@ describe('hot-scenes component', () => {
       await (component as IBaseComponent)[STOP_COMPONENT]?.()
     })
 
-    describe('and the presence map is enabled', () => {
+    describe('and the presence map has a live source', () => {
       it('should refresh on the configured interval', async () => {
         jest.useFakeTimers()
         try {
@@ -338,17 +344,18 @@ describe('hot-scenes component', () => {
       })
     })
 
-    describe('and the presence map is disabled', () => {
-      it('should not schedule anything and serve an empty ranking', async () => {
+    describe('and the presence map has no live source', () => {
+      it('should keep the ranking unready while the refresher waits for a source', async () => {
         jest.useFakeTimers()
         try {
-          await build({ settings: { PRESENCE_MAP_ENABLED: undefined } })
+          await build({ map: createPresenceMapMockedComponent({ isReady: jest.fn().mockReturnValue(false) }) })
           await (component as IBaseComponent)[START_COMPONENT]!(startOptions)
 
           jest.advanceTimersByTime(60_000)
 
           expect(presenceMap.getParcelCounts).not.toHaveBeenCalled()
           expect(component.getHotScenes()).toEqual([])
+          expect(component.isReady()).toBe(false)
         } finally {
           jest.useRealTimers()
         }

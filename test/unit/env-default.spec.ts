@@ -56,16 +56,6 @@ describe('.env.default', () => {
       await expect(config.getNumber('PRESENCE_PRIME_TTL_MS')).resolves.toBe(90_000)
       await expect(config.getNumber('PRESENCE_SERVER_TTL_MS')).resolves.toBe(150_000)
     })
-
-    it('should keep the presence flags defaulting to the behaviour of the base branch', async () => {
-      const config = await createDotEnvConfigComponent({ path: [PATH] })
-
-      // Unset rather than 'false': either way the map stays off, and this is the shape rule 3 of
-      // the iteration asks for — a deploy with no config change behaves like the base branch.
-      await expect(config.getString('PRESENCE_MAP_ENABLED')).resolves.toBe('')
-      await expect(config.getString('SHADOW_COMPARE_PRESENCE')).resolves.toBe('')
-      await expect(config.getString('LIVEKIT_PRESENCE_FALLBACK')).resolves.toBe('true')
-    })
   })
 
   /**
@@ -73,30 +63,28 @@ describe('.env.default', () => {
    * image, handed to the real presence-map component. A `PULSE_URL` that no deployment sets is
    * only a boot failure if these two agree about it being absent.
    */
-  describe('when a program turns the presence map on without setting PULSE_URL', () => {
-    async function buildPresenceMap(): Promise<unknown> {
+  describe('when a program configures NATS without setting PULSE_URL', () => {
+    async function buildPresenceMap(natsEnabled: boolean): Promise<unknown> {
       const config = await createDotEnvConfigComponent({ path: [PATH] })
 
       return createPresenceMapComponent({
         config,
         logs: createLoggerMockedComponent({}),
         metrics: createMetricsMockedComponent({}),
-        nats: createNatsMockedComponent({ isEnabled: jest.fn().mockReturnValue(true) }),
+        nats: createNatsMockedComponent({ isEnabled: jest.fn().mockReturnValue(natsEnabled) }),
         fetch: createFetchMockedComponent({})
       })
     }
 
     it('should refuse to build the presence map rather than boot with nothing to prime from', async () => {
-      process.env.PRESENCE_MAP_ENABLED = 'true'
-
-      await expect(buildPresenceMap()).rejects.toThrow(
-        'Configuration: string PULSE_URL is required when PRESENCE_MAP_ENABLED is "true"'
+      await expect(buildPresenceMap(true)).rejects.toThrow(
+        'Configuration: string PULSE_URL is required when NATS_URL is set'
       )
     })
 
-    describe('and the map is left off, as a no-config deploy leaves it', () => {
-      it('should build it anyway, because a deployment that runs without the map must not fail to boot', async () => {
-        await expect(buildPresenceMap()).resolves.toBeDefined()
+    describe('and NATS is not configured', () => {
+      it('should build an idle map so local runs can serve warming responses', async () => {
+        await expect(buildPresenceMap(false)).resolves.toBeDefined()
       })
     })
   })

@@ -75,27 +75,26 @@ function normalizeParcelKey(raw: string): string | undefined {
 /**
  * Resolves `PULSE_URL` for this boot, refusing to start a map that has nothing to prime from.
  *
- * Required while the map is on, and validated rather than merely present. `.env.default` ships
+ * Required while NATS is configured, and validated rather than merely present. `.env.default` ships
  * inside the image and is a live config source, so a bare `PULSE_URL=` line resolves to `''` and
  * would satisfy any required-key check — which is why the key is commented out there and why the
  * value is checked here. Either way the operator who half-configured the cutover is told at boot
  * instead of getting a prime that can never work: one warn line per restart and a service that
  * 503s for up to a snapshot interval every time it is deployed.
  *
- * A deployment that leaves the map off must still boot whatever the value is, because nothing
- * reads it there.
+ * A local run without NATS must still boot whatever the value is, because nothing reads it there.
  *
- * @param enabled - Whether `PRESENCE_MAP_ENABLED` is on.
+ * @param enabled - Whether NATS is configured for this process.
  * @param value - The resolved `PULSE_URL`, if any.
- * @returns The URL without trailing slashes, or `undefined` when the map is off and it is unset.
- * @throws When the map is on and the value is missing or is not an absolute `http(s)` URL.
+ * @returns The URL without trailing slashes, or `undefined` when NATS is absent and it is unset.
+ * @throws When NATS is configured and the value is missing or is not an absolute `http(s)` URL.
  */
 function resolvePulseUrl(enabled: boolean, value: string | undefined): string | undefined {
   if (!enabled) {
     return value?.replace(/\/+$/, '')
   }
   if (value === undefined) {
-    throw new Error('Configuration: string PULSE_URL is required when PRESENCE_MAP_ENABLED is "true"')
+    throw new Error('Configuration: string PULSE_URL is required when NATS_URL is set')
   }
   return assertAbsoluteHttpUrl('PULSE_URL', value).replace(/\/+$/, '')
 }
@@ -115,9 +114,10 @@ function resolvePulseUrl(enabled: boolean, value: string | undefined): string | 
  * source of truth for who is online, the island-assignment store can be reclaimed from it
  * instead of by expiry, and `CLUSTER_PEER_STATE_TTL_MS` can shrink from its current hour.
  *
- * Off unless `PRESENCE_MAP_ENABLED` is `'true'` and NATS is configured; when off it subscribes
- * to nothing, primes nothing and never becomes ready, which is byte-identical to not having the
- * component at all. On, it refuses to build without a usable `PULSE_URL` (see `resolvePulseUrl`).
+ * Runs whenever NATS is configured, independently of the cluster subscriber's switch. Without
+ * NATS it subscribes to nothing, primes nothing and never becomes ready, so both presence routes
+ * remain on their `503 warming` response. With NATS it refuses to build without a usable
+ * `PULSE_URL` (see `resolvePulseUrl`).
  *
  * Readiness is a statement about now, not about the past: see `isReady`.
  *
@@ -130,14 +130,13 @@ export async function createPresenceMapComponent(
   const { config, logs, metrics, nats, fetch } = components
   const logger = logs.getLogger('presence-map')
 
-  const [enabledFlag, pulseUrlSetting, primeTtlSetting, serverTtlSetting] = await Promise.all([
-    config.getString('PRESENCE_MAP_ENABLED'),
+  const [pulseUrlSetting, primeTtlSetting, serverTtlSetting] = await Promise.all([
     config.getString('PULSE_URL'),
     config.getNumber('PRESENCE_PRIME_TTL_MS'),
     config.getNumber('PRESENCE_SERVER_TTL_MS')
   ])
 
-  const enabled = enabledFlag === 'true'
+  const enabled = nats.isEnabled()
   const pulseUrl = resolvePulseUrl(enabled, pulseUrlSetting)
   const primeTtlMs = positiveNumberOr(primeTtlSetting, DEFAULT_PRIME_TTL_MS)
   const serverTtlMs = positiveNumberOr(serverTtlSetting, DEFAULT_SERVER_TTL_MS)
@@ -541,11 +540,7 @@ export async function createPresenceMapComponent(
 
   async function start(): Promise<void> {
     if (!enabled) {
-      logger.info('Presence map is disabled (PRESENCE_MAP_ENABLED is not "true")')
-      return
-    }
-    if (!nats.isEnabled()) {
-      logger.info('Presence map is enabled but NATS is not configured, staying idle')
+      logger.warn('NATS_URL is not set; /hot-scenes and /scene-participants will answer 503 warming')
       return
     }
 

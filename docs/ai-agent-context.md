@@ -15,7 +15,7 @@
 - Handles user privacy settings and access control
 - Integrates with LiveKit webhooks for real-time event handling
 - **Keeps the presence map**: consumes Pulse's `engine.parcel_changes` and knows where every online player
-  stands, which is what `GET /hot-scenes` and (behind a flag) `GET /scene-participants` are answered from
+  stands, which is what `GET /hot-scenes` and `GET /scene-participants` are answered from
 
 **Communication Pattern:** Synchronous HTTP REST API with Signed Fetch authentication (ADR-44), plus two
 asynchronous NATS subscriptions: one feeds the cluster subscriber (island rooms) and one feeds the presence
@@ -29,7 +29,7 @@ map (`/hot-scenes`, `/scene-participants`). Both are described below.
 - Database: PostgreSQL (via @well-known-components/pg-component)
 - Communication: LiveKit Server SDK for token generation and room management
 - Messaging: NATS (`nats` client, thin custom adapter) for Pulse's cluster feed (behind
-  `CLUSTER_SUBSCRIBER_ENABLED`) and its parcel-changes feed (behind `PRESENCE_MAP_ENABLED`)
+  `CLUSTER_SUBSCRIBER_ENABLED`) and its parcel-changes feed (whenever `NATS_URL` is configured)
 - Component Architecture: @well-known-components (logger, metrics, http-server, pg-component, env-config-provider)
 
 **External Dependencies:**
@@ -336,11 +336,18 @@ a real fix needs wallet-hash-partitioned consumers. Symptom to watch for: `publi
 clean, but users report being in a voice room whose members they cannot hear.
 
 
+**Reconnect race guards.** A connect handler revalidates its captured assignment after each
+lookup, before stale-holder eviction, after the ban check, and immediately before publication
+after credentials are minted. A newer mirror event invalidates the reply. Missing or malformed
+holder session attributes suppress reannouncement. Same-room takeover retries list holders again
+so a retry cannot knowingly remove the winner another replica has admitted.
+
 ## Presence map (`/hot-scenes`, `/scene-participants`)
 
 Iteration 2 makes Pulse the only source of online-player information. archipelago-stats is
 decommissioned and this service takes over the two routes that answered "who is where".
-Behind `PRESENCE_MAP_ENABLED`, default off.
+Enabled whenever `NATS_URL` is configured, independently of the island subscriber. Without NATS,
+startup logs a warning and both routes answer `503 warming`.
 
 **Consumes**:
 
@@ -352,10 +359,9 @@ Plus one HTTP read on boot: `GET {PULSE_URL}/peers?all=true`, so the routes can 
 the first snapshot instead of warming for up to a minute. That read is the all-instances list and
 carries no `server_name`, so its entries are *primed*: owned by nobody, taken over by the first
 publisher that mentions the wallet, and expiring on `PRESENCE_PRIME_TTL_MS` if none ever does.
-`PULSE_URL` is unset in `.env.default` (commented out, not emptied — an empty value satisfies
-`requireString`), which is what lets it be required while the map is on: with
-`PRESENCE_MAP_ENABLED=true` an absent value, or anything but an absolute `http(s)` URL, fails the
-boot instead of becoming a prime that can never work. With the map off nothing reads it.
+`PULSE_URL` is left commented out in `.env.default`. With `NATS_URL` configured it is required
+and must be an absolute HTTP(S) URL; startup rejects missing, empty or malformed values.
+Without NATS, no prime or subscription runs.
 
 **Produces** nothing on NATS. Two HTTP routes:
 
@@ -369,14 +375,11 @@ boot instead of becoming a prime that can never work. With the map off nothing r
   the map loses its live source. A sweep over a map that is not ready keeps the previous ranking
   instead of publishing the empty one it would compute, so nothing empty is left waiting to be
   served the moment the map comes back.
-- `GET /scene-participants` — unchanged shape, but the answer can now come from either
-  implementation, selected by `LIVEKIT_PRESENCE_FALLBACK` (default `true` = LiveKit room
-  membership, today's behaviour). `false` resolves it on the map — who is standing on the
-  scene's parcels — minus this service's own scene ban list. A cold map is invisible while the
-  flag is `true`, because LiveKit is the served answer anyway; with the flag `false` the route
-  serves the same `503 {"ok":false,"error":"warming"}` as `/hot-scenes` (one shared
-  `PresenceMapWarmingError` / `presenceWarmingResponse` in `src/logic/presence-map/warming.ts`),
-  rather than falling back to the implementation the operator switched off.
+- `GET /scene-participants` — `{"ok":true,"data":{"addresses":[…]}}`, resolved only on the
+  presence map. A main-realm pointer selects the Catalyst scene parcels, a world name selects
+  that realm, and world plus pointer selects the world scene parcels. Realm lookups are case-insensitive.
+  The scene ban list is subtracted; a cold map raises the shared `PresenceMapWarmingError`
+  and answers `503 {"ok":false,"error":"warming"}`.
 
 **Consumer rule (contract C1), the part that matters:** `lastSeq` is kept per `server_name`. On
 a sequence gap the publisher is *frozen* and the current state keeps being served until that
@@ -392,47 +395,17 @@ peer leaving. A `parcel` of `{}` on the wire is the world origin `(0,0)`, **pres
 must not collapse into one another. A non-lowercase realm or address violates C1: counted and
 logged without the value, never a reason to drop state.
 
-**Layout:** `src/logic/presence-map/` (the map and the subscription), `src/logic/hot-scenes/`
-(the timer and the ranking), `src/controllers/handlers/hot-scenes-handler.ts`,
-`src/adapters/scene-participants.ts` (both implementations and the shadow comparison), and
-`src/logic/world-room-prefix-check/` (the startup guard described below).
+**Layout:** `src/logic/presence-map/` owns the subscription and indexes; `src/logic/hot-scenes/`
+precomputes the ranking; `src/adapters/scene-participants.ts` resolves scene and world membership.
 
-**Rollout:** `SHADOW_COMPARE_PRESENCE=true` runs the implementation that is *not* serving as
-well and counts the symmetric difference as `presence_shadow_diff{kind=land|world}`, so the
-cutover is made on measured agreement. Read it against
-`presence_shadow_compare_total{kind}`, which counts the comparisons that actually produced two
-answers: a shadow rejecting on every request also leaves the diff at zero, and "the sources agree"
-is not the same fact as "the comparison never ran". Counts only — no address ever reaches a log
-line or a metric label.
+**Rollout:** deploy Pulse's parcel-change publisher before this service, with `NATS_URL` and
+`PULSE_URL` injected. Validate previous and new deployment answers externally, then deploy the
+realm-provider proxy. Roll back with the previous image; keep archipelago-stats and heartbeats
+alive until dependent consumers have migrated. See README rollout notes for proxy rollback order.
 
-**Metrics:** `dcl_gatekeeper_presence_*` (batches, snapshots, gaps, contract violations, map
-size, frozen publishers, `reclaimed_total{reason=prime_expired|server_gone}`) plus the
-contract-named `presence_shadow_diff{kind}`, `presence_shadow_compare_total{kind}` and
-`presence_prefix_mismatch`.
-
-**World room prefix check.** This service and the worlds content server build a world's LiveKit
-room name from independently configured `COMMS_ROOM_PREFIX` values, and the committed defaults
-used to disagree (`world-env-` here, `world-` there). Drift does not fail: the room name this
-service computes simply does not exist, so `getRoomInfo` returns nothing and every world lookup
-answers "nobody is here" for the process's whole life. On start, the check reads the worlds the
-content server reports as live (`/live-data`'s `data.perWorld`, falling back to `/status`'s
-`comms.details` for deployments whose handler fills it in), computes the expected room name for
-a bounded sample of them with `getWorldRoomName`, and asks LiveKit `listRooms(names)` which of
-those rooms exist. Live worlds have rooms, so if none of the computed names exists we are
-computing the wrong names: that logs an error naming the prefix with a sample world and room and
-raises `presence_prefix_mismatch`; one existing room clears it. It never throws and never gates
-startup, and "nothing conclusive observed" — no live worlds, fewer than
-`MIN_WORLDS_FOR_MISMATCH` (3) sampled, an unreachable content server, an unreachable LiveKit — is
-logged with the gauge left at 0 rather than claimed as a mismatch. **Residual risk:** a live world
-can be legitimately roomless (`/live-data` lists worlds by name, not by occupancy, so one with
-nobody connected is still reported live; a deployment on a non-LiveKit comms adapter has no rooms
-at all), so a deployment whose whole sample is roomless still raises the gauge. The three-world
-threshold makes that unlikely rather than impossible; the gauge gates nothing, so the cost is a
-false alarm on a diagnostic. **Why not the
-round trip:** asserting `worldName` -> `getWorldRoomName` -> `substring(prefix.length)` cannot
-observe the disagreement it exists for, because the content server publishes world names already
-stripped of *its own* prefix, so the trip succeeds by construction whatever our prefix is. Asking
-LiveKit is a one-off diagnostic use of the room listing on boot, not a presence read.
+**Metrics:** `dcl_gatekeeper_presence_*` counts batches, snapshots, gaps, contract violations,
+map size, frozen publishers and `reclaimed_total{reason=prime_expired|server_gone}`.
+LiveKit room naming remains relevant to tokens, kicks and capacity; presence answers use Pulse.
 
 **Deliberate choices — do not "fix" these without reading why:**
 
@@ -472,5 +445,5 @@ LiveKit is a one-off diagnostic use of the room listing on boot, not a presence 
   separate from the content client's pointer cache. A city-wide sweep through the shared cache
   would evict the single-scene lookups `/scene-participants` depends on on every refresh.
 - **The ban filter fails open.** If the place cannot be resolved the answer is served unfiltered,
-  which is exactly what the LiveKit implementation returns today; refusing to answer would be a
+  preserving the previous route's behavior; refusing to answer would be a
   regression against the behaviour being replaced.

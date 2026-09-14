@@ -39,9 +39,6 @@ function getCoords(coordsAsString: string): ParcelCoord {
  * occupied tile, which is far too slow to do inside an HTTP request, and the answer is identical
  * for every caller.
  *
- * Off unless `PRESENCE_MAP_ENABLED` is `'true'`; when off it schedules nothing and never becomes
- * ready, so the handler answers `503 warming` for the process's whole life.
- *
  * @param components - The config, logs, presence map and content client components.
  * @returns The hot scenes component.
  */
@@ -51,13 +48,11 @@ export async function createHotScenesComponent(
   const { config, logs, presenceMap, contentClient } = components
   const logger = logs.getLogger('hot-scenes')
 
-  const [enabledFlag, refreshSetting, sceneTtlSetting] = await Promise.all([
-    config.getString('PRESENCE_MAP_ENABLED'),
+  const [refreshSetting, sceneTtlSetting] = await Promise.all([
     config.getNumber('HOT_SCENES_REFRESH_MS'),
     config.getNumber('HOT_SCENES_SCENE_TTL_MS')
   ])
 
-  const enabled = enabledFlag === 'true'
   const refreshMs = positiveNumberOr(refreshSetting, DEFAULT_REFRESH_MS)
 
   // Separate from the content client's own pointer cache on purpose: that one is sized for
@@ -199,11 +194,6 @@ export async function createHotScenesComponent(
   }
 
   async function start(): Promise<void> {
-    if (!enabled) {
-      logger.info('Hot scenes are disabled (PRESENCE_MAP_ENABLED is not "true")')
-      return
-    }
-
     // Not awaited: the first sweep talks to the catalyst, and HTTP readiness must not wait on it.
     // The handler answers 503 until a sweep has produced a ranking anyway.
     void refresh()
