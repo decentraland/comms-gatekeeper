@@ -5,6 +5,7 @@ import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfac
 import { createHmac } from 'crypto'
 import { connect, NatsConnection } from 'nats'
 import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
+import { createKeyedQueueComponent } from '../../src/adapters/keyed-queue'
 import { createNatsComponent } from '../../src/adapters/nats'
 import { createClusterSubscriberComponent } from '../../src/logic/cluster-subscriber'
 import { IClusterSubscriberComponent } from '../../src/logic/cluster-subscriber/types'
@@ -151,9 +152,10 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
         nats: replicaNats,
         livekit: components.livekit,
         accessGate: components.accessGate,
-        playerConnectionDb: components.playerConnectionDb,
         peerState: components.peerState,
-        assignmentMirror: replicaMirror
+        assignmentMirror: replicaMirror,
+        // One per replica, like the mirror: the queue is process-local state.
+        clusterWalletQueue: await createKeyedQueueComponent()
       })
     }
   }

@@ -1,5 +1,6 @@
 import { ILoggerComponent } from '@well-known-components/interfaces'
-import { createAccessGateComponent, IAccessGateComponent } from '../../../src/logic/access-gate'
+import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
+import { AccessState, createAccessGateComponent, IAccessGateComponent } from '../../../src/logic/access-gate'
 import { createDenyListMockedComponent } from '../../mocks/denylist-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createUserModerationMockedComponent } from '../../mocks/user-moderation-mock'
@@ -12,9 +13,11 @@ describe('access-gate component', () => {
   let denyList: ReturnType<typeof createDenyListMockedComponent>
   let logger: jest.Mocked<ILoggerComponent.ILogger>
 
-  async function build(): Promise<IAccessGateComponent> {
+  async function build(cacheTtlMs?: number): Promise<IAccessGateComponent> {
+    // The real in-memory cache, as in production; a short TTL when a test needs expiry.
+    const accessGateCache = createInMemoryCacheComponent(cacheTtlMs ? { ttl: cacheTtlMs } : undefined)
     const logs = createLoggerMockedComponent({})
-    const component = await createAccessGateComponent({ userModeration, denyList, logs })
+    const component = await createAccessGateComponent({ userModeration, denyList, accessGateCache, logs })
     logger = logs.getLogger.mock.results[0].value
 
     return component
@@ -97,6 +100,32 @@ describe('access-gate component', () => {
       })
     })
 
+    describe('and the caller asked to cache', () => {
+      beforeEach(async () => {
+        accessGate = await build()
+        await expect(accessGate.getAccessState({ address: ADDRESS }, { cached: true })).rejects.toThrow()
+        userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
+
+        await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+      })
+
+      it('should keep nothing from the failed call, so the next one queries again', () => {
+        expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    describe('and the caller asked to fail open and to cache', () => {
+      beforeEach(async () => {
+        accessGate = await build()
+        await accessGate.getAccessState({ address: ADDRESS }, { failOpenOnBanLookupError: true, cached: true })
+        await accessGate.getAccessState({ address: ADDRESS }, { failOpenOnBanLookupError: true, cached: true })
+      })
+
+      it('should not keep the fail-open answer, so the next call retries the lookup', () => {
+        expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
+      })
+    })
+
     describe('and the caller asked to fail open', () => {
       beforeEach(async () => {
         accessGate = await build()
@@ -126,6 +155,80 @@ describe('access-gate component', () => {
           ).resolves.toEqual({ isBanned: false, isDenylisted: true })
         })
       })
+    })
+  })
+
+  describe('when the caller asks for a cached result', () => {
+    beforeEach(async () => {
+      accessGate = await build()
+
+      await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+    })
+
+    describe('and asks again for the same identity within the TTL', () => {
+      let second: AccessState
+
+      beforeEach(async () => {
+        // Flipped after the first call: a second query would now see a ban, so an unchanged
+        // answer proves it came from the cache.
+        userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: true })
+
+        second = await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+      })
+
+      it('should answer without querying either gate again', () => {
+        expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(1)
+        expect(denyList.isDenylisted).toHaveBeenCalledTimes(1)
+      })
+
+      it('should return the answer it cached', () => {
+        expect(second).toEqual({ isBanned: false, isDenylisted: false })
+      })
+    })
+
+    describe('and asks again for the same identity without opting in', () => {
+      beforeEach(async () => {
+        await accessGate.getAccessState({ address: ADDRESS })
+      })
+
+      it('should query again, since a token request wants the current answer', () => {
+        expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    describe('and asks for the same address widened to a device id', () => {
+      beforeEach(async () => {
+        await accessGate.getAccessState({ address: ADDRESS, deviceId: 'device-1' }, { cached: true })
+      })
+
+      it('should query again, since the device changes what the ban check covers', () => {
+        expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
+      })
+    })
+
+    describe('and asks for the same address in a different casing', () => {
+      beforeEach(async () => {
+        await accessGate.getAccessState({ address: ADDRESS.toUpperCase() }, { cached: true })
+      })
+
+      it('should answer from the same entry', () => {
+        expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(1)
+      })
+    })
+  })
+
+  describe('when a cached result has outlived the TTL', () => {
+    beforeEach(async () => {
+      // lru-cache does not respect Jest fake timers, so a real short TTL and a real delay.
+      accessGate = await build(50)
+      await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+      await new Promise((resolve) => setTimeout(resolve, 80))
+
+      await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+    })
+
+    it('should query again', () => {
+      expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
     })
   })
 

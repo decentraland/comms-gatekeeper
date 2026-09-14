@@ -1,15 +1,11 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { START_COMPONENT } from '@well-known-components/interfaces'
-import { LRUCache } from 'lru-cache'
 import { NatsMessageHandler } from '../../adapters/nats'
 import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
-import { positiveNumberOr } from '../../utils/config'
 import { IClusterSubscriberComponent, MirrorEntry } from './types'
 
-const DEFAULT_BAN_CACHE_TTL_MS = 30_000
-const BAN_CACHE_MAX = 20_000
 const DEFAULT_QUEUE_GROUP = 'comms-gatekeeper-cluster'
 const DEFAULT_TAKEOVER_RETRY_DELAY_MS = 100
 const TAKEOVER_ATTEMPTS = 3
@@ -42,8 +38,8 @@ const SESSION_KEY = /^0x[0-9a-f]{40}$/
  * WS Connector must already subscribe to the session-addressed, five-token subject before this
  * runs, since a session-named event is published there unconditionally.
  *
- * @param components - The config, logs, metrics, nats, livekit, access gate, player connection
- * database and peer state components, plus the assignment mirror: a cache instance dedicated to
+ * @param components - The config, logs, metrics, nats, livekit, access gate, peer state and
+ * cluster wallet queue components, plus the assignment mirror: a cache instance dedicated to
  * this subscriber, sized by `CLUSTER_ASSIGNMENT_MIRROR_MAX` and `CLUSTER_ASSIGNMENT_MIRROR_TTL_MS`,
  * holding the assignment Pulse last published for each wallet. It is separate from peer state
  * because minting is queue-grouped, so peer state covers only the events this replica was
@@ -60,70 +56,48 @@ export async function createClusterSubscriberComponent(
     | 'nats'
     | 'livekit'
     | 'accessGate'
-    | 'playerConnectionDb'
     | 'peerState'
     | 'assignmentMirror'
+    | 'clusterWalletQueue'
   >
 ): Promise<IClusterSubscriberComponent> {
-  const { config, logs, metrics, nats, livekit, accessGate, playerConnectionDb, peerState, assignmentMirror } =
+  const { config, logs, metrics, nats, livekit, accessGate, peerState, assignmentMirror, clusterWalletQueue } =
     components
   const logger = logs.getLogger('cluster-subscriber')
 
-  const [enabledFlag, queueGroupSetting, banCacheTtlSetting, retryDelaySetting] = await Promise.all([
+  const [enabledFlag, queueGroupSetting, retryDelaySetting] = await Promise.all([
     config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
     config.getString('NATS_QUEUE_GROUP'),
-    config.getNumber('CLUSTER_BAN_CACHE_TTL_MS'),
     config.getNumber('CLUSTER_TAKEOVER_RETRY_DELAY_MS')
   ])
 
   const enabled = enabledFlag === 'true'
   const queueGroup = queueGroupSetting || DEFAULT_QUEUE_GROUP
-  // `??` on purpose: a configured 0 is a real value here (no sleep before retrying), unlike
-  // the lru-cache bounds below.
+  // `??` on purpose: a configured 0 is a real value here (no sleep before retrying).
   const takeoverRetryDelayMs = retryDelaySetting ?? DEFAULT_TAKEOVER_RETRY_DELAY_MS
 
-  // First ban cache in this service - the path was two uncached DB reads per event. A stale
-  // hit is fine because banning also removes the participant from every live room.
-  const banCache = new LRUCache<string, boolean>({
-    max: BAN_CACHE_MAX,
-    // Guarded rather than `??`: a configured 0 would mean "never expires" to lru-cache, so a
-    // ban added after a wallet was cached as allowed would not take effect for the process's
-    // whole life.
-    ttl: positiveNumberOr(banCacheTtlSetting, DEFAULT_BAN_CACHE_TTL_MS)
-  })
-
   async function isBanned(wallet: string): Promise<boolean> {
-    const cached = banCache.get(wallet)
-    if (cached !== undefined) {
-      return cached
-    }
-
-    let banned: boolean
     try {
-      // Device id catches a banned player back on a fresh wallet, using what that wallet's
-      // last HTTP request recorded. Read-only - never call upsertPlayerConnection here; the
-      // HTTP path owns the real IP/device data and this would null it out.
-      const connectionInfo = await playerConnectionDb.getByAddress(wallet)
-      const accessState = await accessGate.getAccessState({
-        address: wallet,
-        deviceId: connectionInfo?.deviceId ?? null
-      })
-      banned = accessState.isBanned || accessState.isDenylisted
+      // Address only: user moderation widens the check to the wallet's last recorded device
+      // itself, read-only, so the HTTP path stays the sole writer of connection info. Cached:
+      // this feed can see many events per wallet within seconds, and a stale hit is fine
+      // because banning also removes the participant from every live room.
+      const state = await accessGate.getAccessState({ address: wallet }, { cached: true })
+      return state.isBanned || state.isDenylisted
     } catch (error) {
-      // FAILS OPEN ON PURPOSE, for every lookup in the block above - the connection-info read,
-      // the platform ban store and the deny list alike. This is a deliberate product decision,
-      // not an oversight, and it has been raised in review before: the alternative (fail closed)
-      // means that an outage in any one of those three dependencies stops island formation and
-      // players cannot get into voice at all. Availability of the platform is judged the more
-      // important property here; a moderation gate that is briefly permissive is recoverable,
-      // a world nobody can connect to is not.
+      // FAILS OPEN ON PURPOSE, for every lookup behind the gate - the platform ban store and
+      // the deny list alike. This is a deliberate product decision, not an oversight, and it
+      // has been raised in review before: the alternative (fail closed) means that an outage in
+      // either dependency stops island formation and players cannot get into voice at all.
+      // Availability of the platform is judged the more important property here; a moderation
+      // gate that is briefly permissive is recoverable, a world nobody can connect to is not.
       //
       // What this costs, stated plainly so it stays a known trade-off: while a lookup is
       // failing, a banned or deny-listed wallet can be minted an island token. Two things bound
       // it. Banning removes the participant from every live room at ban time, so this only
-      // affects a *new* room the wallet joins during the outage. And the result is deliberately
-      // not written to banCache, so the very next event retries the lookup instead of the
-      // process staying wrong for the whole TTL.
+      // affects a *new* room the wallet joins during the outage. And the gate caches nothing on
+      // a failure, so the very next event retries the lookup instead of the process staying
+      // wrong for the whole TTL.
       //
       // Note this differs from the signed-fetch HTTP path on purpose: there, only the ban
       // lookup fails open and a deny-list error still rejects the request. That path is a
@@ -133,9 +107,6 @@ export async function createClusterSubscriberComponent(
       logger.warn(`Ban check failed for ${wallet}, allowing: ${getErrorMessage(error)}`)
       return false
     }
-
-    banCache.set(wallet, banned)
-    return banned
   }
 
   async function processClusterChange(wallet: string, change: PeerClusterChange): Promise<void> {
@@ -296,28 +267,6 @@ export async function createClusterSubscriberComponent(
     })
   }
 
-  // Serializes per wallet - an out-of-order mint would publish a stale room and corrupt
-  // the next fromIslandId, and two concurrent cache misses could race on banCache. Connects
-  // share the chain with cluster changes, so within one process a reconnect cannot interleave
-  // with a move; across replicas nothing does, as the queue group has no per-wallet affinity.
-  // Keyed per wallet so one slow wallet can't stall the rest.
-  const walletChains = new Map<string, Promise<void>>()
-
-  function enqueue(wallet: string, task: () => Promise<void>): Promise<void> {
-    const previous = walletChains.get(wallet) ?? Promise.resolve()
-    const result = previous.then(task)
-    // Must never reject, or later events queued behind it would stay stuck. The caller still
-    // sees this event's own rejection via the returned `result` promise.
-    const tail = result.catch(() => {})
-    walletChains.set(wallet, tail)
-    void tail.finally(() => {
-      if (walletChains.get(wallet) === tail) {
-        walletChains.delete(wallet)
-      }
-    })
-    return result
-  }
-
   /**
    * Wraps a subscription callback so nothing escapes it and the wallet is parsed once.
    *
@@ -363,9 +312,14 @@ export async function createClusterSubscriberComponent(
       return
     }
 
-    void enqueue(wallet, () => processClusterChange(wallet, change)).catch((error) => {
-      logger.error(`Cannot process cluster_change for ${wallet}: ${getErrorMessage(error)}`)
-    })
+    // Serialized per wallet: an out-of-order mint would publish a stale room and corrupt the
+    // next fromIslandId, and two concurrent misses on the gate's cache would both pay the round
+    // trip. Across replicas nothing serializes, as the queue group has no per-wallet affinity.
+    void clusterWalletQueue
+      .enqueue(wallet, () => processClusterChange(wallet, change))
+      .catch((error) => {
+        logger.error(`Cannot process cluster_change for ${wallet}: ${getErrorMessage(error)}`)
+      })
   }
 
   function handleAssignmentMirror(wallet: string, data: Uint8Array): void {
@@ -386,9 +340,13 @@ export async function createClusterSubscriberComponent(
     metrics.increment('dcl_gatekeeper_cluster_connects_received_total')
     const session = Buffer.from(data).toString('utf8').toLowerCase()
 
-    void enqueue(wallet, () => processPeerConnect(wallet, session)).catch((error) => {
-      logger.error(`Cannot process connect for ${wallet}: ${getErrorMessage(error)}`)
-    })
+    // Same queue as cluster changes, so within one process a reconnect cannot interleave with
+    // a move for the same wallet.
+    void clusterWalletQueue
+      .enqueue(wallet, () => processPeerConnect(wallet, session))
+      .catch((error) => {
+        logger.error(`Cannot process connect for ${wallet}: ${getErrorMessage(error)}`)
+      })
   }
 
   async function start(): Promise<void> {

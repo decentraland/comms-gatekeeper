@@ -1,4 +1,5 @@
 import { RoomServiceClient, Room, AccessToken, IngressClient, WebhookReceiver } from 'livekit-server-sdk'
+import { createKeyedQueueComponent } from '../../src/adapters/keyed-queue'
 import { createLivekitComponent } from '../../src/adapters/livekit'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 
@@ -21,6 +22,7 @@ describe('when writing room metadata concurrently', () => {
     jest.spyOn(WebhookReceiver.prototype, 'receive').mockResolvedValue(undefined as any)
 
     livekitComponent = await createLivekitComponent({
+      roomMetadataQueue: await createKeyedQueueComponent(),
       config: {
         requireString: jest.fn().mockResolvedValue('test'),
         getString: jest.fn().mockImplementation((key: string) => {
@@ -143,15 +145,13 @@ describe('when writing room metadata concurrently', () => {
   describe('and a write fails', () => {
     beforeEach(() => {
       listRoomsSpy.mockResolvedValue([new Room({ name: 'test-room', metadata: JSON.stringify({}) })])
-      updateRoomMetadataSpy
-        .mockRejectedValueOnce(new Error('LiveKit API error'))
-        .mockResolvedValueOnce(undefined)
+      updateRoomMetadataSpy.mockRejectedValueOnce(new Error('LiveKit API error')).mockResolvedValueOnce(undefined)
     })
 
     it('should not block subsequent writes to the same room', async () => {
-      await expect(
-        livekitComponent.appendToRoomMetadataArray('test-room', 'presenters', '0xfirst')
-      ).rejects.toThrow('LiveKit API error')
+      await expect(livekitComponent.appendToRoomMetadataArray('test-room', 'presenters', '0xfirst')).rejects.toThrow(
+        'LiveKit API error'
+      )
 
       // Second write should succeed — lock should be released after failure
       await livekitComponent.appendToRoomMetadataArray('test-room', 'presenters', '0xsecond')

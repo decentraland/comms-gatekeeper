@@ -116,7 +116,9 @@ session — or the legacy `engine.peer.{addr}.island_changed` when it does not (
 is published empty: unity-explorer reads only `connStr`. WS Connector must already subscribe to the
 five-token subject in an environment before this runs.
 
-**Pipeline:** decode → wallet-or-device ban check plus deny list, fail-open, 30 s cache →
+**Pipeline:** decode → access gate by address (user moderation widens the ban check to the
+wallet's last recorded device; deny list alongside), fail-open, result cached in the gate for
+`ACCESS_GATE_CACHE_TTL_MS` (30 s) →
 evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false)` →
 publish.
 
@@ -180,9 +182,13 @@ failure mode must stay closed.
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
 bounded per-wallet assignment store, whose only consumer is `fromIslandId`), the assignment
-mirror (a dedicated `@dcl/memory-cache-component` instance, see **Reconnects**) and
+mirror (a dedicated `@dcl/memory-cache-component` instance, see **Reconnects**),
+`src/adapters/keyed-queue/` (the per-key serial queue the subscriber orders each wallet's events
+and connects with; the LiveKit adapter uses its own instance to order room-metadata writes) and
 `src/logic/access-gate/` (the platform-ban + deny-list lookup shared with the two signed-fetch
-token handlers). Island room names come from `livekit.getIslandRoomName`, alongside every other
+token handlers, with an opt-in result cache, a dedicated `@dcl/memory-cache-component` instance,
+that only the subscriber uses). Island room names
+come from `livekit.getIslandRoomName`, alongside every other
 room-name builder in that adapter.
 
 **Room names** are `island-{clusterId}` — one cluster maps to exactly one room. The `island-`

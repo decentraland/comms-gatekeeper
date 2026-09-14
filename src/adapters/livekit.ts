@@ -27,9 +27,9 @@ export const PRIVATE_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-private-'
 export const ISLAND_ROOM_PREFIX = 'island-'
 
 export async function createLivekitComponent(
-  components: Pick<AppComponents, 'config' | 'logs'>
+  components: Pick<AppComponents, 'config' | 'logs' | 'roomMetadataQueue'>
 ): Promise<ILivekitComponent> {
-  const { config, logs } = components
+  const { config, logs, roomMetadataQueue } = components
 
   const logger = logs.getLogger('livekit-adapter')
 
@@ -524,39 +524,11 @@ export async function createLivekitComponent(
     await roomClient.updateParticipant(roomId, participantId, undefined, permissions)
   }
 
-  /**
-   * Per-room promise chain that serializes metadata writes within this process.
-   *
-   * LiveKit's updateRoomMetadata does a full replace — there are no atomic updates.
-   * All our metadata functions (updateRoomMetadata, appendToRoomMetadataArray,
-   * removeFromRoomMetadataArray) follow a read-modify-write pattern. Without
-   * serialization, concurrent writes to the same room race: both read the same
-   * state, both write, and the last write silently overwrites the first.
-   *
-   * Example: a participant-joined webhook triggers refreshRoomBans (writes
-   * bannedAddresses) at the same time as addPresenter (writes presenters).
-   * Without the lock, the second write can erase the first's changes.
-   *
-   * The lock works by chaining promises per room via .then(). Operations on
-   * room "A" execute sequentially (1 → 2 → 3), while room "B" operations
-   * run independently in parallel. The .then(fn, fn) pattern ensures the chain
-   * continues even if an operation fails, preventing deadlocks. The Map entry
-   * is cleaned up when the last operation in the chain completes.
-   */
-  const roomMetadataLocks = new Map<string, Promise<void>>()
-
-  async function withRoomMetadataLock(roomId: string, fn: () => Promise<void>): Promise<void> {
-    const previous = roomMetadataLocks.get(roomId) ?? Promise.resolve()
-    const current = previous.then(fn, fn)
-    roomMetadataLocks.set(roomId, current)
-    try {
-      await current
-    } finally {
-      if (roomMetadataLocks.get(roomId) === current) {
-        roomMetadataLocks.delete(roomId)
-      }
-    }
-  }
+  // Every metadata write below is serialized per room through roomMetadataQueue. LiveKit's
+  // updateRoomMetadata does a full replace, so updateRoomMetadata, appendToRoomMetadataArray
+  // and removeFromRoomMetadataArray all read-modify-write; unserialized, a participant-joined
+  // webhook refreshing bannedAddresses would race addPresenter writing presenters, and the
+  // last write would silently erase the other.
 
   function parseRoomMetadata(metadataStr: string | undefined): Record<string, unknown> {
     if (!metadataStr) return {}
@@ -569,13 +541,13 @@ export async function createLivekitComponent(
 
   /**
    * Merges the provided metadata keys into the room's existing metadata and writes back.
-   * Serialized per-room via withRoomMetadataLock to prevent concurrent overwrites.
+   * Serialized per-room via roomMetadataQueue to prevent concurrent overwrites.
    *
    * @param roomId - LiveKit room identifier
    * @param metadata - Key-value pairs to merge into existing room metadata
    */
   async function updateRoomMetadata(roomId: string, metadata: Record<string, unknown>): Promise<void> {
-    await withRoomMetadataLock(roomId, async () => {
+    await roomMetadataQueue.enqueue(roomId, async () => {
       try {
         const roomInfo = await getRoomInfo(roomId)
         const existingMetadata = parseRoomMetadata(roomInfo?.metadata)
@@ -601,7 +573,7 @@ export async function createLivekitComponent(
    * @param value - The value to append to the array
    */
   async function appendToRoomMetadataArray(roomId: string, field: string, value: string): Promise<void> {
-    await withRoomMetadataLock(roomId, async () => {
+    await roomMetadataQueue.enqueue(roomId, async () => {
       const roomInfo = await getRoomInfo(roomId)
       if (!roomInfo) return
       const existingMetadata = parseRoomMetadata(roomInfo.metadata)
@@ -623,7 +595,7 @@ export async function createLivekitComponent(
    * @param value - The value to remove from the array
    */
   async function removeFromRoomMetadataArray(roomId: string, field: string, value: string): Promise<void> {
-    await withRoomMetadataLock(roomId, async () => {
+    await roomMetadataQueue.enqueue(roomId, async () => {
       const roomInfo = await getRoomInfo(roomId)
       if (!roomInfo) return
       const existingMetadata = parseRoomMetadata(roomInfo.metadata)

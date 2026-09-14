@@ -59,12 +59,15 @@ import { createUserModerationComponent } from './logic/user-moderation'
 import { createModeratorComponent } from './logic/moderator'
 import { createNatsComponent } from './adapters/nats'
 import { createPeerStateComponent } from './adapters/peer-state'
+import { createKeyedQueueComponent } from './adapters/keyed-queue'
 import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
 import { positiveNumberOr } from './utils/config'
 
 const ASSIGNMENT_MIRROR_DEFAULT_MAX = 20_000
 const ASSIGNMENT_MIRROR_DEFAULT_TTL_MS = 60 * 60 * 1000
+const ACCESS_GATE_CACHE_MAX = 20_000
+const ACCESS_GATE_CACHE_DEFAULT_TTL_MS = 30_000
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -94,7 +97,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   instrumentHttpServerWithRequestLogger({ server, logger: logs })
 
-  const livekit = await createLivekitComponent({ config, logs })
+  const roomMetadataQueue = await createKeyedQueueComponent()
+  const livekit = await createLivekitComponent({ config, logs, roomMetadataQueue })
   const nats = await createNatsComponent({ config, logs, metrics })
   const peerState = await createPeerStateComponent({ config })
 
@@ -202,7 +206,14 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     livekit
   })
 
-  const accessGate = await createAccessGateComponent({ userModeration, denyList, logs })
+  // Dedicated instance for the gate's opt-in result cache. Guarded because the library reads
+  // ttl 0 as never expiring, and a ban added after a wallet was cached as allowed would then
+  // never take effect.
+  const accessGateCache = createInMemoryCacheComponent({
+    max: ACCESS_GATE_CACHE_MAX,
+    ttl: positiveNumberOr(await config.getNumber('ACCESS_GATE_CACHE_TTL_MS'), ACCESS_GATE_CACHE_DEFAULT_TTL_MS)
+  })
+  const accessGate = await createAccessGateComponent({ userModeration, denyList, accessGateCache, logs })
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
@@ -297,6 +308,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     logs
   })
 
+  const clusterWalletQueue = await createKeyedQueueComponent()
   const clusterSubscriber = await createClusterSubscriberComponent({
     config,
     logs,
@@ -304,9 +316,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     nats,
     livekit,
     accessGate,
-    playerConnectionDb,
     peerState,
-    assignmentMirror
+    assignmentMirror,
+    clusterWalletQueue
   })
 
   const livekitWebhook = createLivekitWebhookComponent()
@@ -338,6 +350,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneManager,
     social,
     livekit,
+    roomMetadataQueue,
     database,
     voiceDB,
     playerConnectionDb,
@@ -366,7 +379,9 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     nats,
     peerState,
     assignmentMirror,
+    accessGateCache,
     accessGate,
+    clusterWalletQueue,
     clusterSubscriber
   }
 }

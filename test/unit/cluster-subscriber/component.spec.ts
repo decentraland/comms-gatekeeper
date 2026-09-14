@@ -3,6 +3,7 @@ import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { ILoggerComponent, IBaseComponent, START_COMPONENT } from '@well-known-components/interfaces'
+import { createKeyedQueueComponent } from '../../../src/adapters/keyed-queue'
 import { NatsMessageHandler } from '../../../src/adapters/nats'
 import { createPeerStateComponent, IPeerStateComponent } from '../../../src/adapters/peer-state'
 import { createClusterSubscriberComponent, IClusterSubscriberComponent } from '../../../src/logic/cluster-subscriber'
@@ -13,7 +14,6 @@ import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createMetricsMockedComponent } from '../../mocks/metrics-mock'
 import { createNatsMockedComponent } from '../../mocks/nats-mock'
 import { createPeerStateMockedComponent } from '../../mocks/peer-state-mock'
-import { createPlayerConnectionDBMockedComponent } from '../../mocks/player-connection-db-mock'
 import { createDeferred, flushMacrotask } from '../../utils'
 
 const WALLET = '0x1111111111111111111111111111111111111111'
@@ -49,7 +49,6 @@ describe('cluster-subscriber component', () => {
   let metrics: ReturnType<typeof createMetricsMockedComponent>
   let livekit: ReturnType<typeof createLivekitMockedComponent>
   let accessGate: ReturnType<typeof createAccessGateMockedComponent>
-  let playerConnectionDb: ReturnType<typeof createPlayerConnectionDBMockedComponent>
   let peerState: IPeerStateComponent
   let assignmentMirror: ICacheStorageComponent
   let logger: jest.Mocked<ILoggerComponent.ILogger>
@@ -88,9 +87,6 @@ describe('cluster-subscriber component', () => {
       buildConnectionUrl: jest.fn((url: string, token: string) => `livekit:${url}?access_token=${token}`)
     })
     accessGate = createAccessGateMockedComponent()
-    playerConnectionDb = createPlayerConnectionDBMockedComponent({
-      getByAddress: jest.fn().mockResolvedValue({ deviceId: 'device-1' })
-    })
     peerState = peerStateOverride ?? createPeerStateMockedComponent()
     // The real in-memory cache, as in production: the tests below depend on read-your-writes
     // between the un-grouped mirror subscription and a connect queued behind it.
@@ -104,9 +100,10 @@ describe('cluster-subscriber component', () => {
       nats,
       livekit,
       accessGate,
-      playerConnectionDb,
       peerState,
-      assignmentMirror
+      assignmentMirror,
+      // Real, like the mirror: the ordering tests below depend on genuine per-wallet serialization.
+      clusterWalletQueue: await createKeyedQueueComponent()
     })
     // The component fetches its logger once, synchronously, before its first await, so
     // this is already populated by the time createClusterSubscriberComponent resolves.
@@ -544,8 +541,11 @@ describe('cluster-subscriber component', () => {
         await deliver(`peer.${LOWER_CASE_WALLET}.cluster_change`, clusterChange('C2'))
       })
 
-      it('should treat the two forms as one wallet in the ban cache', () => {
-        expect(accessGate.getAccessState).toHaveBeenCalledTimes(1)
+      it('should ask the gate about the lower-cased wallet both times, so its cache sees one wallet', () => {
+        expect(accessGate.getAccessState).toHaveBeenCalledTimes(2)
+        for (const [query] of accessGate.getAccessState.mock.calls) {
+          expect(query).toEqual({ address: LOWER_CASE_WALLET })
+        }
       })
     })
 
@@ -911,66 +911,17 @@ describe('cluster-subscriber component', () => {
       })
     })
 
-    describe('and the ban gate runs for a wallet with recorded connection info', () => {
+    describe('and the ban gate runs', () => {
       beforeEach(async () => {
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
       })
 
-      it('should look the wallet up in the connection store', () => {
-        expect(playerConnectionDb.getByAddress).toHaveBeenCalledWith(WALLET)
+      it('should check the wallet by address alone, leaving the device widening to user moderation', () => {
+        expect(accessGate.getAccessState).toHaveBeenCalledWith({ address: WALLET }, expect.anything())
       })
 
-      it('should check the wallet together with its recorded device id', () => {
-        expect(accessGate.getAccessState).toHaveBeenCalledWith({ address: WALLET, deviceId: 'device-1' })
-      })
-
-      it('should never write connection info, which belongs to the signed-fetch path', () => {
-        expect(playerConnectionDb.upsertPlayerConnection).not.toHaveBeenCalled()
-      })
-    })
-
-    describe('and the wallet has no recorded connection info', () => {
-      beforeEach(async () => {
-        playerConnectionDb.getByAddress.mockResolvedValue(null)
-
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
-      })
-
-      it('should pass a null device id', () => {
-        expect(accessGate.getAccessState).toHaveBeenCalledWith({ address: WALLET, deviceId: null })
-      })
-    })
-
-    describe('and a burst of events arrives for one wallet', () => {
-      beforeEach(async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C2'))
-      })
-
-      it('should cache the ban result rather than re-querying per event', () => {
-        expect(accessGate.getAccessState).toHaveBeenCalledTimes(1)
-      })
-
-      it('should still publish for every event', () => {
-        expect(nats.publish).toHaveBeenCalledTimes(2)
-      })
-    })
-
-    describe('and two events for the same uncached wallet arrive back-to-back', () => {
-      beforeEach(async () => {
-        // Fired with no await in between: without per-wallet serialization, both would
-        // independently observe a cold banCache and both pay the round trip.
-        handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
-        handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C2'))
-        await flushMacrotask()
-      })
-
-      it('should query the ban check once', () => {
-        expect(accessGate.getAccessState).toHaveBeenCalledTimes(1)
-      })
-
-      it('should still publish for both', () => {
-        expect(nats.publish).toHaveBeenCalledTimes(2)
+      it('should ask for a cached answer, since the feed can repeat a wallet many times within seconds', () => {
+        expect(accessGate.getAccessState).toHaveBeenCalledWith(expect.anything(), { cached: true })
       })
     })
 
@@ -982,12 +933,12 @@ describe('cluster-subscriber component', () => {
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C2'))
       })
 
-      it('should not cache the failure, so the next event genuinely re-queries it', () => {
-        expect(accessGate.getAccessState).toHaveBeenCalledTimes(2)
-      })
-
       it('should fail open and still publish both', () => {
         expect(nats.publish).toHaveBeenCalledTimes(2)
+      })
+
+      it('should warn about the wallet it let through', () => {
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Ban check failed for ${WALLET}`))
       })
     })
 
