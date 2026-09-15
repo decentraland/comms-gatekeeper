@@ -1,6 +1,8 @@
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
+import { createModerationEpochComponent, IModerationEpochComponent } from '../../../src/adapters/moderation-epoch'
 import { AccessState, createAccessGateComponent, IAccessGateComponent } from '../../../src/logic/access-gate'
+import { createDeferred } from '../../utils'
 import { createDenyListMockedComponent } from '../../mocks/denylist-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createUserModerationMockedComponent } from '../../mocks/user-moderation-mock'
@@ -11,13 +13,21 @@ describe('access-gate component', () => {
   let accessGate: IAccessGateComponent
   let userModeration: ReturnType<typeof createUserModerationMockedComponent>
   let denyList: ReturnType<typeof createDenyListMockedComponent>
+  let moderationEpoch: IModerationEpochComponent
   let logger: jest.Mocked<ILoggerComponent.ILogger>
 
   async function build(cacheTtlMs?: number): Promise<IAccessGateComponent> {
-    // The real in-memory cache, as in production; a short TTL when a test needs expiry.
+    // The real in-memory cache and epoch, as in production; a short TTL when a test needs expiry.
     const accessGateCache = createInMemoryCacheComponent(cacheTtlMs ? { ttl: cacheTtlMs } : undefined)
+    moderationEpoch = await createModerationEpochComponent()
     const logs = createLoggerMockedComponent({})
-    const component = await createAccessGateComponent({ userModeration, denyList, accessGateCache, logs })
+    const component = await createAccessGateComponent({
+      userModeration,
+      denyList,
+      accessGateCache,
+      moderationEpoch,
+      logs
+    })
     logger = logs.getLogger.mock.results[0].value
 
     return component
@@ -214,6 +224,50 @@ describe('access-gate component', () => {
       it('should answer from the same entry', () => {
         expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(1)
       })
+    })
+  })
+
+  describe('when a moderation change lands after a decision was cached', () => {
+    beforeEach(async () => {
+      accessGate = await build()
+      await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+      moderationEpoch.bump()
+      userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: true })
+    })
+
+    it('should query again and report the ban, treating the cached decision as stale', async () => {
+      await expect(accessGate.getAccessState({ address: ADDRESS }, { cached: true })).resolves.toEqual({
+        isBanned: true,
+        isDenylisted: false
+      })
+      expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('when a moderation change lands while a cached lookup is still in flight', () => {
+    let firstLookup: ReturnType<typeof createDeferred<{ isBanned: boolean }>>
+    let first: Promise<AccessState>
+
+    beforeEach(async () => {
+      // The race a plain cache clear loses: the lookup read "allowed" before the ban, and would
+      // write it back after the ban had cleared the cache.
+      firstLookup = createDeferred<{ isBanned: boolean }>()
+      userModeration.getActiveBanForConnection.mockReturnValueOnce(firstLookup.promise)
+      accessGate = await build()
+
+      first = accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+      moderationEpoch.bump()
+      firstLookup.resolve({ isBanned: false })
+      await first
+      userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: true })
+    })
+
+    it('should not serve the pre-ban decision on the next lookup', async () => {
+      await expect(accessGate.getAccessState({ address: ADDRESS }, { cached: true })).resolves.toEqual({
+        isBanned: true,
+        isDenylisted: false
+      })
+      expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
     })
   })
 

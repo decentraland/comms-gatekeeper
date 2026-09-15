@@ -60,6 +60,7 @@ import { createModeratorComponent } from './logic/moderator'
 import { createNatsComponent } from './adapters/nats'
 import { createPeerStateComponent } from './adapters/peer-state'
 import { createKeyedQueueComponent } from './adapters/keyed-queue'
+import { createModerationEpochComponent } from './adapters/moderation-epoch'
 import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
 import { positiveNumberOr } from './utils/config'
@@ -200,11 +201,14 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   // Dedicated instance for the gate's opt-in result cache. Guarded because the library reads
   // ttl 0 as never expiring, and a ban added after a wallet was cached as allowed would then
-  // never take effect. User moderation forgets an address's entries when it bans or lifts.
+  // never take effect. Each entry carries the moderation epoch it was computed under.
   const accessGateCache = createInMemoryCacheComponent({
     max: ACCESS_GATE_CACHE_MAX,
     ttl: positiveNumberOr(await config.getNumber('ACCESS_GATE_CACHE_TTL_MS'), ACCESS_GATE_CACHE_DEFAULT_TTL_MS)
   })
+
+  // Moved on by every ban and lift; the gate honours a cached decision only while its epoch is current.
+  const moderationEpoch = await createModerationEpochComponent()
 
   const userModeration = createUserModerationComponent({
     userModerationDb,
@@ -212,10 +216,16 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     logs,
     publisher,
     livekit,
-    accessGateCache
+    moderationEpoch
   })
 
-  const accessGate = await createAccessGateComponent({ userModeration, denyList, accessGateCache, logs })
+  const accessGate = await createAccessGateComponent({
+    userModeration,
+    denyList,
+    accessGateCache,
+    moderationEpoch,
+    logs
+  })
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
@@ -382,6 +392,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     peerState,
     assignmentMirror,
     accessGateCache,
+    moderationEpoch,
     accessGate,
     clusterWalletQueue,
     clusterSubscriber

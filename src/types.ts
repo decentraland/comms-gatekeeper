@@ -40,6 +40,7 @@ import { IFeaturesComponent } from '@dcl/features-component'
 import { INatsComponent } from './adapters/nats'
 import { IPeerStateComponent } from './adapters/peer-state'
 import { IKeyedQueueComponent } from './adapters/keyed-queue'
+import { IModerationEpochComponent } from './adapters/moderation-epoch'
 import { IAccessGateComponent } from './logic/access-gate'
 import { IClusterSubscriberComponent } from './logic/cluster-subscriber/types'
 
@@ -107,6 +108,8 @@ export type BaseComponents = {
    * device id. A cache instance dedicated to the gate, with its TTL from `ACCESS_GATE_CACHE_TTL_MS`.
    */
   accessGateCache: ICacheStorageComponent
+  /** Counter moved on by every ban and lift; cached access decisions are valid only under the current one. */
+  moderationEpoch: IModerationEpochComponent
   accessGate: IAccessGateComponent
   /** Serializes the cluster subscriber's work per wallet, cluster changes and connects alike. */
   clusterWalletQueue: IKeyedQueueComponent
