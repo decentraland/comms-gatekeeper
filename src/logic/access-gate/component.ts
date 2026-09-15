@@ -47,11 +47,37 @@ export async function createAccessGateComponent(
       }
     }
 
-    // Read right before the lookups and stamped into whatever they produce: a ban landing while
-    // they run moves the epoch on, and the decision written below is then already stale on arrival.
-    const epoch = moderationEpoch.current()
+    // Recomputed when moderation changed underneath. A ban committing while the lookups run
+    // leaves them holding the pre-ban answer, and one committing during the cache write would
+    // slip past a check made before it, so the epoch is re-read after both awaits and the whole
+    // decision is redone when it moved. Bounded to one retry: a second move means two moderation
+    // actions landed within milliseconds of each other, and the retry's answer already reflects
+    // the newer state, so it is returned as is. What no check here can close is a ban committing
+    // after this returns and before the caller acts on the answer.
+    let decision = await lookUp(query, options)
+    if (decision.epoch !== moderationEpoch.current()) {
+      decision = await lookUp(query, options)
+    }
 
-    const { address, deviceId } = query
+    // A swallowed failure must not be remembered as "allowed" for the whole TTL, and neither
+    // must a decision the epoch has already left behind. No per-call TTL: the instance default
+    // applies, and the per-call parameter is in seconds.
+    if (options.cached && !decision.banLookupFailed && decision.epoch === moderationEpoch.current()) {
+      await accessGateCache.set<CachedDecision>(key, { state: decision.state, epoch: decision.epoch })
+      if (decision.epoch !== moderationEpoch.current()) {
+        decision = await lookUp(query, options)
+      }
+    }
+
+    return decision.state
+  }
+
+  /** One pass over both gates, stamped with the epoch that was current when it began. */
+  async function lookUp(
+    { address, deviceId }: ConnectionBanQuery,
+    options: AccessGateOptions
+  ): Promise<{ state: AccessState; epoch: number; banLookupFailed: boolean }> {
+    const epoch = moderationEpoch.current()
     let banLookupFailed = false
     const banLookup = userModeration.getActiveBanForConnection({ address, deviceId })
 
@@ -66,14 +92,7 @@ export async function createAccessGateComponent(
       denyList.isDenylisted(address)
     ])
 
-    const state: AccessState = { isBanned: banStatus.isBanned, isDenylisted }
-    // A swallowed failure must not be remembered as "allowed" for the whole TTL. No per-call
-    // TTL: the instance default applies, and the per-call parameter is in seconds.
-    if (options.cached && !banLookupFailed) {
-      await accessGateCache.set<CachedDecision>(key, { state, epoch })
-    }
-
-    return state
+    return { state: { isBanned: banStatus.isBanned, isDenylisted }, epoch, banLookupFailed }
   }
 
   return { getAccessState }

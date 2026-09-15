@@ -248,31 +248,95 @@ describe('access-gate component', () => {
 
   describe('when a moderation change lands while a cached lookup is still in flight', () => {
     let firstLookup: ReturnType<typeof createDeferred<{ isBanned: boolean }>>
-    let first: Promise<AccessState>
+    let first: AccessState
 
     beforeEach(async () => {
-      // The race a plain cache clear loses: the lookup read "allowed" before the ban, and would
-      // write it back after the ban had cleared the cache.
+      // The lookup read "allowed" before the ban committed. Left alone it would be returned to the
+      // caller, which mints from it, and written back to the cache.
       firstLookup = createDeferred<{ isBanned: boolean }>()
       userModeration.getActiveBanForConnection.mockReturnValueOnce(firstLookup.promise)
       accessGate = await build()
 
-      first = accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+      const pending = accessGate.getAccessState({ address: ADDRESS }, { cached: true })
       // Let the cache read settle so the ban lookup is genuinely in flight when the ban lands: a
       // ban that commits before the lookup starts is simply seen by the lookup.
       await flushMacrotask()
       moderationEpoch.bump()
-      firstLookup.resolve({ isBanned: false })
-      await first
       userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: true })
+      firstLookup.resolve({ isBanned: false })
+
+      first = await pending
     })
 
-    it('should not serve the pre-ban decision on the next lookup', async () => {
+    it('should revalidate the decision in that same call and report the ban', () => {
+      expect(first).toEqual({ isBanned: true, isDenylisted: false })
+    })
+
+    it('should have queried the gates exactly once more', () => {
+      expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
+    })
+
+    it('should serve the revalidated decision from the cache afterwards', async () => {
       await expect(accessGate.getAccessState({ address: ADDRESS }, { cached: true })).resolves.toEqual({
         isBanned: true,
         isDenylisted: false
       })
       expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('when moderation keeps changing while a cached lookup is retried', () => {
+    let result: AccessState
+
+    beforeEach(async () => {
+      // Every pass sees a fresh moderation change. The retry is bounded, and its answer is the
+      // newest one available, so it is what the caller gets.
+      userModeration.getActiveBanForConnection.mockImplementation(async () => {
+        moderationEpoch.bump()
+        return { isBanned: false }
+      })
+      accessGate = await build()
+
+      result = await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+    })
+
+    it('should stop after one retry', () => {
+      expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
+    })
+
+    it('should return the newest decision', () => {
+      expect(result).toEqual({ isBanned: false, isDenylisted: false })
+    })
+
+    it('should cache nothing, since no decision survived its own epoch', async () => {
+      await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+
+      expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(4)
+    })
+  })
+
+  describe('when a moderation change lands while the decision is being written to the cache', () => {
+    let cacheWrite: ReturnType<typeof createDeferred<void>>
+    let result: AccessState
+
+    beforeEach(async () => {
+      // The one remaining await after the lookups: a ban landing here would otherwise slip past a
+      // check made before the write.
+      cacheWrite = createDeferred<void>()
+      const pausedCache = { ...createInMemoryCacheComponent(), set: jest.fn().mockReturnValueOnce(cacheWrite.promise) }
+      accessGate = await build(undefined, pausedCache as unknown as ICacheStorageComponent)
+
+      const pending = accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+      await flushMacrotask()
+      moderationEpoch.bump()
+      userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: true })
+      cacheWrite.resolve()
+
+      result = await pending
+    })
+
+    it('should revalidate the decision and report the ban', () => {
+      expect(result).toEqual({ isBanned: true, isDenylisted: false })
     })
   })
 

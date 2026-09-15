@@ -227,7 +227,8 @@ drain in-flight tasks on stop, bounded by `KEYED_QUEUE_DRAIN_TIMEOUT_MS`) and
 token handlers, with an opt-in result cache, a dedicated `@dcl/memory-cache-component` instance,
 that only the subscriber uses; every cached decision carries the moderation epoch it was computed
 under, `src/adapters/moderation-epoch/`, which every ban and lift moves on, so a ban reaches the very
-next mint and a lookup in flight during the ban cannot write back a stale allow). Island room names
+next mint, a lookup in flight during the ban is recomputed before its answer is returned or cached,
+and a stale allow can neither be served nor written back). Island room names
 come from `livekit.getIslandRoomName`, alongside every other
 room-name builder in that adapter.
 
