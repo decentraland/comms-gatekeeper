@@ -16,6 +16,20 @@ import { INatsComponent, NatsMessageHandler, NatsSubscribeOptions, NatsSubscript
 // Delay before retrying a failed connection. Mirrors Pulse's 5 s supervision loop.
 const RECONNECT_DELAY_MS = 5000
 
+/**
+ * The configured broker list for logs, with any user-info stripped: these URLs can carry
+ * credentials, and a log line must never repeat them.
+ *
+ * @param url - The raw `NATS_URL` value, comma-separated for a seed list.
+ * @returns The servers, host and port only.
+ */
+export function describeServers(url: string): string {
+  return url
+    .split(',')
+    .map((server) => server.trim().replace(/^([a-z][a-z0-9+.-]*:\/\/)?[^@/]*@/i, '$1'))
+    .join(', ')
+}
+
 type Registration = {
   subject: string
   handler: NatsMessageHandler
@@ -216,7 +230,7 @@ export async function createNatsComponent(
 
       connection = nc
       setConnected(true)
-      logger.info(`Connected to NATS at ${url}`)
+      logger.info(`Connected to NATS at ${describeServers(url)}`)
 
       monitorStatus(connection)
 
@@ -225,7 +239,7 @@ export async function createNatsComponent(
       }
     } catch (error) {
       logger.error(
-        `Failed to connect to NATS at ${url}: ${getErrorMessage(error)}. Retrying in ${RECONNECT_DELAY_MS}ms`
+        `Failed to connect to NATS at ${describeServers(url)}: ${getErrorMessage(error)}. Retrying in ${RECONNECT_DELAY_MS}ms`
       )
       scheduleRetry()
     }

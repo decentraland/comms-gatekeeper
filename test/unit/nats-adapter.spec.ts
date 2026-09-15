@@ -1,6 +1,6 @@
 import { connect as natsConnect, ErrorCode, NatsError } from 'nats'
 import { ILoggerComponent, STOP_COMPONENT } from '@well-known-components/interfaces'
-import { createNatsComponent, INatsComponent } from '../../src/adapters/nats'
+import { createNatsComponent, describeServers, INatsComponent } from '../../src/adapters/nats'
 import { createConfigMockedComponent } from '../mocks/config-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createMetricsMockedComponent } from '../mocks/metrics-mock'
@@ -224,6 +224,37 @@ describe('nats-adapter', () => {
 
       it('should set the connected gauge to 1', () => {
         expect(metrics.observe).toHaveBeenCalledWith('dcl_gatekeeper_nats_connected', {}, 1)
+      })
+    })
+
+    describe('and the broker URL carries credentials', () => {
+      const URL_WITH_SECRET = 'nats://someone:hunter2@localhost:4222'
+
+      describe('and the connection succeeds', () => {
+        beforeEach(async () => {
+          natsConnectMock.mockResolvedValue(buildConnection() as any)
+          nats = await build(URL_WITH_SECRET)
+
+          await nats.connect()
+        })
+
+        it('should log the host without the credentials', () => {
+          expect(logger.info).toHaveBeenCalledWith('Connected to NATS at nats://localhost:4222')
+        })
+      })
+
+      describe('and the connection fails', () => {
+        beforeEach(async () => {
+          natsConnectMock.mockRejectedValue(new Error('unreachable'))
+          nats = await build(URL_WITH_SECRET)
+
+          await nats.connect()
+        })
+
+        it('should log the host without the credentials', () => {
+          expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('nats://localhost:4222'))
+          expect(logger.error).not.toHaveBeenCalledWith(expect.stringContaining('hunter2'))
+        })
       })
     })
 
@@ -1021,5 +1052,23 @@ describe('nats-adapter', () => {
         expect(metrics.observe).toHaveBeenCalledWith('dcl_gatekeeper_nats_connected', {}, 0)
       })
     })
+  })
+})
+
+describe('describeServers', () => {
+  it('should strip user-info from a URL with a scheme', () => {
+    expect(describeServers('nats://someone:hunter2@broker:4222')).toBe('nats://broker:4222')
+  })
+
+  it('should strip user-info from a bare host', () => {
+    expect(describeServers('someone:hunter2@broker:4222')).toBe('broker:4222')
+  })
+
+  it('should leave a URL without user-info alone', () => {
+    expect(describeServers('nats://broker:4222')).toBe('nats://broker:4222')
+  })
+
+  it('should handle every server of a seed list', () => {
+    expect(describeServers('a:4222, someone:hunter2@b:4222,tls://c@d:4222')).toBe('a:4222, b:4222, tls://d:4222')
   })
 })
