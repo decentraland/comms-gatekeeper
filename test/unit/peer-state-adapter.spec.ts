@@ -44,11 +44,22 @@ describe('peer-state adapter', () => {
   })
 
   describe('when the TTL elapses', () => {
+    let performanceNow: jest.SpyInstance
+    let nowMs: number
+
     beforeEach(async () => {
-      // NOTE: lru-cache v10 does not respect Jest fake timers; using real timers here
+      // lru-cache keeps its own reference to `performance`, taken when it was imported. Jest's fake
+      // timers swap the global for a fake rather than patching it, so advancing the fake clock never
+      // reaches the cache. Spying on the real object's `now` does, with no real waiting.
+      nowMs = 1_000_000
+      performanceNow = jest.spyOn(performance, 'now').mockImplementation(() => nowMs)
       peerState = await build({ max: 10, ttl: 100 })
       peerState.set('0xaaa', { clusterId: 'C1', room: 'island-C1', lastSeen: 0 })
-      await new Promise((resolve) => setTimeout(resolve, 150))
+      nowMs += 150
+    })
+
+    afterEach(() => {
+      performanceNow.mockRestore()
     })
 
     it('should expire the assignment, since the feed carries no disconnects', () => {

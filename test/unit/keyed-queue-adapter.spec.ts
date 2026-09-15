@@ -237,17 +237,23 @@ describe('keyed queue adapter', () => {
 
   describe('when a task outlives the drain deadline', () => {
     let task: ReturnType<typeof createDeferred<void>>
+    let stopping: Promise<void>
 
     beforeEach(async () => {
+      // The drain reads Date.now and waits on setTimeout, both of which fake timers cover.
+      jest.useFakeTimers()
       queue = await build(50)
       task = createDeferred<void>()
       void queue.enqueue('wallet-a', () => task.promise)
 
-      await queue[STOP_COMPONENT]!()
+      stopping = queue[STOP_COMPONENT]!()
+      await jest.advanceTimersByTimeAsync(50)
+      await stopping
     })
 
     afterEach(() => {
       task.resolve()
+      jest.useRealTimers()
     })
 
     it('should warn about the key it gave up on', () => {

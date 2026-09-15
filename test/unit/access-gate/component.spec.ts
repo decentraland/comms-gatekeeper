@@ -218,13 +218,24 @@ describe('access-gate component', () => {
   })
 
   describe('when a cached result has outlived the TTL', () => {
+    let performanceNow: jest.SpyInstance
+    let nowMs: number
+
     beforeEach(async () => {
-      // lru-cache does not respect Jest fake timers, so a real short TTL and a real delay.
+      // lru-cache keeps its own reference to `performance`, taken when it was imported. Jest's fake
+      // timers swap the global for a fake rather than patching it, so advancing the fake clock never
+      // reaches the cache. Spying on the real object's `now` does, with no real waiting.
+      nowMs = 1_000_000
+      performanceNow = jest.spyOn(performance, 'now').mockImplementation(() => nowMs)
       accessGate = await build(50)
       await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
-      await new Promise((resolve) => setTimeout(resolve, 80))
+      nowMs += 60
 
       await accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+    })
+
+    afterEach(() => {
+      performanceNow.mockRestore()
     })
 
     it('should query again', () => {

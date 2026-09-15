@@ -860,14 +860,19 @@ describe('cluster-subscriber component', () => {
 
     describe('and a cluster_change for the same cluster arrives after the stored state has actually expired', () => {
       let second: IslandChangedMessage
+      let performanceNow: jest.SpyInstance
+      let nowMs: number
 
       beforeEach(async () => {
         // Joins the two halves of the reconnect story: the no-suppression semantics above
         // are exercised against a store that never expires, and peer-state-adapter.spec.ts
         // proves TTL expiry in isolation, but never together. Uses the real peer state
         // adapter with a short TTL rather than its mock, so the expiry is genuine.
-        // NOTE: lru-cache v10 does not respect Jest fake timers; using a real, short TTL
-        // and a real delay here, matching peer-state-adapter.spec.ts.
+        // The clock is a spy on the real `performance.now`, as in peer-state-adapter.spec.ts:
+        // lru-cache holds its own reference to `performance`, which Jest's fake timers swap
+        // out rather than patch, so this is the one clock the cache actually reads.
+        nowMs = 1_000_000
+        performanceNow = jest.spyOn(performance, 'now').mockImplementation(() => nowMs)
         const realPeerState = await createPeerStateComponent({
           config: createConfigMockedComponent({
             getNumber: jest
@@ -881,10 +886,14 @@ describe('cluster-subscriber component', () => {
         await component[START_COMPONENT]!(startOptions)
 
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
-        await new Promise((resolve) => setTimeout(resolve, 150))
+        nowMs += 150
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
 
         second = IslandChangedMessage.decode(nats.publish.mock.calls[1][1] as Uint8Array)
+      })
+
+      afterEach(() => {
+        performanceNow.mockRestore()
       })
 
       it('should publish again', () => {
