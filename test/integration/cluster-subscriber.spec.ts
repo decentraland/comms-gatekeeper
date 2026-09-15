@@ -25,6 +25,7 @@ const REASSIGNED_WALLET = '0x4444444444444444444444444444444444444444'
 const QUEUE_GROUP_WALLET = '0x5555555555555555555555555555555555555555'
 const RECONNECT_WALLET = '0x7777777777777777777777777777777777777777'
 const DENYLISTED_WALLET = '0x6666666666666666666666666666666666666666'
+const REBANNED_WALLET = '0x8888888888888888888888888888888888888888'
 
 const startOptions = {
   started: () => true,
@@ -391,6 +392,25 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
       await components.userModeration.banPlayer(BANNED_WALLET, '0xadmin', 'integration test')
 
       publishClusterChange(BANNED_WALLET, 'C8')
+
+      expect(await nextIslandChanged(2500)).toBeUndefined()
+    })
+  })
+
+  describe('when the wallet is banned right after an allowed assignment', () => {
+    it('should publish nothing for the next assignment, despite the cached allow', async () => {
+      if (!brokerAvailable) {
+        return
+      }
+
+      // The first event caches an "allowed" decision for ACCESS_GATE_CACHE_TTL_MS. The ban has
+      // to reach the next event anyway, or a just-banned wallet gets a fresh island token.
+      publishClusterChange(REBANNED_WALLET, 'C50')
+      expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C50')
+
+      await components.userModeration.banPlayer(REBANNED_WALLET, '0xadmin', 'integration test')
+
+      publishClusterChange(REBANNED_WALLET, 'C51')
 
       expect(await nextIslandChanged(2500)).toBeUndefined()
     })

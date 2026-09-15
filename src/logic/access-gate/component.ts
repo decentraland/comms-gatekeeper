@@ -1,5 +1,6 @@
 import { AppComponents } from '../../types'
 import { ConnectionBanQuery } from '../user-moderation/types'
+import { accessGateCacheKey } from './cache-keys'
 import { AccessGateOptions, AccessState, IAccessGateComponent } from './types'
 
 /**
@@ -24,12 +25,8 @@ export async function createAccessGateComponent(
   const { userModeration, denyList, accessGateCache, logs } = components
   const logger = logs.getLogger('access-gate')
 
-  function cacheKey({ address, deviceId }: ConnectionBanQuery): string {
-    return `${address.toLowerCase()}|${deviceId ?? ''}`
-  }
-
   async function getAccessState(query: ConnectionBanQuery, options: AccessGateOptions = {}): Promise<AccessState> {
-    const key = cacheKey(query)
+    const key = accessGateCacheKey(query)
     if (options.cached) {
       const hit = await accessGateCache.get<AccessState>(key)
       if (hit) {

@@ -189,7 +189,8 @@ what it delivered to which socket; gatekeeper keeps no timing state.
 on that: the wallet queue and peer state are process-local and the queue group has no per-wallet
 affinity, so with two or more replicas consecutive events for one wallet could publish out of
 order. Scaling out needs a per-wallet sequence in the Pulse payload (or wallet-affine routing)
-before the queue group can be trusted with ordering.
+before the queue group can be trusted with ordering, and the ban-time forgetting of cached access
+decisions, which is in-process today, would need to reach every replica.
 
 **Enable order.** `CLUSTER_SUBSCRIBER_ENABLED` is the compatibility gate. With it off nothing
 here subscribes, publishes or connects. Turn it on only where WS Connector already subscribes to
@@ -224,7 +225,9 @@ and connects with; the LiveKit adapter uses its own instance to order room-metad
 drain in-flight tasks on stop, bounded by `KEYED_QUEUE_DRAIN_TIMEOUT_MS`) and
 `src/logic/access-gate/` (the platform-ban + deny-list lookup shared with the two signed-fetch
 token handlers, with an opt-in result cache, a dedicated `@dcl/memory-cache-component` instance,
-that only the subscriber uses). Island room names
+that only the subscriber uses; user moderation forgets an address's cached decisions the moment it
+bans or lifts, and everything when the ban captured a device, so a ban reaches the very next mint
+instead of waiting out the TTL). Island room names
 come from `livekit.getIslandRoomName`, alongside every other
 room-name builder in that adapter.
 

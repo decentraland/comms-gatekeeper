@@ -198,21 +198,23 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const publisher = await createSnsComponent({ config })
 
+  // Dedicated instance for the gate's opt-in result cache. Guarded because the library reads
+  // ttl 0 as never expiring, and a ban added after a wallet was cached as allowed would then
+  // never take effect. User moderation forgets an address's entries when it bans or lifts.
+  const accessGateCache = createInMemoryCacheComponent({
+    max: ACCESS_GATE_CACHE_MAX,
+    ttl: positiveNumberOr(await config.getNumber('ACCESS_GATE_CACHE_TTL_MS'), ACCESS_GATE_CACHE_DEFAULT_TTL_MS)
+  })
+
   const userModeration = createUserModerationComponent({
     userModerationDb,
     playerConnectionDb,
     logs,
     publisher,
-    livekit
+    livekit,
+    accessGateCache
   })
 
-  // Dedicated instance for the gate's opt-in result cache. Guarded because the library reads
-  // ttl 0 as never expiring, and a ban added after a wallet was cached as allowed would then
-  // never take effect.
-  const accessGateCache = createInMemoryCacheComponent({
-    max: ACCESS_GATE_CACHE_MAX,
-    ttl: positiveNumberOr(await config.getNumber('ACCESS_GATE_CACHE_TTL_MS'), ACCESS_GATE_CACHE_DEFAULT_TTL_MS)
-  })
   const accessGate = await createAccessGateComponent({ userModeration, denyList, accessGateCache, logs })
 
   // Voice components

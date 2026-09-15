@@ -264,10 +264,16 @@ export async function createClusterSubscriberComponent(
     }
 
     metrics.increment('dcl_gatekeeper_cluster_reannounce_attempted_total')
+    // Addressed to the connecting session: it is the same identifier Pulse publishes as
+    // `session` (the auth chain's lower-cased ephemeral address) and the one WS Connector
+    // registered this socket under, so the credential reaches exactly that device. The mirror's
+    // session only stands in when the connect carries no valid key (an older WS Connector). With
+    // an older Pulse the mirror holds none, and using it would fall back to the legacy subject,
+    // which the connector delivers to the wallet's newest socket instead of to this one.
     await processClusterChange(wallet, {
       clusterId: entry.clusterId,
       realm: '',
-      session: entry.session,
+      session: SESSION_KEY.test(session) ? session : entry.session,
       displacedSession: '',
       displacedClusterId: ''
     })

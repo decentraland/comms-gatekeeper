@@ -9,6 +9,7 @@ import {
 import { PlayerAlreadyBannedError, BanNotFoundError } from './errors'
 import { createBanEvent, createBanLiftedEvent, createWarningEvent } from './events'
 import { AppComponents } from '../../types'
+import { accessGateCacheKeysOf } from '../access-gate/cache-keys'
 import { isErrorWithMessage } from '../errors'
 import { retry } from '../../utils/retrier'
 
@@ -22,10 +23,29 @@ function errorMessage(error: unknown): string {
 }
 
 export function createUserModerationComponent(
-  components: Pick<AppComponents, 'userModerationDb' | 'playerConnectionDb' | 'logs' | 'publisher' | 'livekit'>
+  components: Pick<
+    AppComponents,
+    'userModerationDb' | 'playerConnectionDb' | 'logs' | 'publisher' | 'livekit' | 'accessGateCache'
+  >
 ): IUserModerationComponent {
-  const { userModerationDb, playerConnectionDb, logs, publisher, livekit } = components
+  const { userModerationDb, playerConnectionDb, logs, publisher, livekit, accessGateCache } = components
   const logger = logs.getLogger('user-moderation')
+
+  // A cached "allowed" must not outlive the ban that follows it: the cluster subscriber mints
+  // from cached access-gate results for ACCESS_GATE_CACHE_TTL_MS. Forgetting the address's
+  // entries here, in the same process that will serve the next event, makes the ban take effect
+  // on the very next mint. A ban that captured a device reaches other wallets on that device,
+  // whose cached entries do not name it (the widening happens inside the lookup), so that case
+  // forgets everything. Best-effort: a failure here only leaves the TTL as the bound. Single
+  // replica; cross-replica propagation would be needed before scaling out.
+  async function forgetAccessDecisions(address: string, deviceId: string | null = null): Promise<void> {
+    try {
+      const keys = await accessGateCache.keys(deviceId ? undefined : accessGateCacheKeysOf(address))
+      await Promise.all(keys.map((key) => accessGateCache.remove(key)))
+    } catch (error: unknown) {
+      logger.warn(`Failed to forget cached access decisions for ${address}: ${errorMessage(error)}`)
+    }
+  }
 
   async function removeParticipantFromAllRooms(address: string): Promise<void> {
     try {
@@ -92,6 +112,7 @@ export function createUserModerationComponent(
         expiresAt
       })
 
+      await forgetAccessDecisions(normalizedAddress, bannedDeviceId)
       void publishModerationEvent(createBanEvent(ban))
       void removeParticipantFromAllRooms(normalizedAddress)
 
@@ -109,6 +130,8 @@ export function createUserModerationComponent(
         throw new BanNotFoundError(normalizedAddress)
       }
 
+      // The mirror image of the ban: a cached "banned" would keep the lifted wallet out for the TTL.
+      await forgetAccessDecisions(normalizedAddress, ban.bannedDeviceId ?? null)
       void publishModerationEvent(createBanLiftedEvent(ban))
     },
 

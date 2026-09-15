@@ -504,6 +504,22 @@ describe('cluster-subscriber component', () => {
       })
     })
 
+    describe('and a peer connect names a session while the mirrored assignment came from an older Pulse', () => {
+      beforeEach(async () => {
+        // No session on the wire: an older Pulse. The connect, from a newer WS Connector, names one.
+        await deliverToMirrorOnly(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
+        livekit.holdsParticipant.mockResolvedValue(false)
+
+        await deliverConnect(`peer.${WALLET}.connect`, '0xaa00000000000000000000000000000000000000')
+      })
+
+      it('should re-announce on the subject addressed to the connecting session, not the legacy one', () => {
+        expect(nats.publish.mock.calls[0][0]).toBe(
+          `engine.peer.${WALLET}.island_changed.0xaa00000000000000000000000000000000000000`
+        )
+      })
+    })
+
     describe('and a peer connect carries a legacy socket id instead of a session', () => {
       beforeEach(async () => {
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', '0xbb'))

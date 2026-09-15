@@ -1,3 +1,5 @@
+import { ICacheStorageComponent } from '@dcl/core-commons'
+import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { Events } from '@dcl/schemas'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { ILoggerComponent } from '@well-known-components/interfaces'
@@ -23,6 +25,7 @@ describe('user-moderation-component', () => {
   let mockPublisher: jest.Mocked<IPublisherComponent>
   let mockLogs: jest.Mocked<ILoggerComponent>
   let mockLivekit: jest.Mocked<Pick<ILivekitComponent, 'removeParticipantFromAllRooms'>>
+  let accessGateCache: ICacheStorageComponent
   let component: IUserModerationComponent
 
   beforeEach(() => {
@@ -51,12 +54,16 @@ describe('user-moderation-component', () => {
       removeParticipantFromAllRooms: jest.fn().mockResolvedValue(undefined)
     }
 
+    // Real, as in production: the specs below check which cached decisions survive a ban or a lift.
+    accessGateCache = createInMemoryCacheComponent()
+
     component = createUserModerationComponent({
       userModerationDb: mockUserModerationDb,
       playerConnectionDb: mockPlayerConnectionDb,
       logs: mockLogs,
       publisher: mockPublisher,
-      livekit: mockLivekit
+      livekit: mockLivekit,
+      accessGateCache
     } as any)
   })
 
@@ -341,7 +348,64 @@ describe('user-moderation-component', () => {
     })
   })
 
+  describe('when banning a player whose access decisions are cached', () => {
+    beforeEach(async () => {
+      mockUserModerationDb.isPlayerBanned.mockResolvedValueOnce({ isBanned: false })
+      mockUserModerationDb.createBan.mockResolvedValueOnce(makeBan())
+      await accessGateCache.set('0xabc|', { isBanned: false, isDenylisted: false })
+      await accessGateCache.set('0xabc|device-1', { isBanned: false, isDenylisted: false })
+      await accessGateCache.set('0xdef|', { isBanned: false, isDenylisted: false })
+    })
+
+    describe('and the ban captures no device', () => {
+      beforeEach(async () => {
+        await component.banPlayer('0xABC', '0xADMIN', 'Violation')
+      })
+
+      it('should forget every cached decision for the banned address', async () => {
+        await expect(accessGateCache.keys('0xabc|*')).resolves.toEqual([])
+      })
+
+      it('should keep the cached decisions of other addresses', async () => {
+        await expect(accessGateCache.exists('0xdef|')).resolves.toBe(true)
+      })
+    })
+
+    describe('and the ban captures a device', () => {
+      beforeEach(async () => {
+        // A device ban reaches other wallets on that device, whose cached entries do not name it.
+        mockPlayerConnectionDb.getByAddress.mockResolvedValueOnce({ deviceId: 'device-1' } as any)
+
+        await component.banPlayer('0xABC', '0xADMIN', 'Violation')
+      })
+
+      it('should forget every cached decision, since any wallet may share the device', async () => {
+        await expect(accessGateCache.keys()).resolves.toEqual([])
+      })
+    })
+  })
+
   describe('when lifting a ban', () => {
+    describe('and the access decisions of the address are cached', () => {
+      beforeEach(async () => {
+        mockUserModerationDb.liftBan.mockResolvedValueOnce(
+          makeBan({ liftedAt: new Date('2025-06-01'), liftedBy: '0xadmin' })
+        )
+        await accessGateCache.set('0xabc|', { isBanned: true, isDenylisted: false })
+        await accessGateCache.set('0xdef|', { isBanned: false, isDenylisted: false })
+
+        await component.liftBan('0xABC', '0xADMIN')
+      })
+
+      it('should forget the cached decisions for the lifted address', async () => {
+        await expect(accessGateCache.exists('0xabc|')).resolves.toBe(false)
+      })
+
+      it('should keep the cached decisions of other addresses', async () => {
+        await expect(accessGateCache.exists('0xdef|')).resolves.toBe(true)
+      })
+    })
+
     describe('and an active ban exists', () => {
       let ban: UserBan
 
