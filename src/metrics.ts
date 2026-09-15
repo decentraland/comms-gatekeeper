@@ -30,6 +30,10 @@ export const metricDeclarations = {
     help: 'Total cluster_change events skipped because the wallet is banned or denylisted',
     type: IMetricsComponent.CounterType
   },
+  dcl_gatekeeper_cluster_access_check_failed_total: {
+    help: 'Total cluster_change events let through because the access gate lookup failed (fail-open)',
+    type: IMetricsComponent.CounterType
+  },
   dcl_gatekeeper_cluster_connects_received_total: {
     help: 'Total peer connect events received from WS Connector',
     type: IMetricsComponent.CounterType

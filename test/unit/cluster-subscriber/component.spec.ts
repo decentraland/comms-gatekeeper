@@ -955,7 +955,7 @@ describe('cluster-subscriber component', () => {
       })
     })
 
-    describe('and the ban lookup fails once', () => {
+    describe('and the access gate lookup fails once', () => {
       beforeEach(async () => {
         accessGate.getAccessState.mockRejectedValueOnce(new Error('db down'))
 
@@ -967,8 +967,12 @@ describe('cluster-subscriber component', () => {
         expect(nats.publish).toHaveBeenCalledTimes(2)
       })
 
+      it('should count the let-through, so the trade-off stays observable', () => {
+        expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_access_check_failed_total')
+      })
+
       it('should warn about the wallet it let through', () => {
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Ban check failed for ${WALLET}`))
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`Access check failed for ${WALLET}`))
       })
     })
 

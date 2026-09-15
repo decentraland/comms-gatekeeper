@@ -122,6 +122,20 @@ wallet's last recorded device; deny list alongside), fail-open, result cached in
 evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false)` →
 publish.
 
+**Fail-open.** The access check is the one place in this service that fails open on the whole
+gate, deny list included. A `cluster_change` is a background event with no caller to return an
+error to: failing closed would not reject one request, it would stop island formation for every
+peer while either the ban store or the deny list is unreachable, and a world nobody can connect
+to is judged worse than a moderation gate that is briefly permissive. The cost, stated so it
+stays a known trade-off: during such an outage a banned or deny-listed wallet can be minted an
+island token. Two things bound it. Banning removes the participant from every live room at ban
+time, so only a *new* room joined during the outage is affected. And the gate caches nothing on
+a failure, so the very next event retries the lookup rather than the process staying wrong for
+the whole TTL. Every let-through is counted in `dcl_gatekeeper_cluster_access_check_failed_total`.
+This differs from the signed-fetch token handlers on purpose: there only the ban lookup fails
+open and a deny-list error still rejects the request, because that path is synchronous and the
+client can retry. Raised in review and accepted as a product decision.
+
 **Reconnects.** Pulse's feed is edge-triggered: it stays silent while a peer's cluster is
 unchanged. A client whose websocket drops and comes back without the crowd moving would
 therefore never be given a room, because nothing else in iteration 1 can originate an island
@@ -206,8 +220,9 @@ prefix is required so this service's own webhook handlers classify these rooms a
 feed archipelago-stats, but are deliberately unused here — both retire in iteration 2.
 
 **Metrics:** `dcl_gatekeeper_cluster_*_total` (including `dcl_gatekeeper_cluster_takeover_evicted_total`,
-`dcl_gatekeeper_cluster_takeover_failed_total`, `dcl_gatekeeper_cluster_takeover_absent_total` and
-`dcl_gatekeeper_cluster_reannounce_skipped_other_session_total`)
+`dcl_gatekeeper_cluster_takeover_failed_total`, `dcl_gatekeeper_cluster_takeover_absent_total`,
+`dcl_gatekeeper_cluster_reannounce_skipped_other_session_total` and
+`dcl_gatekeeper_cluster_access_check_failed_total`)
 and `dcl_gatekeeper_nats_connected`.
 
 **Dependency pin (temporary).** `@dcl/protocol` is pinned to the CDN branch tarball
