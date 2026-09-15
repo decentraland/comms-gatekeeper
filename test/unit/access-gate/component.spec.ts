@@ -1,8 +1,9 @@
+import { ICacheStorageComponent } from '@dcl/core-commons'
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { createModerationEpochComponent, IModerationEpochComponent } from '../../../src/adapters/moderation-epoch'
 import { AccessState, createAccessGateComponent, IAccessGateComponent } from '../../../src/logic/access-gate'
-import { createDeferred } from '../../utils'
+import { createDeferred, flushMacrotask } from '../../utils'
 import { createDenyListMockedComponent } from '../../mocks/denylist-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createUserModerationMockedComponent } from '../../mocks/user-moderation-mock'
@@ -16,9 +17,10 @@ describe('access-gate component', () => {
   let moderationEpoch: IModerationEpochComponent
   let logger: jest.Mocked<ILoggerComponent.ILogger>
 
-  async function build(cacheTtlMs?: number): Promise<IAccessGateComponent> {
-    // The real in-memory cache and epoch, as in production; a short TTL when a test needs expiry.
-    const accessGateCache = createInMemoryCacheComponent(cacheTtlMs ? { ttl: cacheTtlMs } : undefined)
+  async function build(cacheTtlMs?: number, cacheOverride?: ICacheStorageComponent): Promise<IAccessGateComponent> {
+    // The real in-memory cache and epoch, as in production; a short TTL when a test needs expiry,
+    // and a caller-supplied cache when a test needs to hold a read open.
+    const accessGateCache = cacheOverride ?? createInMemoryCacheComponent(cacheTtlMs ? { ttl: cacheTtlMs } : undefined)
     moderationEpoch = await createModerationEpochComponent()
     const logs = createLoggerMockedComponent({})
     const component = await createAccessGateComponent({
@@ -256,6 +258,9 @@ describe('access-gate component', () => {
       accessGate = await build()
 
       first = accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+      // Let the cache read settle so the ban lookup is genuinely in flight when the ban lands: a
+      // ban that commits before the lookup starts is simply seen by the lookup.
+      await flushMacrotask()
       moderationEpoch.bump()
       firstLookup.resolve({ isBanned: false })
       await first
@@ -268,6 +273,35 @@ describe('access-gate component', () => {
         isDenylisted: false
       })
       expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('when a moderation change lands while a cached decision is being read', () => {
+    let cacheRead: ReturnType<typeof createDeferred<{ state: AccessState; epoch: number } | null>>
+    let result: AccessState
+
+    beforeEach(async () => {
+      // The read is held open; the entry it returns was cached as "allowed" under the epoch that was
+      // current when the read began. The ban lands while the read is still in flight.
+      cacheRead = createDeferred<{ state: AccessState; epoch: number } | null>()
+      const pausedCache = { ...createInMemoryCacheComponent(), get: jest.fn().mockReturnValueOnce(cacheRead.promise) }
+      accessGate = await build(undefined, pausedCache as unknown as ICacheStorageComponent)
+      const epochWhenReadBegan = moderationEpoch.current()
+
+      const pending = accessGate.getAccessState({ address: ADDRESS }, { cached: true })
+      moderationEpoch.bump()
+      userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: true })
+      cacheRead.resolve({ state: { isBanned: false, isDenylisted: false }, epoch: epochWhenReadBegan })
+
+      result = await pending
+    })
+
+    it('should not accept the pre-ban decision the read returned', () => {
+      expect(result).toEqual({ isBanned: true, isDenylisted: false })
+    })
+
+    it('should query the gates instead', () => {
+      expect(userModeration.getActiveBanForConnection).toHaveBeenCalledTimes(1)
     })
   })
 

@@ -37,15 +37,19 @@ export async function createAccessGateComponent(
 
   async function getAccessState(query: ConnectionBanQuery, options: AccessGateOptions = {}): Promise<AccessState> {
     const key = cacheKey(query)
-    // Read before the lookups, and stamped into whatever they produce: a ban landing while they
-    // run moves the epoch on, and the decision written below is then already stale on arrival.
-    const epoch = moderationEpoch.current()
     if (options.cached) {
       const hit = await accessGateCache.get<CachedDecision>(key)
-      if (hit && hit.epoch === epoch) {
+      // Judged against the epoch as it stands AFTER the read, not a snapshot taken before it: a
+      // ban landing during that await moves the epoch on, and an entry stamped with the old one
+      // must then read as a miss. The comparison and the return below share no further await.
+      if (hit && hit.epoch === moderationEpoch.current()) {
         return { ...hit.state }
       }
     }
+
+    // Read right before the lookups and stamped into whatever they produce: a ban landing while
+    // they run moves the epoch on, and the decision written below is then already stale on arrival.
+    const epoch = moderationEpoch.current()
 
     const { address, deviceId } = query
     let banLookupFailed = false
