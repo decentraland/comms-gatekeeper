@@ -146,12 +146,17 @@ the same mint-and-publish path, so the client gets a freshly minted token rather
 expired one it was last sent.
 
 **Takeovers.** When a `cluster_change` names a `displaced_session`, that wallet's participant is removed
-from `island-{displaced_cluster_id}` with every token minted before that instant revoked, and only then
-is the new session's token minted — LiveKit revokes `nbf < revokeTokenTs` at second granularity, so the
-order is what keeps the new token valid. Three attempts, `CLUSTER_TAKEOVER_RETRY_DELAY_MS` × attempt apart. A
-not-found answer means the displaced participant had already left; it is counted as
-`dcl_gatekeeper_cluster_takeover_absent_total`, not retried, and — because LiveKit records the revocation
-only with a removal — its cached token stays valid until it expires (at most five minutes). The
+from `island-{displaced_cluster_id}` and the new session's token is minted across one revocation
+boundary. LiveKit revokes `nbf < revokeTokenTs` at second granularity and the SDK stamps `nbf` with the
+mint second, so a boundary of "now" would spare a displaced token minted in the same second. The boundary
+is therefore the **next whole second**: the removal revokes everything minted before it, and the
+replacement is minted with its `nbf` set to it (the adapter re-signs the SDK's token with that one claim
+replaced). LiveKit validates `nbf` with a minute of leeway, so the client uses the token immediately;
+nothing waits. Three attempts, `CLUSTER_TAKEOVER_RETRY_DELAY_MS` × attempt apart. A not-found answer means
+the displaced participant had already left; it is counted as `dcl_gatekeeper_cluster_takeover_absent_total`,
+not retried, and — because LiveKit records the revocation only with a removal — its cached token stays
+usable until it expires, which is why island tokens live only `CLUSTER_ISLAND_TOKEN_TTL_SECONDS` (60 s;
+other tokens keep five minutes). The
 displaced client reconnects against a revoked token and, once it re-handshakes, its `connect` names a
 session other than the one Pulse last published, so it is not re-announced either. No client change is
 involved; a superseded client loops without success by decision.

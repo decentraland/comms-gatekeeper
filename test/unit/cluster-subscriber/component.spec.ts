@@ -267,15 +267,38 @@ describe('cluster-subscriber component', () => {
     })
 
     describe('and a cluster_change names a displaced session', () => {
+      // 12:00:00.400 -> the boundary is the next whole second, 12:00:01.000.
+      const NOW_MS = Date.UTC(2026, 8, 15, 12, 0, 0, 400)
+      const BOUNDARY_MS = Date.UTC(2026, 8, 15, 12, 0, 1, 0)
+      let dateNow: jest.SpyInstance
+
       beforeEach(async () => {
+        dateNow = jest.spyOn(Date, 'now').mockReturnValue(NOW_MS)
+
         await deliver(
           `peer.${WALLET}.cluster_change`,
           clusterChange('C5', 'main', '0xbb', { displacedSession: '0xaa', displacedClusterId: 'C3' })
         )
       })
 
+      afterEach(() => {
+        dateNow.mockRestore()
+      })
+
       it('should remove the wallet from the displaced room with a revocation stamp', () => {
         expect(livekit.removeParticipant).toHaveBeenCalledWith('island-C3', WALLET, expect.any(Date))
+      })
+
+      it('should revoke everything minted before the next whole second, so a same-second token is covered', () => {
+        const [, , revokeBefore] = livekit.removeParticipant.mock.calls[0]
+
+        expect((revokeBefore as Date).getTime()).toBe(BOUNDARY_MS)
+      })
+
+      it('should mint the replacement not before that same boundary, so the revocation spares it', () => {
+        const [, , , , , options] = livekit.generateCredentials.mock.calls[0]
+
+        expect((options as { notBefore: Date }).notBefore.getTime()).toBe(BOUNDARY_MS)
       })
 
       it('should remove before it mints, so the new token is not older than the stamp', () => {
@@ -286,7 +309,10 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should still mint and publish for the new session', () => {
-        expect(livekit.generateCredentials).toHaveBeenCalledWith(WALLET, 'island-C5', { cast: [] }, false)
+        expect(livekit.generateCredentials).toHaveBeenCalledWith(WALLET, 'island-C5', { cast: [] }, false, undefined, {
+          notBefore: expect.any(Date),
+          ttlSeconds: 60
+        })
         expect(nats.publish).toHaveBeenCalledTimes(1)
       })
 
@@ -374,6 +400,21 @@ describe('cluster-subscriber component', () => {
       it('should still mint and publish once for the new session', () => {
         expect(livekit.generateCredentials).toHaveBeenCalledTimes(1)
         expect(nats.publish).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe('and the island token lifetime is configured', () => {
+      beforeEach(async () => {
+        component = await build({ numbers: { CLUSTER_ISLAND_TOKEN_TTL_SECONDS: 90 } })
+        await component[START_COMPONENT]!(startOptions)
+
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
+      })
+
+      it('should mint with the configured lifetime', () => {
+        expect(livekit.generateCredentials).toHaveBeenCalledWith(WALLET, 'island-C1', { cast: [] }, false, undefined, {
+          ttlSeconds: 90
+        })
       })
     })
 
@@ -484,7 +525,9 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should mint a token for the island room', () => {
-        expect(livekit.generateCredentials).toHaveBeenCalledWith(WALLET, 'island-C5', { cast: [] }, false)
+        expect(livekit.generateCredentials).toHaveBeenCalledWith(WALLET, 'island-C5', { cast: [] }, false, undefined, {
+          ttlSeconds: 60
+        })
       })
 
       it('should publish on the outbound subject', () => {
@@ -552,7 +595,14 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should lower-case it for the LiveKit identity, not only the publish subject', () => {
-        expect(livekit.generateCredentials).toHaveBeenCalledWith(LOWER_CASE_WALLET, 'island-C5', { cast: [] }, false)
+        expect(livekit.generateCredentials).toHaveBeenCalledWith(
+          LOWER_CASE_WALLET,
+          'island-C5',
+          { cast: [] },
+          false,
+          undefined,
+          { ttlSeconds: 60 }
+        )
       })
     })
 

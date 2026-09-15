@@ -229,7 +229,8 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
       expect(claims.video.canPublishData).toBe(true)
       expect(claims.video.canUpdateOwnMetadata).toBe(true)
       expect(claims.video.canPublishSources).toEqual(['microphone'])
-      expect(claims.exp - claims.nbf).toBe(300)
+      // Island tokens are short-lived on purpose (CLUSTER_ISLAND_TOKEN_TTL_SECONDS); other tokens keep five minutes.
+      expect(claims.exp - claims.nbf).toBe(60)
 
       // Pinning the claims above is not enough on its own: a token signed with the wrong
       // key decodes identically and every claim assertion above would still pass. This is

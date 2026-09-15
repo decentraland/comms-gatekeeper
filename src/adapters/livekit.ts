@@ -10,6 +10,7 @@ import {
   TrackSource,
   WebhookReceiver
 } from 'livekit-server-sdk'
+import { createHmac } from 'crypto'
 import { RoomType } from '@dcl/schemas'
 import { AppComponents, Permissions } from '../types'
 import {
@@ -18,13 +19,37 @@ import {
   LivekitCredentials,
   LivekitSettings,
   ParticipantPermissions,
-  RoomMetadata
+  RoomMetadata,
+  CredentialOptions
 } from '../types/livekit.type'
 import { isErrorWithMessage } from '../logic/errors'
 
 export const COMMUNITY_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-community'
 export const PRIVATE_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-private-'
 export const ISLAND_ROOM_PREFIX = 'island-'
+
+const DEFAULT_TOKEN_TTL_SECONDS = 5 * 60
+
+/**
+ * Re-signs a token the SDK built, replacing only its `nbf`.
+ *
+ * The SDK stamps `nbf` with the mint instant and offers no way to set it, so the payload is kept
+ * exactly as built (issuer, subject, expiry, grants) and signed the way the SDK signs: HS256 over
+ * the same header and payload with the API secret.
+ *
+ * @param jwt - The token as the SDK minted it.
+ * @param secret - The LiveKit API secret it was signed with.
+ * @param notBefore - The instant to stamp as `nbf`, floored to seconds like the SDK does.
+ * @returns The re-signed token.
+ */
+function withNotBefore(jwt: string, secret: string, notBefore: Date): string {
+  const [header, payload] = jwt.split('.')
+  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>
+  claims.nbf = Math.floor(notBefore.getTime() / 1000)
+  const body = `${header}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`
+  const signature = createHmac('sha256', secret).update(body).digest('base64url')
+  return `${body}.${signature}`
+}
 
 export async function createLivekitComponent(
   components: Pick<AppComponents, 'config' | 'logs' | 'roomMetadataQueue'>
@@ -82,7 +107,8 @@ export async function createLivekitComponent(
     roomId: string,
     permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    options?: CredentialOptions
   ): Promise<LivekitCredentials> {
     const settings = forPreview ? previewSettings : prodSettings
     const allSources = permissions.cast.includes(identity)
@@ -91,7 +117,7 @@ export async function createLivekitComponent(
       identity,
       name,
       metadata: metadata ? JSON.stringify(metadata) : undefined,
-      ttl: 5 * 60 // 5 minutes
+      ttl: options?.ttlSeconds ?? DEFAULT_TOKEN_TTL_SECONDS
     })
 
     const canPublishSources = allSources ? undefined : [TrackSource.MICROPHONE]
@@ -106,7 +132,8 @@ export async function createLivekitComponent(
       canPublishSources
     })
 
-    const jwt = await token.toJwt()
+    const minted = await token.toJwt()
+    const jwt = options?.notBefore ? withNotBefore(minted, settings.secret, options.notBefore) : minted
 
     if (roomId.startsWith(COMMUNITY_VOICE_CHAT_ROOM_PREFIX)) {
       try {

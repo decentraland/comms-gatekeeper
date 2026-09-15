@@ -7,6 +7,7 @@ import {
   ParticipantInfo
 } from 'livekit-server-sdk'
 import { RoomType } from '@dcl/schemas'
+import { createHmac } from 'crypto'
 import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX, createLivekitComponent } from '../../src/adapters/livekit'
 import { createKeyedQueueTestComponent } from '../utils'
 import { ILivekitComponent } from '../../src/types/livekit.type'
@@ -557,6 +558,18 @@ describe('when building connection URL', () => {
   })
 })
 
+type TokenTimes = { nbf: number; exp: number }
+
+function decodePayload(token: string): TokenTimes {
+  return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')) as TokenTimes
+}
+
+function signHs256(claims: Record<string, unknown>, secret: string): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+  const body = `${header}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`
+  return `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`
+}
+
 describe('when generating credentials', () => {
   const identity = 'test-user'
   const roomId = 'test-room'
@@ -583,6 +596,72 @@ describe('when generating credentials', () => {
       expect(result.url).toBe('wss://prod.livekit.example.com')
       expect(result.token).toBe('mock-jwt-token')
       expect(accessTokenToJwtSpy).toHaveBeenCalled()
+    })
+
+    it('should give tokens the five-minute default lifetime', async () => {
+      accessTokenToJwtSpy.mockRestore()
+
+      const result = await livekitComponent.generateCredentials(identity, roomId, permissions, false)
+      const payload = decodePayload(result.token)
+
+      // A one-second tolerance: exp and nbf are stamped a few microseconds apart.
+      expect(payload.exp - payload.nbf).toBeGreaterThanOrEqual(300)
+      expect(payload.exp - payload.nbf).toBeLessThanOrEqual(301)
+    })
+
+    describe('and a lifetime is given', () => {
+      let payload: TokenTimes
+
+      beforeEach(async () => {
+        accessTokenToJwtSpy.mockRestore()
+
+        const result = await livekitComponent.generateCredentials(identity, roomId, permissions, false, undefined, {
+          ttlSeconds: 60
+        })
+        payload = decodePayload(result.token)
+      })
+
+      it('should give the token that lifetime', () => {
+        expect(payload.exp - payload.nbf).toBeGreaterThanOrEqual(60)
+        expect(payload.exp - payload.nbf).toBeLessThanOrEqual(61)
+      })
+    })
+
+    describe('and a not-before is given', () => {
+      // A token as the SDK would mint it, with known claims, so the re-signing is checked exactly.
+      const MINTED_CLAIMS = {
+        iss: 'prod-api-key',
+        sub: identity,
+        nbf: 1_000_000,
+        exp: 1_000_300,
+        video: { room: roomId }
+      }
+      let token: string
+      let payload: Record<string, unknown>
+
+      beforeEach(async () => {
+        accessTokenToJwtSpy.mockResolvedValue(signHs256(MINTED_CLAIMS, 'prod-secret'))
+
+        const result = await livekitComponent.generateCredentials(identity, roomId, permissions, false, undefined, {
+          notBefore: new Date(1_000_001_000)
+        })
+        token = result.token
+        payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
+      })
+
+      it('should stamp the token with that nbf', () => {
+        expect(payload.nbf).toBe(1_000_001)
+      })
+
+      it('should keep every other claim as the SDK minted it', () => {
+        expect(payload).toEqual({ ...MINTED_CLAIMS, nbf: 1_000_001 })
+      })
+
+      it('should sign it with the API secret, as the SDK does', () => {
+        const [header, body, signature] = token.split('.')
+
+        expect(signature).toBe(createHmac('sha256', 'prod-secret').update(`${header}.${body}`).digest('base64url'))
+      })
     })
 
     it('should generate tokens whose nbf matches their issuance time', async () => {

@@ -34,17 +34,33 @@ export type RoomMetadata = {
 
 export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
 
+export type CredentialOptions = {
+  /** The token's `nbf`, instead of the mint instant. */
+  notBefore?: Date
+  /** Token lifetime in seconds; five minutes when omitted. */
+  ttlSeconds?: number
+}
+
 export type ILivekitComponent = IBaseComponent & {
   isLocalPreview: (realmName: string | undefined) => boolean
   isPreviewRealmName: (realmName: string | undefined) => boolean
   deleteRoom: (roomName: string) => Promise<void>
   buildConnectionUrl: (url: string, token: string) => string
+  /**
+   * Mints a room token and the URL to use it against.
+   *
+   * @param options - `notBefore` sets the token's `nbf` instead of the mint instant, for a
+   * takeover's replacement token minted at the boundary that revokes the displaced one; LiveKit
+   * validates `nbf` with a minute of leeway, so a boundary up to a second ahead is usable at once.
+   * `ttlSeconds` overrides the five-minute default lifetime.
+   */
   generateCredentials: (
     identity: string,
     roomId: string,
     permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    options?: CredentialOptions
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
   /**

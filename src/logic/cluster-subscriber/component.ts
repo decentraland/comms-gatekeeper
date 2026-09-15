@@ -4,12 +4,21 @@ import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfac
 import { NatsMessageHandler, NatsSubscription } from '../../adapters/nats'
 import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
+import { positiveNumberOr } from '../../utils/config'
 import { IClusterSubscriberComponent, MirrorEntry } from './types'
 
 const DEFAULT_QUEUE_GROUP = 'comms-gatekeeper-cluster'
 const DEFAULT_TAKEOVER_RETRY_DELAY_MS = 100
+// Short on purpose: the client uses the string within a second of receiving it, and a displaced
+// token the eviction could not reach (participant absent) stays usable only this long.
+const DEFAULT_ISLAND_TOKEN_TTL_SECONDS = 60
 const TAKEOVER_ATTEMPTS = 3
 const SESSION_KEY = /^0x[0-9a-f]{40}$/
+
+/** The start of the second after the current one, as a revocation boundary. */
+function nextWholeSecond(): Date {
+  return new Date((Math.floor(Date.now() / 1000) + 1) * 1000)
+}
 
 /**
  * Creates the subscriber that translates Pulse's cluster feed into LiveKit connection strings
@@ -70,11 +79,13 @@ export async function createClusterSubscriberComponent(
     components
   const logger = logs.getLogger('cluster-subscriber')
 
-  const [enabledFlag, queueGroupSetting, retryDelaySetting] = await Promise.all([
+  const [enabledFlag, queueGroupSetting, retryDelaySetting, islandTokenTtlSetting] = await Promise.all([
     config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
     config.getString('NATS_QUEUE_GROUP'),
-    config.getNumber('CLUSTER_TAKEOVER_RETRY_DELAY_MS')
+    config.getNumber('CLUSTER_TAKEOVER_RETRY_DELAY_MS'),
+    config.getNumber('CLUSTER_ISLAND_TOKEN_TTL_SECONDS')
   ])
+  const islandTokenTtlSeconds = positiveNumberOr(islandTokenTtlSetting, DEFAULT_ISLAND_TOKEN_TTL_SECONDS)
 
   const enabled = enabledFlag === 'true'
   const queueGroup = queueGroupSetting || DEFAULT_QUEUE_GROUP
@@ -103,17 +114,25 @@ export async function createClusterSubscriberComponent(
       return
     }
 
-    // Before the mint: LiveKit revokes tokens whose nbf is before the stamp at second
-    // granularity, so the new session's token must not exist yet when the stamp is taken.
-    if (change.displacedSession) {
-      await evictDisplacedSession(wallet, change)
+    // A takeover revokes the displaced session's tokens and mints the replacement across one
+    // boundary. LiveKit revokes tokens whose nbf is before the stamp, at second granularity, and
+    // the SDK stamps nbf with the mint second, so a stamp of "now" would spare a displaced token
+    // minted in this same second. The boundary is therefore the NEXT whole second: every token
+    // minted so far is before it, and the replacement is minted with its nbf set to it. LiveKit
+    // validates nbf with a minute of leeway, so the client can use that token at once, no waiting.
+    const revocationBoundary = change.displacedSession ? nextWholeSecond() : undefined
+    if (revocationBoundary) {
+      await evictDisplacedSession(wallet, change, revocationBoundary)
     }
 
     const room = livekit.getIslandRoomName(change.clusterId)
 
     // No suppression for a repeat/no-op assignment - Pulse only re-announces a cluster after
     // forgetting a peer, i.e. a reconnect that needs a fresh token (docs/ai-agent-context.md).
-    const credentials = await livekit.generateCredentials(wallet, room, { cast: [] }, false)
+    const credentials = await livekit.generateCredentials(wallet, room, { cast: [] }, false, undefined, {
+      ...(revocationBoundary ? { notBefore: revocationBoundary } : {}),
+      ttlSeconds: islandTokenTtlSeconds
+    })
     metrics.increment('dcl_gatekeeper_cluster_tokens_minted_total')
 
     const previous = peerState.get(wallet)
@@ -160,10 +179,10 @@ export async function createClusterSubscriberComponent(
   }
 
   // Removes the displaced session's participant from the room it was last published into and
-  // revokes every token minted for the wallet before now. Retried: this runs on a background
-  // feed with nobody to report to, and a transient LiveKit error would otherwise leave two
-  // sessions in comms until one of them leaves.
-  async function evictDisplacedSession(wallet: string, change: PeerClusterChange): Promise<void> {
+  // revokes every token minted for the wallet before `revokeBefore`. Retried: this runs on a
+  // background feed with nobody to report to, and a transient LiveKit error would otherwise
+  // leave two sessions in comms until one of them leaves.
+  async function evictDisplacedSession(wallet: string, change: PeerClusterChange, revokeBefore: Date): Promise<void> {
     if (!change.displacedClusterId) {
       metrics.increment('dcl_gatekeeper_cluster_takeover_failed_total')
       logger.warn(`Cannot evict displaced session ${change.displacedSession} of ${wallet}: no displaced cluster named`)
@@ -173,7 +192,7 @@ export async function createClusterSubscriberComponent(
     const room = livekit.getIslandRoomName(change.displacedClusterId)
     for (let attempt = 1; attempt <= TAKEOVER_ATTEMPTS; attempt++) {
       try {
-        await livekit.removeParticipant(room, wallet, new Date())
+        await livekit.removeParticipant(room, wallet, revokeBefore)
         metrics.increment('dcl_gatekeeper_cluster_takeover_evicted_total')
         return
       } catch (error) {
