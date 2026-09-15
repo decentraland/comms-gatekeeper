@@ -301,7 +301,11 @@ export async function createClusterSubscriberComponent(
 
     // Serialized per wallet: an out-of-order mint would publish a stale room and corrupt the
     // next fromIslandId, and two concurrent misses on the gate's cache would both pay the round
-    // trip. Across replicas nothing serializes, as the queue group has no per-wallet affinity.
+    // trip. LOCAL TO THIS PROCESS ONLY: the queue, peer state and their ordering guarantees do
+    // not span replicas, and the queue group has no per-wallet affinity. This service runs as a
+    // single replica; before scaling it out, two events for one wallet could land on different
+    // replicas and publish out of order, so that step needs a per-wallet sequence from Pulse
+    // or wallet-affine routing first.
     void clusterWalletQueue
       .enqueue(wallet, () => processClusterChange(wallet, change))
       .catch((error) => {

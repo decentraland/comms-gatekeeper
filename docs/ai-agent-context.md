@@ -180,6 +180,17 @@ for the wallet is skipped (`…reannounce_skipped_other_session_total`): that de
 repeated string for a room the client was just handed is de-duplicated by WS Connector, which knows
 what it delivered to which socket; gatekeeper keeps no timing state.
 
+**Single replica.** The service is deployed as one replica, and the subscriber's ordering relies
+on that: the wallet queue and peer state are process-local and the queue group has no per-wallet
+affinity, so with two or more replicas consecutive events for one wallet could publish out of
+order. Scaling out needs a per-wallet sequence in the Pulse payload (or wallet-affine routing)
+before the queue group can be trusted with ordering.
+
+**Enable order.** `CLUSTER_SUBSCRIBER_ENABLED` is the compatibility gate. With it off nothing
+here subscribes, publishes or connects. Turn it on only where WS Connector already subscribes to
+the five-token subject (archipelago-workers PR 128); an older connector matches four tokens only
+and silently drops every sessioned assignment.
+
 **Known limitations.** A replica that has just started has an empty mirror and cannot answer a
 reconnect until each wallet's next genuine cluster change; because the connect subscription is
 grouped, a connect routed to such a replica is dropped rather than passed on. Entries also age
