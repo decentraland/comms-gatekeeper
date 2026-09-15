@@ -60,15 +60,13 @@ import { createModeratorComponent } from './logic/moderator'
 import { createNatsComponent } from './adapters/nats'
 import { createPeerStateComponent } from './adapters/peer-state'
 import { createKeyedQueueComponent } from './adapters/keyed-queue'
-import { createModerationEpochComponent } from './adapters/moderation-epoch'
+import { createBanRegistryComponent, withBanRegistry } from './adapters/ban-registry'
 import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
 import { positiveNumberOr } from './utils/config'
 
 const ASSIGNMENT_MIRROR_DEFAULT_MAX = 20_000
 const ASSIGNMENT_MIRROR_DEFAULT_TTL_MS = 60 * 60 * 1000
-const ACCESS_GATE_CACHE_MAX = 20_000
-const ACCESS_GATE_CACHE_DEFAULT_TTL_MS = 30_000
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -162,7 +160,12 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     apps: [ApplicationName.DAPPS]
   })
 
-  const userModerationDb = createUserModerationDBComponent({ database, logs })
+  // The active platform bans, in memory. The registry decorates the database component: every
+  // ban or lift written through it updates memory, and a connection lookup is answered from
+  // memory while it is loaded, with a "banned" answer confirmed against the table first.
+  const userModerationStore = createUserModerationDBComponent({ database, logs })
+  const banRegistry = await createBanRegistryComponent({ userModerationDb: userModerationStore, config, logs })
+  const userModerationDb = withBanRegistry(userModerationStore, banRegistry)
   const playerConnectionDb = createPlayerConnectionDBComponent({ database, logs })
   const moderator = await createModeratorComponent({ features, logs, config })
 
@@ -199,33 +202,15 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const publisher = await createSnsComponent({ config })
 
-  // Dedicated instance for the gate's opt-in result cache. Guarded because the library reads
-  // ttl 0 as never expiring, and a ban added after a wallet was cached as allowed would then
-  // never take effect. Each entry carries the moderation epoch it was computed under.
-  const accessGateCache = createInMemoryCacheComponent({
-    max: ACCESS_GATE_CACHE_MAX,
-    ttl: positiveNumberOr(await config.getNumber('ACCESS_GATE_CACHE_TTL_MS'), ACCESS_GATE_CACHE_DEFAULT_TTL_MS)
-  })
-
-  // Moved on by every ban and lift; the gate honours a cached decision only while its epoch is current.
-  const moderationEpoch = await createModerationEpochComponent()
-
   const userModeration = createUserModerationComponent({
     userModerationDb,
     playerConnectionDb,
     logs,
     publisher,
-    livekit,
-    moderationEpoch
+    livekit
   })
 
-  const accessGate = await createAccessGateComponent({
-    userModeration,
-    denyList,
-    accessGateCache,
-    moderationEpoch,
-    logs
-  })
+  const accessGate = await createAccessGateComponent({ userModeration, denyList, logs })
 
   // Voice components
   const voiceDB = await createVoiceDBComponent({ database, logs, config, livekit })
@@ -391,8 +376,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     nats,
     peerState,
     assignmentMirror,
-    accessGateCache,
-    moderationEpoch,
+    banRegistry,
     accessGate,
     clusterWalletQueue,
     clusterSubscriber

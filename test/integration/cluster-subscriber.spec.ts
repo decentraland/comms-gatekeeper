@@ -398,13 +398,13 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
   })
 
   describe('when the wallet is banned right after an allowed assignment', () => {
-    it('should publish nothing for the next assignment, despite the cached allow', async () => {
+    it('should publish nothing for the next assignment', async () => {
       if (!brokerAvailable) {
         return
       }
 
-      // The first event caches an "allowed" decision for ACCESS_GATE_CACHE_TTL_MS. The ban has
-      // to reach the next event anyway, or a just-banned wallet gets a fresh island token.
+      // The ban registry must reflect the ban on the very next event, or a just-banned wallet
+      // gets a fresh island token.
       publishClusterChange(REBANNED_WALLET, 'C50')
       expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C50')
 

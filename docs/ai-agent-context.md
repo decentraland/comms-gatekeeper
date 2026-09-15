@@ -117,8 +117,8 @@ is published empty: unity-explorer reads only `connStr`. WS Connector must alrea
 five-token subject in an environment before this runs.
 
 **Pipeline:** decode → access gate by address (user moderation widens the ban check to the
-wallet's last recorded device; deny list alongside), fail-open, result cached in the gate for
-`ACCESS_GATE_CACHE_TTL_MS` (30 s) →
+wallet's last recorded device and answers it from the in-memory ban registry; deny list
+alongside), fail-open →
 evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false)` →
 publish.
 
@@ -189,8 +189,9 @@ what it delivered to which socket; gatekeeper keeps no timing state.
 on that: the wallet queue and peer state are process-local and the queue group has no per-wallet
 affinity, so with two or more replicas consecutive events for one wallet could publish out of
 order. Scaling out needs a per-wallet sequence in the Pulse payload (or wallet-affine routing)
-before the queue group can be trusted with ordering, and the moderation epoch that stales cached
-access decisions on a ban, in-process today, would need to reach every replica.
+before the queue group can be trusted with ordering, and the ban registry, which a ban or lift
+updates in-process today, would need every replica to learn of the change (the periodic reload
+bounds that gap but does not close it).
 
 **Enable order.** `CLUSTER_SUBSCRIBER_ENABLED` is the compatibility gate. With it off nothing
 here subscribes, publishes or connects. Turn it on only where WS Connector already subscribes to
@@ -224,11 +225,12 @@ mirror (a dedicated `@dcl/memory-cache-component` instance, see **Reconnects**),
 and connects with; the LiveKit adapter uses its own instance to order room-metadata writes; both
 drain in-flight tasks on stop, bounded by `KEYED_QUEUE_DRAIN_TIMEOUT_MS`) and
 `src/logic/access-gate/` (the platform-ban + deny-list lookup shared with the two signed-fetch
-token handlers, with an opt-in result cache, a dedicated `@dcl/memory-cache-component` instance,
-that only the subscriber uses; every cached decision carries the moderation epoch it was computed
-under, `src/adapters/moderation-epoch/`, which every ban and lift moves on, so a ban reaches the very
-next mint, a lookup in flight during the ban is recomputed before its answer is returned or cached,
-and a stale allow can neither be served nor written back). Island room names
+token handlers) and `src/adapters/ban-registry/` (the active platform bans in memory, decorating
+the user-moderation database component: every ban or lift written through it updates memory, a
+connection lookup is answered from memory while it is loaded, a "banned" answer is confirmed
+against the table before it is trusted, and a periodic reload every `BAN_REGISTRY_REFRESH_MS` picks
+up writes made behind the service's back; so there is no result cache to go stale and a ban reaches
+the very next mint). Island room names
 come from `livekit.getIslandRoomName`, alongside every other
 room-name builder in that adapter.
 
