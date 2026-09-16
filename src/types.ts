@@ -37,6 +37,12 @@ import { IPublisherComponent } from '@dcl/sns-component'
 import { IUserModerationComponent, IUserModerationDatabaseComponent } from './logic/user-moderation/types'
 import { IModeratorComponent } from './logic/moderator'
 import { IFeaturesComponent } from '@dcl/features-component'
+import { INatsComponent } from './adapters/nats'
+import { IPeerStateComponent } from './adapters/peer-state'
+import { IKeyedQueueComponent } from './adapters/keyed-queue'
+import { IModerationEpochComponent } from './adapters/moderation-epoch'
+import { IAccessGateComponent } from './logic/access-gate'
+import { IClusterSubscriberComponent } from './logic/cluster-subscriber/types'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -52,6 +58,8 @@ export type BaseComponents = {
   fetch: IFetchComponent
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
   livekit: ILivekitComponent
+  /** Serializes the LiveKit adapter's read-modify-write room-metadata updates per room. */
+  roomMetadataQueue: IKeyedQueueComponent
   database: IPgComponent
   sceneAdminManager: ISceneAdminManager
   sceneBanManager: ISceneBanManager
@@ -87,6 +95,25 @@ export type BaseComponents = {
   userModeration: IUserModerationComponent
   moderator: IModeratorComponent
   features: IFeaturesComponent
+  nats: INatsComponent
+  peerState: IPeerStateComponent
+  /**
+   * The assignment Pulse last published per wallet, keyed by lower-cased wallet and holding a
+   * cluster-subscriber `MirrorEntry`. A cache instance dedicated to the cluster subscriber, sized
+   * by `CLUSTER_ASSIGNMENT_MIRROR_MAX` and `CLUSTER_ASSIGNMENT_MIRROR_TTL_MS`.
+   */
+  assignmentMirror: ICacheStorageComponent
+  /**
+   * Access-gate results for callers that opt into caching, keyed by lower-cased address and
+   * device id. A cache instance dedicated to the gate, with its TTL from `ACCESS_GATE_CACHE_TTL_MS`.
+   */
+  accessGateCache: ICacheStorageComponent
+  /** Counter moved on by every ban and lift; cached access decisions are valid only under the current one. */
+  moderationEpoch: IModerationEpochComponent
+  accessGate: IAccessGateComponent
+  /** Serializes the cluster subscriber's work per wallet, cluster changes and connects alike. */
+  clusterWalletQueue: IKeyedQueueComponent
+  clusterSubscriber: IClusterSubscriberComponent
 }
 
 export type AppComponents = BaseComponents & {

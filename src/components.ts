@@ -57,6 +57,18 @@ import { createFeaturesComponent, ApplicationName } from '@dcl/features-componen
 import { createUserModerationDBComponent } from './adapters/user-moderation-db'
 import { createUserModerationComponent } from './logic/user-moderation'
 import { createModeratorComponent } from './logic/moderator'
+import { createNatsComponent } from './adapters/nats'
+import { createPeerStateComponent } from './adapters/peer-state'
+import { createKeyedQueueComponent } from './adapters/keyed-queue'
+import { createModerationEpochComponent } from './adapters/moderation-epoch'
+import { createAccessGateComponent } from './logic/access-gate'
+import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
+import { positiveNumberOr } from './utils/config'
+
+const ASSIGNMENT_MIRROR_DEFAULT_MAX = 20_000
+const ASSIGNMENT_MIRROR_DEFAULT_TTL_MS = 60 * 60 * 1000
+const ACCESS_GATE_CACHE_MAX = 20_000
+const ACCESS_GATE_CACHE_DEFAULT_TTL_MS = 30_000
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -86,7 +98,21 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   instrumentHttpServerWithRequestLogger({ server, logger: logs })
 
-  const livekit = await createLivekitComponent({ config, logs })
+  const roomMetadataQueue = await createKeyedQueueComponent({ config, logs })
+  const livekit = await createLivekitComponent({ config, logs, roomMetadataQueue })
+  const nats = await createNatsComponent({ config, logs, metrics })
+  const peerState = await createPeerStateComponent({ config })
+
+  // Dedicated instance so mirror entries never compete with room-metadata-sync's cooldown keys in
+  // `cache`. Guarded because the library reads ttl 0 as never expiring and rejects max 0.
+  const [mirrorMaxSetting, mirrorTtlSetting] = await Promise.all([
+    config.getNumber('CLUSTER_ASSIGNMENT_MIRROR_MAX'),
+    config.getNumber('CLUSTER_ASSIGNMENT_MIRROR_TTL_MS')
+  ])
+  const assignmentMirror = createInMemoryCacheComponent({
+    max: positiveNumberOr(mirrorMaxSetting, ASSIGNMENT_MIRROR_DEFAULT_MAX),
+    ttl: positiveNumberOr(mirrorTtlSetting, ASSIGNMENT_MIRROR_DEFAULT_TTL_MS)
+  })
 
   let databaseUrl: string | undefined = await config.getString('PG_COMPONENT_PSQL_CONNECTION_STRING')
   if (!databaseUrl) {
@@ -173,12 +199,32 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const publisher = await createSnsComponent({ config })
 
+  // Dedicated instance for the gate's opt-in result cache. Guarded because the library reads
+  // ttl 0 as never expiring, and a ban added after a wallet was cached as allowed would then
+  // never take effect. Each entry carries the moderation epoch it was computed under.
+  const accessGateCache = createInMemoryCacheComponent({
+    max: ACCESS_GATE_CACHE_MAX,
+    ttl: positiveNumberOr(await config.getNumber('ACCESS_GATE_CACHE_TTL_MS'), ACCESS_GATE_CACHE_DEFAULT_TTL_MS)
+  })
+
+  // Moved on by every ban and lift; the gate honours a cached decision only while its epoch is current.
+  const moderationEpoch = await createModerationEpochComponent()
+
   const userModeration = createUserModerationComponent({
     userModerationDb,
     playerConnectionDb,
     logs,
     publisher,
-    livekit
+    livekit,
+    moderationEpoch
+  })
+
+  const accessGate = await createAccessGateComponent({
+    userModeration,
+    denyList,
+    accessGateCache,
+    moderationEpoch,
+    logs
   })
 
   // Voice components
@@ -274,6 +320,19 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     logs
   })
 
+  const clusterWalletQueue = await createKeyedQueueComponent({ config, logs })
+  const clusterSubscriber = await createClusterSubscriberComponent({
+    config,
+    logs,
+    metrics,
+    nats,
+    livekit,
+    accessGate,
+    peerState,
+    assignmentMirror,
+    clusterWalletQueue
+  })
+
   const livekitWebhook = createLivekitWebhookComponent()
 
   livekitWebhook.registerEventHandler(ingressStartedHandler)
@@ -303,6 +362,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneManager,
     social,
     livekit,
+    roomMetadataQueue,
     database,
     voiceDB,
     playerConnectionDb,
@@ -327,6 +387,14 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     userModerationDb,
     userModeration,
     moderator,
-    features
+    features,
+    nats,
+    peerState,
+    assignmentMirror,
+    accessGateCache,
+    moderationEpoch,
+    accessGate,
+    clusterWalletQueue,
+    clusterSubscriber
   }
 }

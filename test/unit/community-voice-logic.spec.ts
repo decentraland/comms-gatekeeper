@@ -9,6 +9,7 @@ import { AnalyticsEventPayload } from '../../src/types/analytics'
 import { CommunityRole } from '../../src/types/social.type'
 import { CommunityVoiceChatAction } from '../../src/types/community-voice'
 import { createLivekitComponent } from '../../src/adapters/livekit'
+import { createKeyedQueueTestComponent } from '../utils'
 import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 import { createVoiceDBMockedComponent } from '../mocks/voice-db-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
@@ -66,7 +67,11 @@ describe('CommunityVoiceLogic', () => {
     })
 
     mockLogs = createLoggerMockedComponent()
-    livekit = await createLivekitComponent({ logs: mockLogs, config: mockConfig })
+    livekit = await createLivekitComponent({
+      logs: mockLogs,
+      config: mockConfig,
+      roomMetadataQueue: await createKeyedQueueTestComponent()
+    })
 
     mockAnalytics = {
       fireEvent: jest.fn(),

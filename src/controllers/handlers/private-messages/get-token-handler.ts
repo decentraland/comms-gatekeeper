@@ -5,12 +5,12 @@ import { getRequestIp } from '../../../logic/utils'
 
 export async function getPrivateMessagesTokenHandler(
   context: HandlerContextWithPath<
-    'fetch' | 'livekit' | 'logs' | 'denyList' | 'social' | 'config' | 'userModeration' | 'playerConnectionDb',
+    'fetch' | 'livekit' | 'logs' | 'accessGate' | 'social' | 'config' | 'playerConnectionDb',
     '/private-messages/token'
   >
 ) {
   const {
-    components: { livekit, logs, denyList, config, social, userModeration, playerConnectionDb }
+    components: { livekit, logs, accessGate, config, social, playerConnectionDb }
   } = context
 
   const identity: string | undefined = context.verification?.auth.toLowerCase()
@@ -28,14 +28,13 @@ export async function getPrivateMessagesTokenHandler(
   // round-trip on the hot path. The connection-info upsert is best-effort (never blocks token
   // issuance); the deny-list and ban checks keep their current behavior. Gate precedence (deny
   // list → platform ban) is preserved below.
-  const [, isDenylisted, banStatus] = await Promise.all([
+  const [, { isDenylisted, isBanned }] = await Promise.all([
     playerConnectionDb
       .upsertPlayerConnection({ address: identity, ipAddress, deviceId: deviceIdentifier })
       .catch((error) => {
         logger.warn(`Failed to store player connection info for ${identity}: ${error}`)
       }),
-    denyList.isDenylisted(identity),
-    userModeration.getActiveBanForConnection({ address: identity, deviceId: deviceIdentifier })
+    accessGate.getAccessState({ address: identity, deviceId: deviceIdentifier })
   ])
 
   if (isDenylisted) {
@@ -43,7 +42,7 @@ export async function getPrivateMessagesTokenHandler(
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
 
-  if (banStatus.isBanned) {
+  if (isBanned) {
     logger.warn(`Rejected connection from platform-banned user: ${identity}`)
     throw new ForbiddenError('Access denied, platform-banned user')
   }

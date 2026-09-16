@@ -10,11 +10,10 @@ export async function commsSceneHandler(
     | 'cast'
     | 'livekit'
     | 'logs'
-    | 'denyList'
+    | 'accessGate'
     | 'sceneBans'
     | 'places'
     | 'worlds'
-    | 'userModeration'
     | 'playerConnectionDb'
     | 'sceneManager'
     | 'sceneStreamAccessManager',
@@ -22,18 +21,7 @@ export async function commsSceneHandler(
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: {
-      cast,
-      livekit,
-      logs,
-      denyList,
-      sceneBans,
-      worlds,
-      userModeration,
-      playerConnectionDb,
-      sceneManager,
-      places
-    }
+    components: { cast, livekit, logs, accessGate, sceneBans, worlds, playerConnectionDb, sceneManager, places }
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
@@ -42,23 +30,22 @@ export async function commsSceneHandler(
   const ipAddress = getRequestIp(context.request.headers)
 
   // These checks only depend on the resolved identity, so run them concurrently to save a DB
-  // round-trip on the hot path. Each is isolated to keep its current behavior: the
-  // connection-info upsert is best-effort (never blocks token issuance) and the platform-ban
-  // check fails open on error. Gate precedence (platform ban → deny list) is preserved below.
-  const [, banStatus, isDenylisted] = await Promise.all([
+  // round-trip on the hot path. The connection-info upsert is best-effort (never blocks token
+  // issuance); the ban lookup fails open while the deny list still propagates. Gate precedence
+  // (platform ban → deny list) is preserved below.
+  // Named for the platform gate specifically: a scene-scoped `isBanned` is declared further
+  // down, and two different ban concepts sharing one name in this function is how the scene
+  // check quietly stops being enforced the day someone moves that declaration.
+  const [, { isBanned: isPlatformBanned, isDenylisted }] = await Promise.all([
     playerConnectionDb
       .upsertPlayerConnection({ address: identity, ipAddress, deviceId: deviceIdentifier })
       .catch((error) => {
         logger.warn(`Failed to store player connection info for ${identity}: ${error}`)
       }),
-    userModeration.getActiveBanForConnection({ address: identity, deviceId: deviceIdentifier }).catch((error) => {
-      logger.warn(`Error checking platform ban status for ${identity}: ${error}`)
-      return { isBanned: false }
-    }),
-    denyList.isDenylisted(identity)
+    accessGate.getAccessState({ address: identity, deviceId: deviceIdentifier }, { failOpenOnBanLookupError: true })
   ])
 
-  if (banStatus.isBanned) {
+  if (isPlatformBanned) {
     logger.warn(`Rejected connection from platform-banned user: ${identity}`)
     throw new ForbiddenError('Access denied, platform-banned user')
   }

@@ -10,6 +10,7 @@ import {
   TrackSource,
   WebhookReceiver
 } from 'livekit-server-sdk'
+import { createHmac } from 'crypto'
 import { RoomType } from '@dcl/schemas'
 import { AppComponents, Permissions } from '../types'
 import {
@@ -18,7 +19,8 @@ import {
   LivekitCredentials,
   LivekitSettings,
   ParticipantPermissions,
-  RoomMetadata
+  RoomMetadata,
+  CredentialOptions
 } from '../types/livekit.type'
 import { isErrorWithMessage } from '../logic/errors'
 
@@ -26,10 +28,33 @@ export const COMMUNITY_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-community'
 export const PRIVATE_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-private-'
 export const ISLAND_ROOM_PREFIX = 'island-'
 
+const DEFAULT_TOKEN_TTL_SECONDS = 5 * 60
+
+/**
+ * Re-signs a token the SDK built, replacing only its `nbf`.
+ *
+ * The SDK stamps `nbf` with the mint instant and offers no way to set it, so the payload is kept
+ * exactly as built (issuer, subject, expiry, grants) and signed the way the SDK signs: HS256 over
+ * the same header and payload with the API secret.
+ *
+ * @param jwt - The token as the SDK minted it.
+ * @param secret - The LiveKit API secret it was signed with.
+ * @param notBefore - The instant to stamp as `nbf`, floored to seconds like the SDK does.
+ * @returns The re-signed token.
+ */
+function withNotBefore(jwt: string, secret: string, notBefore: Date): string {
+  const [header, payload] = jwt.split('.')
+  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>
+  claims.nbf = Math.floor(notBefore.getTime() / 1000)
+  const body = `${header}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`
+  const signature = createHmac('sha256', secret).update(body).digest('base64url')
+  return `${body}.${signature}`
+}
+
 export async function createLivekitComponent(
-  components: Pick<AppComponents, 'config' | 'logs'>
+  components: Pick<AppComponents, 'config' | 'logs' | 'roomMetadataQueue'>
 ): Promise<ILivekitComponent> {
-  const { config, logs } = components
+  const { config, logs, roomMetadataQueue } = components
 
   const logger = logs.getLogger('livekit-adapter')
 
@@ -82,7 +107,8 @@ export async function createLivekitComponent(
     roomId: string,
     permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    options?: CredentialOptions
   ): Promise<LivekitCredentials> {
     const settings = forPreview ? previewSettings : prodSettings
     const allSources = permissions.cast.includes(identity)
@@ -91,7 +117,7 @@ export async function createLivekitComponent(
       identity,
       name,
       metadata: metadata ? JSON.stringify(metadata) : undefined,
-      ttl: 5 * 60 // 5 minutes
+      ttl: options?.ttlSeconds ?? DEFAULT_TOKEN_TTL_SECONDS
     })
 
     const canPublishSources = allSources ? undefined : [TrackSource.MICROPHONE]
@@ -106,7 +132,8 @@ export async function createLivekitComponent(
       canPublishSources
     })
 
-    const jwt = await token.toJwt()
+    const minted = await token.toJwt()
+    const jwt = options?.notBefore ? withNotBefore(minted, settings.secret, options.notBefore) : minted
 
     if (roomId.startsWith(COMMUNITY_VOICE_CHAT_ROOM_PREFIX)) {
       try {
@@ -209,11 +236,26 @@ export async function createLivekitComponent(
     return roomName.replace(`${COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-`, '')
   }
 
+  function getIslandRoomName(islandName: string): string {
+    return `${ISLAND_ROOM_PREFIX}${islandName}`
+  }
+
   function getIslandNameFromRoomName(roomName: string): string {
     return roomName.replace(ISLAND_ROOM_PREFIX, '')
   }
 
   function getRoomMetadataFromRoomName(roomName: string): RoomMetadata {
+    // Island room: island-{islandName}. Checked first, ahead of the scene and world
+    // branches, because those match on configurable prefixes that are empty by default —
+    // `roomName.startsWith('')` is always true, so an empty SCENE_ROOM_PREFIX would
+    // swallow every island room and report it to SNS as a scene with a bogus realm.
+    // `island-` is a literal prefix no other room shape in this service produces, so
+    // matching it first cannot reclassify anything else.
+    if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
+      const islandName = getIslandNameFromRoomName(roomName)
+      return { islandName, roomType: RoomType.ISLAND }
+    }
+
     // Scene room: {sceneRoomPrefix}{realmName}:{sceneId}
     if (roomName.startsWith(sceneRoomPrefix)) {
       const [realmName, sceneId] = roomName.replace(sceneRoomPrefix, '').split(':')
@@ -237,12 +279,6 @@ export async function createLivekitComponent(
     if (commsRoomPrefix && roomName.startsWith(commsRoomPrefix)) {
       const worldName = roomName.slice(commsRoomPrefix.length)
       return { worldName, roomType: RoomType.WORLD }
-    }
-
-    // Island room: island-{islandName}
-    if (roomName.startsWith(ISLAND_ROOM_PREFIX)) {
-      const islandName = getIslandNameFromRoomName(roomName)
-      return { islandName, roomType: RoomType.ISLAND }
     }
 
     // Community voice chat: {COMMUNITY_VOICE_CHAT_ROOM_PREFIX}-{communityId}
@@ -288,8 +324,17 @@ export async function createLivekitComponent(
     })
   }
 
-  async function removeParticipant(roomId: string, participantId: string): Promise<void> {
-    await roomClient.removeParticipant(roomId, participantId)
+  async function removeParticipant(
+    roomId: string,
+    participantId: string,
+    revokeTokensMintedBefore?: Date
+  ): Promise<void> {
+    // Seconds, matching the `nbf` unit LiveKit compares it against.
+    const options = revokeTokensMintedBefore
+      ? { revokeTokenTs: BigInt(Math.floor(revokeTokensMintedBefore.getTime() / 1000)) }
+      : undefined
+
+    await roomClient.removeParticipant(roomId, participantId, options)
   }
 
   async function removeParticipantFromAllRooms(participantIdentity: string): Promise<void> {
@@ -422,6 +467,34 @@ export async function createLivekitComponent(
     }
   }
 
+  /**
+   * Whether `roomId` currently holds a participant under this identity.
+   *
+   * One call to LiveKit. A room that does not exist answers `not_found`, which reads as absent:
+   * the same outcome as an empty room, and the natural end of a room that closed between the
+   * caller deciding to ask and this call. Unlike {@link getParticipantInfo}, any other failure
+   * rejects instead of reading as "absent", so a caller whose safe default is not "absent" can
+   * tell the two apart.
+   *
+   * @param roomId - The room to inspect.
+   * @param participantId - The identity to look for, compared case-insensitively.
+   * @returns Whether the identity is currently in the room.
+   */
+  async function holdsParticipant(roomId: string, participantId: string): Promise<boolean> {
+    let participants: ParticipantInfo[]
+    try {
+      participants = await roomClient.listParticipants(roomId)
+    } catch (error: any) {
+      if (error?.code === 'not_found') {
+        return false
+      }
+      throw error
+    }
+
+    const target = participantId.toLowerCase()
+    return participants.some((participant) => participant.identity?.toLowerCase() === target)
+  }
+
   async function listRoomParticipants(roomName: string): Promise<ParticipantInfo[]> {
     try {
       return await roomClient.listParticipants(roomName)
@@ -478,39 +551,11 @@ export async function createLivekitComponent(
     await roomClient.updateParticipant(roomId, participantId, undefined, permissions)
   }
 
-  /**
-   * Per-room promise chain that serializes metadata writes within this process.
-   *
-   * LiveKit's updateRoomMetadata does a full replace — there are no atomic updates.
-   * All our metadata functions (updateRoomMetadata, appendToRoomMetadataArray,
-   * removeFromRoomMetadataArray) follow a read-modify-write pattern. Without
-   * serialization, concurrent writes to the same room race: both read the same
-   * state, both write, and the last write silently overwrites the first.
-   *
-   * Example: a participant-joined webhook triggers refreshRoomBans (writes
-   * bannedAddresses) at the same time as addPresenter (writes presenters).
-   * Without the lock, the second write can erase the first's changes.
-   *
-   * The lock works by chaining promises per room via .then(). Operations on
-   * room "A" execute sequentially (1 → 2 → 3), while room "B" operations
-   * run independently in parallel. The .then(fn, fn) pattern ensures the chain
-   * continues even if an operation fails, preventing deadlocks. The Map entry
-   * is cleaned up when the last operation in the chain completes.
-   */
-  const roomMetadataLocks = new Map<string, Promise<void>>()
-
-  async function withRoomMetadataLock(roomId: string, fn: () => Promise<void>): Promise<void> {
-    const previous = roomMetadataLocks.get(roomId) ?? Promise.resolve()
-    const current = previous.then(fn, fn)
-    roomMetadataLocks.set(roomId, current)
-    try {
-      await current
-    } finally {
-      if (roomMetadataLocks.get(roomId) === current) {
-        roomMetadataLocks.delete(roomId)
-      }
-    }
-  }
+  // Every metadata write below is serialized per room through roomMetadataQueue. LiveKit's
+  // updateRoomMetadata does a full replace, so updateRoomMetadata, appendToRoomMetadataArray
+  // and removeFromRoomMetadataArray all read-modify-write; unserialized, a participant-joined
+  // webhook refreshing bannedAddresses would race addPresenter writing presenters, and the
+  // last write would silently erase the other.
 
   function parseRoomMetadata(metadataStr: string | undefined): Record<string, unknown> {
     if (!metadataStr) return {}
@@ -523,13 +568,13 @@ export async function createLivekitComponent(
 
   /**
    * Merges the provided metadata keys into the room's existing metadata and writes back.
-   * Serialized per-room via withRoomMetadataLock to prevent concurrent overwrites.
+   * Serialized per-room via roomMetadataQueue to prevent concurrent overwrites.
    *
    * @param roomId - LiveKit room identifier
    * @param metadata - Key-value pairs to merge into existing room metadata
    */
   async function updateRoomMetadata(roomId: string, metadata: Record<string, unknown>): Promise<void> {
-    await withRoomMetadataLock(roomId, async () => {
+    await roomMetadataQueue.enqueue(roomId, async () => {
       try {
         const roomInfo = await getRoomInfo(roomId)
         const existingMetadata = parseRoomMetadata(roomInfo?.metadata)
@@ -555,7 +600,7 @@ export async function createLivekitComponent(
    * @param value - The value to append to the array
    */
   async function appendToRoomMetadataArray(roomId: string, field: string, value: string): Promise<void> {
-    await withRoomMetadataLock(roomId, async () => {
+    await roomMetadataQueue.enqueue(roomId, async () => {
       const roomInfo = await getRoomInfo(roomId)
       if (!roomInfo) return
       const existingMetadata = parseRoomMetadata(roomInfo.metadata)
@@ -577,7 +622,7 @@ export async function createLivekitComponent(
    * @param value - The value to remove from the array
    */
   async function removeFromRoomMetadataArray(roomId: string, field: string, value: string): Promise<void> {
-    await withRoomMetadataLock(roomId, async () => {
+    await roomMetadataQueue.enqueue(roomId, async () => {
       const roomInfo = await getRoomInfo(roomId)
       if (!roomInfo) return
       const existingMetadata = parseRoomMetadata(roomInfo.metadata)
@@ -608,6 +653,7 @@ export async function createLivekitComponent(
     appendToRoomMetadataArray,
     removeFromRoomMetadataArray,
     getParticipantInfo,
+    holdsParticipant,
     listRoomParticipants,
     generateCredentials,
     getWorldRoomName,
@@ -617,6 +663,7 @@ export async function createLivekitComponent(
     getCallIdFromRoomName,
     getCommunityVoiceChatRoomName,
     getCommunityIdFromRoomName,
+    getIslandRoomName,
     getIslandNameFromRoomName,
     getRoomMetadataFromRoomName,
     getRoomName,

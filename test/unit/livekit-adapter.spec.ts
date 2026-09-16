@@ -6,7 +6,10 @@ import {
   WebhookReceiver,
   ParticipantInfo
 } from 'livekit-server-sdk'
+import { RoomType } from '@dcl/schemas'
+import { createHmac } from 'crypto'
 import { COMMUNITY_VOICE_CHAT_ROOM_PREFIX, createLivekitComponent } from '../../src/adapters/livekit'
+import { createKeyedQueueTestComponent } from '../utils'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 
 let livekitComponent: ILivekitComponent
@@ -25,6 +28,47 @@ let webhookReceiverSpy: jest.SpyInstance
 let loggerInfoSpy: jest.Mock
 let loggerWarnSpy: jest.Mock
 
+const DEFAULT_LIVEKIT_CONFIG: Record<string, string> = {
+  COMMS_ROOM_PREFIX: 'world-env-',
+  WORLD_ROOM_PREFIX: 'world-prod-scene-room-',
+  SCENE_ROOM_PREFIX: 'scene-',
+  PRIVATE_MESSAGES_ROOM_ID: 'private-messages',
+  PROD_LIVEKIT_HOST: 'prod.livekit.example.com',
+  PROD_LIVEKIT_API_KEY: 'prod-api-key',
+  PROD_LIVEKIT_API_SECRET: 'prod-secret',
+  PREVIEW_LIVEKIT_HOST: 'preview.livekit.example.com',
+  PREVIEW_LIVEKIT_API_KEY: 'preview-api-key',
+  PREVIEW_LIVEKIT_API_SECRET: 'preview-secret'
+}
+
+async function buildLivekitComponent(
+  configOverrides: Record<string, string> = {},
+  logger: { info: jest.Mock; warn: jest.Mock; error: jest.Mock } = {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn()
+  }
+): Promise<ILivekitComponent> {
+  const values: Record<string, string> = { ...DEFAULT_LIVEKIT_CONFIG, ...configOverrides }
+
+  return createLivekitComponent({
+    roomMetadataQueue: await createKeyedQueueTestComponent(),
+    config: {
+      requireString: jest
+        .fn()
+        .mockImplementation((key: string) =>
+          key in values ? Promise.resolve(values[key]) : Promise.reject(new Error(`Unknown key: ${key}`))
+        ),
+      getString: jest.fn().mockImplementation((key: string) => (key === 'ALLOW_LOCAL_PREVIEW' ? 'true' : '')),
+      getNumber: jest.fn().mockReturnValue(0),
+      requireNumber: jest.fn().mockResolvedValue(0)
+    },
+    logs: {
+      getLogger: jest.fn().mockReturnValue(logger)
+    }
+  })
+}
+
 beforeEach(async () => {
   deleteRoomSpy = jest.spyOn(RoomServiceClient.prototype, 'deleteRoom')
   listRoomsSpy = jest.spyOn(RoomServiceClient.prototype, 'listRooms')
@@ -41,49 +85,7 @@ beforeEach(async () => {
   loggerInfoSpy = jest.fn()
   loggerWarnSpy = jest.fn()
 
-  livekitComponent = await createLivekitComponent({
-    config: {
-      requireString: jest.fn().mockImplementation((key) => {
-        switch (key) {
-          case 'COMMS_ROOM_PREFIX':
-            return Promise.resolve('world-env-')
-          case 'WORLD_ROOM_PREFIX':
-            return Promise.resolve('world-prod-scene-room-')
-          case 'SCENE_ROOM_PREFIX':
-            return Promise.resolve('scene-')
-          case 'PRIVATE_MESSAGES_ROOM_ID':
-            return Promise.resolve('private-messages')
-          case 'PROD_LIVEKIT_HOST':
-            return Promise.resolve('prod.livekit.example.com')
-          case 'PROD_LIVEKIT_API_KEY':
-            return Promise.resolve('prod-api-key')
-          case 'PROD_LIVEKIT_API_SECRET':
-            return Promise.resolve('prod-secret')
-          case 'PREVIEW_LIVEKIT_HOST':
-            return Promise.resolve('preview.livekit.example.com')
-          case 'PREVIEW_LIVEKIT_API_KEY':
-            return Promise.resolve('preview-api-key')
-          case 'PREVIEW_LIVEKIT_API_SECRET':
-            return Promise.resolve('preview-secret')
-          default:
-            return Promise.reject(new Error(`Unknown key: ${key}`))
-        }
-      }),
-      getString: jest.fn().mockImplementation((key: string) => {
-        if (key === 'ALLOW_LOCAL_PREVIEW') return 'true'
-        return ''
-      }),
-      getNumber: jest.fn().mockReturnValue(0),
-      requireNumber: jest.fn().mockResolvedValue(0)
-    },
-    logs: {
-      getLogger: jest.fn().mockReturnValue({
-        info: loggerInfoSpy,
-        warn: loggerWarnSpy,
-        error: jest.fn()
-      })
-    }
-  })
+  livekitComponent = await buildLivekitComponent({}, { info: loggerInfoSpy, warn: loggerWarnSpy, error: jest.fn() })
 })
 
 describe('when destroying a room', () => {
@@ -250,6 +252,7 @@ describe('when checking if a realm is a local preview', () => {
 
   it('should return false when ALLOW_LOCAL_PREVIEW is not enabled', async () => {
     const componentWithoutPreview = await createLivekitComponent({
+      roomMetadataQueue: await createKeyedQueueTestComponent(),
       config: {
         requireString: jest.fn().mockResolvedValue('test'),
         getString: jest.fn().mockReturnValue(''),
@@ -303,6 +306,7 @@ describe('when checking if a realm name is a preview realm', () => {
 
   it('should return true even when ALLOW_LOCAL_PREVIEW is not enabled', async () => {
     const componentWithoutPreview = await createLivekitComponent({
+      roomMetadataQueue: await createKeyedQueueTestComponent(),
       config: {
         requireString: jest.fn().mockResolvedValue('test'),
         getString: jest.fn().mockReturnValue(''),
@@ -554,6 +558,18 @@ describe('when building connection URL', () => {
   })
 })
 
+type TokenTimes = { nbf: number; exp: number }
+
+function decodePayload(token: string): TokenTimes {
+  return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')) as TokenTimes
+}
+
+function signHs256(claims: Record<string, unknown>, secret: string): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+  const body = `${header}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`
+  return `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`
+}
+
 describe('when generating credentials', () => {
   const identity = 'test-user'
   const roomId = 'test-room'
@@ -580,6 +596,72 @@ describe('when generating credentials', () => {
       expect(result.url).toBe('wss://prod.livekit.example.com')
       expect(result.token).toBe('mock-jwt-token')
       expect(accessTokenToJwtSpy).toHaveBeenCalled()
+    })
+
+    it('should give tokens the five-minute default lifetime', async () => {
+      accessTokenToJwtSpy.mockRestore()
+
+      const result = await livekitComponent.generateCredentials(identity, roomId, permissions, false)
+      const payload = decodePayload(result.token)
+
+      // A one-second tolerance: exp and nbf are stamped a few microseconds apart.
+      expect(payload.exp - payload.nbf).toBeGreaterThanOrEqual(300)
+      expect(payload.exp - payload.nbf).toBeLessThanOrEqual(301)
+    })
+
+    describe('and a lifetime is given', () => {
+      let payload: TokenTimes
+
+      beforeEach(async () => {
+        accessTokenToJwtSpy.mockRestore()
+
+        const result = await livekitComponent.generateCredentials(identity, roomId, permissions, false, undefined, {
+          ttlSeconds: 60
+        })
+        payload = decodePayload(result.token)
+      })
+
+      it('should give the token that lifetime', () => {
+        expect(payload.exp - payload.nbf).toBeGreaterThanOrEqual(60)
+        expect(payload.exp - payload.nbf).toBeLessThanOrEqual(61)
+      })
+    })
+
+    describe('and a not-before is given', () => {
+      // A token as the SDK would mint it, with known claims, so the re-signing is checked exactly.
+      const MINTED_CLAIMS = {
+        iss: 'prod-api-key',
+        sub: identity,
+        nbf: 1_000_000,
+        exp: 1_000_300,
+        video: { room: roomId }
+      }
+      let token: string
+      let payload: Record<string, unknown>
+
+      beforeEach(async () => {
+        accessTokenToJwtSpy.mockResolvedValue(signHs256(MINTED_CLAIMS, 'prod-secret'))
+
+        const result = await livekitComponent.generateCredentials(identity, roomId, permissions, false, undefined, {
+          notBefore: new Date(1_000_001_000)
+        })
+        token = result.token
+        payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
+      })
+
+      it('should stamp the token with that nbf', () => {
+        expect(payload.nbf).toBe(1_000_001)
+      })
+
+      it('should keep every other claim as the SDK minted it', () => {
+        expect(payload).toEqual({ ...MINTED_CLAIMS, nbf: 1_000_001 })
+      })
+
+      it('should sign it with the API secret, as the SDK does', () => {
+        const [header, body, signature] = token.split('.')
+
+        expect(signature).toBe(createHmac('sha256', 'prod-secret').update(`${header}.${body}`).digest('base64url'))
+      })
     })
 
     it('should generate tokens whose nbf matches their issuance time', async () => {
@@ -1004,6 +1086,65 @@ describe('when getting room metadata from room name', () => {
   })
 })
 
+describe('when getting an island room name', () => {
+  it('should prefix the island name with island-', () => {
+    expect(livekitComponent.getIslandRoomName('C12')).toBe('island-C12')
+  })
+
+  it('should use the island name verbatim, with no other transformation', () => {
+    expect(livekitComponent.getIslandRoomName('C-99-main')).toBe('island-C-99-main')
+  })
+
+  it('should round-trip with getIslandNameFromRoomName', () => {
+    expect(livekitComponent.getIslandNameFromRoomName(livekitComponent.getIslandRoomName('C12'))).toBe('C12')
+  })
+})
+
+describe('when parsing room metadata for an island room', () => {
+  describe('and the scene and world prefixes are empty', () => {
+    let componentWithEmptyPrefixes: ILivekitComponent
+
+    beforeEach(async () => {
+      componentWithEmptyPrefixes = await buildLivekitComponent({ WORLD_ROOM_PREFIX: '', SCENE_ROOM_PREFIX: '' })
+    })
+
+    it('should classify an island room as ISLAND', () => {
+      expect(componentWithEmptyPrefixes.getRoomMetadataFromRoomName('island-C12')).toEqual({
+        islandName: 'C12',
+        roomType: RoomType.ISLAND
+      })
+    })
+
+    it('should classify an island room whose name contains a colon as ISLAND, keeping the full name', () => {
+      expect(componentWithEmptyPrefixes.getRoomMetadataFromRoomName('island-C12:3')).toEqual({
+        islandName: 'C12:3',
+        roomType: RoomType.ISLAND
+      })
+    })
+
+    it('should still classify a scene room as SCENE', () => {
+      expect(componentWithEmptyPrefixes.getRoomMetadataFromRoomName('my-realm:bafkscene')).toEqual({
+        realmName: 'my-realm',
+        sceneId: 'bafkscene',
+        roomType: RoomType.SCENE
+      })
+    })
+  })
+
+  describe('and the scene and world prefixes are realistic (non-empty), as in the shared test setup', () => {
+    // Not exercised under empty prefixes: with SCENE_ROOM_PREFIX === '', roomName.startsWith('')
+    // is unconditionally true, so the (out-of-scope, unguarded) scene branch would intercept this
+    // room before the community-voice branch is ever reached, regardless of where the island
+    // branch sits. That pre-existing gap is not something this change touches or fixes.
+    it('should still classify a community voice room as COMMUNITY_VOICE_CHAT', () => {
+      expect(livekitComponent.getRoomMetadataFromRoomName('voice-chat-community-abc')).toEqual({
+        communityId: 'abc',
+        roomType: RoomType.COMMUNITY_VOICE_CHAT
+      })
+    })
+  })
+})
+
 describe('when getting webhook event', () => {
   const body = '{"event": "room_finished"}'
   const authorization = 'Bearer token123'
@@ -1064,6 +1205,76 @@ describe('when listing room participants', () => {
 
       expect(result).toEqual([])
       expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
+    })
+  })
+})
+
+describe('when checking whether a room holds a participant', () => {
+  const roomName = 'island-C5'
+  const identity = '0xAaBb0000000000000000000000000000000000cD'
+  let result: boolean
+
+  beforeEach(() => {
+    // The spies are shared with every other block in this file and never cleared between them.
+    listRoomsSpy.mockClear()
+    listParticipantsSpy.mockClear()
+  })
+
+  afterEach(() => {
+    listParticipantsSpy.mockReset()
+  })
+
+  describe('when the room lists the identity', () => {
+    beforeEach(async () => {
+      listParticipantsSpy.mockResolvedValue([{ identity: identity.toLowerCase() }, { identity: 'someone-else' }])
+
+      result = await livekitComponent.holdsParticipant(roomName, identity)
+    })
+
+    it('should report it present, matching the identity case-insensitively', () => {
+      expect(result).toBe(true)
+    })
+
+    it('should ask LiveKit for the participants alone, without listing rooms first', () => {
+      expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
+      expect(listRoomsSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when the room exists but does not list the identity', () => {
+    beforeEach(async () => {
+      listParticipantsSpy.mockResolvedValue([{ identity: 'someone-else' }])
+
+      result = await livekitComponent.holdsParticipant(roomName, identity)
+    })
+
+    it('should report it absent', () => {
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('when the room does not exist', () => {
+    beforeEach(async () => {
+      // What LiveKit answers for a room that never existed or has already closed.
+      listParticipantsSpy.mockRejectedValue(
+        Object.assign(new Error('requested room does not exist'), { code: 'not_found' })
+      )
+
+      result = await livekitComponent.holdsParticipant(roomName, identity)
+    })
+
+    it('should report it absent rather than failing', () => {
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('when LiveKit cannot be reached', () => {
+    beforeEach(() => {
+      listParticipantsSpy.mockRejectedValue(new Error('livekit unreachable'))
+    })
+
+    it('should reject, so the caller can tell a failed lookup from absence', async () => {
+      await expect(livekitComponent.holdsParticipant(roomName, identity)).rejects.toThrow('livekit unreachable')
     })
   })
 })
@@ -1249,6 +1460,38 @@ describe('when removing a participant from all rooms', () => {
       await livekitComponent.removeParticipantFromAllRooms(participantIdentity)
 
       expect(loggerWarnSpy).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe('when removing a participant', () => {
+  const roomName = 'island-C5'
+  const identity = '0x1111111111111111111111111111111111111111'
+
+  beforeEach(() => {
+    removeParticipantSpy.mockResolvedValue(undefined)
+  })
+
+  describe('and no revocation instant is given', () => {
+    it('should only disconnect them, leaving the token they hold usable', async () => {
+      await livekitComponent.removeParticipant(roomName, identity)
+
+      expect(removeParticipantSpy).toHaveBeenCalledWith(roomName, identity, undefined)
+    })
+  })
+
+  describe('and a revocation instant is given', () => {
+    // LiveKit compares this against the token's `nbf`, which is in SECONDS. Sending
+    // milliseconds would put it ~1000x into the future and revoke every token for this
+    // identity, including the replacement session's, locking the wallet out of the room.
+    it('should pass it as whole seconds, matching the unit nbf is expressed in', async () => {
+      const revokeBefore = new Date(1_700_000_123_456)
+
+      await livekitComponent.removeParticipant(roomName, identity, revokeBefore)
+
+      expect(removeParticipantSpy).toHaveBeenCalledWith(roomName, identity, {
+        revokeTokenTs: BigInt(1_700_000_123)
+      })
     })
   })
 })

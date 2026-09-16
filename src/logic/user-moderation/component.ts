@@ -22,9 +22,12 @@ function errorMessage(error: unknown): string {
 }
 
 export function createUserModerationComponent(
-  components: Pick<AppComponents, 'userModerationDb' | 'playerConnectionDb' | 'logs' | 'publisher' | 'livekit'>
+  components: Pick<
+    AppComponents,
+    'userModerationDb' | 'playerConnectionDb' | 'logs' | 'publisher' | 'livekit' | 'moderationEpoch'
+  >
 ): IUserModerationComponent {
-  const { userModerationDb, playerConnectionDb, logs, publisher, livekit } = components
+  const { userModerationDb, playerConnectionDb, logs, publisher, livekit, moderationEpoch } = components
   const logger = logs.getLogger('user-moderation')
 
   async function removeParticipantFromAllRooms(address: string): Promise<void> {
@@ -92,6 +95,10 @@ export function createUserModerationComponent(
         expiresAt
       })
 
+      // A cached "allowed" must not outlive this ban: the cluster subscriber mints from cached
+      // access-gate decisions for ACCESS_GATE_CACHE_TTL_MS. Moving the epoch on marks every one of
+      // them stale, including one that a lookup in flight right now is about to write.
+      moderationEpoch.bump()
       void publishModerationEvent(createBanEvent(ban))
       void removeParticipantFromAllRooms(normalizedAddress)
 
@@ -109,6 +116,8 @@ export function createUserModerationComponent(
         throw new BanNotFoundError(normalizedAddress)
       }
 
+      // The mirror image of the ban: a cached "banned" would keep the lifted wallet out for the TTL.
+      moderationEpoch.bump()
       void publishModerationEvent(createBanLiftedEvent(ban))
     },
 

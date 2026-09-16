@@ -34,20 +34,45 @@ export type RoomMetadata = {
 
 export type GetRoomNameParams = { isWorld: boolean; sceneId?: string }
 
+export type CredentialOptions = {
+  /** The token's `nbf`, instead of the mint instant. */
+  notBefore?: Date
+  /** Token lifetime in seconds; five minutes when omitted. */
+  ttlSeconds?: number
+}
+
 export type ILivekitComponent = IBaseComponent & {
   isLocalPreview: (realmName: string | undefined) => boolean
   isPreviewRealmName: (realmName: string | undefined) => boolean
   deleteRoom: (roomName: string) => Promise<void>
   buildConnectionUrl: (url: string, token: string) => string
+  /**
+   * Mints a room token and the URL to use it against.
+   *
+   * @param options - `notBefore` sets the token's `nbf` instead of the mint instant, for a
+   * takeover's replacement token minted at the boundary that revokes the displaced one; LiveKit
+   * validates `nbf` with a minute of leeway, so a boundary up to a second ahead is usable at once.
+   * `ttlSeconds` overrides the five-minute default lifetime.
+   */
   generateCredentials: (
     identity: string,
     roomId: string,
     permissions: Omit<Permissions, 'mute'>,
     forPreview: boolean,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    options?: CredentialOptions
   ) => Promise<LivekitCredentials>
   muteParticipant: (roomId: string, participantId: string) => Promise<void>
-  removeParticipant: (roomId: string, participantId: string) => Promise<void>
+  /**
+   * Disconnects a participant from a room.
+   *
+   * @param roomId - The room to remove them from.
+   * @param participantId - The participant's identity.
+   * @param revokeTokensMintedBefore - When given, every token for this identity minted before
+   * this instant stops working, so the client cannot simply reconnect with the one it holds.
+   * Tokens carry an `nbf` of their mint time, so a token minted after this instant survives.
+   */
+  removeParticipant: (roomId: string, participantId: string, revokeTokensMintedBefore?: Date) => Promise<void>
   getWorldRoomName: (worldName: string) => string
   getWorldSceneRoomName: (worldName: string, sceneId: string) => string
   getSceneRoomName: (realmName: string, sceneId: string) => string
@@ -55,6 +80,8 @@ export type ILivekitComponent = IBaseComponent & {
   getCallIdFromRoomName: (roomName: string) => string
   getCommunityVoiceChatRoomName: (communityId: string) => string
   getCommunityIdFromRoomName: (roomName: string) => string
+  /** Builds the LiveKit room name for an island. The `island-` prefix is required, not cosmetic. */
+  getIslandRoomName: (islandName: string) => string
   getIslandNameFromRoomName: (roomName: string) => string
   getRoomMetadataFromRoomName: (roomName: string) => RoomMetadata
   getRoomName: (realmName: string, params: GetRoomNameParams) => string
@@ -64,6 +91,8 @@ export type ILivekitComponent = IBaseComponent & {
   removeIngress: (ingressId: string) => Promise<IngressInfo | undefined>
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
   getParticipantInfo: (roomId: string, participantId: string) => Promise<ParticipantInfo | null>
+  /** Rejects on a failed lookup instead of reporting the identity as absent. */
+  holdsParticipant: (roomId: string, participantId: string) => Promise<boolean>
   listRoomParticipants: (roomName: string) => Promise<ParticipantInfo[]>
   updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>
   updateParticipantPermissions: (
