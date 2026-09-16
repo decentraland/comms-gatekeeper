@@ -144,8 +144,15 @@ export function createVoiceComponent(
    *
    * @param roomName - The name of the room.
    * @param participantCount - The number of participants the room had when it was deleted.
+   * @param endedAt - When the teardown began, taken before the rows were deleted. A room the same
+   * community starts during the teardown is created after this instant, which is what lets the
+   * consumer tell the two apart.
    */
-  async function publishCommunityStreamingEndedEvent(roomName: string, participantCount: number): Promise<void> {
+  async function publishCommunityStreamingEndedEvent(
+    roomName: string,
+    participantCount: number,
+    endedAt: number
+  ): Promise<void> {
     if (participantCount === 0) {
       logger.debug(`Skipping event publication since voice chat was already deleted`)
       return
@@ -157,8 +164,8 @@ export function createVoiceComponent(
       const event: CommunityStreamingEndedEvent = {
         type: Events.Type.STREAMING,
         subType: Events.SubType.Streaming.COMMUNITY_STREAMING_ENDED,
-        key: `community-streaming-ended-${communityId}-${Date.now()}`,
-        timestamp: Date.now(),
+        key: `community-streaming-ended-${communityId}-${endedAt}`,
+        timestamp: endedAt,
         metadata: {
           communityId,
           totalParticipants: participantCount
@@ -201,8 +208,9 @@ export function createVoiceComponent(
 
     if (disconnectReason === DisconnectReason.ROOM_DELETED) {
       // LiveKit already closed the room. A zero count means another path deleted the rows first.
+      const endedAt = Date.now()
       const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
-      await publishCommunityStreamingEndedEvent(roomName, participantCount)
+      await publishCommunityStreamingEndedEvent(roomName, participantCount, endedAt)
       return
     }
 
@@ -254,6 +262,7 @@ export function createVoiceComponent(
           logger.debug(`No active moderators left in community room ${roomName}, destroying room`)
           // Rows before the LiveKit room: the ROOM_DELETED webhooks that follow then find nothing
           // to publish, so the ended event goes out once.
+          const endedAt = Date.now()
           const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
           await livekit.deleteRoom(roomName)
 
@@ -262,8 +271,7 @@ export function createVoiceComponent(
             call_id: communityId
           })
 
-          // Publish event after deletion
-          await publishCommunityStreamingEndedEvent(roomName, participantCount)
+          await publishCommunityStreamingEndedEvent(roomName, participantCount, endedAt)
         }
       }
     } else {
@@ -477,6 +485,7 @@ export function createVoiceComponent(
     // read is not an option: a room is only expired once it has no active moderator, and every
     // "active rooms" query filters exactly those rooms out, leaving each expiry with a count of 0
     // and its ended event unpublished.
+    const endedAt = Date.now()
     const expiredRooms = await voiceDB.deleteExpiredCommunityVoiceChats()
 
     logger.debug(`Found ${expiredRooms.length} expired community voice chat rooms`)
@@ -492,7 +501,7 @@ export function createVoiceComponent(
 
       await livekit.deleteRoom(roomName)
 
-      await publishCommunityStreamingEndedEvent(roomName, participantCount)
+      await publishCommunityStreamingEndedEvent(roomName, participantCount, endedAt)
     }
   }
 
@@ -679,6 +688,7 @@ export function createVoiceComponent(
 
     try {
       // Rows before the LiveKit room, so the ROOM_DELETED webhooks that follow find nothing to publish.
+      const endedAt = Date.now()
       const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
 
       // Delete the room in LiveKit (this will disconnect all participants)
@@ -686,7 +696,7 @@ export function createVoiceComponent(
 
       logger.info(`Successfully ended community voice chat for community ${communityId}`)
 
-      await publishCommunityStreamingEndedEvent(roomName, participantCount)
+      await publishCommunityStreamingEndedEvent(roomName, participantCount, endedAt)
     } catch (error) {
       logger.error(
         `Error ending community voice chat for community ${communityId}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`

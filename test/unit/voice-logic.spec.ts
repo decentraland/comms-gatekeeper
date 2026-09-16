@@ -1289,4 +1289,78 @@ describe('Voice Logic Component', () => {
       })
     })
   })
+
+  describe('when stamping the ended event', () => {
+    const communityId = 'stamped-room'
+    const roomName = 'voice-chat-community-stamped-room'
+    const moderatorAddress = '0xabc'
+    const beforeTeardown = 1_700_000_000_000
+    let clock: number
+    let dateNowSpy: jest.SpyInstance<number, []>
+    let publishMessageMock: jest.MockedFunction<IPublisherComponent['publishMessage']>
+    let deleteCommunityVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deleteCommunityVoiceChat']>
+    let deleteExpiredCommunityVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredCommunityVoiceChats']>
+
+    beforeEach(() => {
+      clock = beforeTeardown
+      dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => clock)
+      publishMessageMock = jest.fn()
+      // Deleting takes time. A room the community starts meanwhile is created after the teardown
+      // began, so a stamp taken after the delete could not be told apart from it.
+      deleteCommunityVoiceChatMock = jest.fn()
+      deleteCommunityVoiceChatMock.mockImplementation(async () => {
+        clock += 5_000
+        return 2
+      })
+      deleteExpiredCommunityVoiceChatsMock = jest.fn()
+      deleteExpiredCommunityVoiceChatsMock.mockImplementation(async () => {
+        clock += 5_000
+        return [{ roomName, participantCount: 2 }]
+      })
+
+      voiceDB.deleteCommunityVoiceChat = deleteCommunityVoiceChatMock
+      voiceDB.deleteExpiredCommunityVoiceChats = deleteExpiredCommunityVoiceChatsMock
+      voiceDB.updateCommunityUserStatus = jest.fn()
+      voiceDB.getCommunityUsersInRoom = jest.fn().mockResolvedValue([
+        {
+          address: moderatorAddress,
+          roomName,
+          isModerator: true,
+          status: VoiceChatUserStatus.Connected,
+          joinedAt: beforeTeardown,
+          statusUpdatedAt: beforeTeardown
+        }
+      ])
+      publisher.publishMessage = publishMessageMock
+      deleteRoomMock.mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+      dateNowSpy.mockRestore()
+    })
+
+    it('should stamp an expired room with the time before its participants were deleted', async () => {
+      await voiceComponent.expireCommunityVoiceChats()
+
+      expect(publishMessageMock).toHaveBeenCalledWith(expect.objectContaining({ timestamp: beforeTeardown }))
+    })
+
+    it('should stamp an explicitly ended room with the time before its participants were deleted', async () => {
+      await voiceComponent.endCommunityVoiceChat(communityId, moderatorAddress)
+
+      expect(publishMessageMock).toHaveBeenCalledWith(expect.objectContaining({ timestamp: beforeTeardown }))
+    })
+
+    it('should stamp a room LiveKit deleted with the time before its participants were deleted', async () => {
+      await voiceComponent.handleParticipantLeft(moderatorAddress, roomName, DisconnectReason.ROOM_DELETED)
+
+      expect(publishMessageMock).toHaveBeenCalledWith(expect.objectContaining({ timestamp: beforeTeardown }))
+    })
+
+    it('should stamp a room its last moderator left with the time before its participants were deleted', async () => {
+      await voiceComponent.handleParticipantLeft(moderatorAddress, roomName, DisconnectReason.CLIENT_INITIATED)
+
+      expect(publishMessageMock).toHaveBeenCalledWith(expect.objectContaining({ timestamp: beforeTeardown }))
+    })
+  })
 })
