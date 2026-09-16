@@ -1,6 +1,6 @@
 import { DisconnectReason } from '@livekit/protocol'
 import { ILoggerComponent } from '@well-known-components/interfaces'
-import { IVoiceDBComponent } from '../../src/adapters/db/types'
+import { ExpiredCommunityVoiceChat, IVoiceDBComponent } from '../../src/adapters/db/types'
 import { IVoiceComponent } from '../../src/logic/voice/types'
 import { createVoiceComponent } from '../../src/logic/voice/voice'
 import { ILivekitComponent, LivekitCredentials } from '../../src/types/livekit.type'
@@ -447,22 +447,17 @@ describe('Voice Logic Component', () => {
     let updateCommunityUserStatusMock: jest.MockedFunction<IVoiceDBComponent['updateCommunityUserStatus']>
     let getCommunityUsersInRoomMock: jest.MockedFunction<IVoiceDBComponent['getCommunityUsersInRoom']>
     let deleteCommunityVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deleteCommunityVoiceChat']>
-    let getCommunityVoiceChatParticipantCountMock: jest.MockedFunction<
-      IVoiceDBComponent['getCommunityVoiceChatParticipantCount']
-    >
     let publishMessageMock: jest.MockedFunction<IPublisherComponent['publishMessage']>
 
     beforeEach(() => {
       updateCommunityUserStatusMock = jest.fn()
       getCommunityUsersInRoomMock = jest.fn()
       deleteCommunityVoiceChatMock = jest.fn()
-      getCommunityVoiceChatParticipantCountMock = jest.fn()
       publishMessageMock = jest.fn()
 
       voiceDB.updateCommunityUserStatus = updateCommunityUserStatusMock
       voiceDB.getCommunityUsersInRoom = getCommunityUsersInRoomMock
       voiceDB.deleteCommunityVoiceChat = deleteCommunityVoiceChatMock
-      voiceDB.getCommunityVoiceChatParticipantCount = getCommunityVoiceChatParticipantCountMock
       publisher.publishMessage = publishMessageMock
     })
 
@@ -563,7 +558,7 @@ describe('Voice Logic Component', () => {
             sid: null
           }
         ])
-        getCommunityVoiceChatParticipantCountMock.mockResolvedValue(1)
+        deleteCommunityVoiceChatMock.mockResolvedValue(1)
         publishMessageMock.mockResolvedValue(undefined)
       })
 
@@ -599,7 +594,7 @@ describe('Voice Logic Component', () => {
             sid: 'PA_current_session'
           }
         ])
-        getCommunityVoiceChatParticipantCountMock.mockResolvedValue(1)
+        deleteCommunityVoiceChatMock.mockResolvedValue(1)
         publishMessageMock.mockResolvedValue(undefined)
       })
 
@@ -625,14 +620,13 @@ describe('Voice Logic Component', () => {
     describe('when room was deleted', () => {
       describe('and participant count is greater than 0', () => {
         beforeEach(() => {
-          getCommunityVoiceChatParticipantCountMock.mockResolvedValue(5)
+          deleteCommunityVoiceChatMock.mockResolvedValue(5)
           publishMessageMock.mockResolvedValue(undefined)
         })
 
-        it('should get participant count, delete the community voice chat, and publish event', async () => {
+        it('should delete the community voice chat and publish the event with the participants it had', async () => {
           await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.ROOM_DELETED)
 
-          expect(getCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(roomName)
           expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
           expect(publishMessageMock).toHaveBeenCalledTimes(1)
           expect(publishMessageMock).toHaveBeenCalledWith(
@@ -653,13 +647,12 @@ describe('Voice Logic Component', () => {
 
       describe('and participant count is 0', () => {
         beforeEach(() => {
-          getCommunityVoiceChatParticipantCountMock.mockResolvedValue(0)
+          deleteCommunityVoiceChatMock.mockResolvedValue(0)
         })
 
-        it('should get participant count, delete the community voice chat, but not publish event', async () => {
+        it('should not publish the event since another path already tore the room down', async () => {
           await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.ROOM_DELETED)
 
-          expect(getCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(roomName)
           expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
           expect(publishMessageMock).not.toHaveBeenCalled()
           expect(updateCommunityUserStatusMock).not.toHaveBeenCalled()
@@ -772,11 +765,11 @@ describe('Voice Logic Component', () => {
               statusUpdatedAt: Date.now()
             }
           ])
-          getCommunityVoiceChatParticipantCountMock.mockResolvedValue(2)
+          deleteCommunityVoiceChatMock.mockResolvedValue(2)
           publishMessageMock.mockResolvedValue(undefined)
         })
 
-        it('should get participant count, destroy the community room, and publish event', async () => {
+        it('should destroy the community room and publish the event with the participants it had', async () => {
           await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
 
           expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
@@ -785,7 +778,6 @@ describe('Voice Logic Component', () => {
             VoiceChatUserStatus.Disconnected
           )
           expect(getCommunityUsersInRoomMock).toHaveBeenCalledWith(roomName)
-          expect(getCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(roomName)
           expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
           expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
           expect(publishMessageMock).toHaveBeenCalledTimes(1)
@@ -798,6 +790,15 @@ describe('Voice Logic Component', () => {
                 totalParticipants: 2
               })
             })
+          )
+        })
+
+        // A call the community starts meanwhile must get a fresh LiveKit room, not be kicked out of this one.
+        it('should destroy the LiveKit room before deleting the participants', async () => {
+          await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
+
+          expect(deleteRoomMock.mock.invocationCallOrder[0]).toBeLessThan(
+            deleteCommunityVoiceChatMock.mock.invocationCallOrder[0]
           )
         })
       })
@@ -814,10 +815,10 @@ describe('Voice Logic Component', () => {
               statusUpdatedAt: Date.now()
             }
           ])
-          getCommunityVoiceChatParticipantCountMock.mockResolvedValue(0)
+          deleteCommunityVoiceChatMock.mockResolvedValue(0)
         })
 
-        it('should get participant count, destroy the community room, but not publish event', async () => {
+        it('should destroy the community room but not publish the event', async () => {
           await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
 
           expect(updateCommunityUserStatusMock).toHaveBeenCalledWith(
@@ -826,7 +827,6 @@ describe('Voice Logic Component', () => {
             VoiceChatUserStatus.Disconnected
           )
           expect(getCommunityUsersInRoomMock).toHaveBeenCalledWith(roomName)
-          expect(getCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(roomName)
           expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
           expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
           expect(publishMessageMock).not.toHaveBeenCalled()
@@ -1062,114 +1062,129 @@ describe('Voice Logic Component', () => {
 
   describe('when expiring community voice chats', () => {
     let deleteExpiredCommunityVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredCommunityVoiceChats']>
-    let getAllActiveCommunityVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['getAllActiveCommunityVoiceChats']>
-    let getBulkCommunityVoiceChatParticipantCountMock: jest.MockedFunction<
-      IVoiceDBComponent['getBulkCommunityVoiceChatParticipantCount']
-    >
     let publishMessageMock: jest.MockedFunction<IPublisherComponent['publishMessage']>
 
     beforeEach(() => {
       deleteExpiredCommunityVoiceChatsMock = jest.fn()
-      getAllActiveCommunityVoiceChatsMock = jest.fn()
-      getBulkCommunityVoiceChatParticipantCountMock = jest.fn()
       publishMessageMock = jest.fn()
 
       voiceDB.deleteExpiredCommunityVoiceChats = deleteExpiredCommunityVoiceChatsMock
-      voiceDB.getAllActiveCommunityVoiceChats = getAllActiveCommunityVoiceChatsMock
-      voiceDB.getBulkCommunityVoiceChatParticipantCount = getBulkCommunityVoiceChatParticipantCountMock
+      voiceDB.getCommunityUsersInRoom = jest.fn().mockResolvedValue([])
       publisher.publishMessage = publishMessageMock
     })
 
-    it('should get participant counts, delete expired community voice chats, destroy their rooms, and publish events', async () => {
-      const expiredRoomNames = ['voice-chat-community-room1', 'voice-chat-community-room2']
-      const communityIds = ['room1', 'room2']
-      const roomCounts = new Map<string, number>()
-      roomCounts.set(expiredRoomNames[0], 3)
-      roomCounts.set(expiredRoomNames[1], 5)
+    describe('and some community voice chats expired', () => {
+      let expiredRooms: ExpiredCommunityVoiceChat[]
 
-      getAllActiveCommunityVoiceChatsMock.mockResolvedValue(
-        communityIds.map((id) => ({
-          communityId: id,
-          participantCount: 0,
-          moderatorCount: 0
-        }))
-      )
-      getBulkCommunityVoiceChatParticipantCountMock.mockResolvedValue(roomCounts)
-      deleteExpiredCommunityVoiceChatsMock.mockResolvedValue(expiredRoomNames)
+      beforeEach(() => {
+        expiredRooms = [
+          { roomName: 'voice-chat-community-room1', participantCount: 3 },
+          { roomName: 'voice-chat-community-room2', participantCount: 5 }
+        ]
 
-      await voiceComponent.expireCommunityVoiceChats()
+        deleteExpiredCommunityVoiceChatsMock.mockResolvedValue(expiredRooms)
+      })
 
-      expect(getAllActiveCommunityVoiceChatsMock).toHaveBeenCalled()
-      expect(getBulkCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(communityIds)
-      expect(deleteExpiredCommunityVoiceChatsMock).toHaveBeenCalled()
-      expect(deleteRoomMock).toHaveBeenCalledTimes(2)
-      expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[0])
-      expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[1])
-      expect(publishMessageMock).toHaveBeenCalledTimes(2)
-      expect(publishMessageMock).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({
-          type: 'streaming',
-          subType: 'community-streaming-ended',
-          metadata: expect.objectContaining({
-            communityId: 'room1',
-            totalParticipants: 3
+      it('should destroy the LiveKit room of every expired community voice chat', async () => {
+        await voiceComponent.expireCommunityVoiceChats()
+
+        expect(deleteRoomMock).toHaveBeenCalledTimes(2)
+        expect(deleteRoomMock).toHaveBeenCalledWith(expiredRooms[0].roomName)
+        expect(deleteRoomMock).toHaveBeenCalledWith(expiredRooms[1].roomName)
+      })
+
+      it('should publish an ended event per expired room carrying the participants it had when deleted', async () => {
+        await voiceComponent.expireCommunityVoiceChats()
+
+        expect(publishMessageMock).toHaveBeenCalledTimes(2)
+        expect(publishMessageMock).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({
+            type: 'streaming',
+            subType: 'community-streaming-ended',
+            metadata: expect.objectContaining({
+              communityId: 'room1',
+              totalParticipants: 3
+            })
           })
-        })
-      )
-      expect(publishMessageMock).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({
-          type: 'streaming',
-          subType: 'community-streaming-ended',
-          metadata: expect.objectContaining({
-            communityId: 'room2',
-            totalParticipants: 5
+        )
+        expect(publishMessageMock).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({
+            type: 'streaming',
+            subType: 'community-streaming-ended',
+            metadata: expect.objectContaining({
+              communityId: 'room2',
+              totalParticipants: 5
+            })
           })
-        })
-      )
+        )
+      })
+
+      // The counts come straight from the delete, so an expiry can no longer be silently dropped by
+      // a separate "active rooms" read that filters out the very rooms that are expiring.
+      it('should not read the active community voice chats to resolve the participant counts', async () => {
+        await voiceComponent.expireCommunityVoiceChats()
+
+        expect(voiceDB.getAllActiveCommunityVoiceChats).not.toHaveBeenCalled()
+      })
     })
 
-    it('should handle empty expired rooms list', async () => {
-      getAllActiveCommunityVoiceChatsMock.mockResolvedValue([])
-      getBulkCommunityVoiceChatParticipantCountMock.mockResolvedValue(new Map())
-      deleteExpiredCommunityVoiceChatsMock.mockResolvedValue([])
+    describe('and a new call claimed a room while it was being expired', () => {
+      let getCommunityUsersInRoomMock: jest.MockedFunction<IVoiceDBComponent['getCommunityUsersInRoom']>
 
-      await voiceComponent.expireCommunityVoiceChats()
+      beforeEach(() => {
+        getCommunityUsersInRoomMock = jest.fn()
+        getCommunityUsersInRoomMock.mockImplementation(async (roomName) =>
+          roomName === 'voice-chat-community-room1'
+            ? [
+                {
+                  address: '0xabc',
+                  roomName,
+                  isModerator: true,
+                  status: VoiceChatUserStatus.NotConnected,
+                  joinedAt: Date.now(),
+                  statusUpdatedAt: Date.now()
+                }
+              ]
+            : []
+        )
+        voiceDB.getCommunityUsersInRoom = getCommunityUsersInRoomMock
+        deleteExpiredCommunityVoiceChatsMock.mockResolvedValue([
+          { roomName: 'voice-chat-community-room1', participantCount: 3 },
+          { roomName: 'voice-chat-community-room2', participantCount: 5 }
+        ])
+      })
 
-      expect(getAllActiveCommunityVoiceChatsMock).toHaveBeenCalled()
-      expect(getBulkCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith([])
-      expect(deleteExpiredCommunityVoiceChatsMock).toHaveBeenCalled()
-      expect(deleteRoomMock).not.toHaveBeenCalled()
-      expect(publishMessageMock).not.toHaveBeenCalled()
+      it('should leave the reclaimed LiveKit room alone and destroy the other one', async () => {
+        await voiceComponent.expireCommunityVoiceChats()
+
+        expect(deleteRoomMock).not.toHaveBeenCalledWith('voice-chat-community-room1')
+        expect(deleteRoomMock).toHaveBeenCalledWith('voice-chat-community-room2')
+      })
+
+      it('should still publish the ended event of the room that expired', async () => {
+        await voiceComponent.expireCommunityVoiceChats()
+
+        expect(publishMessageMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: expect.objectContaining({ communityId: 'room1', totalParticipants: 3 })
+          })
+        )
+      })
     })
 
-    it('should not publish events for expired rooms with 0 participants', async () => {
-      const expiredRoomNames = ['voice-chat-community-room1', 'voice-chat-community-room2']
-      const communityIds = ['room1', 'room2']
-      const roomCounts = new Map<string, number>()
-      roomCounts.set(expiredRoomNames[0], 0)
-      roomCounts.set(expiredRoomNames[1], 0)
+    describe('and no community voice chat expired', () => {
+      beforeEach(() => {
+        deleteExpiredCommunityVoiceChatsMock.mockResolvedValue([])
+      })
 
-      getAllActiveCommunityVoiceChatsMock.mockResolvedValue(
-        communityIds.map((id) => ({
-          communityId: id,
-          participantCount: 0,
-          moderatorCount: 0
-        }))
-      )
-      getBulkCommunityVoiceChatParticipantCountMock.mockResolvedValue(roomCounts)
-      deleteExpiredCommunityVoiceChatsMock.mockResolvedValue(expiredRoomNames)
+      it('should destroy no room and publish no event', async () => {
+        await voiceComponent.expireCommunityVoiceChats()
 
-      await voiceComponent.expireCommunityVoiceChats()
-
-      expect(getAllActiveCommunityVoiceChatsMock).toHaveBeenCalled()
-      expect(getBulkCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(communityIds)
-      expect(deleteExpiredCommunityVoiceChatsMock).toHaveBeenCalled()
-      expect(deleteRoomMock).toHaveBeenCalledTimes(2)
-      expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[0])
-      expect(deleteRoomMock).toHaveBeenCalledWith(expiredRoomNames[1])
-      expect(publishMessageMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).not.toHaveBeenCalled()
+        expect(publishMessageMock).not.toHaveBeenCalled()
+      })
     })
   })
 
@@ -1178,86 +1193,93 @@ describe('Voice Logic Component', () => {
     const userAddress = '0x1234567890123456789012345678901234567890'
     const roomName = 'voice-chat-community-test-community'
     let deleteCommunityVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deleteCommunityVoiceChat']>
-    let getCommunityVoiceChatParticipantCountMock: jest.MockedFunction<
-      IVoiceDBComponent['getCommunityVoiceChatParticipantCount']
-    >
     let publishMessageMock: jest.MockedFunction<IPublisherComponent['publishMessage']>
 
     beforeEach(() => {
       deleteCommunityVoiceChatMock = jest.fn()
-      getCommunityVoiceChatParticipantCountMock = jest.fn()
       publishMessageMock = jest.fn()
 
       voiceDB.deleteCommunityVoiceChat = deleteCommunityVoiceChatMock
-      voiceDB.getCommunityVoiceChatParticipantCount = getCommunityVoiceChatParticipantCountMock
       publisher.publishMessage = publishMessageMock
     })
 
-    it('should get participant count, end community voice chat successfully, and publish event', async () => {
-      deleteRoomMock.mockResolvedValue(undefined)
-      deleteCommunityVoiceChatMock.mockResolvedValue(undefined)
-      getCommunityVoiceChatParticipantCountMock.mockResolvedValue(4)
-      publishMessageMock.mockResolvedValue(undefined)
+    describe('and the room still had participants', () => {
+      beforeEach(() => {
+        deleteRoomMock.mockResolvedValue(undefined)
+        deleteCommunityVoiceChatMock.mockResolvedValue(4)
+        publishMessageMock.mockResolvedValue(undefined)
+      })
 
-      await voiceComponent.endCommunityVoiceChat(communityId, userAddress)
+      it('should delete the participants, destroy the LiveKit room and publish the event with their count', async () => {
+        await voiceComponent.endCommunityVoiceChat(communityId, userAddress)
 
-      expect(getCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(roomName)
-      expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
-      expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
-      expect(publishMessageMock).toHaveBeenCalledTimes(1)
-      expect(publishMessageMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'streaming',
-          subType: 'community-streaming-ended',
-          metadata: expect.objectContaining({
-            communityId: 'test-community',
-            totalParticipants: 4
+        expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
+        expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+        expect(publishMessageMock).toHaveBeenCalledTimes(1)
+        expect(publishMessageMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'streaming',
+            subType: 'community-streaming-ended',
+            metadata: expect.objectContaining({
+              communityId: 'test-community',
+              totalParticipants: 4
+            })
           })
-        })
-      )
+        )
+      })
+
+      // A call the community starts meanwhile must get a fresh LiveKit room, not be kicked out of this one.
+      it('should destroy the LiveKit room before deleting the participants', async () => {
+        await voiceComponent.endCommunityVoiceChat(communityId, userAddress)
+
+        expect(deleteRoomMock.mock.invocationCallOrder[0]).toBeLessThan(
+          deleteCommunityVoiceChatMock.mock.invocationCallOrder[0]
+        )
+      })
     })
 
-    it('should handle livekit deletion error and not clean database or publish', async () => {
-      deleteRoomMock.mockRejectedValue(new Error('LiveKit deletion failed'))
-      deleteCommunityVoiceChatMock.mockResolvedValue(undefined)
-      getCommunityVoiceChatParticipantCountMock.mockResolvedValue(4)
+    describe('and another path already tore the room down', () => {
+      beforeEach(() => {
+        deleteRoomMock.mockResolvedValue(undefined)
+        deleteCommunityVoiceChatMock.mockResolvedValue(0)
+      })
 
-      await expect(voiceComponent.endCommunityVoiceChat(communityId, userAddress)).rejects.toThrow(
-        'LiveKit deletion failed'
-      )
+      it('should still destroy the LiveKit room but publish no event', async () => {
+        await voiceComponent.endCommunityVoiceChat(communityId, userAddress)
 
-      expect(getCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(roomName)
-      expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
-      expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
-      expect(publishMessageMock).not.toHaveBeenCalled()
+        expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
+        expect(publishMessageMock).not.toHaveBeenCalled()
+      })
     })
 
-    it('should handle database deletion error', async () => {
-      deleteRoomMock.mockResolvedValue(undefined)
-      deleteCommunityVoiceChatMock.mockRejectedValue(new Error('Database deletion failed'))
-      getCommunityVoiceChatParticipantCountMock.mockResolvedValue(4)
+    describe('and deleting the participants fails', () => {
+      beforeEach(() => {
+        deleteRoomMock.mockResolvedValue(undefined)
+        deleteCommunityVoiceChatMock.mockRejectedValue(new Error('Database deletion failed'))
+      })
 
-      await expect(voiceComponent.endCommunityVoiceChat(communityId, userAddress)).rejects.toThrow(
-        'Database deletion failed'
-      )
+      it('should reject and publish no event', async () => {
+        await expect(voiceComponent.endCommunityVoiceChat(communityId, userAddress)).rejects.toThrow(
+          'Database deletion failed'
+        )
 
-      expect(getCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(roomName)
-      expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
-      expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
-      expect(publishMessageMock).not.toHaveBeenCalled()
+        expect(publishMessageMock).not.toHaveBeenCalled()
+      })
     })
 
-    it('should not publish event when participant count is 0', async () => {
-      deleteRoomMock.mockResolvedValue(undefined)
-      deleteCommunityVoiceChatMock.mockResolvedValue(undefined)
-      getCommunityVoiceChatParticipantCountMock.mockResolvedValue(0)
+    describe('and destroying the LiveKit room fails', () => {
+      beforeEach(() => {
+        deleteRoomMock.mockRejectedValue(new Error('LiveKit deletion failed'))
+      })
 
-      await voiceComponent.endCommunityVoiceChat(communityId, userAddress)
+      it('should reject, leave the participants untouched and publish no event', async () => {
+        await expect(voiceComponent.endCommunityVoiceChat(communityId, userAddress)).rejects.toThrow(
+          'LiveKit deletion failed'
+        )
 
-      expect(getCommunityVoiceChatParticipantCountMock).toHaveBeenCalledWith(roomName)
-      expect(deleteRoomMock).toHaveBeenCalledWith(roomName)
-      expect(deleteCommunityVoiceChatMock).toHaveBeenCalledWith(roomName)
-      expect(publishMessageMock).not.toHaveBeenCalled()
+        expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
+        expect(publishMessageMock).not.toHaveBeenCalled()
+      })
     })
   })
 
@@ -1310,6 +1332,80 @@ describe('Voice Logic Component', () => {
           muted: true
         })
       })
+    })
+  })
+
+  describe('when stamping the ended event', () => {
+    const communityId = 'stamped-room'
+    const roomName = 'voice-chat-community-stamped-room'
+    const moderatorAddress = '0xabc'
+    const beforeTeardown = 1_700_000_000_000
+    let clock: number
+    let dateNowSpy: jest.SpyInstance<number, []>
+    let publishMessageMock: jest.MockedFunction<IPublisherComponent['publishMessage']>
+    let deleteCommunityVoiceChatMock: jest.MockedFunction<IVoiceDBComponent['deleteCommunityVoiceChat']>
+    let deleteExpiredCommunityVoiceChatsMock: jest.MockedFunction<IVoiceDBComponent['deleteExpiredCommunityVoiceChats']>
+
+    beforeEach(() => {
+      clock = beforeTeardown
+      dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => clock)
+      publishMessageMock = jest.fn()
+      // Deleting takes time. A room the community starts meanwhile is created after the teardown
+      // began, so a stamp taken after the delete could not be told apart from it.
+      deleteCommunityVoiceChatMock = jest.fn()
+      deleteCommunityVoiceChatMock.mockImplementation(async () => {
+        clock += 5_000
+        return 2
+      })
+      deleteExpiredCommunityVoiceChatsMock = jest.fn()
+      deleteExpiredCommunityVoiceChatsMock.mockImplementation(async () => {
+        clock += 5_000
+        return [{ roomName, participantCount: 2 }]
+      })
+
+      voiceDB.deleteCommunityVoiceChat = deleteCommunityVoiceChatMock
+      voiceDB.deleteExpiredCommunityVoiceChats = deleteExpiredCommunityVoiceChatsMock
+      voiceDB.updateCommunityUserStatus = jest.fn()
+      voiceDB.getCommunityUsersInRoom = jest.fn().mockResolvedValue([
+        {
+          address: moderatorAddress,
+          roomName,
+          isModerator: true,
+          status: VoiceChatUserStatus.Connected,
+          joinedAt: beforeTeardown,
+          statusUpdatedAt: beforeTeardown
+        }
+      ])
+      publisher.publishMessage = publishMessageMock
+      deleteRoomMock.mockResolvedValue(undefined)
+    })
+
+    afterEach(() => {
+      dateNowSpy.mockRestore()
+    })
+
+    it('should stamp an expired room with the time before its participants were deleted', async () => {
+      await voiceComponent.expireCommunityVoiceChats()
+
+      expect(publishMessageMock).toHaveBeenCalledWith(expect.objectContaining({ timestamp: beforeTeardown }))
+    })
+
+    it('should stamp an explicitly ended room with the time before its participants were deleted', async () => {
+      await voiceComponent.endCommunityVoiceChat(communityId, moderatorAddress)
+
+      expect(publishMessageMock).toHaveBeenCalledWith(expect.objectContaining({ timestamp: beforeTeardown }))
+    })
+
+    it('should stamp a room LiveKit deleted with the time before its participants were deleted', async () => {
+      await voiceComponent.handleParticipantLeft(moderatorAddress, roomName, DisconnectReason.ROOM_DELETED)
+
+      expect(publishMessageMock).toHaveBeenCalledWith(expect.objectContaining({ timestamp: beforeTeardown }))
+    })
+
+    it('should stamp a room its last moderator left with the time before its participants were deleted', async () => {
+      await voiceComponent.handleParticipantLeft(moderatorAddress, roomName, DisconnectReason.CLIENT_INITIATED)
+
+      expect(publishMessageMock).toHaveBeenCalledWith(expect.objectContaining({ timestamp: beforeTeardown }))
     })
   })
 })
