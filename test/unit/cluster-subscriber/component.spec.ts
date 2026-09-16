@@ -3,14 +3,10 @@ import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { ILoggerComponent, IBaseComponent, START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
-import { createModerationEpochComponent } from '../../../src/adapters/moderation-epoch'
 import { NatsMessageHandler } from '../../../src/adapters/nats'
 import { createPeerStateComponent, IPeerStateComponent } from '../../../src/adapters/peer-state'
-import { createAccessGateComponent, IAccessGateComponent } from '../../../src/logic/access-gate'
 import { createClusterSubscriberComponent, IClusterSubscriberComponent } from '../../../src/logic/cluster-subscriber'
 import { createAccessGateMockedComponent } from '../../mocks/access-gate-mock'
-import { createDenyListMockedComponent } from '../../mocks/denylist-mock'
-import { createUserModerationMockedComponent } from '../../mocks/user-moderation-mock'
 import { createConfigMockedComponent } from '../../mocks/config-mock'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
@@ -62,7 +58,6 @@ describe('cluster-subscriber component', () => {
     natsEnabled?: boolean
     peerStateOverride?: IPeerStateComponent
     assignmentMirrorOverride?: ICacheStorageComponent
-    accessGateOverride?: IAccessGateComponent
   }
 
   async function build({
@@ -70,8 +65,7 @@ describe('cluster-subscriber component', () => {
     numbers = {},
     natsEnabled = true,
     peerStateOverride,
-    assignmentMirrorOverride,
-    accessGateOverride
+    assignmentMirrorOverride
   }: BuildOptions = {}): Promise<IClusterSubscriberComponent> {
     const values: Record<string, string | undefined> = {
       CLUSTER_SUBSCRIBER_ENABLED: 'true',
@@ -104,7 +98,7 @@ describe('cluster-subscriber component', () => {
       metrics,
       nats,
       livekit,
-      accessGate: accessGateOverride ?? accessGate,
+      accessGate,
       peerState,
       assignmentMirror,
       // Real, like the mirror: the ordering tests below depend on genuine per-wallet serialization.
@@ -406,47 +400,6 @@ describe('cluster-subscriber component', () => {
       it('should still mint and publish once for the new session', () => {
         expect(livekit.generateCredentials).toHaveBeenCalledTimes(1)
         expect(nats.publish).toHaveBeenCalledTimes(1)
-      })
-    })
-
-    describe('and the wallet is banned while its access check is still in flight', () => {
-      let banLookup: ReturnType<typeof createDeferred<{ isBanned: boolean }>>
-
-      beforeEach(async () => {
-        // A real gate over a paused ban lookup, so the ban lands between the lookup reading "no
-        // ban" and the subscriber acting on the answer. The gate must revalidate before the mint.
-        banLookup = createDeferred<{ isBanned: boolean }>()
-        const userModeration = createUserModerationMockedComponent({
-          getActiveBanForConnection: jest.fn().mockReturnValueOnce(banLookup.promise)
-        })
-        const moderationEpoch = await createModerationEpochComponent()
-        const realGate = await createAccessGateComponent({
-          userModeration,
-          denyList: createDenyListMockedComponent(),
-          accessGateCache: createInMemoryCacheComponent(),
-          moderationEpoch,
-          logs: createLoggerMockedComponent({})
-        })
-        component = await build({ accessGateOverride: realGate })
-        await component[START_COMPONENT]!(startOptions)
-
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
-        moderationEpoch.bump()
-        userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: true })
-        banLookup.resolve({ isBanned: false })
-        await flushMacrotask()
-      })
-
-      it('should mint nothing', () => {
-        expect(livekit.generateCredentials).not.toHaveBeenCalled()
-      })
-
-      it('should publish nothing', () => {
-        expect(nats.publish).not.toHaveBeenCalled()
-      })
-
-      it('should count the skip', () => {
-        expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_banned_skipped_total')
       })
     })
 
@@ -1060,11 +1013,7 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should check the wallet by address alone, leaving the device widening to user moderation', () => {
-        expect(accessGate.getAccessState).toHaveBeenCalledWith({ address: WALLET }, expect.anything())
-      })
-
-      it('should ask for a cached answer, since the feed can repeat a wallet many times within seconds', () => {
-        expect(accessGate.getAccessState).toHaveBeenCalledWith(expect.anything(), { cached: true })
+        expect(accessGate.getAccessState).toHaveBeenCalledWith({ address: WALLET })
       })
     })
 

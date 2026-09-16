@@ -185,13 +185,19 @@ export async function getIdentityForAccount(account: ReturnType<typeof createUns
 /**
  * Lets a test hold a mocked async call open and resolve it on its own schedule.
  */
-export function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+export function createDeferred<T>(): {
+  promise: Promise<T>
+  resolve: (value: T) => void
+  reject: (error: unknown) => void
+} {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => {
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
     resolve = res
+    reject = rej
   })
 
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 /**

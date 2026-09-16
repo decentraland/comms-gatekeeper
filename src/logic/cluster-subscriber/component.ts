@@ -95,10 +95,10 @@ export async function createClusterSubscriberComponent(
   // The one place in this service that fails open on the whole gate, deny list included: a
   // background feed has no caller to return an error to, and failing closed would stop island
   // formation for everyone during an outage of either store. Bounded by ban-time room eviction
-  // and by the gate caching nothing on failure. Rationale in docs/ai-agent-context.md.
+  // and by every event re-querying, so the next one retries. Rationale in docs/ai-agent-context.md.
   async function isDeniedAccess(wallet: string): Promise<boolean> {
     try {
-      const { isBanned, isDenylisted } = await accessGate.getAccessState({ address: wallet }, { cached: true })
+      const { isBanned, isDenylisted } = await accessGate.getAccessState({ address: wallet })
       return isBanned || isDenylisted
     } catch (error) {
       metrics.increment('dcl_gatekeeper_cluster_access_check_failed_total')

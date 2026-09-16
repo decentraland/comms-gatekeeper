@@ -23,7 +23,6 @@ describe('user-moderation-component', () => {
   let mockPublisher: jest.Mocked<IPublisherComponent>
   let mockLogs: jest.Mocked<ILoggerComponent>
   let mockLivekit: jest.Mocked<Pick<ILivekitComponent, 'removeParticipantFromAllRooms'>>
-  let moderationEpoch: { current: jest.Mock; bump: jest.Mock }
   let component: IUserModerationComponent
 
   beforeEach(() => {
@@ -52,15 +51,12 @@ describe('user-moderation-component', () => {
       removeParticipantFromAllRooms: jest.fn().mockResolvedValue(undefined)
     }
 
-    moderationEpoch = { current: jest.fn().mockReturnValue(0), bump: jest.fn() }
-
     component = createUserModerationComponent({
       userModerationDb: mockUserModerationDb,
       playerConnectionDb: mockPlayerConnectionDb,
       logs: mockLogs,
       publisher: mockPublisher,
-      livekit: mockLivekit,
-      moderationEpoch
+      livekit: mockLivekit
     } as any)
   })
 
@@ -345,34 +341,7 @@ describe('user-moderation-component', () => {
     })
   })
 
-  describe('when a ban is created', () => {
-    beforeEach(async () => {
-      mockUserModerationDb.isPlayerBanned.mockResolvedValueOnce({ isBanned: false })
-      mockUserModerationDb.createBan.mockResolvedValueOnce(makeBan())
-
-      await component.banPlayer('0xABC', '0xADMIN', 'Violation')
-    })
-
-    it('should move the moderation epoch on, so every cached access decision reads as stale', () => {
-      expect(moderationEpoch.bump).toHaveBeenCalledTimes(1)
-    })
-  })
-
   describe('when lifting a ban', () => {
-    describe('and the ban is lifted', () => {
-      beforeEach(async () => {
-        mockUserModerationDb.liftBan.mockResolvedValueOnce(
-          makeBan({ liftedAt: new Date('2025-06-01'), liftedBy: '0xadmin' })
-        )
-
-        await component.liftBan('0xABC', '0xADMIN')
-      })
-
-      it('should move the moderation epoch on, so a cached "banned" does not outlive the lift', () => {
-        expect(moderationEpoch.bump).toHaveBeenCalledTimes(1)
-      })
-    })
-
     describe('and an active ban exists', () => {
       let ban: UserBan
 
