@@ -260,11 +260,12 @@ export function createVoiceComponent(
 
         if (remainingActiveModerators.length === 0) {
           logger.debug(`No active moderators left in community room ${roomName}, destroying room`)
-          // Rows before the LiveKit room: the ROOM_DELETED webhooks that follow then find nothing
-          // to publish, so the ended event goes out once.
+          // LiveKit room first, then rows: a call the community starts meanwhile gets a fresh room
+          // instead of being kicked out of this one. The row delete decides who publishes: the
+          // ROOM_DELETED webhooks race it and only a delete that removed rows gets a non-zero count.
           const endedAt = Date.now()
-          const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
           await livekit.deleteRoom(roomName)
+          const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
 
           const communityId = livekit.getCommunityIdFromRoomName(roomName)
           analytics.fireEvent(AnalyticsEvent.END_CALL, {
@@ -499,7 +500,15 @@ export function createVoiceComponent(
         call_id: communityId
       })
 
-      await livekit.deleteRoom(roomName)
+      // The rows had to go first here (the delete is what selects the expired rooms), so a new call
+      // may have claimed this room name meanwhile. Leave its LiveKit room alone if so; the ended
+      // event still goes out and the consumer tells the two rooms apart by time.
+      const reclaimed = (await voiceDB.getCommunityUsersInRoom(roomName)).length > 0
+      if (reclaimed) {
+        logger.info(`Community voice chat room ${roomName} was started again while expiring, keeping its LiveKit room`)
+      } else {
+        await livekit.deleteRoom(roomName)
+      }
 
       await publishCommunityStreamingEndedEvent(roomName, participantCount, endedAt)
     }
@@ -687,12 +696,13 @@ export function createVoiceComponent(
     logger.info(`Ending community voice chat for community ${communityId} by user ${userAddress}`)
 
     try {
-      // Rows before the LiveKit room, so the ROOM_DELETED webhooks that follow find nothing to publish.
+      // LiveKit room first, then rows: a call the community starts meanwhile gets a fresh room instead
+      // of being kicked out of this one, and while the rows exist it cannot start one anyway. The row
+      // delete decides who publishes: the ROOM_DELETED webhooks race it and only a delete that removed
+      // rows gets a non-zero count.
       const endedAt = Date.now()
-      const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
-
-      // Delete the room in LiveKit (this will disconnect all participants)
       await livekit.deleteRoom(roomName)
+      const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
 
       logger.info(`Successfully ended community voice chat for community ${communityId}`)
 

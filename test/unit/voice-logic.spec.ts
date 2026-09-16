@@ -793,12 +793,12 @@ describe('Voice Logic Component', () => {
           )
         })
 
-        // The ROOM_DELETED webhooks LiveKit sends after the delete must find no rows, or they publish too.
-        it('should delete the participants before destroying the LiveKit room', async () => {
+        // A call the community starts meanwhile must get a fresh LiveKit room, not be kicked out of this one.
+        it('should destroy the LiveKit room before deleting the participants', async () => {
           await voiceComponent.handleParticipantLeft(userAddress, roomName, DisconnectReason.CLIENT_INITIATED)
 
-          expect(deleteCommunityVoiceChatMock.mock.invocationCallOrder[0]).toBeLessThan(
-            deleteRoomMock.mock.invocationCallOrder[0]
+          expect(deleteRoomMock.mock.invocationCallOrder[0]).toBeLessThan(
+            deleteCommunityVoiceChatMock.mock.invocationCallOrder[0]
           )
         })
       })
@@ -1069,6 +1069,7 @@ describe('Voice Logic Component', () => {
       publishMessageMock = jest.fn()
 
       voiceDB.deleteExpiredCommunityVoiceChats = deleteExpiredCommunityVoiceChatsMock
+      voiceDB.getCommunityUsersInRoom = jest.fn().mockResolvedValue([])
       publisher.publishMessage = publishMessageMock
     })
 
@@ -1129,6 +1130,50 @@ describe('Voice Logic Component', () => {
       })
     })
 
+    describe('and a new call claimed a room while it was being expired', () => {
+      let getCommunityUsersInRoomMock: jest.MockedFunction<IVoiceDBComponent['getCommunityUsersInRoom']>
+
+      beforeEach(() => {
+        getCommunityUsersInRoomMock = jest.fn()
+        getCommunityUsersInRoomMock.mockImplementation(async (roomName) =>
+          roomName === 'voice-chat-community-room1'
+            ? [
+                {
+                  address: '0xabc',
+                  roomName,
+                  isModerator: true,
+                  status: VoiceChatUserStatus.NotConnected,
+                  joinedAt: Date.now(),
+                  statusUpdatedAt: Date.now()
+                }
+              ]
+            : []
+        )
+        voiceDB.getCommunityUsersInRoom = getCommunityUsersInRoomMock
+        deleteExpiredCommunityVoiceChatsMock.mockResolvedValue([
+          { roomName: 'voice-chat-community-room1', participantCount: 3 },
+          { roomName: 'voice-chat-community-room2', participantCount: 5 }
+        ])
+      })
+
+      it('should leave the reclaimed LiveKit room alone and destroy the other one', async () => {
+        await voiceComponent.expireCommunityVoiceChats()
+
+        expect(deleteRoomMock).not.toHaveBeenCalledWith('voice-chat-community-room1')
+        expect(deleteRoomMock).toHaveBeenCalledWith('voice-chat-community-room2')
+      })
+
+      it('should still publish the ended event of the room that expired', async () => {
+        await voiceComponent.expireCommunityVoiceChats()
+
+        expect(publishMessageMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            metadata: expect.objectContaining({ communityId: 'room1', totalParticipants: 3 })
+          })
+        )
+      })
+    })
+
     describe('and no community voice chat expired', () => {
       beforeEach(() => {
         deleteExpiredCommunityVoiceChatsMock.mockResolvedValue([])
@@ -1183,12 +1228,12 @@ describe('Voice Logic Component', () => {
         )
       })
 
-      // The ROOM_DELETED webhooks LiveKit sends after the delete must find no rows, or they publish too.
-      it('should delete the participants before destroying the LiveKit room', async () => {
+      // A call the community starts meanwhile must get a fresh LiveKit room, not be kicked out of this one.
+      it('should destroy the LiveKit room before deleting the participants', async () => {
         await voiceComponent.endCommunityVoiceChat(communityId, userAddress)
 
-        expect(deleteCommunityVoiceChatMock.mock.invocationCallOrder[0]).toBeLessThan(
-          deleteRoomMock.mock.invocationCallOrder[0]
+        expect(deleteRoomMock.mock.invocationCallOrder[0]).toBeLessThan(
+          deleteCommunityVoiceChatMock.mock.invocationCallOrder[0]
         )
       })
     })
@@ -1209,30 +1254,30 @@ describe('Voice Logic Component', () => {
 
     describe('and deleting the participants fails', () => {
       beforeEach(() => {
+        deleteRoomMock.mockResolvedValue(undefined)
         deleteCommunityVoiceChatMock.mockRejectedValue(new Error('Database deletion failed'))
       })
 
-      it('should reject, leave the LiveKit room untouched and publish no event', async () => {
+      it('should reject and publish no event', async () => {
         await expect(voiceComponent.endCommunityVoiceChat(communityId, userAddress)).rejects.toThrow(
           'Database deletion failed'
         )
 
-        expect(deleteRoomMock).not.toHaveBeenCalled()
         expect(publishMessageMock).not.toHaveBeenCalled()
       })
     })
 
     describe('and destroying the LiveKit room fails', () => {
       beforeEach(() => {
-        deleteCommunityVoiceChatMock.mockResolvedValue(4)
         deleteRoomMock.mockRejectedValue(new Error('LiveKit deletion failed'))
       })
 
-      it('should reject and publish no event', async () => {
+      it('should reject, leave the participants untouched and publish no event', async () => {
         await expect(voiceComponent.endCommunityVoiceChat(communityId, userAddress)).rejects.toThrow(
           'LiveKit deletion failed'
         )
 
+        expect(deleteCommunityVoiceChatMock).not.toHaveBeenCalled()
         expect(publishMessageMock).not.toHaveBeenCalled()
       })
     })
