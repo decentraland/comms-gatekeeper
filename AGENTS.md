@@ -19,12 +19,13 @@ This project uses skills from [decentraland/ai-toolkit](https://github.com/decen
 
 Each of these shipped wrong here at least once and was corrected in review.
 
-- **Re-check authorization at the point of use.** A decision cached behind a TTL alone outlives the ban that should have stopped it. If you cache one, invalidate it on the moderation change and re-read the guard after every `await` on the path.
+- **Re-check authorization at the point of use.** A decision cached behind a TTL alone outlives the ban that should have stopped it. If you cache one, invalidate it on the moderation change, and re-read the guard after every `await` on the path — a verdict computed before an `await` may be stale by the time it is used.
+- **Make every fail-open path increment a counter.** A let-through has to be visible on a dashboard, not only in a log line.
 - **A weakened security property is the user's call.** Raise the cost and let them choose; a comment justifying the weakness is not approval.
 - **Treat connection strings as credentials.** `NATS_URL` and its kind carry user-info — log the target as host and port.
-- **Keep rationale in [docs/ai-agent-context.md](docs/ai-agent-context.md), and a short pointer to it in the code.** When an explanation outgrows the code it explains, it has outgrown the file.
-- **Drive time in tests from a controlled clock.** `lru-cache` holds the `performance` reference it captured at import, so Jest's fake timers never reach it — spy on the real object's `now`.
-- **Reach for what exists first.** A repo component (`@dcl/memory-cache-component`) or the callee itself usually already does it; a hand-rolled store or a re-implemented lookup drifts from the original.
+- **Move a comment longer than the code it explains into [docs/ai-agent-context.md](docs/ai-agent-context.md), leaving a one-line pointer.** Rationale that outgrows its function has outgrown the file.
+- **Advance time in tests with `jest.spyOn(performance, 'now')`; never `await` a real delay.** `lru-cache` captured its `performance` reference at import, so `jest.useFakeTimers()` misses it and the spy reaches it. A test that sleeps is a test that flakes — treat an existing sleep as a defect to remove.
+- **Before adding a store, cache, or lookup, confirm it does not already exist.** `@dcl/memory-cache-component` already wraps `lru-cache`, and the component you are about to call may already do the lookup you are about to repeat.
 - **Treat a review follow-up as work.** Implement it in the change that raised it, or agree explicitly to defer it.
 
 ## Git Hooks
