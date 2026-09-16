@@ -259,12 +259,6 @@ test('Community voice chat expiration job', ({ components, spyComponents }) => {
       spyComponents.publisher.publishMessage.mockResolvedValue({ MessageId: 'a-message-id', $metadata: {} })
     })
 
-    afterEach(() => {
-      spyComponents.livekit.deleteRoom.mockRestore()
-      spyComponents.analytics.fireEvent.mockRestore()
-      spyComponents.publisher.publishMessage.mockRestore()
-    })
-
     // An expiring room is by definition absent from every "active community voice chats" query, so
     // sourcing the participant count from one used to leave the count at 0 and swallow the event.
     it('should publish the ended event with the participants the room had', async () => {

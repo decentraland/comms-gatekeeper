@@ -19,7 +19,6 @@ export const createVoiceDBMockedComponent = (
     joinUserToCommunityRoom: overrides?.joinUserToCommunityRoom ?? jest.fn(),
     updateCommunityUserStatus: overrides?.updateCommunityUserStatus ?? jest.fn(),
     getCommunityUsersInRoom: overrides?.getCommunityUsersInRoom ?? jest.fn(),
-    getCommunityVoiceChatParticipantCount: overrides?.getCommunityVoiceChatParticipantCount ?? jest.fn(),
     isCommunityRoomActive: overrides?.isCommunityRoomActive ?? jest.fn(),
 
     deleteCommunityVoiceChat: overrides?.deleteCommunityVoiceChat ?? jest.fn(),

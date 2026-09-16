@@ -200,9 +200,8 @@ export function createVoiceComponent(
     }
 
     if (disconnectReason === DisconnectReason.ROOM_DELETED) {
-      // Room was already deleted by LiveKit, get participant count before cleaning up DB
-      const participantCount = await voiceDB.getCommunityVoiceChatParticipantCount(roomName)
-      await voiceDB.deleteCommunityVoiceChat(roomName)
+      // LiveKit already closed the room. A zero count means another path deleted the rows first.
+      const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
       await publishCommunityStreamingEndedEvent(roomName, participantCount)
       return
     }
@@ -253,9 +252,10 @@ export function createVoiceComponent(
 
         if (remainingActiveModerators.length === 0) {
           logger.debug(`No active moderators left in community room ${roomName}, destroying room`)
-          // Get participant count before deletion
-          const participantCount = await voiceDB.getCommunityVoiceChatParticipantCount(roomName)
-          await Promise.all([livekit.deleteRoom(roomName), voiceDB.deleteCommunityVoiceChat(roomName)])
+          // Rows before the LiveKit room: the ROOM_DELETED webhooks that follow then find nothing
+          // to publish, so the ended event goes out once.
+          const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
+          await livekit.deleteRoom(roomName)
 
           const communityId = livekit.getCommunityIdFromRoomName(roomName)
           analytics.fireEvent(AnalyticsEvent.END_CALL, {
@@ -678,18 +678,14 @@ export function createVoiceComponent(
     logger.info(`Ending community voice chat for community ${communityId} by user ${userAddress}`)
 
     try {
-      // Get participant count before deletion
-      const participantCount = await voiceDB.getCommunityVoiceChatParticipantCount(roomName)
+      // Rows before the LiveKit room, so the ROOM_DELETED webhooks that follow find nothing to publish.
+      const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
 
       // Delete the room in LiveKit (this will disconnect all participants)
       await livekit.deleteRoom(roomName)
 
-      // Remove all records from the database
-      await voiceDB.deleteCommunityVoiceChat(roomName)
-
       logger.info(`Successfully ended community voice chat for community ${communityId}`)
 
-      // Publish event after deletion
       await publishCommunityStreamingEndedEvent(roomName, participantCount)
     } catch (error) {
       logger.error(

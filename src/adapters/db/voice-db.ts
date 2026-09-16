@@ -394,23 +394,13 @@ export async function createVoiceDBComponent({
   }
 
   /**
-   * Gets the total participant count for a community voice chat room.
-   * This is optimized to only return the count without loading all user data.
-   * @param roomName - The name of the community room.
-   * @returns The total number of participants in the room.
+   * Deletes a community voice chat room and reports how many participants it held. Concurrent
+   * deletes serialize on the rows, so exactly one caller gets a non-zero count.
    */
-  async function getCommunityVoiceChatParticipantCount(roomName: string): Promise<number> {
-    const query = SQL`SELECT COUNT(*) as total_count FROM community_voice_chat_users WHERE room_name = ${roomName}`
-    const result = await database.query(query)
-    return result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0
-  }
-
-  /**
-   * Deletes a community voice chat room.
-   */
-  async function deleteCommunityVoiceChat(roomName: string): Promise<void> {
+  async function deleteCommunityVoiceChat(roomName: string): Promise<number> {
     const query = SQL`DELETE FROM community_voice_chat_users WHERE room_name = ${roomName}`
-    await database.query(query)
+    const result = await database.query(query)
+    return result.rowCount ?? 0
   }
 
   /**
@@ -644,7 +634,6 @@ export async function createVoiceDBComponent({
     joinUserToCommunityRoom,
     updateCommunityUserStatus,
     getCommunityUsersInRoom,
-    getCommunityVoiceChatParticipantCount,
     isCommunityRoomActive,
 
     deleteCommunityVoiceChat,

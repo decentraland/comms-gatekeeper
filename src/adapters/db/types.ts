@@ -194,18 +194,11 @@ export interface IVoiceDBComponent {
   isCommunityRoomActive: (roomName: string) => Promise<boolean>
 
   /**
-   * Gets the total participant count for a community voice chat room.
-   * This is optimized to only return the count without loading all user data.
-   * @param roomName - The name of the community room.
-   * @returns The total number of participants in the room.
-   */
-  getCommunityVoiceChatParticipantCount: (roomName: string) => Promise<number>
-
-  /**
    * Deletes a community voice chat room.
    * @param roomName - The name of the community room.
+   * @returns The participants the room had when it was deleted, or 0 when another path already removed it.
    */
-  deleteCommunityVoiceChat: (roomName: string) => Promise<void>
+  deleteCommunityVoiceChat: (roomName: string) => Promise<number>
 
   /**
    * Deletes expired community voice chats and returns the rooms that were deleted.
