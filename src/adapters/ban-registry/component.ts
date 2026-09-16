@@ -20,7 +20,9 @@ const DEFAULT_REFRESH_MS = 60_000
  * The contents are loaded at start and reloaded every `BAN_REGISTRY_REFRESH_MS`. The reload is
  * what covers a ban written behind the service's back and what retries a load that failed at
  * start; until a load has succeeded, `isLoaded()` is false and callers fall back to the database.
- * Expiry is honoured at lookup time, and an expired ban is dropped when it is met.
+ * A ban or lift that lands while a reload's snapshot is in flight is journaled and replayed on
+ * top of the snapshot, so the swap can neither drop it nor undo it. Expiry is honoured at lookup
+ * time, and an expired ban is dropped when it is met.
  *
  * @param components - The user moderation database, config and logs components.
  * @returns The ban registry component.
@@ -38,6 +40,12 @@ export async function createBanRegistryComponent(
   let byAddress = new Map<string, UserBan[]>()
   let byDevice = new Map<string, UserBan[]>()
   let refreshTimer: NodeJS.Timeout | undefined
+
+  // Mutations that land while a reload's snapshot is in flight. The snapshot was taken before
+  // them, so swapping it in as is would drop a ban created meanwhile and resurrect one lifted
+  // meanwhile; they are replayed on top of it instead. Cleared once no reload is in flight.
+  let journal: Array<{ op: 'add' | 'remove'; ban: UserBan }> | undefined
+  let reloading: Promise<void> | undefined
 
   function isActive(ban: UserBan, now: Date): boolean {
     return ban.liftedAt === null && (ban.expiresAt === null || ban.expiresAt > now)
@@ -90,6 +98,7 @@ export async function createBanRegistryComponent(
   }
 
   function add(ban: UserBan): void {
+    journal?.push({ op: 'add', ban })
     if (byId.has(ban.id)) {
       return
     }
@@ -102,6 +111,7 @@ export async function createBanRegistryComponent(
   }
 
   function remove(ban: UserBan): void {
+    journal?.push({ op: 'remove', ban })
     if (!byId.delete(ban.id)) {
       return
     }
@@ -123,9 +133,36 @@ export async function createBanRegistryComponent(
   }
 
   async function reload(): Promise<void> {
-    const bans = await userModerationDb.getActiveBans()
-    index(bans)
-    loaded = true
+    // Overlapping reloads share one snapshot: two concurrent journals would each miss the
+    // other's window.
+    if (!reloading) {
+      reloading = runReload().finally(() => {
+        reloading = undefined
+      })
+    }
+    return reloading
+  }
+
+  async function runReload(): Promise<void> {
+    journal = []
+    try {
+      const bans = await userModerationDb.getActiveBans()
+      const replay = journal
+      // Closed before the swap and the replay: nothing can slip between them, since neither
+      // awaits, and a mutation arriving after this point applies to the new indexes directly.
+      journal = undefined
+      index(bans)
+      for (const { op, ban } of replay) {
+        if (op === 'add') {
+          add(ban)
+        } else {
+          remove(ban)
+        }
+      }
+      loaded = true
+    } finally {
+      journal = undefined
+    }
   }
 
   async function refresh(): Promise<void> {

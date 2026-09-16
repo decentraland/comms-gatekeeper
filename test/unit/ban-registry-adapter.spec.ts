@@ -7,6 +7,7 @@ import {
 import { IUserModerationDatabaseComponent, UserBan } from '../../src/logic/user-moderation/types'
 import { createConfigMockedComponent } from '../mocks/config-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
+import { createDeferred } from '../utils'
 import { makeBan } from './user-moderation/utils'
 
 const ADDRESS = '0xaaa'
@@ -247,6 +248,113 @@ describe('ban registry adapter', () => {
 
     it('should pick it up', () => {
       expect(registry.getActiveBanForConnection({ address: ADDRESS })).toEqual({ isBanned: true, ban })
+    })
+  })
+
+  describe('when a ban is created while a reload is in flight', () => {
+    let snapshot: ReturnType<typeof createDeferred<UserBan[]>>
+    let created: UserBan
+    let reloading: Promise<void>
+
+    beforeEach(async () => {
+      registry = await build()
+      await registry[START_COMPONENT]!({} as never)
+
+      // The snapshot was taken before the ban existed, so it does not contain it. Swapping it in
+      // as is would make the registry forget a ban it was told about seconds ago.
+      snapshot = createDeferred<UserBan[]>()
+      getActiveBans.mockReturnValueOnce(snapshot.promise)
+      reloading = registry.reload()
+      created = makeBan({ id: 'created-mid-reload', bannedAddress: ADDRESS })
+      registry.add(created)
+      snapshot.resolve([])
+
+      await reloading
+    })
+
+    it('should still hold the ban after the reload', () => {
+      expect(registry.getActiveBanForConnection({ address: ADDRESS })).toEqual({ isBanned: true, ban: created })
+    })
+  })
+
+  describe('when a ban is lifted while a reload is in flight', () => {
+    let snapshot: ReturnType<typeof createDeferred<UserBan[]>>
+    let lifted: UserBan
+    let reloading: Promise<void>
+
+    beforeEach(async () => {
+      lifted = makeBan({ id: 'lifted-mid-reload', bannedAddress: ADDRESS })
+      getActiveBans.mockResolvedValueOnce([lifted])
+      registry = await build()
+      await registry[START_COMPONENT]!({} as never)
+
+      // The snapshot still lists the ban, because it was taken before the lift.
+      snapshot = createDeferred<UserBan[]>()
+      getActiveBans.mockReturnValueOnce(snapshot.promise)
+      reloading = registry.reload()
+      registry.remove(lifted)
+      snapshot.resolve([lifted])
+
+      await reloading
+    })
+
+    it('should not resurrect the lifted ban', () => {
+      expect(registry.getActiveBanForConnection({ address: ADDRESS })).toEqual({ isBanned: false })
+    })
+  })
+
+  describe('when a reload is requested while another is in flight', () => {
+    let snapshot: ReturnType<typeof createDeferred<UserBan[]>>
+    let first: Promise<void>
+    let second: Promise<void>
+
+    beforeEach(async () => {
+      registry = await build()
+      await registry[START_COMPONENT]!({} as never)
+      getActiveBans.mockClear()
+
+      snapshot = createDeferred<UserBan[]>()
+      getActiveBans.mockReturnValueOnce(snapshot.promise)
+      first = registry.reload()
+      second = registry.reload()
+      snapshot.resolve([])
+
+      await Promise.all([first, second])
+    })
+
+    it('should take one snapshot for both', () => {
+      expect(getActiveBans).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('when a reload fails while a ban is created', () => {
+    let snapshot: ReturnType<typeof createDeferred<UserBan[]>>
+    let created: UserBan
+
+    beforeEach(async () => {
+      registry = await build()
+      await registry[START_COMPONENT]!({} as never)
+
+      snapshot = createDeferred<UserBan[]>()
+      getActiveBans.mockReturnValueOnce(snapshot.promise)
+      const reloading = registry.reload().catch(() => {})
+      created = makeBan({ id: 'created-during-failed-reload', bannedAddress: ADDRESS })
+      registry.add(created)
+      snapshot.reject(new Error('database unavailable'))
+
+      await reloading
+    })
+
+    it('should keep the ban, which went into the live indexes as it arrived', () => {
+      expect(registry.getActiveBanForConnection({ address: ADDRESS })).toEqual({ isBanned: true, ban: created })
+    })
+
+    it('should leave no journal behind, so later mutations apply directly', async () => {
+      // A clean follow-up reload proves the journal was closed: its snapshot alone decides.
+      getActiveBans.mockResolvedValueOnce([])
+      await registry.reload()
+
+      expect(registry.getActiveBanForConnection({ address: ADDRESS })).toEqual({ isBanned: false })
     })
   })
 
