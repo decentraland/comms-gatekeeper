@@ -247,14 +247,14 @@ feed archipelago-stats, but are deliberately unused here — both retire in iter
 `dcl_gatekeeper_cluster_access_check_failed_total`)
 and `dcl_gatekeeper_nats_connected`.
 
-**Dependency pin (temporary).** `@dcl/protocol` is pinned to the CDN branch tarball
-`dcl-protocol-1.0.0-34523473551.commit-3ef4c52.tgz` because no npm registry release yet carries
+**Dependency pin.** `@dcl/protocol` is pinned to the exact npm release
+`1.0.0-35089025179.commit-5810768` (dist-tag `next`), published from the merge of
+[protocol#454](https://github.com/decentraland/protocol/pull/454) into `main` on 2026-09-16. It carries
 `proto/decentraland/pulse/pulse_clusters.proto` with the `session`, `displaced_session` and
-`displaced_cluster_id` fields. CDN branch tarballs are not permanent: the artifact can vanish
-once the source branch is rebuilt or deleted — this is what broke archipelago-workers before it
-moved to a registry pin — so `yarn install --frozen-lockfile` in CI and the Docker build would
-fail. Repin to an exact registry version as soon as a release carrying `pulse_clusters.proto`
-fields 3–5 lands.
+`displaced_cluster_id` fields (3–5) this service reads. Until that release existed the pin was a CDN
+branch tarball; those are not permanent (the artifact can vanish once the source branch is rebuilt or
+deleted, which is what broke archipelago-workers before it moved to a registry pin), so never go back to
+one. Move the pin only to another exact registry version, together with `yarn.lock`.
 
 **Deliberate choices — do not "fix" these without reading why:**
 
