@@ -232,13 +232,12 @@ export async function createClusterSubscriberComponent(
       return
     }
 
-    // A connect from a device other than the one Pulse last published for is a displaced session
-    // coming back; handing it the room would put it next to the live one under one identity.
-    // A payload that is not a session key comes from an older WS Connector and cannot be judged.
-    if (SESSION_KEY.test(session) && entry.session && entry.session !== session) {
-      metrics.increment('dcl_gatekeeper_cluster_reannounce_skipped_other_session_total')
-      return
-    }
+    // A connect naming a session other than the one Pulse last published for is either a
+    // displaced device coming back, or the same device after its ephemeral identity changed.
+    // The two are indistinguishable from the payload, so the room itself is what decides: only a
+    // live participant can be displaced. A payload that is not a session key comes from an older
+    // WS Connector and cannot be judged at all.
+    const namesAnotherSession = SESSION_KEY.test(session) && !!entry.session && entry.session !== session
 
     let alreadyInRoom: boolean
     try {
@@ -259,10 +258,21 @@ export async function createClusterSubscriberComponent(
     }
 
     if (alreadyInRoom) {
-      metrics.increment('dcl_gatekeeper_cluster_reannounce_suppressed_total')
+      // Someone is holding the room under this wallet. Re-announcing now would put a second
+      // participant under one identity and LiveKit would end the live one, so this is where a
+      // session mismatch is genuinely a second device worth protecting.
+      metrics.increment(
+        namesAnotherSession
+          ? 'dcl_gatekeeper_cluster_reannounce_skipped_other_session_total'
+          : 'dcl_gatekeeper_cluster_reannounce_suppressed_total'
+      )
       return
     }
 
+    // Nobody holds the room, so a mismatched session cannot displace anyone: whatever the mirror
+    // still names, this connect is the only live claim on the wallet and re-announcing to it is
+    // the sole way it is ever handed a credential. Pulse's feed is edge-triggered, so a peer whose
+    // assignment was never delivered gets no second chance from upstream.
     metrics.increment('dcl_gatekeeper_cluster_reannounce_attempted_total')
     // Addressed to the connecting session: it is the same identifier Pulse publishes as
     // `session` (the auth chain's lower-cased ephemeral address) and the one WS Connector

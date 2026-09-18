@@ -466,20 +466,52 @@ describe('cluster-subscriber component', () => {
       })
     })
 
-    describe('and a peer connect names a session other than the one Pulse last published', () => {
+    describe('and a peer connect names another session while a participant holds the room', () => {
       beforeEach(async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', '0xbb'))
+        livekit.holdsParticipant.mockResolvedValue(true)
+        await deliver(
+          `peer.${WALLET}.cluster_change`,
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
+        )
         nats.publish.mockClear()
         await deliverConnect(`peer.${WALLET}.connect`, '0xaa00000000000000000000000000000000000000')
       })
 
-      it('should not re-announce, since that device was displaced', () => {
+      it('should not re-announce, since re-joining would evict the live device', () => {
         expect(nats.publish).not.toHaveBeenCalled()
-        expect(livekit.holdsParticipant).not.toHaveBeenCalled()
       })
 
       it('should count the skip', () => {
         expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_reannounce_skipped_other_session_total')
+      })
+    })
+
+    describe('and a peer connect names another session while nobody holds the room', () => {
+      beforeEach(async () => {
+        livekit.holdsParticipant.mockResolvedValue(false)
+        await deliver(
+          `peer.${WALLET}.cluster_change`,
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
+        )
+        nats.publish.mockClear()
+        metrics.increment.mockClear()
+        await deliverConnect(`peer.${WALLET}.connect`, '0xaa00000000000000000000000000000000000000')
+      })
+
+      it('should re-announce, since a mismatched session cannot displace a device that is not there', () => {
+        expect(nats.publish).toHaveBeenCalledTimes(1)
+      })
+
+      it('should address the credential to the connecting session', () => {
+        expect(nats.publish.mock.calls[0][0]).toBe(
+          `engine.peer.${WALLET}.island_changed.0xaa00000000000000000000000000000000000000`
+        )
+      })
+
+      it('should not count it as a skip', () => {
+        expect(metrics.increment).not.toHaveBeenCalledWith(
+          'dcl_gatekeeper_cluster_reannounce_skipped_other_session_total'
+        )
       })
     })
 
