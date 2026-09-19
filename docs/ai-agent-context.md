@@ -276,3 +276,30 @@ dwell debounce spaces a peer's events ~3 s apart) and self-correcting on the nex
 a real fix needs wallet-hash-partitioned consumers. Symptom to watch for: `publish_failed`
 clean, but users report being in a voice room whose members they cannot hear.
 
+
+## Authoritative island recovery
+
+Deploy Pulse's assignment request/snapshot support **before** this gatekeeper version.
+Existing `peer.*.cluster_change` traffic is unchanged. Gatekeeper also consumes queue-grouped
+`peer.*.cluster_snapshot` hints (PeerClusterChange protobuf). Every hint or connect requests
+`peer.{wallet}.cluster_assignment` with the lowercase ephemeral session in UTF-8 (empty only for
+legacy connectors). Pulse replies with PeerClusterChange for that active session, or empty bytes
+for absent/displaced peers. Requests time out after two seconds. Gatekeeper never uses a cached
+assignment as fallback on authority failure. A valid requested session must exactly match the reply.
+
+Snapshots contain no takeover fields and are not trusted as current assignments; the request
+resolves delayed hints against current authority. LiveKit membership checks suppress credentials
+for healthy rooms and fail closed on errors. Pulse's next periodic snapshot retries an unresolved
+lookup or failed publication, including after gatekeeper restart or subscription blackout. Pending
+hints are coalesced per wallet and capped at 10,000; overflow waits for the next snapshot.
+
+Island publications now reject known-disconnected writes and await a broker flush with a two-second
+deadline. A stalled flush closes that NATS connection to release SDK resources; the existing supervisor
+reconnects. This confirms broker processing, **not** connector receipt: Core NATS is not durable.
+Periodic reconciliation repairs downstream loss while the desired participant is absent from LiveKit.
+The existing single-replica ordering constraint still applies; this does not add distributed ordering.
+
+Membership checks identify a wallet, not its ephemeral session. If a takeover event is lost while
+the displaced session remains in the same target room, periodic hints deliberately suppress a
+replacement join. Recovery repairs absent participants, not every takeover chain; the original
+explicit takeover feed remains responsible for revocation/eviction.

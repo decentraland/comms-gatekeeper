@@ -35,16 +35,15 @@ function nextWholeSecond(): Date {
  * the previous room as `fromIslandId`.
  * 5. Record the new assignment in peer state.
  *
- * Per inbound `peer.*.connect` (a peer's comms session starting), the wallet's last known
- * island is re-announced through the same path, unless the connecting session differs from the
- * one last recorded for the wallet (that device was displaced) or LiveKit already lists the
- * wallet in that room. Pulse's feed only speaks when a peer's cluster changes, so without this
- * a client that reconnects standing still is never given a room.
+ * On connect and periodic Pulse snapshot hints, request the authoritative assignment from
+ * Pulse, validate the connecting session, and mint only if LiveKit reports the wallet absent.
+ * This repairs lost change events and cold/expired mirrors without disturbing healthy rooms.
+ * A failed lookup or publish is retried by the next snapshot, not by an unbounded local timer.
  *
  * Off unless `CLUSTER_SUBSCRIBER_ENABLED` is `'true'` and NATS is configured; when off it
  * subscribes to nothing and is byte-identical to not having the component at all.
  *
- * On stop it unsubscribes from all three subjects. Components stop in reverse creation order,
+ * On stop it unsubscribes from every subject and ignores pending snapshot jobs. Components stop in reverse creation order,
  * so this runs first, then the wallet queue drains whatever is mid-flight, and only then does
  * the NATS adapter close its connection. An event arriving after the unsubscribe goes to
  * another member of the queue group instead of being minted against a closing connection.
@@ -157,7 +156,7 @@ export async function createClusterSubscriberComponent(
     let delivered: boolean
     try {
       // Never hoist a shared encoder across the mint's await above - that would corrupt frames.
-      delivered = nats.publish(subject, IslandChangedMessage.encode(message).finish())
+      delivered = await nats.publishConfirmed(subject, IslandChangedMessage.encode(message).finish())
     } catch (error) {
       metrics.increment('dcl_gatekeeper_cluster_publish_failed_total')
       logger.error(`Failed to publish island_changed for ${wallet}: ${getErrorMessage(error)}`)
@@ -223,22 +222,26 @@ export async function createClusterSubscriberComponent(
     }
   }
 
-  // Re-announces the wallet's island because its comms session just started: Pulse's feed is
-  // silent while a peer's cluster is unchanged (docs/ai-agent-context.md).
+  // Reconcile a connect or periodic hint against Pulse, including unchanged assignments.
   async function processPeerConnect(wallet: string, session: string): Promise<void> {
-    const entry = await assignmentMirror.get<MirrorEntry>(wallet)
-    if (!entry) {
+    // Query Pulse even with a warm mirror: a missed change can leave it pointing at an old room.
+    // Empty sessions are supported for legacy connectors, but malformed ones must fail closed.
+    if (session && !SESSION_KEY.test(session)) return
+    const reply = await nats.request(`peer.${wallet}.cluster_assignment`, Buffer.from(session))
+    if (!reply?.length) {
       metrics.increment('dcl_gatekeeper_cluster_reannounce_unresolved_total')
       return
     }
-
-    // A connect from a device other than the one Pulse last published for is a displaced session
-    // coming back; handing it the room would put it next to the live one under one identity.
-    // A payload that is not a session key comes from an older WS Connector and cannot be judged.
-    if (SESSION_KEY.test(session) && entry.session && entry.session !== session) {
+    const entry = normalizeChange(PeerClusterChange.decode(reply))
+    if (
+      !entry.clusterId ||
+      (entry.session && !SESSION_KEY.test(entry.session)) ||
+      (session && entry.session !== session)
+    ) {
       metrics.increment('dcl_gatekeeper_cluster_reannounce_skipped_other_session_total')
       return
     }
+    await assignmentMirror.set<MirrorEntry>(wallet, { clusterId: entry.clusterId, session: entry.session })
 
     let alreadyInRoom: boolean
     try {
@@ -250,7 +253,7 @@ export async function createClusterSubscriberComponent(
       // and LiveKit ends the live one. Reading "cannot tell" as "not in the room" would do
       // that to every reconnecting peer at once, which is exactly when this lookup is most
       // likely to fail - a ws-connector deploy reconnects everyone in seconds. Leaving a
-      // stranded peer stranded costs it one more reconnect; the other way costs it its session.
+      // stranded peer waiting costs it one snapshot interval; the other way costs it its session.
       metrics.increment('dcl_gatekeeper_cluster_reannounce_check_failed_total')
       logger.warn(
         `Cannot tell whether ${wallet} already holds its island, not re-announcing: ${getErrorMessage(error)}`
@@ -264,15 +267,11 @@ export async function createClusterSubscriberComponent(
     }
 
     metrics.increment('dcl_gatekeeper_cluster_reannounce_attempted_total')
-    // Addressed to the connecting session: it is the same identifier Pulse publishes as
-    // `session` (the auth chain's lower-cased ephemeral address) and the one WS Connector
-    // registered this socket under, so the credential reaches exactly that device. The mirror's
-    // session only stands in when the connect carries no valid key (an older WS Connector). With
-    // an older Pulse the mirror holds none, and using it would fall back to the legacy subject,
-    // which the connector delivers to the wallet's newest socket instead of to this one.
+    // Address credentials only to the session validated by the authority. Legacy connects
+    // carry no session, so use the active session returned by Pulse.
     await processClusterChange(wallet, {
       clusterId: entry.clusterId,
-      realm: '',
+      realm: entry.realm,
       session: SESSION_KEY.test(session) ? session : entry.session,
       displacedSession: '',
       displacedClusterId: ''
@@ -365,6 +364,26 @@ export async function createClusterSubscriberComponent(
       })
   }
 
+  // Periodic snapshots are hints, never authority: a delayed hint must not restore an old room.
+  // Coalesce while queued/in flight so slow LiveKit calls cannot accumulate snapshot jobs.
+  const pendingSnapshots = new Set<string>()
+  let stopped = false
+  function handleSnapshot(wallet: string, data: Uint8Array): void {
+    const change = normalizeChange(PeerClusterChange.decode(data))
+    if (stopped || !SESSION_KEY.test(change.session) || pendingSnapshots.has(wallet) || pendingSnapshots.size >= 10000)
+      return
+    pendingSnapshots.add(wallet)
+    // Fire-and-forget: the subscriber reader must not block on LiveKit.
+    void clusterWalletQueue
+      .enqueue(wallet, async () => {
+        if (!stopped) await processPeerConnect(wallet, change.session)
+      })
+      .catch((error) => {
+        logger.warn('Cannot reconcile cluster snapshot', { wallet, error: getErrorMessage(error) })
+      })
+      .finally(() => pendingSnapshots.delete(wallet))
+  }
+
   const subscriptions: NatsSubscription[] = []
 
   async function start(): Promise<void> {
@@ -394,6 +413,10 @@ export async function createClusterSubscriberComponent(
     // one room once per replica - every join after the first evicting the one before it.
     subscriptions.push(nats.subscribe('peer.*.connect', guarded('connect', handlePeerConnect), { queue: queueGroup }))
 
+    subscriptions.push(
+      nats.subscribe('peer.*.cluster_snapshot', guarded('cluster_snapshot', handleSnapshot), { queue: queueGroup })
+    )
+
     // Not awaited - well-known-components gates HTTP readiness (/health/ready, /health/startup)
     // on start() resolving, and connect() can stall ~20s per unreachable broker address before
     // giving up. It never throws and retries in the background regardless, so awaiting here
@@ -404,6 +427,7 @@ export async function createClusterSubscriberComponent(
   }
 
   async function stop(): Promise<void> {
+    stopped = true
     if (subscriptions.length === 0) {
       return
     }

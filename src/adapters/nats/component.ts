@@ -271,14 +271,49 @@ export async function createNatsComponent(
   }
 
   function publish(subject: string, data: Uint8Array): boolean {
-    // Checks `connection`, not isConnected(), on purpose: during a disconnect->reconnect blip
-    // `connection` stays set and nats.js buffers writes against it, flushing on reconnect. Do
-    // not swap in isConnected() - that would drop a write nats.js could have buffered.
-    if (!connection) {
+    // nats.js can discard its reconnect buffer. Never report a disconnected write as accepted.
+    if (!connection || !connected || stopped) {
       return false
     }
     connection.publish(subject, data)
     return true
+  }
+
+  async function publishConfirmed(subject: string, data: Uint8Array): Promise<boolean> {
+    const active = connection
+    if (!active || !publish(subject, data)) return false
+    let timer: NodeJS.Timeout | undefined
+    try {
+      // flush has no per-call deadline in this SDK. Clear the timer on every outcome.
+      return await Promise.race([
+        active.flush().then(() => connected && connection === active && !stopped),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => {
+            resolve(false)
+            // A timed-out flush remains registered inside nats.js. Close the stalled connection
+            // to release it; the existing closed() supervisor restores subscriptions.
+            void active.close().catch((error) => {
+              logger.warn('Cannot close stalled NATS connection', { error: getErrorMessage(error) })
+            })
+          }, 2000)
+        })
+      ])
+    } catch (error) {
+      logger.warn('NATS publication was not confirmed', { subject, error: getErrorMessage(error) })
+      return false
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  async function request(subject: string, data: Uint8Array): Promise<Uint8Array | undefined> {
+    if (!connection || !connected || stopped) return undefined
+    try {
+      return (await connection.request(subject, data, { timeout: 2000 })).data
+    } catch (error) {
+      logger.warn('NATS request failed', { subject, error: getErrorMessage(error) })
+      return undefined
+    }
   }
 
   function isEnabled(): boolean {
@@ -320,6 +355,8 @@ export async function createNatsComponent(
     connect,
     subscribe,
     publish,
+    publishConfirmed,
+    request,
     isEnabled,
     isConnected,
     [STOP_COMPONENT]: stop

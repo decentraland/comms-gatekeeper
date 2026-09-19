@@ -112,6 +112,8 @@ function buildConnection() {
   return {
     subscribe: subscribeSpy,
     publish: publishSpy,
+    flush: jest.fn().mockResolvedValue(undefined),
+    request: jest.fn().mockResolvedValue({ data: new Uint8Array([42]) }),
     drain: drainSpy,
     close: closeSpy,
     status: jest.fn().mockReturnValue({
@@ -350,6 +352,79 @@ describe('nats-adapter', () => {
       })
     })
 
+    describe('and broker confirmation is requested', () => {
+      let connection: MockConnection
+      beforeEach(async () => {
+        connection = buildConnection()
+        natsConnectMock.mockResolvedValue(connection as any)
+        nats = await build('localhost:4222')
+        await nats.connect()
+      })
+      it('should report success after a broker round trip', async () => {
+        expect(await nats.publishConfirmed('a.b', new Uint8Array([1]))).toBe(true)
+        expect(connection.flush).toHaveBeenCalledTimes(1)
+      })
+      describe('and the broker never confirms the flush', () => {
+        let result: Promise<boolean>
+        beforeEach(() => {
+          jest.useFakeTimers()
+          connection.flush.mockImplementationOnce(() => new Promise<void>(() => {}))
+          result = nats.publishConfirmed('a.b', new Uint8Array([1]))
+        })
+        afterEach(() => {
+          jest.useRealTimers()
+        })
+        it('should fail within the deadline and close the stalled connection', async () => {
+          await jest.advanceTimersByTimeAsync(2000)
+          expect(await result).toBe(false)
+          expect(connection.close).toHaveBeenCalledTimes(1)
+        })
+        it('should reconnect and reactivate subscriptions through the existing supervisor', async () => {
+          nats.subscribe('recover.*', jest.fn())
+          natsConnectMock.mockResolvedValueOnce(connection as any)
+          await jest.advanceTimersByTimeAsync(2000)
+          resolveClosed(undefined)
+          await jest.advanceTimersByTimeAsync(5000)
+          expect(natsConnectMock).toHaveBeenCalledTimes(2)
+          expect(connection.subscribe).toHaveBeenCalledTimes(2)
+        })
+      })
+      describe('and flushing fails', () => {
+        beforeEach(() => {
+          connection.flush.mockRejectedValueOnce(new Error('closed'))
+        })
+        it('should report failure instead of successful delivery', async () => {
+          expect(await nats.publishConfirmed('a.b', new Uint8Array([1]))).toBe(false)
+        })
+      })
+      describe('and the link disconnects', () => {
+        beforeEach(async () => {
+          pushStatus({ type: 'disconnect' })
+          await flushMicrotasks()
+        })
+        it('should refuse publication without flushing', async () => {
+          expect(await nats.publishConfirmed('a.b', new Uint8Array([1]))).toBe(false)
+          expect(connection.flush).not.toHaveBeenCalled()
+        })
+        it('should refuse requests while disconnected', async () => {
+          expect(await nats.request('a.b', new Uint8Array())).toBeUndefined()
+          expect(connection.request).not.toHaveBeenCalled()
+        })
+      })
+      it('should return the response bytes with a bounded request timeout', async () => {
+        expect(await nats.request('a.b', new Uint8Array())).toEqual(new Uint8Array([42]))
+        expect(connection.request).toHaveBeenCalledWith('a.b', new Uint8Array(), { timeout: 2000 })
+      })
+      describe('and no responder is available', () => {
+        beforeEach(() => {
+          connection.request.mockRejectedValueOnce(new Error('no responders'))
+        })
+        it('should return transport failure without an unhandled rejection', async () => {
+          expect(await nats.request('a.b', new Uint8Array())).toBeUndefined()
+        })
+      })
+    })
+
     describe('and a message is published with no connection', () => {
       beforeEach(async () => {
         natsConnectMock.mockResolvedValue(buildConnection() as any)
@@ -377,10 +452,9 @@ describe('nats-adapter', () => {
         nats.publish('engine.peer.0xabc.island_changed', new Uint8Array([1]))
       })
 
-      it('should still hand it to the connection, which buffers and flushes it on reconnect', () => {
-        // Deliberately not gated on isConnected(): the handle survives the blip and nats.js
-        // buffers writes against it. Dropping the write here would lose it outright.
-        expect(publishSpy).toHaveBeenCalled()
+      it('should reject the write instead of trusting the reconnect buffer', () => {
+        expect(publishSpy).not.toHaveBeenCalled()
+        expect(nats.publish('a.b', new Uint8Array([1]))).toBe(false)
       })
     })
 

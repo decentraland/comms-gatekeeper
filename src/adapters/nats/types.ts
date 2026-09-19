@@ -41,12 +41,13 @@ export type INatsComponent = IBaseComponent & {
    *
    * @param subject - The subject to publish on.
    * @param data - The already-encoded payload.
-   * @returns `true` when the message was handed to the client — which includes a
-   * disconnect/reconnect blip, where it is buffered and flushed on reconnect — and `false`
-   * when there was no connection to hand it to and it was dropped. Callers that report on
-   * delivery must check this: a dropped publish does not throw.
+   * @returns True only when handed to a connected client. Core NATS does not replay messages.
    */
   publish(subject: string, data: Uint8Array): boolean
+  /** Publish and await a broker round trip, bounded by timeout. Not a subscriber acknowledgement. */
+  publishConfirmed(subject: string, data: Uint8Array): Promise<boolean>
+  /** Request an authoritative reply with a bounded timeout; undefined means transport failure. */
+  request(subject: string, data: Uint8Array): Promise<Uint8Array | undefined>
   /**
    * Whether NATS is configured at all, i.e. whether `NATS_URL` is set. Independent of whether
    * the link is currently up — callers use this to decide whether to bother wiring themselves in.

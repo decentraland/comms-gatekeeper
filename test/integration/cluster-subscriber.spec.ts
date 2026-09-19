@@ -63,6 +63,7 @@ jest.setTimeout(15000)
 
 test('cluster subscriber against a real NATS broker', ({ components, stubComponents }) => {
   let brokerAvailable = false
+  let assignments: Map<string, Uint8Array>
   let publisher: NatsConnection
   let nats: INatsComponent
   let subscriber: IClusterSubscriberComponent
@@ -85,6 +86,13 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
 
     publisher = await connect({ servers: NATS_TEST_URL })
     received = []
+    assignments = new Map()
+    publisher.subscribe('peer.*.cluster_assignment', {
+      callback: (error, message) => {
+        if (error) return
+        message.respond(assignments.get(message.subject.split('.')[1]) ?? new Uint8Array())
+      }
+    })
     // Callback-collected into an array rather than async-iterated: these assertions have
     // to prove a message did NOT arrive as well as that one did, and polling a plain
     // array makes both directions unambiguous.
@@ -186,6 +194,7 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
   }
 
   function publishClusterChange(wallet: string, clusterId: string): void {
+    assignments.set(wallet, PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId })).finish())
     publisher.publish(
       `peer.${wallet}.cluster_change`,
       PeerClusterChange.encode({
@@ -197,6 +206,44 @@ test('cluster subscriber against a real NATS broker', ({ components, stubCompone
       }).finish()
     )
   }
+
+  describe('when Pulse retains an assignment that gatekeeper never received', () => {
+    let session: string
+    let assignment: Uint8Array
+    beforeEach(async () => {
+      if (!brokerAvailable) return
+      session = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      assignment = PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'recovered', session })).finish()
+      assignments.set(RECONNECT_WALLET, assignment)
+      jest.spyOn(components.livekit, 'holdsParticipant').mockResolvedValue(false)
+      publisher.subscribe(`engine.peer.${RECONNECT_WALLET}.island_changed.${session}`, {
+        callback: (error, message) => {
+          if (!error) received.push({ subject: message.subject, message: IslandChangedMessage.decode(message.data) })
+        }
+      })
+      await publisher.flush()
+    })
+    it('should recover from a cold mirror through real NATS request/reply', async () => {
+      if (!brokerAvailable) return
+      publisher.publish(`peer.${RECONNECT_WALLET}.connect`, Buffer.from(session))
+      expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-recovered')
+    })
+    it('should repair a lost event from a periodic snapshot without reconnecting', async () => {
+      if (!brokerAvailable) return
+      publisher.publish(`peer.${RECONNECT_WALLET}.cluster_snapshot`, assignment)
+      expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-recovered')
+    })
+    describe('and the room is already healthy', () => {
+      beforeEach(() => {
+        if (brokerAvailable) jest.spyOn(components.livekit, 'holdsParticipant').mockResolvedValue(true)
+      })
+      it('should not send replacement credentials', async () => {
+        if (!brokerAvailable) return
+        publisher.publish(`peer.${RECONNECT_WALLET}.cluster_snapshot`, assignment)
+        expect(await nextIslandChanged(1000)).toBeUndefined()
+      })
+    })
+  })
 
   describe('when an allowed wallet is assigned to a cluster', () => {
     it('should publish island_changed with a usable LiveKit connection string', async () => {
