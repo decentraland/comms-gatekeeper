@@ -107,8 +107,8 @@ assignment into a LiveKit connection string. Behind `CLUSTER_SUBSCRIBER_ENABLED`
 | Subject | Payload | Use |
 |---|---|---|
 | `peer.{addr}.cluster_change` | `decentraland.pulse.PeerClusterChange` with `session`, `displaced_session`, `displaced_cluster_id` | drives minting; queue-grouped so one replica handles each event |
-| `peer.{addr}.cluster_change` (again) | `decentraland.pulse.PeerClusterChange` with `session`, `displaced_session`, `displaced_cluster_id` | refreshes the assignment mirror only; **not** queue-grouped, so every replica records every assignment |
-| `peer.{addr}.connect` | the connecting socket's session key (its auth chain's ephemeral address), UTF-8; a non-address payload is an older WS Connector | a comms session started; re-announces the wallet's island. Queue-grouped, so exactly one replica answers |
+| `peer.{addr}.cluster_snapshot` | `decentraland.pulse.PeerClusterChange` | bounded background recovery hint; queue-grouped |
+| `peer.{addr}.connect` | the connecting socket's session key (its auth chain's ephemeral address), UTF-8; empty only for legacy connectors; non-empty malformed keys are rejected | a comms session started; re-announces the wallet's island. Queue-grouped, so exactly one replica answers |
 
 **Produces** `engine.peer.{addr}.island_changed.{session}` (`IslandChangedMessage`) whenever the event
 names a valid session — WS Connector forwards the five-token subject only to the socket holding that
@@ -116,7 +116,8 @@ session — or the legacy `engine.peer.{addr}.island_changed` when it does not (
 is published empty: unity-explorer reads only `connStr`. WS Connector must already subscribe to the
 five-token subject in an environment before this runs.
 
-**Pipeline:** decode → access gate by address (user moderation widens the ban check to the
+**Pipeline:** decode → per-wallet queue → query current Pulse authority for the event session →
+check exact LiveKit participant (unless explicit takeover cleanup is required) → access gate by address (user moderation widens the ban check to the
 wallet's last recorded device and answers it from the in-memory ban registry; deny list
 alongside), fail-open →
 evict the displaced session (when named) → room name → `generateCredentials(wallet, room, { cast: [] }, false)` →
@@ -136,14 +137,11 @@ This differs from the signed-fetch token handlers on purpose: there only the ban
 open and a deny-list error still rejects the request, because that path is synchronous and the
 client can retry. Raised in review and accepted as a product decision.
 
-**Reconnects.** Pulse's feed is edge-triggered: it stays silent while a peer's cluster is
-unchanged. A client whose websocket drops and comes back without the crowd moving would
-therefore never be given a room, because nothing else in iteration 1 can originate an island
-— WS Connector is a pure forwarder, and `archipelago-core`, which used to cover this by
-forgetting the peer on disconnect and re-creating it on the next heartbeat, is gone. The
-`peer.{addr}.connect` subscription closes that gap by replaying the wallet's assignment through
-the same mint-and-publish path, so the client gets a freshly minted token rather than the
-expired one it was last sent.
+**Reconnects and missed assignments.** Both `peer.{addr}.connect` and periodic snapshot hints
+resolve the current assignment from Pulse. Local restarts, expired tokens and missing change
+messages do not require the peer to move before it can recover. Recovery issues a fresh token
+only when LiveKit reports the participant absent; an unavailable authority or membership check
+fails closed and the next periodic hint retries.
 
 **Takeovers.** When a `cluster_change` names a `displaced_session`, that wallet's participant is removed
 from `island-{displaced_cluster_id}` and the new session's token is minted across one revocation
@@ -161,14 +159,11 @@ displaced client reconnects against a revoked token and, once it re-handshakes, 
 session other than the one Pulse last published, so it is not re-announced either. No client change is
 involved; a superseded client loops without success by decision.
 
-Resolution reads the assignment mirror, not peer state. The mirror is a `@dcl/memory-cache-component`
-instance dedicated to the subscriber, wired in `src/components.ts` and sized by
-`CLUSTER_ASSIGNMENT_MIRROR_MAX` / `CLUSTER_ASSIGNMENT_MIRROR_TTL_MS`, holding a
-`MirrorEntry` (cluster and owning session) per lower-cased wallet. Minting is queue-grouped, so
-a replica's peer state covers only the events it was handed; two replicas answering one
-reconnect from it would name different clusters, and the client would settle in whichever
-arrived last. The mirror is written from the second, un-grouped `cluster_change` subscription so
-every replica agrees, and the connect subscription is grouped so only one of them replies.
+Resolution always requests `peer.{wallet}.cluster_assignment` from Pulse with the session key in
+UTF-8, even for ordinary change events. An event queued before a newer authoritative lookup cannot
+restore its old cluster afterward. The authority's cluster, realm and active session win; only an
+explicit edge's displaced-session cleanup survives, and only if that edge still belongs to the
+active session. No assignment mirror or ungrouped mirror subscription remains.
 
 The re-announcement is skipped when `livekit.holdsParticipant` reports the wallet already in
 that room: only the signalling socket has to have dropped for the event to fire, and handing a
@@ -180,7 +175,7 @@ reconnects (a WS Connector deploy reconnects everyone at once), and reading "can
 "not in the room" would end every one of those sessions. `dcl_gatekeeper_cluster_reannounce_*`
 counts each branch so the suppression can be told apart from a lookup that never succeeds.
 
-One more gate precedes that lookup. A `connect` whose session differs from the one the mirror recorded
+One more gate precedes that lookup. A request whose session differs from current Pulse authority
 for the wallet is skipped (`…reannounce_skipped_other_session_total`): that device was displaced. A
 repeated string for a room the client was just handed is de-duplicated by WS Connector, which knows
 what it delivered to which socket; gatekeeper keeps no timing state.
@@ -198,12 +193,10 @@ here subscribes, publishes or connects. Turn it on only where WS Connector alrea
 the five-token subject (archipelago-workers PR 128); an older connector matches four tokens only
 and silently drops every sessioned assignment.
 
-**Known limitations.** A replica that has just started has an empty mirror and cannot answer a
-reconnect until each wallet's next genuine cluster change; because the connect subscription is
-grouped, a connect routed to such a replica is dropped rather than passed on. Entries also age
-out after `CLUSTER_ASSIGNMENT_MIRROR_TTL_MS` (1 h default), so a peer that has stood still
-longer than that is unresolvable. Both show up as
-`dcl_gatekeeper_cluster_reannounce_unresolved_total`.
+**Availability dependency.** Pulse must support assignment requests and publish its current map
+before emitting change events. Authority failure never falls back to a historical event or cache.
+A peer may wait for the next periodic snapshot after a transient failure; persistent failure is
+visible through the unresolved counter and NATS request logs.
 
 **Deploy order.** On clients without the same-island guard in `ArchipelagoIslandRoom`
 (unity-explorer, unmerged at the time of writing), being told to join a room they already hold
@@ -219,8 +212,7 @@ underway when the signal arrived therefore still publishes.
 
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
-bounded per-wallet assignment store, whose only consumer is `fromIslandId`), the assignment
-mirror (a dedicated `@dcl/memory-cache-component` instance, see **Reconnects**),
+bounded per-wallet assignment store, whose only consumer is `fromIslandId`),
 `src/adapters/keyed-queue/` (the per-key serial queue the subscriber orders each wallet's events
 and connects with; the LiveKit adapter uses its own instance to order room-metadata writes; both
 drain in-flight tasks on stop, bounded by `KEYED_QUEUE_DRAIN_TIMEOUT_MS`) and
@@ -258,9 +250,9 @@ one. Move the pin only to another exact registry version, together with `yarn.lo
 
 **Deliberate choices — do not "fix" these without reading why:**
 
-- **No re-mint suppression.** Publishing again for a repeated same-cluster event is correct.
-  Pulse only re-announces a cluster after forgetting a peer, which means a reconnect that
-  needs a fresh token; suppressing it would leave the returning player with no voice room.
+- **Suppress only verified healthy membership.** Repeated same-cluster events resolve current
+  authority and check LiveKit; absence permits a fresh token, presence suppresses it. Explicit
+  takeover cleanup still evicts and re-mints across its revocation boundary.
 - **No room sharding.** One cluster is one room, and this service never subdivides a cluster.
   Cluster sizing is entirely Pulse's responsibility — it publishes `maxPeers: 0` on
   `engine.islands` specifically to advertise that clusters are uncapped, so a locally chosen
@@ -281,7 +273,7 @@ clean, but users report being in a voice room whose members they cannot hear.
 
 Deploy Pulse's assignment request/snapshot support **before** this gatekeeper version.
 Existing `peer.*.cluster_change` traffic is unchanged. Gatekeeper also consumes queue-grouped
-`peer.*.cluster_snapshot` hints (PeerClusterChange protobuf). Every hint or connect requests
+`peer.*.cluster_snapshot` hints (PeerClusterChange protobuf). Every change event, hint or connect requests
 `peer.{wallet}.cluster_assignment` with the lowercase ephemeral session in UTF-8 (empty only for
 legacy connectors). Pulse replies with PeerClusterChange for that active session, or empty bytes
 for absent/displaced peers. Requests time out after two seconds. Gatekeeper never uses a cached
@@ -291,7 +283,16 @@ Snapshots contain no takeover fields and are not trusted as current assignments;
 resolves delayed hints against current authority. LiveKit membership checks suppress credentials
 for healthy rooms and fail closed on errors. Pulse's next periodic snapshot retries an unresolved
 lookup or failed publication, including after gatekeeper restart or subscription blackout. Pending
-hints are coalesced per wallet and capped at 10,000; overflow waits for the next snapshot.
+hints are coalesced per wallet in a FIFO backlog (`CLUSTER_SNAPSHOT_BACKLOG`, default 10,000).
+`CLUSTER_SNAPSHOT_CONCURRENCY` (default 16) bounds active background jobs globally. Queued wallets
+retain their FIFO position when their session updates; active-wallet duplicates are ignored and
+can retry on the next refresh. Overflow is counted by `dcl_gatekeeper_cluster_snapshot_overflow_total`
+and retried by a later Pulse snapshot. Ordinary changes/connects do not wait for a global recovery
+slot, but retain per-wallet ordering. Shutdown discards pending recovery jobs and drains active work.
+Both limits require positive safe integers; invalid values fall back to defaults.
+
+Membership uses LiveKit's exact `GetParticipant` for the lowercased wallet identity used by island
+tokens, avoiding a full participant-list response for every peer in a room.
 
 Island publications now reject known-disconnected writes and await a broker flush with a two-second
 deadline. A stalled flush closes that NATS connection to release SDK resources; the existing supervisor
@@ -303,3 +304,13 @@ Membership checks identify a wallet, not its ephemeral session. If a takeover ev
 the displaced session remains in the same target room, periodic hints deliberately suppress a
 replacement join. Recovery repairs absent participants, not every takeover chain; the original
 explicit takeover feed remains responsible for revocation/eviction.
+
+
+## Recovery integration tests
+
+`.github/workflows/cluster-recovery.yml` provisions both NATS and Postgres and runs the broker
+integration suite with `NATS_INTEGRATION_REQUIRED=true`. An unavailable broker fails that job;
+the broader inherited workflow reports this suite as skipped without the opt-in flag instead
+of passing unexecuted assertions. Reproduce locally with the same flag:
+`NATS_INTEGRATION_REQUIRED=true yarn test --runInBand --no-coverage test/integration/cluster-subscriber.spec.ts`.
+The suite uses real NATS request/reply and real JWT signing; LiveKit membership is explicitly stubbed.

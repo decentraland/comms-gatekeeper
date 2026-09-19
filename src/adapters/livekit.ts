@@ -468,31 +468,24 @@ export async function createLivekitComponent(
   }
 
   /**
-   * Whether `roomId` currently holds a participant under this identity.
+   * Whether the room holds the requested island participant. Island identities are lowercased
+   * wallets; query that exact identity instead of listing/deserializing the entire room for
+   * every peer in a periodic recovery batch. Missing participants/rooms are absent, while
+   * transport and authorization errors propagate so recovery fails closed.
    *
-   * One call to LiveKit. A room that does not exist answers `not_found`, which reads as absent:
-   * the same outcome as an empty room, and the natural end of a room that closed between the
-   * caller deciding to ask and this call. Unlike {@link getParticipantInfo}, any other failure
-   * rejects instead of reading as "absent", so a caller whose safe default is not "absent" can
-   * tell the two apart.
-   *
-   * @param roomId - The room to inspect.
-   * @param participantId - The identity to look for, compared case-insensitively.
-   * @returns Whether the identity is currently in the room.
+   * @param roomId - The island room to inspect.
+   * @param participantId - The wallet identity, normalized to lowercase for the lookup.
+   * @returns Whether the participant is present.
    */
   async function holdsParticipant(roomId: string, participantId: string): Promise<boolean> {
-    let participants: ParticipantInfo[]
+    const target = participantId.toLowerCase()
     try {
-      participants = await roomClient.listParticipants(roomId)
-    } catch (error: any) {
-      if (error?.code === 'not_found') {
-        return false
-      }
+      const participant = await roomClient.getParticipant(roomId, target)
+      return participant.identity.toLowerCase() === target
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === 'not_found') return false
       throw error
     }
-
-    const target = participantId.toLowerCase()
-    return participants.some((participant) => participant.identity?.toLowerCase() === target)
   }
 
   async function listRoomParticipants(roomName: string): Promise<ParticipantInfo[]> {
