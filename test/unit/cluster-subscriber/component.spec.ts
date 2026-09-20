@@ -802,8 +802,9 @@ describe('cluster-subscriber component', () => {
         edge = clusterChange('C2', 'main', SUPERSEDED, { displacedSession: DISPLACED, displacedClusterId: 'C1' })
       })
 
-      describe('and neither its session nor the displaced one is current', () => {
+      describe('and this replica had minted the displaced session into that room', () => {
         beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C1', room: 'island-C1', session: DISPLACED, lastSeen: 0 })
           nats.request.mockResolvedValue({ status: 'no_reply' })
           await deliver(`peer.${WALLET}.cluster_change`, edge)
         })
@@ -823,6 +824,7 @@ describe('cluster-subscriber component', () => {
 
       describe('and the authority cannot be reached at all', () => {
         beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C1', room: 'island-C1', session: DISPLACED, lastSeen: 0 })
           nats.request.mockResolvedValue({ status: 'unavailable' })
           await deliver(`peer.${WALLET}.cluster_change`, edge)
         })
@@ -836,8 +838,21 @@ describe('cluster-subscriber component', () => {
         })
       })
 
+      describe('and this replica last handed the wallet a different room', () => {
+        beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C3', room: 'island-C3', session: NEWER, lastSeen: 0 })
+          nats.request.mockResolvedValue({ status: 'no_reply' })
+          await deliver(`peer.${WALLET}.cluster_change`, edge)
+        })
+
+        it('should evict the displaced session, since the live one left that room when it moved', () => {
+          expect(livekit.removeParticipant).toHaveBeenCalledWith('island-C1', WALLET, expect.any(Date))
+        })
+      })
+
       describe('and the displaced session is the active one again', () => {
         beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C1', room: 'island-C1', session: DISPLACED, lastSeen: 0 })
           nats.request.mockImplementation(async (_subject, data) =>
             Buffer.from(data).toString() === DISPLACED
               ? replied(clusterChange('C1', 'main', DISPLACED))
@@ -871,15 +886,19 @@ describe('cluster-subscriber component', () => {
         })
       })
 
-      describe('and this replica last handed the displaced room to the displaced session itself', () => {
+      describe('and this replica has no mint on record for the wallet', () => {
         beforeEach(async () => {
-          peerState.set(WALLET, { clusterId: 'C1', room: 'island-C1', session: DISPLACED, lastSeen: 0 })
           nats.request.mockResolvedValue({ status: 'no_reply' })
           await deliver(`peer.${WALLET}.cluster_change`, edge)
         })
 
-        it('should evict it', () => {
-          expect(livekit.removeParticipant).toHaveBeenCalledWith('island-C1', WALLET, expect.any(Date))
+        it('should leave the participant in place, since it may be a live session minted before a restart', () => {
+          expect(livekit.removeParticipant).not.toHaveBeenCalled()
+        })
+
+        it('should count the skip and say why', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_takeover_skipped_total')
+          expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('no mint on record for the wallet'))
         })
       })
     })

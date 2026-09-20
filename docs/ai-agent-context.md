@@ -169,12 +169,15 @@ session other than the one Pulse last published, so it is not re-announced eithe
 involved; a superseded client loops without success by decision.
 
 A takeover edge that no longer mints — its session was superseded before it ran, or Pulse could
-not be consulted — still evicts the displaced session it names: Core NATS never redelivers the
-edge and hints carry no takeover fields, so nothing else ever would. It is left in place only when
-that session is active again, or when this replica has since handed the displaced room to a newer
-session of the wallet (`dcl_gatekeeper_cluster_takeover_skipped_total`): the participant there is
-live, and removing it would also revoke its token. A room handed out by another replica or before
-a restart cannot be seen from here; that case recovers on the next hint.
+not be consulted — still evicts the displaced session it names when this replica can tell the
+eviction is safe: Core NATS never redelivers the edge and hints carry no takeover fields, so
+nothing else ever would. The participant is left in place (`dcl_gatekeeper_cluster_takeover_skipped_total`)
+when that session is active again, when this replica has since handed the displaced room to a
+newer session of the wallet, or when it has no mint on record for the wallet at all — after a
+restart, or an hour without one. In each of those the participant in the room may be live, and
+removing it would also revoke its token, which the client reads as a takeover of its own device
+and stops reconnecting. Leaving a ghost costs a stale device its seat until it disconnects; a
+wrong eviction costs the live device its session.
 
 Resolution always requests `peer.{wallet}.cluster_assignment` from Pulse with the session key in
 UTF-8, even for ordinary change events. An event queued before a newer authoritative lookup cannot
@@ -239,7 +242,8 @@ underway when the signal arrived therefore still publishes.
 
 **Layout:** `src/logic/cluster-subscriber/` orchestrates; the pieces it leans on are components
 in their own right — `src/adapters/nats/` (the broker client), `src/adapters/peer-state/` (the
-bounded per-wallet assignment store, whose only consumer is `fromIslandId`),
+bounded per-wallet store of what this replica last minted, read for `fromIslandId` and to judge a
+superseded takeover's eviction),
 `src/adapters/keyed-queue/` (the per-key serial queue the subscriber orders each wallet's events
 and connects with; the LiveKit adapter uses its own instance to order room-metadata writes; both
 drain in-flight tasks on stop, bounded by `KEYED_QUEUE_DRAIN_TIMEOUT_MS`) and

@@ -324,11 +324,14 @@ export async function createClusterSubscriberComponent(
     }
   }
 
-  // The eviction half of a takeover edge that no longer mints. Left in place when the displaced
-  // session is the active one again, or when this replica has since handed the displaced room to a
-  // newer session of the same wallet: the participant there is live, and removing it would also
-  // revoke its token. A room handed out elsewhere cannot be seen from here; that case recovers on
-  // the next hint, which finds the wallet absent and mints again.
+  // The eviction half of a takeover edge that no longer mints, run only when this replica can tell
+  // it is safe. The participant in the displaced room is left alone when the displaced session is
+  // the active one again, when this replica has since handed that room to a newer session of the
+  // wallet, or when it has no mint on record for the wallet at all - after a restart, or an hour
+  // without one - since the room may then hold a session minted before the record was lost. In
+  // each case removing the participant would also revoke its token, and the client reads that as a
+  // takeover of its own device and stops reconnecting. A ghost left behind costs a stale device its
+  // seat until it disconnects; a wrong eviction costs the live device its session.
   async function evictSupersededTakeover(wallet: string, change: PeerClusterChange): Promise<void> {
     const displaced = await resolveAssignment(wallet, change.displacedSession)
     if (displaced.kind === 'invalid' || displaced.kind === 'current') {
@@ -337,12 +340,16 @@ export async function createClusterSubscriberComponent(
     }
 
     const last = peerState.get(wallet)
-    if (
-      last &&
-      change.displacedClusterId &&
-      last.room === livekit.getIslandRoomName(change.displacedClusterId) &&
-      last.session !== change.displacedSession
-    ) {
+    if (!last) {
+      metrics.increment('dcl_gatekeeper_cluster_takeover_skipped_total')
+      logger.info(
+        `Leaving displaced session ${change.displacedSession} of ${wallet} in place: no mint on record for the wallet`
+      )
+      return
+    }
+
+    const displacedRoom = change.displacedClusterId ? livekit.getIslandRoomName(change.displacedClusterId) : undefined
+    if (displacedRoom && last.room === displacedRoom && last.session !== change.displacedSession) {
       metrics.increment('dcl_gatekeeper_cluster_takeover_skipped_total')
       logger.info(
         `Leaving displaced session ${change.displacedSession} of ${wallet} in ${last.room}: since handed to ${last.session}`

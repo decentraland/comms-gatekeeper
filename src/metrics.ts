@@ -89,7 +89,7 @@ export const metricDeclarations = {
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_takeover_skipped_total: {
-    help: 'Total superseded takeover edges whose displaced session was left in place: it is active again, or this replica had since handed its room to a newer session',
+    help: 'Total superseded takeover edges whose displaced session was left in place: it is active again, this replica had since handed its room to a newer session, or this replica has no mint on record for the wallet',
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_reannounce_skipped_other_session_total: {
