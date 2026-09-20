@@ -4,6 +4,8 @@ export type PeerAssignment = {
   clusterId: string
   /** Stored rather than recomputed: `fromIslandId` needs the exact previous name. */
   room: string
+  /** The session the credentials were addressed to; empty when the event named none. */
+  session: string
   /** Kept for legibility in logs and debugging; the cache TTL does the actual expiry. */
   lastSeen: number
 }

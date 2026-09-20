@@ -1247,6 +1247,26 @@ describe('when checking whether a room holds a participant', () => {
     })
   })
 
+  describe('and LiveKit answers a bare HTTP 404 without a Twirp code', () => {
+    beforeEach(() => {
+      getParticipantSpy.mockRejectedValue(Object.assign(new Error('not found'), { status: 404 }))
+    })
+
+    it('should report absence, the same not-found shape removeIngress accepts', async () => {
+      expect(await livekitComponent.holdsParticipant(roomName, identity)).toBe(false)
+    })
+  })
+
+  describe('and the lookup rejects with something that is not an Error', () => {
+    beforeEach(() => {
+      getParticipantSpy.mockRejectedValue({ code: 'not_found' })
+    })
+
+    it('should still read the not-found code as absence', async () => {
+      expect(await livekitComponent.holdsParticipant(roomName, identity)).toBe(false)
+    })
+  })
+
   describe('and LiveKit returns a different identity', () => {
     beforeEach(() => {
       getParticipantSpy.mockResolvedValue({ identity: 'someone-else' })

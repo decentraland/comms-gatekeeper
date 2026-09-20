@@ -25,6 +25,8 @@ const QUEUE_GROUP_WALLET = '0x5555555555555555555555555555555555555555'
 const RECONNECT_WALLET = '0x7777777777777777777777777777777777777777'
 const DENYLISTED_WALLET = '0x6666666666666666666666666666666666666666'
 const REBANNED_WALLET = '0x8888888888888888888888888888888888888888'
+// The session every event and connect names unless a test says otherwise.
+const DEFAULT_SESSION = '0xdd00000000000000000000000000000000000000'
 
 const startOptions = {
   started: () => true,
@@ -32,14 +34,26 @@ const startOptions = {
   getComponents: () => ({})
 } as any
 
-async function probeBroker(): Promise<boolean> {
-  try {
-    const probe = await connect({ servers: NATS_TEST_URL, maxReconnectAttempts: 0, timeout: 1500 })
-    await probe.close()
-    return true
-  } catch {
-    return false
+/**
+ * Whether the test broker answers, retrying for a few seconds: in CI the service container can
+ * still be starting when the first spec runs, and one refused probe must not fail a required job.
+ */
+async function probeBroker(attempts = 10): Promise<boolean> {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const probe = await connect({ servers: NATS_TEST_URL, maxReconnectAttempts: 0, timeout: 1500 })
+      await probe.close()
+      return true
+    } catch {
+      if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
   }
+  return false
+}
+
+/** An encoded Pulse assignment for the responder to hand out. */
+function assignmentFor(clusterId: string, session = DEFAULT_SESSION): Uint8Array {
+  return PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId, session })).finish()
 }
 
 /**
@@ -69,6 +83,9 @@ const brokerTest: typeof test =
 
 brokerTest('cluster subscriber against a real NATS broker', ({ components, stubComponents }) => {
   let assignments: Map<string, Uint8Array>
+  // Pulse answers only from the instance owning the requested session. Set to true to model an
+  // authority that answers for any session, so gatekeeper's own session check is what is proven.
+  let answerForAnySession: boolean
   let publisher: NatsConnection
   let nats: INatsComponent
   let subscriber: IClusterSubscriberComponent
@@ -79,28 +96,30 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     publisher = await connect({ servers: NATS_TEST_URL })
     received = []
     assignments = new Map()
+    answerForAnySession = false
     jest.spyOn(components.livekit, 'holdsParticipant').mockResolvedValue(false)
     publisher.subscribe('peer.*.cluster_assignment', {
       callback: (error, message) => {
         if (error) return
         const assignment = assignments.get(message.subject.split('.')[1])
-        const session = Buffer.from(message.data).toString('utf8').toLowerCase()
-        const matches = assignment && (!session || PeerClusterChange.decode(assignment).session === session)
+        const requested = Buffer.from(message.data).toString('utf8').toLowerCase()
+        const owns = assignment && PeerClusterChange.decode(assignment).session === requested
         // Non-owners stay silent so another Pulse replica can supply the active assignment.
-        if (matches && assignment.length) message.respond(assignment)
+        if (assignment?.length && (owns || answerForAnySession)) message.respond(assignment)
       }
     })
     // Callback-collected into an array rather than async-iterated: these assertions have
     // to prove a message did NOT arrive as well as that one did, and polling a plain
-    // array makes both directions unambiguous.
-    publisher.subscribe('engine.peer.*.island_changed', {
-      callback: (err, message) => {
-        if (err) {
-          return
-        }
-        received.push({ subject: message.subject, message: IslandChangedMessage.decode(message.data) })
+    // array makes both directions unambiguous. Both the session-addressed and the legacy
+    // subject are collected, so a message landing on the wrong one is seen rather than lost.
+    const collect = (err: Error | null, message: { subject: string; data: Uint8Array }) => {
+      if (err) {
+        return
       }
-    })
+      received.push({ subject: message.subject, message: IslandChangedMessage.decode(message.data) })
+    }
+    publisher.subscribe('engine.peer.*.island_changed', { callback: collect })
+    publisher.subscribe('engine.peer.*.island_changed.*', { callback: collect })
     ;({ nats, subscriber } = await buildReplica())
 
     await subscriber[START_COMPONENT]!(startOptions)
@@ -108,8 +127,9 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     // background so it can't gate HTTP readiness (src/logic/cluster-subscriber/component.ts) -
     // so a fixed sleep here was a guess, not a guarantee the subscriptions were live before a
     // test publishes to them. Poll the adapter's own readiness instead: fast in the common case,
-    // and a clear failure if it never connects.
-    await waitForConnected(nats, 2000)
+    // and a clear failure if it never connects. Five seconds, like the broker probe: a shared or
+    // just-started broker can take longer than a local one to accept a fresh connection.
+    await waitForConnected(nats, 5000)
   })
 
   afterEach(async () => {
@@ -185,13 +205,13 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     throw new Error(`NATS adapter did not report isConnected() within ${timeoutMs}ms`)
   }
 
-  function publishClusterChange(wallet: string, clusterId: string): void {
+  function publishClusterChange(wallet: string, clusterId: string, session = DEFAULT_SESSION): void {
     publisher.publish(
       `peer.${wallet}.cluster_change`,
       PeerClusterChange.encode({
         clusterId,
         realm: 'main',
-        session: '',
+        session,
         displacedSession: '',
         displacedClusterId: ''
       }).finish()
@@ -203,19 +223,20 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     let assignment: Uint8Array
     beforeEach(async () => {
       session = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-      assignment = PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'recovered', session })).finish()
+      assignment = assignmentFor('recovered', session)
       assignments.set(RECONNECT_WALLET, assignment)
       jest.spyOn(components.livekit, 'holdsParticipant').mockResolvedValue(false)
-      publisher.subscribe(`engine.peer.${RECONNECT_WALLET}.island_changed.${session}`, {
-        callback: (error, message) => {
-          if (!error) received.push({ subject: message.subject, message: IslandChangedMessage.decode(message.data) })
-        }
-      })
       await publisher.flush()
     })
     it('should recover after restart through real NATS request/reply', async () => {
       publisher.publish(`peer.${RECONNECT_WALLET}.connect`, Buffer.from(session))
-      expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-recovered')
+      const recovered = await nextIslandChanged(5000)
+      expect(recovered?.message.islandId).toBe('island-recovered')
+      expect(recovered?.subject).toBe(`engine.peer.${RECONNECT_WALLET}.island_changed.${session}`)
+    })
+    it('should leave a connect without a session unanswered', async () => {
+      publisher.publish(`peer.${RECONNECT_WALLET}.connect`)
+      expect(await nextIslandChanged(2500)).toBeUndefined()
     })
     it('should repair a lost event from a periodic snapshot without reconnecting', async () => {
       publisher.publish(`peer.${RECONNECT_WALLET}.cluster_snapshot`, assignment)
@@ -224,6 +245,15 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     it('should leave a displaced session without credentials when the authority stays silent', async () => {
       publisher.publish(`peer.${RECONNECT_WALLET}.connect`, Buffer.from('0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'))
       expect(await nextIslandChanged(2500)).toBeUndefined()
+    })
+    describe('and the authority answers for a session it does not own', () => {
+      beforeEach(() => {
+        answerForAnySession = true
+      })
+      it('should still refuse the displaced session, on its own session check', async () => {
+        publisher.publish(`peer.${RECONNECT_WALLET}.connect`, Buffer.from('0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'))
+        expect(await nextIslandChanged(2500)).toBeUndefined()
+      })
     })
     describe('and the room is already healthy', () => {
       beforeEach(() => {
@@ -238,16 +268,13 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
 
   describe('when an allowed wallet is assigned to a cluster', () => {
     it('should publish island_changed with a usable LiveKit connection string', async () => {
-      assignments.set(
-        ALLOWED_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C7' })).finish()
-      )
+      assignments.set(ALLOWED_WALLET, assignmentFor('C7'))
       publishClusterChange(ALLOWED_WALLET, 'C7')
 
       const received = await nextIslandChanged(5000)
 
       expect(received).toBeDefined()
-      expect(received!.subject).toBe(`engine.peer.${ALLOWED_WALLET}.island_changed`)
+      expect(received!.subject).toBe(`engine.peer.${ALLOWED_WALLET}.island_changed.${DEFAULT_SESSION}`)
       expect(received!.message.islandId).toBe('island-C7')
       expect(received!.message.peers).toEqual({})
 
@@ -282,10 +309,7 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
       // proving the `island-` prefix `getIslandRoomName` produces is genuinely classifiable by
       // this service's own webhook path — the real reason that prefix exists.
       const clusterId = 'C9'
-      assignments.set(
-        ALLOWED_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: clusterId })).finish()
-      )
+      assignments.set(ALLOWED_WALLET, assignmentFor(clusterId))
       publishClusterChange(ALLOWED_WALLET, clusterId)
 
       const received = await nextIslandChanged(5000)
@@ -306,17 +330,11 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     let second: { subject: string; message: IslandChangedMessage } | undefined
 
     beforeEach(async () => {
-      assignments.set(
-        REASSIGNED_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C20' })).finish()
-      )
+      assignments.set(REASSIGNED_WALLET, assignmentFor('C20'))
       publishClusterChange(REASSIGNED_WALLET, 'C20')
       first = await nextIslandChanged(5000)
 
-      assignments.set(
-        REASSIGNED_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C21' })).finish()
-      )
+      assignments.set(REASSIGNED_WALLET, assignmentFor('C21'))
       publishClusterChange(REASSIGNED_WALLET, 'C21')
       second = await nextIslandChanged(5000)
     })
@@ -342,7 +360,7 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     beforeEach(async () => {
       ;({ nats: secondNats, subscriber: secondSubscriber } = await buildReplica())
       await secondSubscriber[START_COMPONENT]!(startOptions)
-      await waitForConnected(secondNats, 2000)
+      await waitForConnected(secondNats, 5000)
     })
 
     afterEach(async () => {
@@ -354,10 +372,7 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
       // assert the `{ queue }` option was passed, but only a real broker proves the group
       // actually divides the work. Without it every replica mints, and the client receives N
       // island_changed messages carrying N different tokens for one assignment.
-      assignments.set(
-        QUEUE_GROUP_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C30' })).finish()
-      )
+      assignments.set(QUEUE_GROUP_WALLET, assignmentFor('C30'))
       publishClusterChange(QUEUE_GROUP_WALLET, 'C30')
 
       expect(await nextIslandChanged(5000)).toBeDefined()
@@ -367,17 +382,11 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     it('should answer a reconnect exactly once, naming the latest cluster', async () => {
       // The replicas have independent local state. Both resolve the same current authority,
       // and the queue group ensures only one responds to this connect.
-      assignments.set(
-        RECONNECT_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C40' })).finish()
-      )
+      assignments.set(RECONNECT_WALLET, assignmentFor('C40'))
       publishClusterChange(RECONNECT_WALLET, 'C40')
       expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C40')
 
-      assignments.set(
-        RECONNECT_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C41' })).finish()
-      )
+      assignments.set(RECONNECT_WALLET, assignmentFor('C41'))
       publishClusterChange(RECONNECT_WALLET, 'C41')
       expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C41')
 
@@ -386,19 +395,25 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
       // test with no LiveKit server. Stub just this lookup; minting stays real.
       jest.spyOn(components.livekit, 'holdsParticipant').mockResolvedValue(false)
 
-      publisher.publish(`peer.${RECONNECT_WALLET}.connect`)
+      publisher.publish(`peer.${RECONNECT_WALLET}.connect`, Buffer.from(DEFAULT_SESSION))
 
       expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C41')
       expect(await nextIslandChanged(1500)).toBeUndefined()
     })
   })
 
+  describe('when a change event names no session', () => {
+    it('should publish nothing, since the feed has named a session since it existed', async () => {
+      assignments.set(ALLOWED_WALLET, assignmentFor('C7'))
+      publishClusterChange(ALLOWED_WALLET, 'C7', '')
+
+      expect(await nextIslandChanged(2500)).toBeUndefined()
+    })
+  })
+
   describe('when the clusterId is empty', () => {
     it('should publish nothing rather than minting into a shared "island-" room', async () => {
-      assignments.set(
-        ALLOWED_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: '' })).finish()
-      )
+      assignments.set(ALLOWED_WALLET, assignmentFor(''))
       publishClusterChange(ALLOWED_WALLET, '')
 
       expect(await nextIslandChanged(2500)).toBeUndefined()
@@ -409,10 +424,7 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     it('should publish nothing at all', async () => {
       await components.userModeration.banPlayer(BANNED_WALLET, '0xadmin', 'integration test')
 
-      assignments.set(
-        BANNED_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C8' })).finish()
-      )
+      assignments.set(BANNED_WALLET, assignmentFor('C8'))
       publishClusterChange(BANNED_WALLET, 'C8')
 
       expect(await nextIslandChanged(2500)).toBeUndefined()
@@ -423,19 +435,13 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     it('should publish nothing for the next assignment', async () => {
       // The ban registry must reflect the ban on the very next event, or a just-banned wallet
       // gets a fresh island token.
-      assignments.set(
-        REBANNED_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C50' })).finish()
-      )
+      assignments.set(REBANNED_WALLET, assignmentFor('C50'))
       publishClusterChange(REBANNED_WALLET, 'C50')
       expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-C50')
 
       await components.userModeration.banPlayer(REBANNED_WALLET, '0xadmin', 'integration test')
 
-      assignments.set(
-        REBANNED_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C51' })).finish()
-      )
+      assignments.set(REBANNED_WALLET, assignmentFor('C51'))
       publishClusterChange(REBANNED_WALLET, 'C51')
 
       expect(await nextIslandChanged(2500)).toBeUndefined()
@@ -450,10 +456,7 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     })
 
     it('should publish nothing at all', async () => {
-      assignments.set(
-        DENYLISTED_WALLET,
-        PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'C40' })).finish()
-      )
+      assignments.set(DENYLISTED_WALLET, assignmentFor('C40'))
       publishClusterChange(DENYLISTED_WALLET, 'C40')
 
       expect(await nextIslandChanged(2500)).toBeUndefined()

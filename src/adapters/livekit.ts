@@ -483,7 +483,9 @@ export async function createLivekitComponent(
       const participant = await roomClient.getParticipant(roomId, target)
       return participant.identity.toLowerCase() === target
     } catch (error: unknown) {
-      if (error instanceof Error && 'code' in error && error.code === 'not_found') return false
+      // Same not-found shape removeIngress accepts: the Twirp code, or a bare HTTP 404 without one.
+      const failure = error as { code?: unknown; status?: unknown } | undefined
+      if (failure?.code === 'not_found' || failure?.status === 404) return false
       throw error
     }
   }

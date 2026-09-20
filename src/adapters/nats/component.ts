@@ -11,10 +11,26 @@ import {
 import { STOP_COMPONENT } from '@well-known-components/interfaces'
 import { getErrorMessage } from '../../logic/errors'
 import { AppComponents } from '../../types'
-import { INatsComponent, NatsMessageHandler, NatsSubscribeOptions, NatsSubscription } from './types'
+import {
+  INatsComponent,
+  NatsMessageHandler,
+  NatsRequestResult,
+  NatsSubscribeOptions,
+  NatsSubscription,
+  PublishOutcome
+} from './types'
 
 // Delay before retrying a failed connection. Mirrors Pulse's 5 s supervision loop.
 const RECONNECT_DELAY_MS = 5000
+
+// One deadline for every broker round trip this adapter awaits: a confirmed publish's flush and
+// a request's reply.
+const BROKER_ROUND_TRIP_DEADLINE_MS = 2000
+
+// How often the client pings the broker on an idle link. Two unanswered pings make nats.js drop and
+// reconnect the link itself, subscriptions included, so a broker that stops answering is detected
+// within about three intervals without anything here closing the connection.
+const PING_INTERVAL_MS = 15_000
 
 /**
  * The configured broker list for logs, with any user-info stripped: these URLs can carry
@@ -217,7 +233,8 @@ export async function createNatsComponent(
         // Unlimited retries: the client default is 10 attempts, after which it gives up
         // permanently and the feed goes silent with the service still healthy.
         maxReconnectAttempts: -1,
-        reconnectTimeWait: RECONNECT_DELAY_MS
+        reconnectTimeWait: RECONNECT_DELAY_MS,
+        pingInterval: PING_INTERVAL_MS
       })
 
       // stop() can finish while we're awaiting above and find `connection` still undefined, so
@@ -279,40 +296,50 @@ export async function createNatsComponent(
     return true
   }
 
-  async function publishConfirmed(subject: string, data: Uint8Array): Promise<boolean> {
+  async function publishConfirmed(subject: string, data: Uint8Array): Promise<PublishOutcome> {
     const active = connection
-    if (!active || !publish(subject, data)) return false
+    if (!active || !publish(subject, data)) return 'dropped'
     let timer: NodeJS.Timeout | undefined
     try {
-      // flush has no per-call deadline in this SDK. Clear the timer on every outcome.
+      // flush() resolves once the broker answers a ping sent after the write, and nats.js rejects
+      // every pending flush when the link drops, so a resolution means processed and a rejection
+      // means lost. It has no deadline of its own, hence the race. A flush that outlives the
+      // deadline is left to settle on its own and reported as unconfirmed: closing the connection
+      // to be rid of it would silence every subscription for a reconnect cycle, on a service with a
+      // single replica, and a link that has genuinely stopped answering is the client's own ping
+      // timer's to detect.
       return await Promise.race([
-        active.flush().then(() => connected && connection === active && !stopped),
-        new Promise<boolean>((resolve) => {
+        active.flush().then((): PublishOutcome => 'confirmed'),
+        new Promise<PublishOutcome>((resolve) => {
           timer = setTimeout(() => {
-            resolve(false)
-            // A timed-out flush remains registered inside nats.js. Close the stalled connection
-            // to release it; the existing closed() supervisor restores subscriptions.
-            void active.close().catch((error) => {
-              logger.warn('Cannot close stalled NATS connection', { error: getErrorMessage(error) })
-            })
-          }, 2000)
+            metrics.increment('dcl_gatekeeper_nats_publish_unconfirmed_total')
+            logger.warn('NATS publication was not confirmed within the deadline', { subject })
+            resolve('unconfirmed')
+          }, BROKER_ROUND_TRIP_DEADLINE_MS)
         })
       ])
     } catch (error) {
-      logger.warn('NATS publication was not confirmed', { subject, error: getErrorMessage(error) })
-      return false
+      logger.warn('NATS publication was lost before the broker confirmed it', {
+        subject,
+        error: getErrorMessage(error)
+      })
+      return 'dropped'
     } finally {
       if (timer) clearTimeout(timer)
     }
   }
 
-  async function request(subject: string, data: Uint8Array): Promise<Uint8Array | undefined> {
-    if (!connection || !connected || stopped) return undefined
+  async function request(subject: string, data: Uint8Array): Promise<NatsRequestResult> {
+    if (!connection || !connected || stopped) return { status: 'unavailable' }
     try {
-      return (await connection.request(subject, data, { timeout: 2000 })).data
+      const reply = await connection.request(subject, data, { timeout: BROKER_ROUND_TRIP_DEADLINE_MS })
+      return { status: 'replied', data: reply.data }
     } catch (error) {
+      // A timeout means the request reached a subscriber that chose not to answer. Every other
+      // failure - the broker reporting no subscriber at all included - means nobody was asked.
+      if (error instanceof NatsError && error.code === ErrorCode.Timeout) return { status: 'no_reply' }
       logger.warn('NATS request failed', { subject, error: getErrorMessage(error) })
-      return undefined
+      return { status: 'unavailable' }
     }
   }
 

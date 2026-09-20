@@ -10,6 +10,10 @@ export const metricDeclarations = {
     help: '1 when the NATS connection is established, 0 otherwise',
     type: IMetricsComponent.GaugeType
   },
+  dcl_gatekeeper_nats_publish_unconfirmed_total: {
+    help: 'Confirmed publishes whose broker round trip did not settle within the deadline; the write reached a connected client and is counted as published',
+    type: IMetricsComponent.CounterType
+  },
   dcl_gatekeeper_cluster_snapshot_overflow_total: {
     help: 'Snapshot hints deferred to a later Pulse refresh because the recovery backlog is full',
     type: IMetricsComponent.CounterType
@@ -51,7 +55,21 @@ export const metricDeclarations = {
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_reannounce_unresolved_total: {
-    help: 'Total assignment lookups unresolved by Pulse for a change, connect or snapshot hint',
+    help: 'Total assignment lookups no Pulse instance answered: nothing is assigned to that wallet under that session (absent, departed or displaced)',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_authority_unavailable_total: {
+    help: 'Total assignment lookups that could not reach Pulse: no connection, no responder on the subject, or a failed request',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_authority_request_duration_seconds: {
+    help: 'Round-trip time of assignment lookups to Pulse, by outcome',
+    type: IMetricsComponent.HistogramType,
+    labelNames: ['status'],
+    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2]
+  },
+  dcl_gatekeeper_cluster_malformed_session_total: {
+    help: 'Total connects and change events dropped because their session is not a session key',
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_reannounce_check_failed_total: {
@@ -68,6 +86,10 @@ export const metricDeclarations = {
   },
   dcl_gatekeeper_cluster_takeover_absent_total: {
     help: 'Total displaced sessions that had already left their island room when the takeover arrived; nothing was removed or revoked',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_takeover_skipped_total: {
+    help: 'Total superseded takeover edges whose displaced session was left in place: it is active again, or this replica had since handed its room to a newer session',
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_reannounce_skipped_other_session_total: {
