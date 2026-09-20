@@ -1,9 +1,7 @@
-import { ICacheStorageComponent } from '@dcl/core-commons'
-import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { ILoggerComponent, IBaseComponent, START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
-import { NatsMessageHandler } from '../../../src/adapters/nats'
+import { NatsMessageHandler, NatsRequestResult } from '../../../src/adapters/nats'
 import { createPeerStateComponent, IPeerStateComponent } from '../../../src/adapters/peer-state'
 import { createClusterSubscriberComponent, IClusterSubscriberComponent } from '../../../src/logic/cluster-subscriber'
 import { createAccessGateMockedComponent } from '../../mocks/access-gate-mock'
@@ -19,6 +17,9 @@ const WALLET = '0x1111111111111111111111111111111111111111'
 // Has actual hex letters, unlike WALLET, so upper/lower-casing it is not a no-op.
 const MIXED_CASE_WALLET = '0xAaBbCcDdEeFf00112233445566778899aAbBcCdD'
 const LOWER_CASE_WALLET = MIXED_CASE_WALLET.toLowerCase()
+// The session every event and connect names unless a test says otherwise: the feed has carried one
+// since it existed, and an event without one is rejected.
+const DEFAULT_SESSION = '0xdd00000000000000000000000000000000000000'
 
 const startOptions: IBaseComponent.ComponentStartOptions = {
   started: () => true,
@@ -29,7 +30,7 @@ const startOptions: IBaseComponent.ComponentStartOptions = {
 function clusterChange(
   clusterId: string,
   realm = 'main',
-  session = '',
+  session = DEFAULT_SESSION,
   displaced: Partial<PeerClusterChange> = {}
 ): Uint8Array {
   return PeerClusterChange.encode({
@@ -42,6 +43,11 @@ function clusterChange(
   }).finish()
 }
 
+/** A Pulse reply carrying the given assignment. */
+function replied(data: Uint8Array): NatsRequestResult {
+  return { status: 'replied', data }
+}
+
 describe('cluster-subscriber component', () => {
   let component: IClusterSubscriberComponent
   let nats: ReturnType<typeof createNatsMockedComponent>
@@ -49,7 +55,6 @@ describe('cluster-subscriber component', () => {
   let livekit: ReturnType<typeof createLivekitMockedComponent>
   let accessGate: ReturnType<typeof createAccessGateMockedComponent>
   let peerState: IPeerStateComponent
-  let assignmentMirror: ICacheStorageComponent
   let logger: jest.Mocked<ILoggerComponent.ILogger>
 
   type BuildOptions = {
@@ -57,15 +62,13 @@ describe('cluster-subscriber component', () => {
     numbers?: Record<string, number | undefined>
     natsEnabled?: boolean
     peerStateOverride?: IPeerStateComponent
-    assignmentMirrorOverride?: ICacheStorageComponent
   }
 
   async function build({
     settings = {},
     numbers = {},
     natsEnabled = true,
-    peerStateOverride,
-    assignmentMirrorOverride
+    peerStateOverride
   }: BuildOptions = {}): Promise<IClusterSubscriberComponent> {
     const values: Record<string, string | undefined> = {
       CLUSTER_SUBSCRIBER_ENABLED: 'true',
@@ -82,14 +85,12 @@ describe('cluster-subscriber component', () => {
     nats = createNatsMockedComponent({ isEnabled: jest.fn().mockReturnValue(natsEnabled) })
     metrics = createMetricsMockedComponent({})
     livekit = createLivekitMockedComponent({
+      holdsParticipant: jest.fn().mockResolvedValue(false),
       generateCredentials: jest.fn().mockResolvedValue({ url: 'wss://livekit.example', token: 'a-jwt' }),
       buildConnectionUrl: jest.fn((url: string, token: string) => `livekit:${url}?access_token=${token}`)
     })
     accessGate = createAccessGateMockedComponent()
     peerState = peerStateOverride ?? createPeerStateMockedComponent()
-    // The real in-memory cache, as in production: the tests below depend on read-your-writes
-    // between the un-grouped mirror subscription and a connect queued behind it.
-    assignmentMirror = assignmentMirrorOverride ?? createInMemoryCacheComponent()
     const logs = createLoggerMockedComponent({})
 
     const built = await createClusterSubscriberComponent({
@@ -100,8 +101,7 @@ describe('cluster-subscriber component', () => {
       livekit,
       accessGate,
       peerState,
-      assignmentMirror,
-      // Real, like the mirror: the ordering tests below depend on genuine per-wallet serialization.
+      // The real queue: the ordering tests below depend on genuine per-wallet serialization.
       clusterWalletQueue: await createKeyedQueueTestComponent()
     })
     // The component fetches its logger once, synchronously, before its first await, so
@@ -126,8 +126,7 @@ describe('cluster-subscriber component', () => {
   }
 
   /**
-   * Delivers an event to every cluster_change subscription, as a broker would to a lone
-   * replica: the grouped one that mints and the un-grouped one that refreshes the mirror.
+   * Delivers an edge independently of authority state, allowing tests to model delayed events.
    */
   async function deliver(subject: string, payload: Uint8Array): Promise<void> {
     for (const handler of handlersFor('cluster_change')) {
@@ -137,32 +136,302 @@ describe('cluster-subscriber component', () => {
   }
 
   /**
-   * Delivers an event only to the un-grouped mirror subscription, standing in for a replica
-   * the queue group did not hand the assignment to. Selected by the absence of a queue option
-   * rather than by position, so reordering the subscriptions cannot silently retarget this.
+   * Delivers a session-start event carrying the connecting session key, UTF-8, and lets its
+   * chain settle.
    */
-  async function deliverToMirrorOnly(subject: string, payload: Uint8Array): Promise<void> {
-    const call = nats.subscribe.mock.calls.find(
-      ([subject_, , options]) => String(subject_).includes('cluster_change') && !options
-    )
-    if (!call) {
-      throw new Error('no un-grouped cluster_change subscription')
-    }
-    ;(call[1] as NatsMessageHandler)(subject, payload)
-    await flushMacrotask()
-  }
-
-  /**
-   * Delivers a session-start event carrying the connecting session key, UTF-8 (or '' for a
-   * legacy publisher that names none), and lets its chain settle.
-   */
-  async function deliverConnect(subject: string, session = ''): Promise<void> {
+  async function deliverConnect(subject: string, session = DEFAULT_SESSION): Promise<void> {
     handlerFor('connect')(subject, Buffer.from(session, 'utf8'))
     await flushMacrotask()
   }
 
   afterEach(() => {
     jest.clearAllMocks()
+  })
+
+  describe('when background recovery receives a burst of wallets', () => {
+    let wallets: string[]
+    let session: string
+    let replacementSession: string
+    let snapshot: Uint8Array
+    let blockedMembership: ReturnType<typeof createDeferred<boolean>>
+
+    beforeEach(async () => {
+      wallets = Array.from({ length: 1000 }, (_, index) => `0x${(index + 1).toString(16).padStart(40, '0')}`)
+      session = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      replacementSession = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+      snapshot = clusterChange('current', 'main', session)
+      blockedMembership = createDeferred<boolean>()
+      component = await build({ numbers: { CLUSTER_SNAPSHOT_CONCURRENCY: 2, CLUSTER_SNAPSHOT_BACKLOG: 2 } })
+      nats.request.mockImplementation(async (_subject, data) =>
+        replied(clusterChange('current', 'main', Buffer.from(data).toString()))
+      )
+      livekit.holdsParticipant.mockImplementation(() => blockedMembership.promise)
+      await component[START_COMPONENT]!(startOptions)
+    })
+
+    afterEach(async () => {
+      await component[STOP_COMPONENT]!()
+      blockedMembership.resolve(true)
+      await flushMacrotask()
+    })
+
+    it('should cap concurrent calls, process admitted wallets in FIFO order and count deferred overflow', async () => {
+      for (const wallet of wallets) handlerFor('cluster_snapshot')(`peer.${wallet}.cluster_snapshot`, snapshot)
+      await flushMacrotask()
+      expect(livekit.holdsParticipant).toHaveBeenCalledTimes(2)
+      expect(
+        metrics.increment.mock.calls.filter(([metric]) => metric === 'dcl_gatekeeper_cluster_snapshot_overflow_total')
+      ).toHaveLength(996)
+      blockedMembership.resolve(true)
+      await flushMacrotask()
+      expect(nats.request.mock.calls.map(([subject]) => subject)).toEqual(
+        wallets.slice(0, 4).map((wallet) => `peer.${wallet}.cluster_assignment`)
+      )
+    })
+
+    it('should allow a deferred wallet to recover on a later snapshot after capacity is released', async () => {
+      for (const wallet of wallets.slice(0, 5))
+        handlerFor('cluster_snapshot')(`peer.${wallet}.cluster_snapshot`, snapshot)
+      await flushMacrotask()
+      blockedMembership.resolve(true)
+      await flushMacrotask()
+      handlerFor('cluster_snapshot')(`peer.${wallets[4]}.cluster_snapshot`, snapshot)
+      await flushMacrotask()
+      expect(nats.request).toHaveBeenCalledWith(`peer.${wallets[4]}.cluster_assignment`, Buffer.from(session))
+    })
+
+    it('should coalesce a queued wallet to its latest session without moving it behind later wallets', async () => {
+      for (const wallet of wallets.slice(0, 4))
+        handlerFor('cluster_snapshot')(`peer.${wallet}.cluster_snapshot`, snapshot)
+      handlerFor('cluster_snapshot')(
+        `peer.${wallets[2]}.cluster_snapshot`,
+        clusterChange('current', 'main', replacementSession)
+      )
+      blockedMembership.resolve(true)
+      await flushMacrotask()
+      expect(nats.request.mock.calls[2]).toEqual([
+        `peer.${wallets[2]}.cluster_assignment`,
+        Buffer.from(replacementSession)
+      ])
+      expect(nats.request.mock.calls[3][0]).toBe(`peer.${wallets[3]}.cluster_assignment`)
+    })
+
+    it('should ignore duplicate hints for active wallets without adding recovery jobs', async () => {
+      for (let index = 0; index < 100; index++)
+        handlerFor('cluster_snapshot')(`peer.${wallets[0]}.cluster_snapshot`, snapshot)
+      await flushMacrotask()
+      expect(nats.request).toHaveBeenCalledTimes(1)
+    })
+
+    it('should release slots after failed membership checks and continue FIFO recovery', async () => {
+      for (const wallet of wallets.slice(0, 4))
+        handlerFor('cluster_snapshot')(`peer.${wallet}.cluster_snapshot`, snapshot)
+      await flushMacrotask()
+      livekit.holdsParticipant.mockResolvedValue(true)
+      blockedMembership.reject(new Error('lookup failed'))
+      await flushMacrotask()
+      expect(nats.request).toHaveBeenCalledTimes(4)
+      expect(nats.publishConfirmed).not.toHaveBeenCalled()
+    })
+
+    it('should discard pending jobs and ignore new hints after shutdown', async () => {
+      for (const wallet of wallets.slice(0, 4))
+        handlerFor('cluster_snapshot')(`peer.${wallet}.cluster_snapshot`, snapshot)
+      await flushMacrotask()
+      await component[STOP_COMPONENT]!()
+      blockedMembership.resolve(true)
+      handlerFor('cluster_snapshot')(`peer.${wallets[4]}.cluster_snapshot`, snapshot)
+      await flushMacrotask()
+      expect(nats.request).toHaveBeenCalledTimes(2)
+    })
+
+    it('should let an ordinary assignment for another wallet proceed while recovery slots are busy', async () => {
+      livekit.holdsParticipant.mockImplementation(async (_room, wallet) =>
+        wallet === wallets[2] ? false : blockedMembership.promise
+      )
+      for (const wallet of wallets.slice(0, 2))
+        handlerFor('cluster_snapshot')(`peer.${wallet}.cluster_snapshot`, snapshot)
+      await flushMacrotask()
+      await deliver(`peer.${wallets[2]}.cluster_change`, snapshot)
+      expect(nats.publishConfirmed.mock.calls[0][0]).toBe(`engine.peer.${wallets[2]}.island_changed.${session}`)
+    })
+  })
+
+  describe('when the configured recovery concurrency is not a finite positive integer', () => {
+    let blockedMembership: ReturnType<typeof createDeferred<boolean>>
+    let snapshot: Uint8Array
+    let wallets: string[]
+
+    beforeEach(async () => {
+      blockedMembership = createDeferred<boolean>()
+      snapshot = clusterChange('current', 'main', '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+      wallets = Array.from({ length: 17 }, (_, index) => `0x${index.toString(16).padStart(40, '0')}`)
+      component = await build({ numbers: { CLUSTER_SNAPSHOT_CONCURRENCY: Infinity } })
+      nats.request.mockResolvedValue(replied(snapshot))
+      livekit.holdsParticipant.mockImplementation(() => blockedMembership.promise)
+      await component[START_COMPONENT]!(startOptions)
+    })
+
+    afterEach(async () => {
+      await component[STOP_COMPONENT]!()
+      blockedMembership.resolve(true)
+      await flushMacrotask()
+    })
+
+    it('should retain the default concurrency bound instead of admitting unlimited work', async () => {
+      for (const wallet of wallets) handlerFor('cluster_snapshot')(`peer.${wallet}.cluster_snapshot`, snapshot)
+      await flushMacrotask()
+      expect(livekit.holdsParticipant).toHaveBeenCalledTimes(16)
+    })
+  })
+
+  describe('when the authority lookup is switched off', () => {
+    beforeEach(async () => {
+      component = await build({ settings: { CLUSTER_AUTHORITY_LOOKUP_ENABLED: 'false' } })
+      await component[START_COMPONENT]!(startOptions)
+    })
+
+    afterEach(async () => {
+      await component[STOP_COMPONENT]!()
+    })
+
+    it('should consume change events only', () => {
+      expect(nats.subscribe.mock.calls.map(([subject]) => subject)).toEqual(['peer.*.cluster_change'])
+    })
+
+    it('should warn that reconnect recovery is off', () => {
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('CLUSTER_AUTHORITY_LOOKUP_ENABLED'))
+    })
+
+    describe('and a change edge arrives', () => {
+      beforeEach(async () => {
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
+      })
+
+      it('should mint it as received, asking neither Pulse nor LiveKit', () => {
+        expect(nats.request).not.toHaveBeenCalled()
+        expect(livekit.holdsParticipant).not.toHaveBeenCalled()
+        expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1]).islandId).toBe('island-C5')
+      })
+
+      it('should address it to the session', () => {
+        expect(nats.publishConfirmed.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed.${DEFAULT_SESSION}`)
+      })
+    })
+
+    describe('and a change edge names no session', () => {
+      beforeEach(async () => {
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', ''))
+      })
+
+      it('should publish on the legacy four-token subject', () => {
+        expect(nats.publishConfirmed.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
+      })
+    })
+
+    describe('and a takeover edge arrives', () => {
+      beforeEach(async () => {
+        await deliver(
+          `peer.${WALLET}.cluster_change`,
+          clusterChange('C5', 'main', DEFAULT_SESSION, {
+            displacedSession: '0xaa00000000000000000000000000000000000000',
+            displacedClusterId: 'C3'
+          })
+        )
+      })
+
+      it('should evict the displaced session and mint the replacement', () => {
+        expect(livekit.removeParticipant).toHaveBeenCalledWith('island-C3', WALLET, expect.any(Date))
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
+      })
+    })
+  })
+
+  describe('when connects arrive faster than the connect bound', () => {
+    let wallets: string[]
+    let blockedLookup: ReturnType<typeof createDeferred<NatsRequestResult>>
+
+    beforeEach(async () => {
+      wallets = Array.from({ length: 5 }, (_, index) => `0x${(index + 1).toString(16).padStart(40, '0')}`)
+      blockedLookup = createDeferred<NatsRequestResult>()
+      component = await build({ numbers: { CLUSTER_CONNECT_CONCURRENCY: 2 } })
+      nats.request.mockImplementation(() => blockedLookup.promise)
+      await component[START_COMPONENT]!(startOptions)
+      for (const wallet of wallets) handlerFor('connect')(`peer.${wallet}.connect`, Buffer.from(DEFAULT_SESSION))
+      await flushMacrotask()
+    })
+
+    afterEach(async () => {
+      blockedLookup.resolve({ status: 'no_reply' })
+      await flushMacrotask()
+      await component[STOP_COMPONENT]!()
+    })
+
+    it('should resolve no more connects at once than the bound', () => {
+      expect(nats.request).toHaveBeenCalledTimes(2)
+    })
+
+    it('should admit the waiting connects in arrival order as slots free up, dropping none', async () => {
+      blockedLookup.resolve({ status: 'no_reply' })
+      await flushMacrotask()
+      expect(nats.request.mock.calls.map(([subject]) => subject)).toEqual(
+        wallets.map((wallet) => `peer.${wallet}.cluster_assignment`)
+      )
+    })
+  })
+
+  describe('when the configured connect bound is not a positive integer', () => {
+    let blockedLookup: ReturnType<typeof createDeferred<NatsRequestResult>>
+
+    beforeEach(async () => {
+      blockedLookup = createDeferred<NatsRequestResult>()
+      component = await build({ numbers: { CLUSTER_CONNECT_CONCURRENCY: 0 } })
+      nats.request.mockImplementation(() => blockedLookup.promise)
+      await component[START_COMPONENT]!(startOptions)
+      for (let index = 0; index < 70; index++) {
+        handlerFor('connect')(`peer.0x${index.toString(16).padStart(40, '0')}.connect`, Buffer.from(DEFAULT_SESSION))
+      }
+      await flushMacrotask()
+    })
+
+    afterEach(async () => {
+      blockedLookup.resolve({ status: 'no_reply' })
+      await flushMacrotask()
+      await component[STOP_COMPONENT]!()
+    })
+
+    it('should fall back to the default bound rather than admitting everything', () => {
+      expect(nats.request).toHaveBeenCalledTimes(64)
+    })
+  })
+
+  describe('when the configured recovery backlog is not a positive integer', () => {
+    let blockedMembership: ReturnType<typeof createDeferred<boolean>>
+
+    beforeEach(async () => {
+      blockedMembership = createDeferred<boolean>()
+      component = await build({ numbers: { CLUSTER_SNAPSHOT_CONCURRENCY: 2, CLUSTER_SNAPSHOT_BACKLOG: -5 } })
+      nats.request.mockResolvedValue(replied(clusterChange('current')))
+      livekit.holdsParticipant.mockImplementation(() => blockedMembership.promise)
+      await component[START_COMPONENT]!(startOptions)
+      for (let index = 0; index < 20; index++) {
+        handlerFor('cluster_snapshot')(
+          `peer.0x${index.toString(16).padStart(40, '0')}.cluster_snapshot`,
+          clusterChange('current')
+        )
+      }
+      await flushMacrotask()
+    })
+
+    afterEach(async () => {
+      blockedMembership.resolve(true)
+      await flushMacrotask()
+      await component[STOP_COMPONENT]!()
+    })
+
+    it('should fall back to the default backlog instead of deferring every hint past the bound', () => {
+      expect(metrics.increment).not.toHaveBeenCalledWith('dcl_gatekeeper_cluster_snapshot_overflow_total')
+    })
   })
 
   describe('when the feature flag is off', () => {
@@ -211,14 +480,8 @@ describe('cluster-subscriber component', () => {
       })
     })
 
-    it('should subscribe to cluster_change a second time, un-grouped, to feed the mirror', () => {
-      // Every replica has to see every assignment, or a replica handed a reconnect could only
-      // answer for the wallets the queue group happened to give it.
-      expect(nats.subscribe).toHaveBeenCalledWith('peer.*.cluster_change', expect.any(Function))
-    })
-
     it('should subscribe to peer connects, queue-grouped', () => {
-      // The mirror leaves every replica able to answer, so an un-grouped subscription would
+      // Authority leaves every replica able to answer, so an un-grouped subscription would
       // have all of them announce the same room and each join would evict the one before it.
       expect(nats.subscribe).toHaveBeenCalledWith('peer.*.connect', expect.any(Function), {
         queue: 'comms-gatekeeper-cluster'
@@ -234,7 +497,7 @@ describe('cluster-subscriber component', () => {
         await component[STOP_COMPONENT]!()
       })
 
-      it('should cancel every one of its three subscriptions', () => {
+      it('should cancel every subscription', () => {
         const handles = nats.subscribe.mock.results.map((result) => result.value.unsubscribe as jest.Mock)
         expect(handles).toHaveLength(3)
         for (const unsubscribe of handles) {
@@ -266,6 +529,397 @@ describe('cluster-subscriber component', () => {
       expect(nats.subscribe.mock.calls.map(([subject]) => subject)).not.toContain('peer.*.superseded')
     })
 
+    describe('and authoritative assignment recovery is requested', () => {
+      let session: string
+      let snapshot: Uint8Array
+      beforeEach(() => {
+        session = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+        snapshot = PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId: 'current', session })).finish()
+        nats.request.mockResolvedValue(replied(snapshot))
+        livekit.holdsParticipant.mockResolvedValue(false)
+      })
+
+      it('should recover after restart without cached state', async () => {
+        await deliverConnect(`peer.${WALLET}.connect`, session)
+        expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1]).islandId).toBe('island-current')
+      })
+
+      describe('and this replica last minted a different room for the wallet', () => {
+        beforeEach(async () => {
+          // A stale local record must never override the separately supplied authority.
+          peerState.set(WALLET, { clusterId: 'cached', room: 'island-cached', session, lastSeen: 0 })
+          await deliverConnect(`peer.${WALLET}.connect`, session)
+        })
+        it('should check and mint the authoritative room rather than the cached one', () => {
+          expect(livekit.holdsParticipant).toHaveBeenCalledWith('island-current', WALLET)
+          expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1]).islandId).toBe('island-current')
+        })
+        it('should chain the new room off the cached one', () => {
+          expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1]).fromIslandId).toBe('island-cached')
+        })
+      })
+
+      describe('and no Pulse instance answers for the session', () => {
+        beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'cached', room: 'island-cached', session, lastSeen: 0 })
+          nats.request.mockResolvedValue({ status: 'no_reply' })
+          await deliverConnect(`peer.${WALLET}.connect`, session)
+        })
+        it('should not fall back to stale credentials', () => {
+          expect(livekit.generateCredentials).not.toHaveBeenCalled()
+        })
+        it('should count the session as unassigned, not the authority as unavailable', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_reannounce_unresolved_total')
+          expect(metrics.increment).not.toHaveBeenCalledWith('dcl_gatekeeper_cluster_authority_unavailable_total')
+        })
+      })
+
+      describe('and the authority is unavailable', () => {
+        beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'cached', room: 'island-cached', session, lastSeen: 0 })
+          nats.request.mockResolvedValue({ status: 'unavailable' })
+          await deliverConnect(`peer.${WALLET}.connect`, session)
+        })
+        it('should fail closed without minting cached credentials', () => {
+          expect(nats.publishConfirmed).not.toHaveBeenCalled()
+        })
+        it('should count the authority as unavailable, not the session as unassigned', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_authority_unavailable_total')
+          expect(metrics.increment).not.toHaveBeenCalledWith('dcl_gatekeeper_cluster_reannounce_unresolved_total')
+        })
+        it('should record the round trip under its outcome', () => {
+          expect(metrics.observe).toHaveBeenCalledWith(
+            'dcl_gatekeeper_cluster_authority_request_duration_seconds',
+            { status: 'unavailable' },
+            expect.any(Number)
+          )
+        })
+      })
+
+      describe('and a snapshot arrives without any connect or change event', () => {
+        beforeEach(async () => {
+          handlerFor('cluster_snapshot')(`peer.${WALLET}.cluster_snapshot`, snapshot)
+          await flushMacrotask()
+        })
+        it('should repair the missed assignment', () => {
+          expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
+        })
+        it('should request authority for the exact session', () => {
+          expect(nats.request).toHaveBeenCalledWith(`peer.${WALLET}.cluster_assignment`, Buffer.from(session))
+        })
+      })
+
+      describe('and LiveKit still contains the participant', () => {
+        beforeEach(() => {
+          livekit.holdsParticipant.mockResolvedValue(true)
+        })
+        it('should leave the healthy room untouched', async () => {
+          handlerFor('cluster_snapshot')(`peer.${WALLET}.cluster_snapshot`, snapshot)
+          await flushMacrotask()
+          expect(livekit.generateCredentials).not.toHaveBeenCalled()
+        })
+        it('should count the suppression, so a healthy room reads differently from a dead pipeline', async () => {
+          handlerFor('cluster_snapshot')(`peer.${WALLET}.cluster_snapshot`, snapshot)
+          await flushMacrotask()
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_reannounce_suppressed_total')
+        })
+      })
+
+      describe('and an initial reconciliation cannot complete', () => {
+        beforeEach(() => {
+          nats.publishConfirmed.mockResolvedValueOnce('dropped')
+        })
+        it('should retry at the next snapshot without another cluster change', async () => {
+          await deliverConnect(`peer.${WALLET}.connect`, session)
+          handlerFor('cluster_snapshot')(`peer.${WALLET}.cluster_snapshot`, snapshot)
+          await flushMacrotask()
+          expect(nats.publishConfirmed).toHaveBeenCalledTimes(2)
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_published_total')
+        })
+      })
+
+      describe('and the participant lookup temporarily fails', () => {
+        beforeEach(() => {
+          livekit.holdsParticipant.mockRejectedValueOnce(new Error('unavailable'))
+        })
+        it('should recover on the next snapshot', async () => {
+          await deliverConnect(`peer.${WALLET}.connect`, session)
+          handlerFor('cluster_snapshot')(`peer.${WALLET}.cluster_snapshot`, snapshot)
+          await flushMacrotask()
+          expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
+        })
+      })
+
+      describe('and many duplicate hints arrive while queued', () => {
+        it('should perform only one reconciliation', async () => {
+          for (let index = 0; index < 100; index++) {
+            handlerFor('cluster_snapshot')(`peer.${WALLET}.cluster_snapshot`, snapshot)
+          }
+          await flushMacrotask()
+          expect(nats.request).toHaveBeenCalledTimes(1)
+        })
+      })
+
+      describe('and the subscriber has stopped', () => {
+        beforeEach(async () => {
+          await component[STOP_COMPONENT]!()
+        })
+        it('should ignore late snapshots', async () => {
+          handlerFor('cluster_snapshot')(`peer.${WALLET}.cluster_snapshot`, snapshot)
+          await flushMacrotask()
+          expect(nats.request).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and a snapshot lookup is followed by an older queued edge', () => {
+        let lookup: ReturnType<typeof createDeferred<NatsRequestResult>>
+        beforeEach(async () => {
+          lookup = createDeferred<NatsRequestResult>()
+          nats.request.mockImplementationOnce(() => lookup.promise)
+          handlerFor('cluster_snapshot')(`peer.${WALLET}.cluster_snapshot`, snapshot)
+          await flushMacrotask()
+          handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('obsolete', 'main', session))
+          // The latest edge is deliberately lost. Both requests still see current authority.
+          lookup.resolve(replied(snapshot))
+          await flushMacrotask()
+        })
+
+        it('should never restore the obsolete room even when the latest edge was lost', () => {
+          expect(nats.publishConfirmed).toHaveBeenCalledTimes(2)
+          expect(
+            nats.publishConfirmed.mock.calls.map(([, data]) => IslandChangedMessage.decode(data).islandId)
+          ).toEqual(['island-current', 'island-current'])
+        })
+      })
+
+      describe('and a stale edge resolves to an already healthy current room', () => {
+        beforeEach(() => {
+          livekit.holdsParticipant.mockResolvedValue(true)
+        })
+        it('should not mint redundant credentials for the healthy room', async () => {
+          await deliver(`peer.${WALLET}.cluster_change`, clusterChange('obsolete', 'main', session))
+          expect(nats.publishConfirmed).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and an old edge names takeover cleanup', () => {
+        beforeEach(async () => {
+          await deliver(
+            `peer.${WALLET}.cluster_change`,
+            clusterChange('obsolete', 'main', session, {
+              displacedSession: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+              displacedClusterId: 'displaced'
+            })
+          )
+        })
+        it('should retain the cleanup but mint the current authoritative room', () => {
+          expect(livekit.removeParticipant).toHaveBeenCalledWith('island-displaced', WALLET, expect.any(Date))
+          expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1]).islandId).toBe('island-current')
+        })
+      })
+
+      describe('and a displaced session submits an old takeover edge', () => {
+        beforeEach(async () => {
+          await deliver(
+            `peer.${WALLET}.cluster_change`,
+            clusterChange('obsolete', 'main', '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', {
+              displacedSession: session,
+              displacedClusterId: 'current'
+            })
+          )
+        })
+        it('should neither evict the active participant nor mint for the displaced session', () => {
+          expect(livekit.removeParticipant).not.toHaveBeenCalled()
+          expect(nats.publishConfirmed).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and a delayed snapshot names a displaced session', () => {
+        beforeEach(() => {
+          nats.request.mockResolvedValue(
+            replied(
+              PeerClusterChange.encode(
+                PeerClusterChange.fromPartial({
+                  clusterId: 'new-room',
+                  session: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+                })
+              ).finish()
+            )
+          )
+        })
+        it('should not mint for the displaced session even if the authority replies inconsistently', async () => {
+          handlerFor('cluster_snapshot')(`peer.${WALLET}.cluster_snapshot`, snapshot)
+          await flushMacrotask()
+          expect(nats.publishConfirmed).not.toHaveBeenCalled()
+        })
+      })
+    })
+
+    describe('and a change edge cannot be checked against LiveKit', () => {
+      beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C5')))
+        livekit.holdsParticipant.mockRejectedValue(new Error('livekit unreachable'))
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
+      })
+
+      it('should mint anyway, since the room is changing and an outage must not stop every move', () => {
+        expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1]).islandId).toBe('island-C5')
+      })
+
+      it('should count the failed check', () => {
+        expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_reannounce_check_failed_total')
+      })
+
+      it('should warn that it minted without the check', () => {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('minting for the assignment change regardless')
+        )
+      })
+    })
+
+    describe('and the authority cannot be reached for a change edge', () => {
+      beforeEach(async () => {
+        nats.request.mockResolvedValue({ status: 'unavailable' })
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
+      })
+
+      it('should mint nothing', () => {
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
+      })
+
+      it('should count the authority as unavailable', () => {
+        expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_authority_unavailable_total')
+      })
+    })
+
+    describe('and a takeover edge is superseded before it runs', () => {
+      const DISPLACED = '0xaa00000000000000000000000000000000000000'
+      const SUPERSEDED = '0xbb00000000000000000000000000000000000000'
+      const NEWER = '0xcc00000000000000000000000000000000000000'
+      let edge: Uint8Array
+
+      beforeEach(() => {
+        edge = clusterChange('C2', 'main', SUPERSEDED, { displacedSession: DISPLACED, displacedClusterId: 'C1' })
+      })
+
+      describe('and this replica had minted the displaced session into that room', () => {
+        beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C1', room: 'island-C1', session: DISPLACED, lastSeen: 0 })
+          nats.request.mockResolvedValue({ status: 'no_reply' })
+          await deliver(`peer.${WALLET}.cluster_change`, edge)
+        })
+
+        it('should still evict the displaced session, since nothing else ever will', () => {
+          expect(livekit.removeParticipant).toHaveBeenCalledWith('island-C1', WALLET, expect.any(Date))
+        })
+
+        it('should mint nothing for the superseded session', () => {
+          expect(nats.publishConfirmed).not.toHaveBeenCalled()
+        })
+
+        it('should have asked the authority about the displaced session as well', () => {
+          expect(nats.request).toHaveBeenCalledWith(`peer.${WALLET}.cluster_assignment`, Buffer.from(DISPLACED))
+        })
+      })
+
+      describe('and the authority cannot be reached at all', () => {
+        beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C1', room: 'island-C1', session: DISPLACED, lastSeen: 0 })
+          nats.request.mockResolvedValue({ status: 'unavailable' })
+          await deliver(`peer.${WALLET}.cluster_change`, edge)
+        })
+
+        it('should still evict the displaced session', () => {
+          expect(livekit.removeParticipant).toHaveBeenCalledWith('island-C1', WALLET, expect.any(Date))
+        })
+
+        it('should mint nothing', () => {
+          expect(nats.publishConfirmed).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and this replica last handed the wallet a different room', () => {
+        beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C3', room: 'island-C3', session: NEWER, lastSeen: 0 })
+          nats.request.mockResolvedValue({ status: 'no_reply' })
+          await deliver(`peer.${WALLET}.cluster_change`, edge)
+        })
+
+        it('should evict the displaced session, since the live one left that room when it moved', () => {
+          expect(livekit.removeParticipant).toHaveBeenCalledWith('island-C1', WALLET, expect.any(Date))
+        })
+      })
+
+      describe('and the displaced session is the active one again', () => {
+        beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C1', room: 'island-C1', session: DISPLACED, lastSeen: 0 })
+          nats.request.mockImplementation(async (_subject, data) =>
+            Buffer.from(data).toString() === DISPLACED
+              ? replied(clusterChange('C1', 'main', DISPLACED))
+              : { status: 'no_reply' as const }
+          )
+          await deliver(`peer.${WALLET}.cluster_change`, edge)
+        })
+
+        it('should leave it in place', () => {
+          expect(livekit.removeParticipant).not.toHaveBeenCalled()
+        })
+
+        it('should count the skip', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_takeover_skipped_total')
+        })
+      })
+
+      describe('and this replica has since handed the displaced room to a newer session', () => {
+        beforeEach(async () => {
+          peerState.set(WALLET, { clusterId: 'C1', room: 'island-C1', session: NEWER, lastSeen: 0 })
+          nats.request.mockResolvedValue({ status: 'no_reply' })
+          await deliver(`peer.${WALLET}.cluster_change`, edge)
+        })
+
+        it('should leave the live participant in place', () => {
+          expect(livekit.removeParticipant).not.toHaveBeenCalled()
+        })
+
+        it('should count the skip', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_takeover_skipped_total')
+        })
+      })
+
+      describe('and this replica has no mint on record for the wallet', () => {
+        beforeEach(async () => {
+          nats.request.mockResolvedValue({ status: 'no_reply' })
+          await deliver(`peer.${WALLET}.cluster_change`, edge)
+        })
+
+        it('should leave the participant in place, since it may be a live session minted before a restart', () => {
+          expect(livekit.removeParticipant).not.toHaveBeenCalled()
+        })
+
+        it('should count the skip and say why', () => {
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_takeover_skipped_total')
+          expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('no mint on record for the wallet'))
+        })
+      })
+    })
+
+    describe('and the broker confirms the publish late', () => {
+      beforeEach(async () => {
+        nats.publishConfirmed.mockResolvedValue('unconfirmed')
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
+      })
+
+      it('should count it as published, since the write reached a connected client', () => {
+        expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_published_total')
+        expect(metrics.increment).not.toHaveBeenCalledWith('dcl_gatekeeper_cluster_publish_failed_total')
+      })
+
+      it('should record the assignment for the next fromIslandId', () => {
+        expect(peerState.get(WALLET)?.room).toBe('island-C1')
+      })
+    })
+
     describe('and a cluster_change names a displaced session', () => {
       // 12:00:00.400 -> the boundary is the next whole second, 12:00:01.000.
       const NOW_MS = Date.UTC(2026, 8, 15, 12, 0, 0, 400)
@@ -275,9 +929,20 @@ describe('cluster-subscriber component', () => {
       beforeEach(async () => {
         dateNow = jest.spyOn(Date, 'now').mockReturnValue(NOW_MS)
 
+        nats.request.mockResolvedValue(
+          replied(
+            clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+              displacedSession: '0xaa00000000000000000000000000000000000000',
+              displacedClusterId: 'C3'
+            })
+          )
+        )
         await deliver(
           `peer.${WALLET}.cluster_change`,
-          clusterChange('C5', 'main', '0xbb', { displacedSession: '0xaa', displacedClusterId: 'C3' })
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+            displacedSession: '0xaa00000000000000000000000000000000000000',
+            displacedClusterId: 'C3'
+          })
         )
       })
 
@@ -313,7 +978,7 @@ describe('cluster-subscriber component', () => {
           notBefore: expect.any(Date),
           ttlSeconds: 60
         })
-        expect(nats.publish).toHaveBeenCalledTimes(1)
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
       })
 
       it('should count the eviction', () => {
@@ -324,9 +989,20 @@ describe('cluster-subscriber component', () => {
     describe('and the displaced-session removal fails once', () => {
       beforeEach(async () => {
         livekit.removeParticipant.mockRejectedValueOnce(new Error('livekit hiccup')).mockResolvedValue(undefined)
+        nats.request.mockResolvedValue(
+          replied(
+            clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+              displacedSession: '0xaa00000000000000000000000000000000000000',
+              displacedClusterId: 'C3'
+            })
+          )
+        )
         await deliver(
           `peer.${WALLET}.cluster_change`,
-          clusterChange('C5', 'main', '0xbb', { displacedSession: '0xaa', displacedClusterId: 'C3' })
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+            displacedSession: '0xaa00000000000000000000000000000000000000',
+            displacedClusterId: 'C3'
+          })
         )
       })
 
@@ -340,9 +1016,20 @@ describe('cluster-subscriber component', () => {
     describe('and the displaced-session removal keeps failing', () => {
       beforeEach(async () => {
         livekit.removeParticipant.mockRejectedValue(new Error('livekit unreachable'))
+        nats.request.mockResolvedValue(
+          replied(
+            clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+              displacedSession: '0xaa00000000000000000000000000000000000000',
+              displacedClusterId: 'C3'
+            })
+          )
+        )
         await deliver(
           `peer.${WALLET}.cluster_change`,
-          clusterChange('C5', 'main', '0xbb', { displacedSession: '0xaa', displacedClusterId: 'C3' })
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+            displacedSession: '0xaa00000000000000000000000000000000000000',
+            displacedClusterId: 'C3'
+          })
         )
       })
 
@@ -352,7 +1039,7 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should still mint for the new session, since a stuck eviction must not strand it', () => {
-        expect(nats.publish).toHaveBeenCalledTimes(1)
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
       })
     })
 
@@ -360,9 +1047,20 @@ describe('cluster-subscriber component', () => {
       beforeEach(async () => {
         const notFound = Object.assign(new Error('participant not found'), { code: 'not_found' })
         livekit.removeParticipant.mockRejectedValue(notFound)
+        nats.request.mockResolvedValue(
+          replied(
+            clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+              displacedSession: '0xaa00000000000000000000000000000000000000',
+              displacedClusterId: 'C3'
+            })
+          )
+        )
         await deliver(
           `peer.${WALLET}.cluster_change`,
-          clusterChange('C5', 'main', '0xbb', { displacedSession: '0xaa', displacedClusterId: 'C3' })
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+            displacedSession: '0xaa00000000000000000000000000000000000000',
+            displacedClusterId: 'C3'
+          })
         )
       })
 
@@ -377,15 +1075,26 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should still mint and publish once for the new session', () => {
-        expect(nats.publish).toHaveBeenCalledTimes(1)
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
       })
     })
 
     describe('and a cluster_change names a displaced session with no displaced cluster', () => {
       beforeEach(async () => {
+        nats.request.mockResolvedValue(
+          replied(
+            clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+              displacedSession: '0xaa00000000000000000000000000000000000000',
+              displacedClusterId: ''
+            })
+          )
+        )
         await deliver(
           `peer.${WALLET}.cluster_change`,
-          clusterChange('C5', 'main', '0xbb', { displacedSession: '0xaa', displacedClusterId: '' })
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000', {
+            displacedSession: '0xaa00000000000000000000000000000000000000',
+            displacedClusterId: ''
+          })
         )
       })
 
@@ -399,7 +1108,7 @@ describe('cluster-subscriber component', () => {
 
       it('should still mint and publish once for the new session', () => {
         expect(livekit.generateCredentials).toHaveBeenCalledTimes(1)
-        expect(nats.publish).toHaveBeenCalledTimes(1)
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
       })
     })
 
@@ -408,6 +1117,7 @@ describe('cluster-subscriber component', () => {
         component = await build({ numbers: { CLUSTER_ISLAND_TOKEN_TTL_SECONDS: 90 } })
         await component[START_COMPONENT]!(startOptions)
 
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
       })
 
@@ -420,7 +1130,13 @@ describe('cluster-subscriber component', () => {
 
     describe('and a cluster_change names no displaced session', () => {
       beforeEach(async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', '0xbb'))
+        nats.request.mockResolvedValue(
+          replied(clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000'))
+        )
+        await deliver(
+          `peer.${WALLET}.cluster_change`,
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
+        )
       })
 
       it('should remove nobody', () => {
@@ -430,51 +1146,73 @@ describe('cluster-subscriber component', () => {
 
     describe('and the event names a session', () => {
       it('should publish on the session-addressed subject', async () => {
+        nats.request.mockResolvedValue(
+          replied(clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000'))
+        )
         await deliver(
           `peer.${WALLET}.cluster_change`,
           clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
         )
 
-        expect(nats.publish.mock.calls[0][0]).toBe(
+        expect(nats.publishConfirmed.mock.calls[0][0]).toBe(
           `engine.peer.${WALLET}.island_changed.0xbb00000000000000000000000000000000000000`
         )
       })
 
       it('should never publish the same event on both subjects', async () => {
+        nats.request.mockResolvedValue(
+          replied(clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000'))
+        )
         await deliver(
           `peer.${WALLET}.cluster_change`,
           clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
         )
 
-        expect(nats.publish).toHaveBeenCalledTimes(1)
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
       })
     })
 
     describe('and the event names a malformed session', () => {
-      it('should fall back to the legacy subject', async () => {
+      it('should reject a malformed session', async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C5', 'main', 'not-a-key')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', 'not-a-key'))
 
-        expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
       })
     })
 
-    describe('and an older Pulse sends no session', () => {
-      it('should fall back to the legacy subject', async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
+    describe('and the event names no session', () => {
+      beforeEach(async () => {
+        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', ''))
+      })
 
-        expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
+      it('should neither ask Pulse nor mint, since the feed has named a session since it existed', () => {
+        expect(nats.request).not.toHaveBeenCalled()
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
+      })
+
+      it('should count and log the malformed session', () => {
+        expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_malformed_session_total')
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('its session is not a session key'))
       })
     })
 
     describe('and a peer connect names a session other than the one Pulse last published', () => {
       beforeEach(async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', '0xbb'))
-        nats.publish.mockClear()
+        nats.request.mockResolvedValue(
+          replied(clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000'))
+        )
+        await deliver(
+          `peer.${WALLET}.cluster_change`,
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
+        )
+        nats.publishConfirmed.mockClear()
+        livekit.holdsParticipant.mockClear()
         await deliverConnect(`peer.${WALLET}.connect`, '0xaa00000000000000000000000000000000000000')
       })
 
       it('should not re-announce, since that device was displaced', () => {
-        expect(nats.publish).not.toHaveBeenCalled()
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
         expect(livekit.holdsParticipant).not.toHaveBeenCalled()
       })
 
@@ -485,50 +1223,62 @@ describe('cluster-subscriber component', () => {
 
     describe('and a peer connect names the session Pulse last published', () => {
       beforeEach(async () => {
+        nats.request.mockResolvedValue(
+          replied(clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000'))
+        )
         await deliver(
           `peer.${WALLET}.cluster_change`,
           clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
         )
-        nats.publish.mockClear()
+        nats.publishConfirmed.mockClear()
         await deliverConnect(`peer.${WALLET}.connect`, '0xbb00000000000000000000000000000000000000')
       })
 
       it('should re-announce', () => {
-        expect(nats.publish).toHaveBeenCalledTimes(1)
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
       })
 
       it('should re-announce on the session-addressed subject', () => {
-        expect(nats.publish.mock.calls[0][0]).toBe(
+        expect(nats.publishConfirmed.mock.calls[0][0]).toBe(
           `engine.peer.${WALLET}.island_changed.0xbb00000000000000000000000000000000000000`
         )
       })
     })
 
-    describe('and a peer connect names a session while the mirrored assignment came from an older Pulse', () => {
+    describe('and a peer connect names a session while the authoritative assignment came from an older Pulse', () => {
       beforeEach(async () => {
         // No session on the wire: an older Pulse. The connect, from a newer WS Connector, names one.
-        await deliverToMirrorOnly(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
+        nats.request.mockResolvedValue(replied(clusterChange('C5')))
+
         livekit.holdsParticipant.mockResolvedValue(false)
 
         await deliverConnect(`peer.${WALLET}.connect`, '0xaa00000000000000000000000000000000000000')
       })
 
-      it('should re-announce on the subject addressed to the connecting session, not the legacy one', () => {
-        expect(nats.publish.mock.calls[0][0]).toBe(
-          `engine.peer.${WALLET}.island_changed.0xaa00000000000000000000000000000000000000`
-        )
+      it('should reject an authoritative reply that cannot verify the requested session', () => {
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
       })
     })
 
-    describe('and a peer connect carries a legacy socket id instead of a session', () => {
+    describe('and a peer connect carries a socket id instead of a session', () => {
       beforeEach(async () => {
-        await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5', 'main', '0xbb'))
-        nats.publish.mockClear()
+        nats.request.mockResolvedValue(
+          replied(clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000'))
+        )
+        await deliver(
+          `peer.${WALLET}.cluster_change`,
+          clusterChange('C5', 'main', '0xbb00000000000000000000000000000000000000')
+        )
+        nats.publishConfirmed.mockClear()
         await deliverConnect(`peer.${WALLET}.connect`, '018f3c2a1b9c0d1e2f3a4b5c6d7e8f9011223344')
       })
 
-      it('should re-announce as before, since an older publisher cannot be told apart from a match', () => {
-        expect(nats.publish).toHaveBeenCalledTimes(1)
+      it('should reject a malformed session without issuing credentials', () => {
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
+      })
+
+      it('should count it, so a connector sending the wrong payload is visible', () => {
+        expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_malformed_session_total')
       })
     })
 
@@ -536,8 +1286,9 @@ describe('cluster-subscriber component', () => {
       let decoded: IslandChangedMessage
 
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C5')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
-        decoded = IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array)
+        decoded = IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1] as Uint8Array)
       })
 
       it('should mint a token for the island room', () => {
@@ -546,8 +1297,8 @@ describe('cluster-subscriber component', () => {
         })
       })
 
-      it('should publish on the outbound subject', () => {
-        expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
+      it('should publish on the session-addressed subject', () => {
+        expect(nats.publishConfirmed.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed.${DEFAULT_SESSION}`)
       })
 
       it('should carry the island room as islandId', () => {
@@ -581,6 +1332,7 @@ describe('cluster-subscriber component', () => {
         livekit.buildConnectionUrl.mockReturnValue('sentinel-conn-str')
         await component[START_COMPONENT]!(startOptions)
 
+        nats.request.mockResolvedValue(replied(clusterChange('C5')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
       })
 
@@ -589,7 +1341,7 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should put that helper output on the wire rather than a hand-rolled template', () => {
-        const decoded = IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array)
+        const decoded = IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1] as Uint8Array)
 
         expect(decoded.connStr).toBe('sentinel-conn-str')
       })
@@ -597,16 +1349,18 @@ describe('cluster-subscriber component', () => {
 
     describe('and the wallet arrives upper-cased in the subject', () => {
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C5')))
         await deliver(`peer.${WALLET.toUpperCase()}.cluster_change`, clusterChange('C5'))
       })
 
       it('should lower-case it, since WS Connector looks peers up exactly', () => {
-        expect(nats.publish.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed`)
+        expect(nats.publishConfirmed.mock.calls[0][0]).toBe(`engine.peer.${WALLET}.island_changed.${DEFAULT_SESSION}`)
       })
     })
 
     describe('and the wallet arrives with checksum casing in the subject', () => {
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C5')))
         await deliver(`peer.${MIXED_CASE_WALLET}.cluster_change`, clusterChange('C5'))
       })
 
@@ -624,7 +1378,9 @@ describe('cluster-subscriber component', () => {
 
     describe('and the same wallet arrives in both mixed and lower case', () => {
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${MIXED_CASE_WALLET}.cluster_change`, clusterChange('C1'))
+        nats.request.mockResolvedValue(replied(clusterChange('C2')))
         await deliver(`peer.${LOWER_CASE_WALLET}.cluster_change`, clusterChange('C2'))
       })
 
@@ -640,6 +1396,7 @@ describe('cluster-subscriber component', () => {
       // Protobuf decodes an absent cluster_id as ''. Unguarded, the island room name would
       // be `island-`, the same shared room for every wallet whose payload is malformed this way.
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange(''))
       })
 
@@ -648,7 +1405,7 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should publish nothing', () => {
-        expect(nats.publish).not.toHaveBeenCalled()
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
       })
     })
 
@@ -656,9 +1413,11 @@ describe('cluster-subscriber component', () => {
       let second: IslandChangedMessage
 
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
+        nats.request.mockResolvedValue(replied(clusterChange('C2')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C2'))
-        second = IslandChangedMessage.decode(nats.publish.mock.calls[1][1] as Uint8Array)
+        second = IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[1][1] as Uint8Array)
       })
 
       it('should announce the new room', () => {
@@ -682,29 +1441,36 @@ describe('cluster-subscriber component', () => {
         // C-OLD arrives first but stalls minting; C-NEW arrives right behind it. Unserialized,
         // C-NEW's fast mint would finish first and publish, then C-OLD's mint would finish
         // later and overwrite both the client's last message and peerState with itself.
+        nats.request.mockResolvedValue(replied(clusterChange('C-OLD')))
         handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C-OLD'))
+        await flushMacrotask()
+        nats.request.mockResolvedValue(replied(clusterChange('C-NEW')))
         handlerFor('cluster_change')(`peer.${WALLET}.cluster_change`, clusterChange('C-NEW'))
         await flushMacrotask()
       })
 
       it('should not let the queued event start minting while the older one is stuck', () => {
-        expect(nats.publish).not.toHaveBeenCalled()
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
       })
 
       it('should publish both in arrival order once the older mint completes', async () => {
         olderMint.resolve({ url: 'wss://livekit.example', token: 'older-jwt' })
         await flushMacrotask()
 
-        expect(nats.publish).toHaveBeenCalledTimes(2)
-        expect(IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array).islandId).toBe('island-C-OLD')
-        expect(IslandChangedMessage.decode(nats.publish.mock.calls[1][1] as Uint8Array).islandId).toBe('island-C-NEW')
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(2)
+        expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1] as Uint8Array).islandId).toBe(
+          'island-C-OLD'
+        )
+        expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[1][1] as Uint8Array).islandId).toBe(
+          'island-C-NEW'
+        )
       })
 
       it('should chain the newer event off the older room, not the other way round', async () => {
         olderMint.resolve({ url: 'wss://livekit.example', token: 'older-jwt' })
         await flushMacrotask()
 
-        expect(IslandChangedMessage.decode(nats.publish.mock.calls[1][1] as Uint8Array).fromIslandId).toBe(
+        expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[1][1] as Uint8Array).fromIslandId).toBe(
           'island-C-OLD'
         )
       })
@@ -713,9 +1479,10 @@ describe('cluster-subscriber component', () => {
         olderMint.resolve({ url: 'wss://livekit.example', token: 'older-jwt' })
         await flushMacrotask()
 
+        nats.request.mockResolvedValue(replied(clusterChange('C-THIRD')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C-THIRD'))
 
-        expect(IslandChangedMessage.decode(nats.publish.mock.calls[2][1] as Uint8Array).fromIslandId).toBe(
+        expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[2][1] as Uint8Array).fromIslandId).toBe(
           'island-C-NEW'
         )
       })
@@ -723,12 +1490,14 @@ describe('cluster-subscriber component', () => {
 
     describe('and the same cluster is re-announced', () => {
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
       })
 
-      it('should publish again, because the only cause is a reconnect Pulse forgot', () => {
-        expect(nats.publish).toHaveBeenCalledTimes(2)
+      it('should issue fresh credentials again while the participant remains absent', () => {
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(2)
       })
     })
 
@@ -745,6 +1514,7 @@ describe('cluster-subscriber component', () => {
 
       describe('and Pulse has assigned the wallet', () => {
         beforeEach(async () => {
+          nats.request.mockResolvedValue(replied(clusterChange('C5')))
           await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
         })
 
@@ -755,15 +1525,17 @@ describe('cluster-subscriber component', () => {
             livekit.holdsParticipant.mockResolvedValue(false)
 
             await deliverConnect(`peer.${WALLET}.connect`)
-            reannounced = IslandChangedMessage.decode(nats.publish.mock.calls[1][1] as Uint8Array)
+            reannounced = IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[1][1] as Uint8Array)
           })
 
           it('should have asked LiveKit about the wallet in its last known room', () => {
             expect(livekit.holdsParticipant).toHaveBeenCalledWith('island-C5', WALLET)
           })
 
-          it('should publish on the outbound subject', () => {
-            expect(nats.publish.mock.calls[1][0]).toBe(`engine.peer.${WALLET}.island_changed`)
+          it('should publish on the session-addressed subject', () => {
+            expect(nats.publishConfirmed.mock.calls[1][0]).toBe(
+              `engine.peer.${WALLET}.island_changed.${DEFAULT_SESSION}`
+            )
           })
 
           it('should carry the last known room as islandId', () => {
@@ -789,7 +1561,7 @@ describe('cluster-subscriber component', () => {
           })
 
           it('should publish nothing further, since re-joining would evict the live session', () => {
-            expect(nats.publish).toHaveBeenCalledTimes(1)
+            expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
           })
 
           it('should count the suppression', () => {
@@ -808,7 +1580,7 @@ describe('cluster-subscriber component', () => {
           })
 
           it('should publish nothing further, since a failed lookup is not proof of absence', () => {
-            expect(nats.publish).toHaveBeenCalledTimes(1)
+            expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
           })
 
           it('should count the failed check', () => {
@@ -828,24 +1600,27 @@ describe('cluster-subscriber component', () => {
             livekit.generateCredentials.mockImplementationOnce(() => stalledMint.promise)
             livekit.holdsParticipant.mockResolvedValue(false)
 
+            nats.request.mockResolvedValue(replied(clusterChange('C6')))
             // C6 arrives and stalls minting; the reconnect lands right behind it. Unserialized
             // the connect would mint and publish immediately, racing the move it queued behind.
             for (const handler of handlersFor('cluster_change')) {
               handler(`peer.${WALLET}.cluster_change`, clusterChange('C6'))
             }
-            handlerFor('connect')(`peer.${WALLET}.connect`, new Uint8Array())
+            handlerFor('connect')(`peer.${WALLET}.connect`, Buffer.from(DEFAULT_SESSION))
             await flushMacrotask()
           })
 
           it('should hold the reconnect behind the stalled move', () => {
-            expect(nats.publish).toHaveBeenCalledTimes(1)
+            expect(nats.publishConfirmed).toHaveBeenCalledTimes(1)
           })
 
           it('should re-announce the newer room once the move completes', async () => {
             stalledMint.resolve({ url: 'wss://livekit.example', token: 'newer-jwt' })
             await flushMacrotask()
 
-            expect(IslandChangedMessage.decode(nats.publish.mock.calls[2][1] as Uint8Array).islandId).toBe('island-C6')
+            expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[2][1] as Uint8Array).islandId).toBe(
+              'island-C6'
+            )
           })
         })
       })
@@ -854,27 +1629,30 @@ describe('cluster-subscriber component', () => {
         beforeEach(async () => {
           accessGate.getAccessState.mockResolvedValue({ isBanned: true, isDenylisted: false })
           livekit.holdsParticipant.mockResolvedValue(false)
-          // Mirror-only, so the ban gate has not already cached this wallet as allowed.
-          await deliverToMirrorOnly(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
+          // Seed authority without delivering a change or running the access gate.
+          nats.request.mockResolvedValue(replied(clusterChange('C5')))
 
           await deliverConnect(`peer.${WALLET}.connect`)
         })
 
         it('should publish nothing, since a reconnect runs the same gate as an assignment', () => {
-          expect(nats.publish).not.toHaveBeenCalled()
+          expect(nats.publishConfirmed).not.toHaveBeenCalled()
         })
       })
 
-      describe('and only the mirror saw the assignment, because the queue group gave the mint elsewhere', () => {
+      describe('and this replica has not received an assignment event', () => {
         beforeEach(async () => {
-          await deliverToMirrorOnly(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
+          nats.request.mockResolvedValue(replied(clusterChange('C5')))
+
           livekit.holdsParticipant.mockResolvedValue(false)
 
           await deliverConnect(`peer.${WALLET}.connect`)
         })
 
-        it('should still re-announce, since the mirror is fed on every replica', () => {
-          expect(IslandChangedMessage.decode(nats.publish.mock.calls[0][1] as Uint8Array).islandId).toBe('island-C5')
+        it('should resolve authority and re-announce', () => {
+          expect(IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[0][1] as Uint8Array).islandId).toBe(
+            'island-C5'
+          )
         })
       })
 
@@ -884,7 +1662,7 @@ describe('cluster-subscriber component', () => {
         })
 
         it('should publish nothing, since it has no room to name', () => {
-          expect(nats.publish).not.toHaveBeenCalled()
+          expect(nats.publishConfirmed).not.toHaveBeenCalled()
         })
 
         it('should not ask LiveKit about a room it cannot name', () => {
@@ -906,20 +1684,23 @@ describe('cluster-subscriber component', () => {
         })
 
         it('should publish nothing', () => {
-          expect(nats.publish).not.toHaveBeenCalled()
+          expect(nats.publishConfirmed).not.toHaveBeenCalled()
         })
       })
 
       describe('and the wallet arrives upper-cased in the subject', () => {
         beforeEach(async () => {
+          nats.request.mockResolvedValue(replied(clusterChange('C5')))
           await deliver(`peer.${LOWER_CASE_WALLET}.cluster_change`, clusterChange('C5'))
           livekit.holdsParticipant.mockResolvedValue(false)
 
           await deliverConnect(`peer.${MIXED_CASE_WALLET}.connect`)
         })
 
-        it('should resolve the same mirror entry the lower-cased feed wrote', () => {
-          expect(nats.publish.mock.calls[1][0]).toBe(`engine.peer.${LOWER_CASE_WALLET}.island_changed`)
+        it('should normalize the wallet before looking up authority', () => {
+          expect(nats.publishConfirmed.mock.calls[1][0]).toBe(
+            `engine.peer.${LOWER_CASE_WALLET}.island_changed.${DEFAULT_SESSION}`
+          )
         })
       })
     })
@@ -951,11 +1732,13 @@ describe('cluster-subscriber component', () => {
         component = await build({ peerStateOverride: realPeerState })
         await component[START_COMPONENT]!(startOptions)
 
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
         nowMs += 150
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
 
-        second = IslandChangedMessage.decode(nats.publish.mock.calls[1][1] as Uint8Array)
+        second = IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[1][1] as Uint8Array)
       })
 
       afterEach(() => {
@@ -963,7 +1746,7 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should publish again', () => {
-        expect(nats.publish).toHaveBeenCalledTimes(2)
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(2)
       })
 
       it('should announce the same room', () => {
@@ -979,6 +1762,7 @@ describe('cluster-subscriber component', () => {
       beforeEach(async () => {
         accessGate.getAccessState.mockResolvedValue({ isBanned: true, isDenylisted: false })
 
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
       })
 
@@ -987,7 +1771,7 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should publish nothing', () => {
-        expect(nats.publish).not.toHaveBeenCalled()
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
       })
 
       it('should count the skip', () => {
@@ -999,16 +1783,18 @@ describe('cluster-subscriber component', () => {
       beforeEach(async () => {
         accessGate.getAccessState.mockResolvedValue({ isBanned: false, isDenylisted: true })
 
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
       })
 
       it('should publish nothing', () => {
-        expect(nats.publish).not.toHaveBeenCalled()
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
       })
     })
 
     describe('and the ban gate runs', () => {
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
       })
 
@@ -1021,12 +1807,14 @@ describe('cluster-subscriber component', () => {
       beforeEach(async () => {
         accessGate.getAccessState.mockRejectedValueOnce(new Error('db down'))
 
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
+        nats.request.mockResolvedValue(replied(clusterChange('C2')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C2'))
       })
 
       it('should fail open and still publish both', () => {
-        expect(nats.publish).toHaveBeenCalledTimes(2)
+        expect(nats.publishConfirmed).toHaveBeenCalledTimes(2)
       })
 
       it('should count the let-through, so the trade-off stays observable', () => {
@@ -1043,6 +1831,7 @@ describe('cluster-subscriber component', () => {
       // subscription pattern is loosened to. `split('.')[1]` is undefined here, and an
       // unguarded `.toLowerCase()` on it would throw straight into the client's reader loop.
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver('cluster_change', clusterChange('C1'))
       })
 
@@ -1055,17 +1844,18 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should publish nothing', () => {
-        expect(nats.publish).not.toHaveBeenCalled()
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
       })
     })
 
     describe('and the subject has an empty wallet token', () => {
       beforeEach(async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver('peer..cluster_change', clusterChange('C1'))
       })
 
       it('should treat it as unparseable rather than minting into a room for the empty wallet', () => {
-        expect(nats.publish).not.toHaveBeenCalled()
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
       })
     })
 
@@ -1081,8 +1871,9 @@ describe('cluster-subscriber component', () => {
       beforeEach(async () => {
         // The adapter discards the write and returns false rather than throwing, so "it did
         // not throw" is not evidence the client ever received anything.
-        nats.publish.mockReturnValue(false)
+        nats.publishConfirmed.mockResolvedValue('dropped')
 
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
       })
 
@@ -1097,12 +1888,13 @@ describe('cluster-subscriber component', () => {
 
       describe('and a later event for the same wallet is delivered normally', () => {
         beforeEach(async () => {
-          nats.publish.mockReturnValue(true)
+          nats.publishConfirmed.mockResolvedValue('confirmed')
+          nats.request.mockResolvedValue(replied(clusterChange('C2')))
           await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C2'))
         })
 
         it('should omit fromIslandId, since the dropped room was never announced', () => {
-          const decoded = IslandChangedMessage.decode(nats.publish.mock.calls[1][1] as Uint8Array)
+          const decoded = IslandChangedMessage.decode(nats.publishConfirmed.mock.calls[1][1] as Uint8Array)
 
           expect(decoded.fromIslandId).toBeUndefined()
         })
@@ -1111,46 +1903,16 @@ describe('cluster-subscriber component', () => {
 
     describe('and publishing fails', () => {
       beforeEach(async () => {
-        nats.publish.mockImplementation(() => {
+        nats.publishConfirmed.mockImplementation(() => {
           throw new Error('not connected')
         })
 
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
       })
 
       it('should count the failure', () => {
         expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_cluster_publish_failed_total')
-      })
-    })
-
-    describe('and the mirror rejects a write', () => {
-      let onUnhandledRejection: jest.Mock
-
-      beforeEach(async () => {
-        onUnhandledRejection = jest.fn()
-        process.on('unhandledRejection', onUnhandledRejection)
-
-        component = await build({
-          assignmentMirrorOverride: {
-            ...createInMemoryCacheComponent(),
-            set: jest.fn().mockRejectedValue(new Error('mirror unavailable'))
-          }
-        })
-        await component[START_COMPONENT]!(startOptions)
-
-        await deliverToMirrorOnly(`peer.${WALLET}.cluster_change`, clusterChange('C5'))
-      })
-
-      afterEach(() => {
-        process.off('unhandledRejection', onUnhandledRejection)
-      })
-
-      it('should log the wallet whose assignment it could not record', () => {
-        expect(logger.error).toHaveBeenCalledWith(expect.stringContaining(`Cannot record the assignment of ${WALLET}`))
-      })
-
-      it('should leave no unhandled rejection behind', () => {
-        expect(onUnhandledRejection).not.toHaveBeenCalled()
       })
     })
 
@@ -1172,18 +1934,21 @@ describe('cluster-subscriber component', () => {
       })
 
       it('should publish nothing', async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
 
-        expect(nats.publish).not.toHaveBeenCalled()
+        expect(nats.publishConfirmed).not.toHaveBeenCalled()
       })
 
       it('should log the failure', async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
 
         expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('livekit unreachable'))
       })
 
       it('should leave no unhandled rejection behind', async () => {
+        nats.request.mockResolvedValue(replied(clusterChange('C1')))
         await deliver(`peer.${WALLET}.cluster_change`, clusterChange('C1'))
 
         expect(onUnhandledRejection).not.toHaveBeenCalled()

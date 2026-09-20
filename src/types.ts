@@ -98,12 +98,6 @@ export type BaseComponents = {
   nats: INatsComponent
   peerState: IPeerStateComponent
   /**
-   * The assignment Pulse last published per wallet, keyed by lower-cased wallet and holding a
-   * cluster-subscriber `MirrorEntry`. A cache instance dedicated to the cluster subscriber, sized
-   * by `CLUSTER_ASSIGNMENT_MIRROR_MAX` and `CLUSTER_ASSIGNMENT_MIRROR_TTL_MS`.
-   */
-  assignmentMirror: ICacheStorageComponent
-  /**
    * The active platform bans in memory. It decorates `userModerationDb`: writes through that
    * component update it, and connection lookups are answered from it while it is loaded.
    */
