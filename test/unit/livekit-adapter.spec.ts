@@ -331,6 +331,11 @@ describe('when getting a world room name', () => {
     const result = livekitComponent.getWorldRoomName(worldName)
     expect(result).toBe('world-env-test-world')
   })
+
+  it('should lower-case the world name so it matches the room the worlds-content-server mints', () => {
+    const result = livekitComponent.getWorldRoomName('MyWorld.dcl.eth')
+    expect(result).toBe('world-env-myworld.dcl.eth')
+  })
 })
 
 describe('when getting a world scene room name', () => {
@@ -339,6 +344,11 @@ describe('when getting a world scene room name', () => {
     const sceneId = 'bafkreiabcdef123'
     const result = livekitComponent.getWorldSceneRoomName(worldName, sceneId)
     expect(result).toBe('world-prod-scene-room-test-world-bafkreiabcdef123')
+  })
+
+  it('should lower-case the world name and scene id so it matches the room the worlds-content-server mints', () => {
+    const result = livekitComponent.getWorldSceneRoomName('MyWorld.dcl.eth', 'BAFKREIABCDEF123')
+    expect(result).toBe('world-prod-scene-room-myworld.dcl.eth-bafkreiabcdef123')
   })
 })
 

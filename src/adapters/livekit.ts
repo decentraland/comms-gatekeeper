@@ -203,17 +203,26 @@ export async function createLivekitComponent(
    * Gets the world room name without sceneId.
    * Used for world-wide operations like getting all participants in a world.
    * Uses the COMMS_ROOM_PREFIX which matches the world content server prefix.
+   *
+   * The world name is lower-cased to match the room the worlds-content-server mints for clients
+   * (`${prefix}${worldName.toLowerCase()}`). LiveKit room names are case-sensitive, so a world
+   * configured as `MyWorld.dcl.eth` would otherwise get two rooms differing only by case.
    */
   function getWorldRoomName(worldName: string): string {
-    return `${commsRoomPrefix}${worldName}`
+    return `${commsRoomPrefix}${worldName.toLowerCase()}`
   }
 
   /**
    * Gets the world scene room name with sceneId.
    * Used for scene-specific operations within a world.
+   *
+   * Both parts are lower-cased to match the worlds-content-server, which mints the client's room as
+   * `${prefix}${worldName.toLowerCase()}-${sceneId.toLowerCase()}`. This is the room the
+   * authoritative server joins via /get-server-scene-adapter: with a mixed-case world name it landed
+   * in a room its own clients were not in and the two never exchanged a message.
    */
   function getWorldSceneRoomName(worldName: string, sceneId: string): string {
-    return `${worldRoomPrefix}${worldName}-${sceneId}`
+    return `${worldRoomPrefix}${worldName.toLowerCase()}-${sceneId.toLowerCase()}`
   }
 
   function getSceneRoomName(realmName: string, sceneId: string): string {
