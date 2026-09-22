@@ -409,6 +409,82 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     })
   })
 
+  describe('when the reset succeeds', () => {
+    let newIngress: IngressInfo
+
+    beforeEach(() => {
+      newIngress = {
+        ...mockIngress,
+        url: 'rtmp://new-mock-stream-url',
+        streamKey: 'new-mock-stream-key',
+        ingressId: 'new-mock-ingress-id'
+      } as IngressInfo
+
+      stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValueOnce(mockSceneStreamAccess)
+      stubComponents.livekit.removeIngress.mockResolvedValueOnce(undefined)
+      stubComponents.sceneStreamAccessManager.removeAccess.mockResolvedValueOnce(undefined)
+      stubComponents.livekit.getOrCreateIngress.mockResolvedValueOnce(newIngress)
+      stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValueOnce({
+        ...mockSceneStreamAccess,
+        streaming_url: newIngress.url,
+        streaming_key: newIngress.streamKey,
+        ingress_id: newIngress.ingressId
+      })
+    })
+
+    describe('and the scene is in a world', () => {
+      let worldSceneRoomName: string
+
+      beforeEach(async () => {
+        const sceneId = 'bafkreiworldscene123'
+        worldSceneRoomName = `world-prod-scene-room-name.dcl.eth-${sceneId}`
+        jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce({ ...metadataWorld, sceneId })
+        stubComponents.livekit.getWorldSceneRoomName.mockReturnValueOnce(worldSceneRoomName)
+
+        await makeRequest(
+          components.localFetch,
+          '/scene-stream-access',
+          { method: 'PUT', metadata: { ...metadataWorld, sceneId } },
+          owner
+        )
+      })
+
+      it('should persist the world scene room the new ingress was created for', () => {
+        expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+          expect.objectContaining({ room_id: worldSceneRoomName })
+        )
+      })
+
+      it('should record the lower-cased resetting wallet as the key generator', () => {
+        expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+          expect.objectContaining({ generated_by: owner.authChain[0].payload.toLowerCase() })
+        )
+      })
+    })
+
+    describe('and the scene is in Genesis City', () => {
+      let sceneRoomName: string
+
+      beforeEach(async () => {
+        sceneRoomName = 'genesis-city-prod-scene-room-test-realm:test-scene'
+        stubComponents.livekit.getSceneRoomName.mockReturnValueOnce(sceneRoomName)
+
+        await makeRequest(
+          components.localFetch,
+          '/scene-stream-access',
+          { method: 'PUT', metadata: metadataLand },
+          owner
+        )
+      })
+
+      it('should persist the scene room the new ingress was created for', () => {
+        expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+          expect.objectContaining({ room_id: sceneRoomName })
+        )
+      })
+    })
+  })
+
   // No player_connection_info row for this wallet: the match can only come from the device id on
   // the request itself.
   describe('when the reset request carries a device identifier another wallet is banned on', () => {
