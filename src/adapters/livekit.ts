@@ -220,6 +220,9 @@ export async function createLivekitComponent(
    * `${prefix}${worldName.toLowerCase()}-${sceneId.toLowerCase()}`. This is the room the
    * authoritative server joins via /get-server-scene-adapter: with a mixed-case world name it landed
    * in a room its own clients were not in and the two never exchanged a message.
+   *
+   * Folding the scene id is safe only because worlds accept CIDv1 (lowercase) entity ids alone;
+   * Genesis City ids can be mixed-case CIDv0, so getSceneRoomName must keep them verbatim.
    */
   function getWorldSceneRoomName(worldName: string, sceneId: string): string {
     return `${worldRoomPrefix}${worldName.toLowerCase()}-${sceneId.toLowerCase()}`

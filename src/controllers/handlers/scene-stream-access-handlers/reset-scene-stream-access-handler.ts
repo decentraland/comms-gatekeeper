@@ -113,7 +113,9 @@ export async function resetSceneStreamAccessHandler(
       streaming_url: ingress.url!,
       streaming_key: ingress.streamKey!,
       ingress_id: ingress.ingressId!,
-      expiration_time: expirationTime
+      expiration_time: expirationTime,
+      room_id: roomName,
+      generated_by: authenticatedAddress.toLowerCase()
     })
     logger.info(`Created access ${access.id}`)
     await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_RESET, place)
