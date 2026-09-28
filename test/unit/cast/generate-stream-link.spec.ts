@@ -1,5 +1,6 @@
+import { IngressInfo } from 'livekit-server-sdk'
 import { createCastComponent } from '../../../src/logic/cast/cast'
-import { ICastComponent } from '../../../src/logic/cast/types'
+import { GenerateStreamLinkResult, ICastComponent } from '../../../src/logic/cast/types'
 import { NotSceneAdminError } from '../../../src/logic/cast/errors'
 import { ForbiddenError } from '../../../src/types/errors'
 import { PlaceAttributes } from '../../../src/types/places.type'
@@ -281,6 +282,21 @@ describe('when generating a stream link', () => {
         expect(mockSceneStreamAccessManager.addAccess).toHaveBeenCalled()
         expect(result.streamingKey).toBe('test-stream-key')
       })
+
+      describe('and the room is still served by the same ingress', () => {
+        beforeEach(async () => {
+          await castComponent.generateStreamLink({
+            walletAddress: '0xowner123',
+            worldName: 'test-world.dcl.eth',
+            sceneId: 'bafkreiscene123',
+            realmName: 'test-world.dcl.eth'
+          })
+        })
+
+        it('should keep the ingress it reuses', () => {
+          expect(mockLivekit.removeIngress).not.toHaveBeenCalled()
+        })
+      })
     })
 
     describe('and the access is for a different room', () => {
@@ -312,6 +328,49 @@ describe('when generating a stream link', () => {
         })
 
         expect(mockSceneStreamAccessManager.addAccess).toHaveBeenCalled()
+      })
+
+      describe('and the requested room is served by a new ingress', () => {
+        beforeEach(() => {
+          mockLivekit.getOrCreateIngress.mockResolvedValueOnce({
+            url: 'rtmp://new-url',
+            streamKey: 'new-stream-key',
+            ingressId: 'new-ingress-id'
+          } as IngressInfo)
+        })
+
+        describe('and deleting the replaced ingress succeeds', () => {
+          beforeEach(async () => {
+            await castComponent.generateStreamLink({
+              walletAddress: '0xowner123',
+              worldName: 'test-world.dcl.eth',
+              sceneId: 'bafkreiscene123',
+              realmName: 'test-world.dcl.eth'
+            })
+          })
+
+          it('should delete the ingress of the replaced key', () => {
+            expect(mockLivekit.removeIngress).toHaveBeenCalledWith('test-ingress-id')
+          })
+        })
+
+        describe('and deleting the replaced ingress fails', () => {
+          let result: GenerateStreamLinkResult
+
+          beforeEach(async () => {
+            mockLivekit.removeIngress.mockRejectedValueOnce(new Error('LiveKit unavailable'))
+            result = await castComponent.generateStreamLink({
+              walletAddress: '0xowner123',
+              worldName: 'test-world.dcl.eth',
+              sceneId: 'bafkreiscene123',
+              realmName: 'test-world.dcl.eth'
+            })
+          })
+
+          it('should still return the new streaming key', () => {
+            expect(result.streamingKey).toBe('new-stream-key')
+          })
+        })
       })
     })
   })
