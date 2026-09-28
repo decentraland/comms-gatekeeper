@@ -1,6 +1,8 @@
 import { createPeerStateComponent, IPeerStateComponent } from '../../src/adapters/peer-state'
 import { createConfigMockedComponent } from '../mocks/config-mock'
 
+const SESSION = '0xaa00000000000000000000000000000000000000'
+
 describe('peer-state adapter', () => {
   let peerState: IPeerStateComponent
 
@@ -31,7 +33,7 @@ describe('peer-state adapter', () => {
   })
 
   describe('when an assignment is stored', () => {
-    const assignment = { clusterId: 'C1', room: 'island-C1', lastSeen: 1000 }
+    const assignment = { clusterId: 'C1', room: 'island-C1', session: SESSION, lastSeen: 1000 }
 
     beforeEach(async () => {
       peerState = await build({ max: 10, ttl: 60_000 })
@@ -54,7 +56,7 @@ describe('peer-state adapter', () => {
       nowMs = 1_000_000
       performanceNow = jest.spyOn(performance, 'now').mockImplementation(() => nowMs)
       peerState = await build({ max: 10, ttl: 100 })
-      peerState.set('0xaaa', { clusterId: 'C1', room: 'island-C1', lastSeen: 0 })
+      peerState.set('0xaaa', { clusterId: 'C1', room: 'island-C1', session: SESSION, lastSeen: 0 })
       nowMs += 150
     })
 
@@ -70,9 +72,9 @@ describe('peer-state adapter', () => {
   describe('when more wallets are stored than the bound allows', () => {
     beforeEach(async () => {
       peerState = await build({ max: 2, ttl: 60_000 })
-      peerState.set('0xa', { clusterId: 'C1', room: 'island-C1', lastSeen: 1 })
-      peerState.set('0xb', { clusterId: 'C1', room: 'island-C1', lastSeen: 2 })
-      peerState.set('0xc', { clusterId: 'C1', room: 'island-C1', lastSeen: 3 })
+      peerState.set('0xa', { clusterId: 'C1', room: 'island-C1', session: SESSION, lastSeen: 1 })
+      peerState.set('0xb', { clusterId: 'C1', room: 'island-C1', session: SESSION, lastSeen: 2 })
+      peerState.set('0xc', { clusterId: 'C1', room: 'island-C1', session: SESSION, lastSeen: 3 })
     })
 
     it('should keep only as many assignments as the bound allows', () => {
@@ -94,7 +96,7 @@ describe('peer-state adapter', () => {
     })
 
     it('should fall back to its defaults instead of an unbounded cache', () => {
-      peerState.set('0xaaa', { clusterId: 'C1', room: 'island-C1', lastSeen: 1 })
+      peerState.set('0xaaa', { clusterId: 'C1', room: 'island-C1', session: SESSION, lastSeen: 1 })
 
       expect(peerState.get('0xaaa')).toBeDefined()
     })
@@ -107,7 +109,7 @@ describe('peer-state adapter', () => {
       // only reclamation path this store has.
       peerState = await build({ max: 0, ttl: 0 })
       for (let i = 0; i < 5; i++) {
-        peerState.set(`0x${i}`, { clusterId: 'C1', room: 'island-C1', lastSeen: i })
+        peerState.set(`0x${i}`, { clusterId: 'C1', room: 'island-C1', session: SESSION, lastSeen: i })
       }
     })
 

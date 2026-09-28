@@ -63,10 +63,6 @@ import { createKeyedQueueComponent } from './adapters/keyed-queue'
 import { createBanRegistryComponent, withBanRegistry } from './adapters/ban-registry'
 import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
-import { positiveNumberOr } from './utils/config'
-
-const ASSIGNMENT_MIRROR_DEFAULT_MAX = 20_000
-const ASSIGNMENT_MIRROR_DEFAULT_TTL_MS = 60 * 60 * 1000
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -100,17 +96,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   const livekit = await createLivekitComponent({ config, logs, roomMetadataQueue })
   const nats = await createNatsComponent({ config, logs, metrics })
   const peerState = await createPeerStateComponent({ config })
-
-  // Dedicated instance so mirror entries never compete with room-metadata-sync's cooldown keys in
-  // `cache`. Guarded because the library reads ttl 0 as never expiring and rejects max 0.
-  const [mirrorMaxSetting, mirrorTtlSetting] = await Promise.all([
-    config.getNumber('CLUSTER_ASSIGNMENT_MIRROR_MAX'),
-    config.getNumber('CLUSTER_ASSIGNMENT_MIRROR_TTL_MS')
-  ])
-  const assignmentMirror = createInMemoryCacheComponent({
-    max: positiveNumberOr(mirrorMaxSetting, ASSIGNMENT_MIRROR_DEFAULT_MAX),
-    ttl: positiveNumberOr(mirrorTtlSetting, ASSIGNMENT_MIRROR_DEFAULT_TTL_MS)
-  })
 
   let databaseUrl: string | undefined = await config.getString('PG_COMPONENT_PSQL_CONNECTION_STRING')
   if (!databaseUrl) {
@@ -314,7 +299,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     livekit,
     accessGate,
     peerState,
-    assignmentMirror,
     clusterWalletQueue
   })
 
@@ -375,7 +359,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     features,
     nats,
     peerState,
-    assignmentMirror,
     banRegistry,
     accessGate,
     clusterWalletQueue,

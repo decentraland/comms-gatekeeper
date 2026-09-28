@@ -8,8 +8,20 @@
  *
  * @param value - The configured value, if any.
  * @param fallback - The default to use when the value is absent or not a usable bound.
- * @returns `value` when it is a positive number, `fallback` otherwise.
+ * @returns `value` when it is a positive finite number, `fallback` otherwise.
  */
 export function positiveNumberOr(value: number | undefined, fallback: number): number {
-  return value !== undefined && value > 0 ? value : fallback
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+/**
+ * Resolves a configured count, rejecting anything that is not a positive safe integer: a fraction,
+ * a non-finite value or a negative one makes a concurrency bound or a backlog size meaningless.
+ *
+ * @param value - The configured value, if any.
+ * @param fallback - The default to use when the value is absent or not a usable count.
+ * @returns `value` when it is a positive safe integer, `fallback` otherwise.
+ */
+export function positiveIntegerOr(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isSafeInteger(value) && value > 0 ? value : fallback
 }

@@ -91,7 +91,11 @@ export type ILivekitComponent = IBaseComponent & {
   removeIngress: (ingressId: string) => Promise<IngressInfo | undefined>
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
   getParticipantInfo: (roomId: string, participantId: string) => Promise<ParticipantInfo | null>
-  /** Rejects on a failed lookup instead of reporting the identity as absent. */
+  /**
+   * Whether the room holds the participant, looked up by its exact lower-cased identity: island
+   * tokens mint the lower-cased wallet, so no other casing is matched. A missing room or
+   * participant is absent; a failed lookup rejects instead of reporting absence.
+   */
   holdsParticipant: (roomId: string, participantId: string) => Promise<boolean>
   listRoomParticipants: (roomName: string) => Promise<ParticipantInfo[]>
   updateParticipantMetadata: (roomId: string, participantId: string, metadata: Record<string, unknown>) => Promise<void>

@@ -9,7 +9,8 @@ const DEFAULT_MAX = 20_000
 /**
  * Creates the bounded, per-wallet store of the last cluster assignment seen for each peer.
  *
- * Its only consumer is `fromIslandId`, which needs the exact previous room name. TTL is the
+ * Read for `fromIslandId`, which needs the exact previous room name, and by the cluster subscriber
+ * to judge whether a superseded takeover may still evict its displaced session. TTL is the
  * only reclamation path: Pulse's feed has no disconnect event, and a departed peer just stops
  * sending cluster_change events. `peer.*.disconnect` still exists but retires in iteration 2
  * and is lossy, so it's deliberately unused here.

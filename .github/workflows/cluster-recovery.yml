@@ -1,0 +1,53 @@
+name: Cluster recovery integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  broker-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: pass1234
+          POSTGRES_DB: comms_gatekeeper
+        ports: ['5450:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      nats:
+        image: nats:2.10-alpine
+        ports: ['4222:4222']
+        options: >-
+          --health-cmd "wget -qO- http://localhost:8222/healthz || exit 1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NATS_INTEGRATION_REQUIRED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+      - run: npm install --global yarn@1.22.22
+      - run: yarn install --frozen-lockfile
+      - run: >-
+          yarn test --runInBand --no-coverage --json --outputFile=cluster-recovery-results.json
+          test/integration/cluster-subscriber.spec.ts
+      # The suite skips itself unless NATS_INTEGRATION_REQUIRED is 'true', so a drift between this
+      # workflow and the spec would leave the required job green with nothing asserted.
+      - name: Fail unless the broker suite ran
+        run: >-
+          node -e "const r = require('./cluster-recovery-results.json');
+          if (r.numPassedTests === 0 || r.numPendingTests > 0) {
+            console.error('broker suite did not run: passed', r.numPassedTests, 'pending', r.numPendingTests);
+            process.exit(1)
+          }"

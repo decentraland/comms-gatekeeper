@@ -1,6 +1,6 @@
 import { connect as natsConnect, ErrorCode, NatsError } from 'nats'
 import { ILoggerComponent, STOP_COMPONENT } from '@well-known-components/interfaces'
-import { createNatsComponent, describeServers, INatsComponent } from '../../src/adapters/nats'
+import { createNatsComponent, describeServers, INatsComponent, PublishOutcome } from '../../src/adapters/nats'
 import { createConfigMockedComponent } from '../mocks/config-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createMetricsMockedComponent } from '../mocks/metrics-mock'
@@ -8,7 +8,7 @@ import { createMetricsMockedComponent } from '../mocks/metrics-mock'
 jest.mock('nats', () => ({
   connect: jest.fn(),
   Events: { Disconnect: 'disconnect', Reconnect: 'reconnect', Error: 'error' },
-  ErrorCode: { ConnectionClosed: 'CONNECTION_CLOSED' },
+  ErrorCode: { ConnectionClosed: 'CONNECTION_CLOSED', Timeout: 'TIMEOUT', NoResponders: '503' },
   NatsError: class NatsError extends Error {
     code: string
     constructor(message: string, code: string) {
@@ -112,6 +112,8 @@ function buildConnection() {
   return {
     subscribe: subscribeSpy,
     publish: publishSpy,
+    flush: jest.fn().mockResolvedValue(undefined),
+    request: jest.fn().mockResolvedValue({ data: new Uint8Array([42]) }),
     drain: drainSpy,
     close: closeSpy,
     status: jest.fn().mockReturnValue({
@@ -205,6 +207,10 @@ describe('nats-adapter', () => {
 
         nats.subscribe('peer.*.cluster_change', handler, { queue: 'group-1' })
         await nats.connect()
+      })
+
+      it('should have the client ping the broker often enough to detect a dead link on its own', () => {
+        expect(natsConnectMock).toHaveBeenCalledWith(expect.objectContaining({ pingInterval: 15_000 }))
       })
 
       it('should report itself enabled', () => {
@@ -350,6 +356,107 @@ describe('nats-adapter', () => {
       })
     })
 
+    describe('and broker confirmation is requested', () => {
+      let connection: MockConnection
+      beforeEach(async () => {
+        connection = buildConnection()
+        natsConnectMock.mockResolvedValue(connection as any)
+        nats = await build('localhost:4222')
+        await nats.connect()
+      })
+
+      it('should report the write confirmed after a broker round trip', async () => {
+        expect(await nats.publishConfirmed('a.b', new Uint8Array([1]))).toBe('confirmed')
+        expect(connection.flush).toHaveBeenCalledTimes(1)
+      })
+
+      describe('and the broker does not answer the flush within the deadline', () => {
+        let result: Promise<PublishOutcome>
+        beforeEach(async () => {
+          jest.useFakeTimers()
+          connection.flush.mockImplementationOnce(() => new Promise<void>(() => {}))
+          result = nats.publishConfirmed('a.b', new Uint8Array([1]))
+          await jest.advanceTimersByTimeAsync(2000)
+        })
+        afterEach(() => {
+          jest.useRealTimers()
+        })
+        it('should report the write unconfirmed once the deadline passes', async () => {
+          expect(await result).toBe('unconfirmed')
+        })
+        it('should count and log the missing confirmation', async () => {
+          await result
+          expect(metrics.increment).toHaveBeenCalledWith('dcl_gatekeeper_nats_publish_unconfirmed_total')
+          expect(logger.warn).toHaveBeenCalledWith('NATS publication was not confirmed within the deadline', {
+            subject: 'a.b'
+          })
+        })
+        it('should keep the connection open, since closing it would silence every subscription', async () => {
+          await result
+          expect(connection.close).not.toHaveBeenCalled()
+          expect(nats.isConnected()).toBe(true)
+        })
+      })
+
+      describe('and the flush is rejected because the link dropped', () => {
+        beforeEach(() => {
+          connection.flush.mockRejectedValueOnce(new Error('closed'))
+        })
+        it('should report the write dropped', async () => {
+          expect(await nats.publishConfirmed('a.b', new Uint8Array([1]))).toBe('dropped')
+        })
+      })
+
+      describe('and the link is down when publishing', () => {
+        beforeEach(async () => {
+          pushStatus({ type: 'disconnect' })
+          await flushMicrotasks()
+        })
+        it('should report the write dropped without flushing', async () => {
+          expect(await nats.publishConfirmed('a.b', new Uint8Array([1]))).toBe('dropped')
+          expect(connection.flush).not.toHaveBeenCalled()
+        })
+        it('should report requests unavailable without sending them', async () => {
+          expect(await nats.request('a.b', new Uint8Array())).toEqual({ status: 'unavailable' })
+          expect(connection.request).not.toHaveBeenCalled()
+        })
+      })
+
+      it('should return the reply bytes, bounded by the round-trip deadline', async () => {
+        expect(await nats.request('a.b', new Uint8Array())).toEqual({ status: 'replied', data: new Uint8Array([42]) })
+        expect(connection.request).toHaveBeenCalledWith('a.b', new Uint8Array(), { timeout: 2000 })
+      })
+
+      describe('and no subscriber answers within the deadline', () => {
+        beforeEach(() => {
+          connection.request.mockRejectedValueOnce(new NatsError('timeout', ErrorCode.Timeout))
+        })
+        it('should report no reply, which is not a transport failure', async () => {
+          expect(await nats.request('a.b', new Uint8Array())).toEqual({ status: 'no_reply' })
+          expect(logger.warn).not.toHaveBeenCalled()
+        })
+      })
+
+      describe('and the broker reports no subscriber for the subject', () => {
+        beforeEach(() => {
+          connection.request.mockRejectedValueOnce(new NatsError('no responders', ErrorCode.NoResponders))
+        })
+        it('should report the subject unavailable and log it', async () => {
+          expect(await nats.request('a.b', new Uint8Array())).toEqual({ status: 'unavailable' })
+          expect(logger.warn).toHaveBeenCalledWith('NATS request failed', expect.objectContaining({ subject: 'a.b' }))
+        })
+      })
+
+      describe('and the request fails for another reason', () => {
+        beforeEach(() => {
+          connection.request.mockRejectedValueOnce(new Error('boom'))
+        })
+        it('should report the subject unavailable without an unhandled rejection', async () => {
+          expect(await nats.request('a.b', new Uint8Array())).toEqual({ status: 'unavailable' })
+        })
+      })
+    })
+
     describe('and a message is published with no connection', () => {
       beforeEach(async () => {
         natsConnectMock.mockResolvedValue(buildConnection() as any)
@@ -377,10 +484,9 @@ describe('nats-adapter', () => {
         nats.publish('engine.peer.0xabc.island_changed', new Uint8Array([1]))
       })
 
-      it('should still hand it to the connection, which buffers and flushes it on reconnect', () => {
-        // Deliberately not gated on isConnected(): the handle survives the blip and nats.js
-        // buffers writes against it. Dropping the write here would lose it outright.
-        expect(publishSpy).toHaveBeenCalled()
+      it('should reject the write instead of trusting the reconnect buffer', () => {
+        expect(publishSpy).not.toHaveBeenCalled()
+        expect(nats.publish('a.b', new Uint8Array([1]))).toBe(false)
       })
     })
 

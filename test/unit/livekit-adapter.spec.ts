@@ -1210,70 +1210,79 @@ describe('when listing room participants', () => {
 })
 
 describe('when checking whether a room holds a participant', () => {
-  const roomName = 'island-C5'
-  const identity = '0xAaBb0000000000000000000000000000000000cD'
-  let result: boolean
+  let roomName: string
+  let identity: string
+  let getParticipantSpy: jest.SpyInstance
 
   beforeEach(() => {
-    // The spies are shared with every other block in this file and never cleared between them.
-    listRoomsSpy.mockClear()
+    roomName = 'island-C5'
+    identity = '0xAaBb0000000000000000000000000000000000cD'
+    getParticipantSpy = jest.spyOn(RoomServiceClient.prototype, 'getParticipant')
     listParticipantsSpy.mockClear()
   })
 
   afterEach(() => {
-    listParticipantsSpy.mockReset()
+    getParticipantSpy.mockRestore()
   })
 
-  describe('when the room lists the identity', () => {
-    beforeEach(async () => {
-      listParticipantsSpy.mockResolvedValue([{ identity: identity.toLowerCase() }, { identity: 'someone-else' }])
-
-      result = await livekitComponent.holdsParticipant(roomName, identity)
-    })
-
-    it('should report it present, matching the identity case-insensitively', () => {
-      expect(result).toBe(true)
-    })
-
-    it('should ask LiveKit for the participants alone, without listing rooms first', () => {
-      expect(listParticipantsSpy).toHaveBeenCalledWith(roomName)
-      expect(listRoomsSpy).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('when the room exists but does not list the identity', () => {
-    beforeEach(async () => {
-      listParticipantsSpy.mockResolvedValue([{ identity: 'someone-else' }])
-
-      result = await livekitComponent.holdsParticipant(roomName, identity)
-    })
-
-    it('should report it absent', () => {
-      expect(result).toBe(false)
-    })
-  })
-
-  describe('when the room does not exist', () => {
-    beforeEach(async () => {
-      // What LiveKit answers for a room that never existed or has already closed.
-      listParticipantsSpy.mockRejectedValue(
-        Object.assign(new Error('requested room does not exist'), { code: 'not_found' })
-      )
-
-      result = await livekitComponent.holdsParticipant(roomName, identity)
-    })
-
-    it('should report it absent rather than failing', () => {
-      expect(result).toBe(false)
-    })
-  })
-
-  describe('when LiveKit cannot be reached', () => {
+  describe('and the participant exists', () => {
     beforeEach(() => {
-      listParticipantsSpy.mockRejectedValue(new Error('livekit unreachable'))
+      getParticipantSpy.mockResolvedValue({ identity: identity.toLowerCase() })
     })
 
-    it('should reject, so the caller can tell a failed lookup from absence', async () => {
+    it('should report presence using the exact normalized identity without listing the room', async () => {
+      expect(await livekitComponent.holdsParticipant(roomName, identity)).toBe(true)
+      expect(getParticipantSpy).toHaveBeenCalledWith(roomName, identity.toLowerCase())
+      expect(listParticipantsSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the participant or room is absent', () => {
+    beforeEach(() => {
+      getParticipantSpy.mockRejectedValue(Object.assign(new Error('not found'), { code: 'not_found' }))
+    })
+
+    it('should report absence', async () => {
+      expect(await livekitComponent.holdsParticipant(roomName, identity)).toBe(false)
+    })
+  })
+
+  describe('and LiveKit answers a bare HTTP 404 without a Twirp code', () => {
+    beforeEach(() => {
+      getParticipantSpy.mockRejectedValue(Object.assign(new Error('not found'), { status: 404 }))
+    })
+
+    it('should report absence, the same not-found shape removeIngress accepts', async () => {
+      expect(await livekitComponent.holdsParticipant(roomName, identity)).toBe(false)
+    })
+  })
+
+  describe('and the lookup rejects with something that is not an Error', () => {
+    beforeEach(() => {
+      getParticipantSpy.mockRejectedValue({ code: 'not_found' })
+    })
+
+    it('should still read the not-found code as absence', async () => {
+      expect(await livekitComponent.holdsParticipant(roomName, identity)).toBe(false)
+    })
+  })
+
+  describe('and LiveKit returns a different identity', () => {
+    beforeEach(() => {
+      getParticipantSpy.mockResolvedValue({ identity: 'someone-else' })
+    })
+
+    it('should not treat another participant as the requested wallet', async () => {
+      expect(await livekitComponent.holdsParticipant(roomName, identity)).toBe(false)
+    })
+  })
+
+  describe('and LiveKit cannot be reached', () => {
+    beforeEach(() => {
+      getParticipantSpy.mockRejectedValue(new Error('livekit unreachable'))
+    })
+
+    it('should propagate failure so recovery cannot mistake it for absence', async () => {
       await expect(livekitComponent.holdsParticipant(roomName, identity)).rejects.toThrow('livekit unreachable')
     })
   })
