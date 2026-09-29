@@ -1097,12 +1097,12 @@
   dependencies:
     "@jridgewell/trace-mapping" "0.3.9"
 
-"@dcl/analytics-component@^1.0.3":
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/@dcl/analytics-component/-/analytics-component-1.0.3.tgz#90c08194315821e025f06c468704e0cdc3f93680"
-  integrity sha512-2+HkQzicW2LrdmI8FfjcKV2NsDprcg33mGV+bGNXgvaQ3qweCVQKxWkjIV+H+pZwHCL9mR+pDx7btP0se2GZow==
+"@dcl/analytics-component@^1.0.5":
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/@dcl/analytics-component/-/analytics-component-1.0.5.tgz#3449138cc571ee387dc858e7c7462a0cf1a98be6"
+  integrity sha512-QZRrcG/TRZbboMYxP/rd8IttCicb2ZNqYKDrH/7QJeJsVc21kTleHSR6HeP5orlLyY9qTGS0RilMmC1Yw1oB4Q==
   dependencies:
-    "@dcl/core-commons" "0.10.0"
+    "@dcl/core-commons" "0.10.1"
     "@well-known-components/interfaces" "^1.5.2"
 
 "@dcl/catalyst-contracts@^4.4.0":
@@ -1110,14 +1110,14 @@
   resolved "https://registry.npmjs.org/@dcl/catalyst-contracts/-/catalyst-contracts-4.4.2.tgz"
   integrity sha512-gJZo3IB8U+jhBJWR0DgoLS+zaUDIb/u79e7Rp+MEM78uH3bvC19S3Dd8lxWEbPXNKlCB0saUptfK/Buw0c1y2Q==
 
-"@dcl/core-commons@0.10.0", "@dcl/core-commons@^0.10.0":
+"@dcl/core-commons@0.10.0":
   version "0.10.0"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.10.0.tgz#cbdcc810f55a1a708b9250ab566b951f312841e2"
   integrity sha512-lcCgnwxkq/MoTbU59wKnspmVaQyEIP8SRRDUCd3Werrwj+nsH6T7xGuVo17cLVEd8D/Hi3NLFtBiq+N7kZAt/A==
   dependencies:
     "@well-known-components/interfaces" "^1.5.2"
 
-"@dcl/core-commons@0.10.1", "@dcl/core-commons@^0.10.1":
+"@dcl/core-commons@0.10.1", "@dcl/core-commons@^0.10.0", "@dcl/core-commons@^0.10.1":
   version "0.10.1"
   resolved "https://registry.yarnpkg.com/@dcl/core-commons/-/core-commons-0.10.1.tgz#f6b38fd623a5043a571e80d7ba1ac40e9db41973"
   integrity sha512-iLBpIg15czlzV7No5Wzb3FyreXpqYx8YnVJ8xYKczXpl6C3eqBQoqEA02hRkd/UASbzqcPJeG1wH1wHSxYTmQw==
