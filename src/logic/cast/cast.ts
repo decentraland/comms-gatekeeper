@@ -476,7 +476,7 @@ export function createCastComponent(
       {
         canPublish: true,
         canSubscribe: true,
-        canUpdateOwnMetadata: false, // Only server can update metadata
+        canUpdateOwnMetadata: true,
         cast: [botIdentity]
       },
       false,
