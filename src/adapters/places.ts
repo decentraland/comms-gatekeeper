@@ -14,9 +14,7 @@ export async function createPlacesComponent(
   const fetchFromCache = cachedFetch.cache<PlaceResponse>()
 
   async function getPlaceByParcel(parcel: string): Promise<PlaceAttributes> {
-    const response = await fetchFromCache.fetch(
-      `${placesApiUrl}/places?positions=${encodeURIComponent(parcel)}&include_opted_out=true`
-    )
+    const response = await fetchFromCache.fetch(`${placesApiUrl}/places?positions=${encodeURIComponent(parcel)}`)
 
     if (!response?.data?.length) {
       logger.info(`No place found with parcel ${parcel}`)
