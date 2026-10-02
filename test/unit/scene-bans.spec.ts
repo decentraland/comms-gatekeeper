@@ -1925,6 +1925,60 @@ describe('SceneBanComponent', () => {
       })
     })
 
+    describe('and one disabled place is a world scene whose owner opted out', () => {
+      beforeEach(async () => {
+        sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1', 'place2'])
+        placesMockedComponent.getPlaceStatusByIds.mockResolvedValue([
+          {
+            id: 'place1',
+            disabled: true,
+            disabled_reason: 'opt_out',
+            world: true,
+            world_name: 'lantern.dcl.eth',
+            base_position: '0,0',
+            positions: ['0,0']
+          },
+          {
+            id: 'place2',
+            disabled: true,
+            disabled_reason: 'moderation',
+            world: true,
+            world_name: 'lantern.dcl.eth',
+            base_position: '5,5',
+            positions: ['5,5']
+          }
+        ])
+        sceneBanManagerMockedComponent.removeBansByPlaceIds.mockResolvedValue(undefined)
+        await sceneBanComponent.removeBansFromDisabledPlaces()
+      })
+
+      it('should keep the bans of the opted-out place and remove the rest', () => {
+        expect(sceneBanManagerMockedComponent.removeBansByPlaceIds).toHaveBeenCalledWith(['place2'])
+      })
+    })
+
+    describe('and the only disabled place is a world scene whose owner opted out', () => {
+      beforeEach(async () => {
+        sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1'])
+        placesMockedComponent.getPlaceStatusByIds.mockResolvedValue([
+          {
+            id: 'place1',
+            disabled: true,
+            disabled_reason: 'opt_out',
+            world: true,
+            world_name: 'lantern.dcl.eth',
+            base_position: '0,0',
+            positions: ['0,0']
+          }
+        ])
+        await sceneBanComponent.removeBansFromDisabledPlaces()
+      })
+
+      it('should not remove any bans', () => {
+        expect(sceneBanManagerMockedComponent.removeBansByPlaceIds).not.toHaveBeenCalled()
+      })
+    })
+
     describe('and there are many places requiring batching', () => {
       beforeEach(() => {
         const placeIds = Array.from({ length: 250 }, (_, i) => `place${i + 1}`)

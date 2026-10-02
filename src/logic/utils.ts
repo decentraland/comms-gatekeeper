@@ -146,6 +146,14 @@ export function validateFilters(filters: { admin?: string }): {
   }
 }
 
+/**
+ * Whether the place is gone for good. Opted-out world scenes are disabled in Places only to stay
+ * unlisted; they are still deployed, so their admins, bans and stream access must survive.
+ */
+export function isPlaceRemoved(place: Pick<PlaceAttributes, 'disabled' | 'disabled_reason'>): boolean {
+  return place.disabled && place.disabled_reason !== 'opt_out'
+}
+
 export function getExplorerUrl(place: Pick<PlaceAttributes, 'world' | 'world_name' | 'base_position'>): string {
   let customParam: string = `position=${place.base_position}`
 

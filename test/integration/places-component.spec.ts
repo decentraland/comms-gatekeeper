@@ -170,7 +170,7 @@ describe('PlacesComponent', () => {
       const result = await placesComponent.getWorldScenePlace('test-world', '10,20')
       expect(result).toBe(mockPlaceResponse.data[0])
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://places.decentraland.org/api/places?positions=10%2C20&names=test-world'
+        'https://places.decentraland.org/api/places?positions=10%2C20&names=test-world&include_opted_out=true'
       )
     })
 
@@ -193,7 +193,7 @@ describe('PlacesComponent', () => {
       const result = await placesComponent.getWorldScenePlace('Test-World', '10,20')
       expect(result).toBe(mockPlaceResponse.data[0])
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://places.decentraland.org/api/places?positions=10%2C20&names=test-world'
+        'https://places.decentraland.org/api/places?positions=10%2C20&names=test-world&include_opted_out=true'
       )
     })
 
@@ -245,7 +245,7 @@ describe('PlacesComponent', () => {
 
       it('should query the places API with the base parcel and world name', () => {
         expect(mockFetch).toHaveBeenCalledWith(
-          'https://places.decentraland.org/api/places?positions=10%2C20&names=test-world'
+          'https://places.decentraland.org/api/places?positions=10%2C20&names=test-world&include_opted_out=true'
         )
       })
 
@@ -354,7 +354,7 @@ describe('PlacesComponent', () => {
 
       it("should query the places API scoped to the scene's base parcel and world name", () => {
         expect(mockFetch).toHaveBeenCalledWith(
-          'https://places.decentraland.org/api/places?positions=5%2C5&names=test-world'
+          'https://places.decentraland.org/api/places?positions=5%2C5&names=test-world&include_opted_out=true'
         )
       })
 
