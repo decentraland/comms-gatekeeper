@@ -3,6 +3,7 @@ import { IPlaceChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
 import { NotificationStreamingType } from '../types/notification.type'
 import { PlaceAttributes } from '../types/places.type'
+import { isPlaceRemoved } from '../logic/utils'
 
 export async function createPlaceChecker(
   components: Pick<
@@ -27,7 +28,10 @@ export async function createPlaceChecker(
           }
 
           let placesFromIds: Array<
-            Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position' | 'positions'>
+            Pick<
+              PlaceAttributes,
+              'id' | 'disabled' | 'disabled_reason' | 'world' | 'world_name' | 'base_position' | 'positions'
+            >
           > = []
           const batchSize = 100
 
@@ -37,7 +41,7 @@ export async function createPlaceChecker(
             placesFromIds = placesFromIds.concat(batchResult)
           }
 
-          const placesDisabled = placesFromIds.filter((place) => place.disabled)
+          const placesDisabled = placesFromIds.filter(isPlaceRemoved)
           if (placesDisabled.length === 0) {
             return
           }

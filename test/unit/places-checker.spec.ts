@@ -130,6 +130,37 @@ describe('PlaceChecker', () => {
       expect(mockedComponents.sceneStreamAccessManager.removeAccessByPlaceIds).not.toHaveBeenCalled()
     })
 
+    describe('and a disabled place is a world scene whose owner opted out', () => {
+      beforeEach(async () => {
+        mockedComponents.sceneAdminManager.getPlacesIdWithActiveAdmins.mockResolvedValue(['place1', 'place2'])
+        mockedComponents.places.getPlaceStatusByIds.mockResolvedValue([
+          { id: 'place1', disabled: true, disabled_reason: 'opt_out' },
+          { id: 'place2', disabled: true, disabled_reason: 'undeployment' }
+        ])
+        mockedComponents.sceneAdminManager.removeAllAdminsByPlaceIds.mockResolvedValue(undefined)
+        mockedComponents.sceneStreamAccessManager.removeAccessByPlaceIds.mockResolvedValue(undefined)
+        mockedComponents.notifications.sendNotificationType.mockResolvedValue(undefined)
+        await executeOnTick(placeChecker, startOptions)
+      })
+
+      it('should only remove admins and stream access of the place that is gone', () => {
+        expect(mockedComponents.sceneAdminManager.removeAllAdminsByPlaceIds).toHaveBeenCalledWith(['place2'])
+        expect(mockedComponents.sceneStreamAccessManager.removeAccessByPlaceIds).toHaveBeenCalledWith(['place2'])
+      })
+
+      it('should not look up the ingresses of the opted-out place', () => {
+        expect(mockedComponents.sceneStreamAccessManager.getActiveIngressIds).not.toHaveBeenCalledWith('place1')
+      })
+
+      it('should only notify about the place that is gone', () => {
+        expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledTimes(1)
+        expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
+          NotificationStreamingType.STREAMING_PLACE_UPDATED,
+          { id: 'place2', disabled: true, disabled_reason: 'undeployment' }
+        )
+      })
+    })
+
     it('should handle errors gracefully', async () => {
       const error = new Error('Test error')
       mockedComponents.sceneAdminManager.getPlacesIdWithActiveAdmins.mockRejectedValue(error)
