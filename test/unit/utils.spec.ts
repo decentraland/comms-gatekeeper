@@ -1,4 +1,4 @@
-import { validateFilters, ensureSlashAtTheEnd, getExplorerUrl } from '../../src/logic/utils'
+import { validateFilters, ensureSlashAtTheEnd, getExplorerUrl, isPlaceRemoved } from '../../src/logic/utils'
 
 describe('ensureSlashAtTheEnd', () => {
   it('should add a trailing slash if not present', () => {
@@ -57,5 +57,40 @@ describe('getExplorerUrl', () => {
       base_position: '10,20'
     }
     expect(getExplorerUrl(place)).toBe('https://decentraland.org/jump/?realm=test-world')
+  })
+})
+
+describe('isPlaceRemoved', () => {
+  describe('when the place is enabled', () => {
+    it('should return false', () => {
+      expect(isPlaceRemoved({ disabled: false, disabled_reason: null })).toBe(false)
+    })
+  })
+
+  describe('when the place is disabled because the world owner opted out', () => {
+    it('should return false', () => {
+      expect(isPlaceRemoved({ disabled: true, disabled_reason: 'opt_out' })).toBe(false)
+    })
+  })
+
+  describe.each(['undeployment', 'overwritten', 'moderation'] as const)(
+    'when the place is disabled for %s',
+    (reason) => {
+      it('should return true', () => {
+        expect(isPlaceRemoved({ disabled: true, disabled_reason: reason })).toBe(true)
+      })
+    }
+  )
+
+  describe('when the place is disabled with a null reason', () => {
+    it('should return true', () => {
+      expect(isPlaceRemoved({ disabled: true, disabled_reason: null })).toBe(true)
+    })
+  })
+
+  describe('when the place is disabled and Places sent no reason', () => {
+    it('should return true', () => {
+      expect(isPlaceRemoved({ disabled: true })).toBe(true)
+    })
   })
 })

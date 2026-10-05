@@ -38,8 +38,15 @@ export type IPlacesComponent = IBaseComponent & {
   getWorldByName(worldName: string): Promise<PlaceAttributes>
   getPlaceStatusByIds(
     ids: string[]
-  ): Promise<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position' | 'positions'>[]>
+  ): Promise<
+    Pick<
+      PlaceAttributes,
+      'id' | 'disabled' | 'disabled_reason' | 'world' | 'world_name' | 'base_position' | 'positions'
+    >[]
+  >
 }
+
+export type PlaceDisabledReason = 'opt_out' | 'undeployment' | 'overwritten' | 'moderation'
 
 export type PlaceAttributes = {
   id: string
@@ -59,6 +66,8 @@ export type PlaceAttributes = {
   like_score: number | null
   highlighted: boolean
   disabled: boolean
+  /** `opt_out` means the world owner chose not to be listed; the scene is still live. */
+  disabled_reason?: PlaceDisabledReason | null
   disabled_at: Date | null
   created_at: Date
   updated_at: Date

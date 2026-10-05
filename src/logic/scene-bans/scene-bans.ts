@@ -10,6 +10,7 @@ import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../typ
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
+import { isPlaceRemoved } from '../utils'
 import { EthAddress, Events, UserBannedFromSceneEvent, UserUnbannedFromSceneEvent } from '@dcl/schemas'
 
 export function createSceneBansComponent(
@@ -387,7 +388,9 @@ export function createSceneBansComponent(
       }
 
       // Get place status for all places with bans
-      let placesFromIds: Array<Pick<PlaceAttributes, 'id' | 'disabled' | 'world' | 'world_name' | 'base_position'>> = []
+      let placesFromIds: Array<
+        Pick<PlaceAttributes, 'id' | 'disabled' | 'disabled_reason' | 'world' | 'world_name' | 'base_position'>
+      > = []
       const batchSize = 100
 
       for (let i = 0; i < placesIdWithBans.length; i += batchSize) {
@@ -397,7 +400,7 @@ export function createSceneBansComponent(
       }
 
       // Filter disabled places
-      const placesDisabled = placesFromIds.filter((place) => place.disabled)
+      const placesDisabled = placesFromIds.filter(isPlaceRemoved)
 
       if (placesDisabled.length === 0) {
         logger.info('No disabled places with bans found')
