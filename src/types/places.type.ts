@@ -53,17 +53,26 @@ export type IPlacesComponent = IBaseComponent & {
    * @param worldName - The world name (e.g., "myworld.dcl.eth")
    */
   getWorldByName(worldName: string): Promise<PlaceAttributes>
-  getPlaceStatusByIds(
-    ids: string[]
-  ): Promise<
-    Pick<
-      PlaceAttributes,
-      'id' | 'disabled' | 'disabled_reason' | 'world' | 'world_name' | 'base_position' | 'positions'
-    >[]
-  >
+  /**
+   * Gets the full place, including all of its parcel positions, by its Places API id.
+   * @param id - The Places API place id
+   * @throws {PlaceNotFoundError} If the Places API has no place with that id
+   */
+  getPlaceById(id: string): Promise<PlaceAttributes>
+  /**
+   * Gets the status of several places in one request. The status carries no parcel positions.
+   * @param ids - The Places API place ids
+   * @throws {PlaceNotFoundError} If none of the ids exist
+   */
+  getPlaceStatusByIds(ids: string[]): Promise<PlaceStatus[]>
 }
 
 export type PlaceDisabledReason = 'opt_out' | 'undeployment' | 'overwritten' | 'moderation'
+
+export type PlaceStatus = Pick<PlaceAttributes, 'id' | 'disabled' | 'disabled_reason' | 'world' | 'world_name' | 'base_position'>
+
+export type PlaceSummary = Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position'> &
+  Partial<Pick<PlaceAttributes, 'positions'>>
 
 export type PlaceAttributes = {
   id: string

@@ -1905,8 +1905,8 @@ describe('SceneBanComponent', () => {
       beforeEach(() => {
         sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1', 'place2'])
         placesMockedComponent.getPlaceStatusByIds.mockResolvedValue([
-          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
-          { id: 'place2', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] }
+          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
+          { id: 'place2', disabled: false, world: false, world_name: '', base_position: '0,0' }
         ])
       })
 
@@ -1923,9 +1923,9 @@ describe('SceneBanComponent', () => {
       beforeEach(() => {
         sceneBanManagerMockedComponent.getPlacesIdWithBans.mockResolvedValue(['place1', 'place2', 'place3'])
         placesMockedComponent.getPlaceStatusByIds.mockResolvedValue([
-          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
-          { id: 'place2', disabled: true, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] },
-          { id: 'place3', disabled: true, world: false, world_name: '', base_position: '0,0', positions: ['0,0'] }
+          { id: 'place1', disabled: false, world: false, world_name: '', base_position: '0,0' },
+          { id: 'place2', disabled: true, world: false, world_name: '', base_position: '0,0' },
+          { id: 'place3', disabled: true, world: false, world_name: '', base_position: '0,0' }
         ])
         sceneBanManagerMockedComponent.removeBansByPlaceIds.mockResolvedValue(undefined)
       })

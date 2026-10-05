@@ -431,6 +431,36 @@ describe('PlacesComponent', () => {
     })
   })
 
+  describe('getPlaceById', () => {
+    describe('and the place exists', () => {
+      let result: PlaceAttributes
+
+      beforeEach(async () => {
+        mockFetch.mockResolvedValueOnce({ ok: true, data: { id: 'place-1', positions: ['20,2', '20,3'] } })
+
+        result = await placesComponent.getPlaceById('place-1')
+      })
+
+      it('should request the place by id from the Places API through the cache', () => {
+        expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places/place-1')
+      })
+
+      it('should return the full place including all of its parcel positions', () => {
+        expect(result.positions).toEqual(['20,2', '20,3'])
+      })
+    })
+
+    describe('and the Places API responds with an error', () => {
+      beforeEach(() => {
+        mockFetch.mockRejectedValueOnce(new Error('Error getting place, status: 404'))
+      })
+
+      it('should throw a PlaceNotFoundError', async () => {
+        await expect(placesComponent.getPlaceById('missing')).rejects.toThrow(PlaceNotFoundError)
+      })
+    })
+  })
+
   describe('getPlaceStatusByIds', () => {
     it('should return place statuses for given ids', async () => {
       const mockResponse = {

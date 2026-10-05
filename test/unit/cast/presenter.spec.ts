@@ -4,6 +4,8 @@ import { ICastComponent } from '../../../src/logic/cast/types'
 import { NotSceneAdminError, NoActiveStreamError } from '../../../src/logic/cast/errors'
 import { RoomMetadata } from '../../../src/types/livekit.type'
 import { SceneStreamAccess } from '../../../src/types'
+import { PlaceAttributes } from '../../../src/types/places.type'
+import { PlaceNotFoundError } from '../../../src/types/errors'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
 import { createSceneStreamAccessManagerMockedComponent } from '../../mocks/scene-stream-access-manager-mock'
@@ -27,6 +29,7 @@ describe('when managing presenters', () => {
   let mockSceneManager: ReturnType<typeof createSceneManagerMockedComponent>
   let mockPlaces: ReturnType<typeof createPlacesMockedComponent>
   let mockLogs: ReturnType<typeof createLoggerMockedComponent>
+  let scenePlace: PlaceAttributes
 
   beforeEach(() => {
     mockLivekit = createLivekitMockedComponent({
@@ -43,10 +46,10 @@ describe('when managing presenters', () => {
       })
     })
 
+    scenePlace = createMockedPlace({ id: 'place-123', owner: '0xowner', positions: ['20,2', '20,3'] })
+
     mockPlaces = createPlacesMockedComponent({
-      getPlaceStatusByIds: jest
-        .fn()
-        .mockResolvedValue([createMockedPlace({ id: 'place-123', title: 'Test', owner: '0xowner' })])
+      getPlaceById: jest.fn().mockResolvedValue(scenePlace)
     })
 
     mockSceneManager = createSceneManagerMockedComponent({
@@ -134,10 +137,10 @@ describe('when managing presenters', () => {
       expect(mockLivekit.appendToRoomMetadataArray).toHaveBeenCalledWith(localPreviewRoomId, 'presenters', identity)
     })
 
-    it('should not call places.getPlaceStatusByIds', async () => {
+    it('should not resolve the place', async () => {
       await castComponent.promotePresenter(localPreviewRoomId, identity, '0xanyone')
 
-      expect(mockPlaces.getPlaceStatusByIds).not.toHaveBeenCalled()
+      expect(mockPlaces.getPlaceById).not.toHaveBeenCalled()
     })
 
     it('should not call sceneManager.isSceneOwnerOrAdmin', async () => {
@@ -219,6 +222,30 @@ describe('when managing presenters', () => {
 
       it('should throw a NotSceneAdminError', async () => {
         await expect(castComponent.getPresenters(roomId, '0xnobody')).rejects.toThrow(NotSceneAdminError)
+      })
+    })
+
+    describe('and the caller is an admin', () => {
+      it('should resolve the full place from the stream access place id', async () => {
+        await castComponent.getPresenters(roomId, '0xadmin')
+
+        expect(mockPlaces.getPlaceById).toHaveBeenCalledWith('place-123')
+      })
+
+      it('should check the caller against the full place, including all of its parcels', async () => {
+        await castComponent.getPresenters(roomId, '0xadmin')
+
+        expect(mockSceneManager.isSceneOwnerOrAdmin).toHaveBeenCalledWith(scenePlace, '0xadmin')
+      })
+    })
+
+    describe('and the stream place no longer exists', () => {
+      beforeEach(() => {
+        mockPlaces.getPlaceById.mockRejectedValueOnce(new PlaceNotFoundError('No place found with id place-123'))
+      })
+
+      it('should throw a PlaceNotFoundError', async () => {
+        await expect(castComponent.getPresenters(roomId, '0xadmin')).rejects.toThrow(PlaceNotFoundError)
       })
     })
   })

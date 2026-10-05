@@ -1,10 +1,10 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
-import { PlaceAttributes } from './places.type'
+import { PlaceSummary } from './places.type'
 import { SceneAdmin } from '../types'
 
 export type ISceneAdmins = IBaseComponent & {
   getAdminsAndExtraAddresses: (
-    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position' | 'positions'>,
+    place: PlaceSummary,
     admin?: string
   ) => Promise<{
     admins: Set<SceneAdmin>

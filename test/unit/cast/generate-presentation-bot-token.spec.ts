@@ -57,7 +57,7 @@ describe('when generating a presentation bot token', () => {
   })
 
   describe('and the streaming key is valid', () => {
-    it('should generate LiveKit credentials with publish-only permissions and presentation role', async () => {
+    it('should generate LiveKit credentials that can publish and subscribe with the presentation role', async () => {
       await castComponent.generatePresentationBotToken('valid-stream-key')
 
       expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(

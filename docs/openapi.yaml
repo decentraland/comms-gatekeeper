@@ -2680,6 +2680,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: No active stream for the scene, or the stream's place no longer exists
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
@@ -2746,6 +2752,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: No active stream for the scene, or the stream's place no longer exists
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
@@ -2806,6 +2818,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Not a scene administrator or no active stream
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: No active stream for the scene, or the stream's place no longer exists
           content:
             application/json:
               schema:
