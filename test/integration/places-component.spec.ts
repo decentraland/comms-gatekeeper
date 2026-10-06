@@ -450,13 +450,36 @@ describe('PlacesComponent', () => {
       })
     })
 
-    describe('and the Places API responds with an error', () => {
+    describe('and the Places API does not know the place', () => {
       beforeEach(() => {
-        mockFetch.mockRejectedValueOnce(new Error('Error getting place, status: 404'))
+        mockFetch.mockResolvedValueOnce(new Response('', { status: 404 }))
       })
 
       it('should throw a PlaceNotFoundError', async () => {
         await expect(placesComponent.getPlaceById('missing')).rejects.toThrow(PlaceNotFoundError)
+      })
+    })
+
+    describe('and the Places API responds with a server error', () => {
+      beforeEach(() => {
+        mockFetch.mockResolvedValueOnce(new Response('', { status: 503 }))
+      })
+
+      it('should report a retryable server error instead of reporting the place as missing', async () => {
+        await expect(placesComponent.getPlaceById('place-1')).rejects.toThrow(ServiceUnavailableError)
+      })
+    })
+
+    describe('and the request fails in transit', () => {
+      let transportError: Error
+
+      beforeEach(() => {
+        transportError = new Error('socket hang up')
+        mockFetch.mockRejectedValueOnce(transportError)
+      })
+
+      it('should report a retryable transport error instead of reporting the place as missing', async () => {
+        await expect(placesComponent.getPlaceById('place-1')).rejects.toThrow(ServiceUnavailableError)
       })
     })
   })

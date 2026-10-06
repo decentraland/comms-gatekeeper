@@ -107,9 +107,25 @@ export async function createPlacesComponent(
   }
 
   async function getPlaceById(id: string): Promise<PlaceAttributes> {
-    const response = await fetchPlaceFromCache
-      .fetch(`${placesApiUrl}/places/${encodeURIComponent(id)}`)
-      .catch(() => undefined)
+    const response = await fetchPlaceFromCache.fetch(`${placesApiUrl}/places/${encodeURIComponent(id)}`, {
+      context: async () => {
+        try {
+          const response = await fetch.fetch(`${placesApiUrl}/places/${encodeURIComponent(id)}`, {
+            signal: AbortSignal.timeout(requestTimeout)
+          })
+          if (!response.ok) {
+            await response.body?.cancel().catch(() => undefined)
+            // Only this exact-ID endpoint's 404 confirms a missing place; outages must remain retryable.
+            if (response.status === 404) throw new PlaceNotFoundError(`No place found with id ${id}`)
+            throw new ServiceUnavailableError('Place verification is temporarily unavailable')
+          }
+          return await response.json()
+        } catch (error) {
+          if (error instanceof PlaceNotFoundError || error instanceof ServiceUnavailableError) throw error
+          throw new ServiceUnavailableError('Place verification is temporarily unavailable')
+        }
+      }
+    })
 
     if (!response?.data) {
       logger.info(`No place found with id ${id}`)
@@ -244,6 +260,7 @@ export async function createPlacesComponent(
   return {
     [STOP_COMPONENT]: async () => {
       placesCache.clear()
+      fetchPlaceFromCache.clear()
     },
     getPlaceByParcel,
     getWorldScenePlace,
