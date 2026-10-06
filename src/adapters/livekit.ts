@@ -258,7 +258,7 @@ export async function createLivekitComponent(
 
   function getRoomMetadataFromRoomName(roomName: string): RoomMetadata {
     // Island room: island-{islandName}. Checked first, ahead of the scene and world
-    // branches, because those match on configurable prefixes that are empty by default —
+    // branches, because legacy or custom configurations may still set empty prefixes —
     // `roomName.startsWith('')` is always true, so an empty SCENE_ROOM_PREFIX would
     // swallow every island room and report it to SNS as a scene with a bogus realm.
     // `island-` is a literal prefix no other room shape in this service produces, so
