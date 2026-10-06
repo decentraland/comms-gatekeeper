@@ -121,13 +121,22 @@ export async function createSceneStreamAccessManagerComponent({
   async function getAccessByRoomId(roomId: string, isWorldRoom = false): Promise<SceneStreamAccess | null> {
     logger.debug('Getting stream access by room ID', { roomId })
 
-    const result = await database.query<SceneStreamAccess>(
+    // Keep the common lookup on the existing room_id index. Only legacy world rooms
+    // need a case-insensitive fallback; Genesis IDs remain case-sensitive.
+    let result = await database.query<SceneStreamAccess>(
       SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time, room_id, generated_by
         FROM scene_stream_access
-        WHERE active = true AND (room_id = ${roomId} OR (${isWorldRoom} AND lower(room_id) = lower(${roomId})))
-        ORDER BY (room_id = ${roomId}) DESC, created_at DESC
-        LIMIT 1`
+        WHERE active = true AND room_id = ${roomId}
+        ORDER BY created_at DESC LIMIT 1`
     )
+    if (result.rowCount === 0 && isWorldRoom) {
+      result = await database.query<SceneStreamAccess>(
+        SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time, room_id, generated_by
+          FROM scene_stream_access
+          WHERE active = true AND lower(room_id) = lower(${roomId})
+          ORDER BY created_at DESC LIMIT 1`
+      )
+    }
 
     if (result.rowCount === 0) {
       logger.debug('No active streaming access found for room ID')
