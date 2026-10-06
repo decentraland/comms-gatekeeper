@@ -513,13 +513,15 @@ export function createCastComponent(
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function validatePresenterAdmin(roomId: string, callerAddress: string): Promise<void> {
-    const streamAccess = await sceneStreamAccessManager.getAccessByRoomId(roomId)
+    const { realmName, worldName } = livekit.getRoomMetadataFromRoomName(roomId)
+    const streamAccess = worldName
+      ? await sceneStreamAccessManager.getAccessByRoomId(roomId, true)
+      : await sceneStreamAccessManager.getAccessByRoomId(roomId)
     if (!streamAccess) {
       throw new NoActiveStreamError(roomId)
     }
 
     // Local preview: synthetic place IDs don't exist in the Places API — skip admin check
-    const { realmName } = livekit.getRoomMetadataFromRoomName(roomId)
     if (livekit.isLocalPreview(realmName)) {
       return
     }

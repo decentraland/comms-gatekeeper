@@ -118,13 +118,14 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]
   }
 
-  async function getAccessByRoomId(roomId: string): Promise<SceneStreamAccess | null> {
+  async function getAccessByRoomId(roomId: string, isWorldRoom = false): Promise<SceneStreamAccess | null> {
     logger.debug('Getting stream access by room ID', { roomId })
 
     const result = await database.query<SceneStreamAccess>(
       SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, streaming, streaming_start_time, expiration_time, room_id, generated_by
         FROM scene_stream_access
-        WHERE room_id = ${roomId} AND active = true
+        WHERE active = true AND (room_id = ${roomId} OR (${isWorldRoom} AND lower(room_id) = lower(${roomId})))
+        ORDER BY (room_id = ${roomId}) DESC, created_at DESC
         LIMIT 1`
     )
 
