@@ -1,4 +1,3 @@
-import { resolveWorldSceneId } from '../../../logic/world-scene'
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
@@ -25,7 +24,7 @@ export async function generateStreamLinkHandler(
     throw new InvalidRequestError('sceneId is required in authMetadata for Cast2 chat functionality')
   }
 
-  const resolvedSceneId = isWorld ? await resolveWorldSceneId(worlds, realmName, sceneId) : sceneId
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId) : sceneId
 
   const result = isPreview
     ? await cast.generatePreviewStreamLink({

@@ -20,6 +20,8 @@ export type IWorldComponent = IBaseComponent & {
   fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined>
   fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined>
   fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined>
+  /** Resolves legacy world-name scene IDs and returns the canonical lowercase content ID. */
+  resolveWorldSceneId(worldName: string, sceneId: string): Promise<string>
   fetchWorldSceneId(worldName: string): Promise<string>
   hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean>

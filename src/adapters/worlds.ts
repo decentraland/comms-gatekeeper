@@ -210,7 +210,26 @@ export async function createWorldsComponent(
     )
   }
 
+  /**
+   * Resolves legacy world-name scene IDs and canonicalizes world content IDs before authorization.
+   * @param worldName - World whose scene is requested.
+   * @param sceneId - Content ID or legacy world name.
+   * @returns The lowercase content ID used by both authorization and LiveKit.
+   * @throws InvalidRequestError when the legacy world scene cannot be resolved.
+   */
+  async function resolveWorldSceneId(worldName: string, sceneId: string): Promise<string> {
+    if (!sceneId.toLowerCase().endsWith('.eth')) {
+      return sceneId.toLowerCase()
+    }
+    try {
+      return (await fetchWorldSceneId(worldName)).toLowerCase()
+    } catch {
+      throw new InvalidRequestError(`Failed to resolve scene ID for world ${worldName}`)
+    }
+  }
+
   return {
+    resolveWorldSceneId,
     fetchWorldActionPermissions,
     fetchWorldSceneByPointer,
     fetchWorldSceneEntityMetadataById,

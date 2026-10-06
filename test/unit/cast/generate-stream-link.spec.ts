@@ -296,8 +296,8 @@ describe('when generating a stream link', () => {
           })
         })
 
-        it('should keep the ingress it reuses', () => {
-          expect(mockLivekit.removeIngress).not.toHaveBeenCalled()
+        it('should pass the reused ingress to guarded cleanup', () => {
+          expect(mockLivekit.removeReplacedIngress).toHaveBeenCalledWith('test-ingress-id', 'test-ingress-id')
         })
       })
     })
@@ -353,15 +353,15 @@ describe('when generating a stream link', () => {
           })
 
           it('should delete the ingress of the replaced key', () => {
-            expect(mockLivekit.removeIngress).toHaveBeenCalledWith('test-ingress-id')
+            expect(mockLivekit.removeReplacedIngress).toHaveBeenCalledWith('test-ingress-id', 'new-ingress-id')
           })
         })
 
-        describe('and deleting the replaced ingress fails', () => {
+        describe('and best-effort cleanup completes', () => {
           let result: GenerateStreamLinkResult
 
           beforeEach(async () => {
-            mockLivekit.removeIngress.mockRejectedValueOnce(new Error('LiveKit unavailable'))
+            mockLivekit.removeReplacedIngress.mockResolvedValueOnce(undefined)
             result = await castComponent.generateStreamLink({
               walletAddress: '0xowner123',
               worldName: 'test-world.dcl.eth',

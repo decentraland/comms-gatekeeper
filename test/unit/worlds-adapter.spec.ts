@@ -51,6 +51,40 @@ describe('worlds adapter', () => {
     })
   })
 
+  describe('when resolving a world scene ID', () => {
+    it('should lowercase a content ID without an upstream request', async () => {
+      expect(await worldsComponent.resolveWorldSceneId('name.eth', 'BAFKREISCENE')).toBe('bafkreiscene')
+      expect(mockFetch.fetch).not.toHaveBeenCalled()
+    })
+
+    describe('and the caller supplies an uppercase legacy world name', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest
+            .fn()
+            .mockResolvedValueOnce({ configurations: { scenesUrn: ['urn:decentraland:entity:BAFKREISCENE'] } })
+        })
+      })
+
+      it('should resolve and normalize the content ID', async () => {
+        expect(await worldsComponent.resolveWorldSceneId('name.eth', 'NAME.ETH')).toBe('bafkreiscene')
+      })
+    })
+
+    describe('and the world lookup fails', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockRejectedValueOnce(new Error('unavailable'))
+      })
+
+      it('should reject with the resolution error', async () => {
+        await expect(worldsComponent.resolveWorldSceneId('name.eth', 'name.eth')).rejects.toThrow(
+          'Failed to resolve scene ID for world name.eth'
+        )
+      })
+    })
+  })
+
   describe('when fetching a world scene by pointer', () => {
     const worldName = 'myworld.dcl.eth'
     const pointer = '0,0'

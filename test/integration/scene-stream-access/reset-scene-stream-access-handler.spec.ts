@@ -34,6 +34,8 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
   })
 
   beforeEach(async () => {
+    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
     mockIngress = {
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
@@ -352,7 +354,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     beforeEach(() => {
       metadataWorld.sceneId = 'NAME.DCL.ETH'
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataWorld)
-      stubComponents.worlds.fetchWorldSceneId.mockResolvedValueOnce('BAFKREIWORLDSCENE123')
+      stubComponents.worlds.resolveWorldSceneId.mockResolvedValueOnce('bafkreiworldscene123')
       stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-room')
       stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
       stubComponents.livekit.getOrCreateIngress.mockResolvedValue(mockIngress)

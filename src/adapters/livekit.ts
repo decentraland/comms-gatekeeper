@@ -22,7 +22,7 @@ import {
   RoomMetadata,
   CredentialOptions
 } from '../types/livekit.type'
-import { isErrorWithMessage } from '../logic/errors'
+import { getErrorMessage, isErrorWithMessage } from '../logic/errors'
 
 export const COMMUNITY_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-community'
 export const PRIVATE_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-private-'
@@ -464,6 +464,25 @@ export async function createLivekitComponent(
     }
   }
 
+  /**
+   * Removes an obsolete ingress after its replacement is persisted, unless it is still reused.
+   * Cleanup is best-effort: a LiveKit failure must not reject the persisted replacement.
+   * @param previousIngressId - Previous ingress, or an empty string for an access without one.
+   * @param newIngressId - Ingress serving the replacement, if any.
+   * @returns Resolves after cleanup or after logging its failure.
+   */
+  async function removeReplacedIngress(previousIngressId: string, newIngressId: string | undefined): Promise<void> {
+    if (!previousIngressId || previousIngressId === newIngressId) return
+    try {
+      await removeIngress(previousIngressId)
+    } catch (error) {
+      logger.warn('Failed to remove a replaced ingress', {
+        ingressId: previousIngressId,
+        error: getErrorMessage(error)
+      })
+    }
+  }
+
   async function getParticipantInfo(roomId: string, participantId: string): Promise<ParticipantInfo | null> {
     try {
       const participants = await roomClient.listParticipants(roomId)
@@ -681,6 +700,7 @@ export async function createLivekitComponent(
     getRoomInfo,
     getOrCreateIngress,
     removeIngress,
+    removeReplacedIngress,
     getWebhookEvent
   }
 }

@@ -10,7 +10,6 @@ import {
   ExpiredStreamAccessError
 } from './errors'
 import { FOUR_DAYS } from '../time'
-import { removeReplacedIngress } from '../stream-access'
 import {
   ICastComponent,
   GenerateStreamLinkParams,
@@ -148,7 +147,7 @@ export function createCastComponent(
       })
 
       if (existingAccess) {
-        await removeReplacedIngress(livekit, logger, existingAccess, ingress.ingressId)
+        await livekit.removeReplacedIngress(existingAccess.ingress_id, ingress.ingressId)
       }
 
       logger.info(`Stream link generated for place ${place.id} by ${walletAddress}`, {

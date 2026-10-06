@@ -1,11 +1,9 @@
-import { resolveWorldSceneId } from '../../../logic/world-scene'
 import { randomUUID } from 'crypto'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { SceneStreamAccess } from '../../../types'
 import { FOUR_DAYS } from '../../../logic/time'
-import { removeReplacedIngress } from '../../../logic/stream-access'
 
 export async function addSceneStreamAccessHandler(
   ctx: Pick<
@@ -60,7 +58,7 @@ export async function addSceneStreamAccessHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  const resolvedSceneId = isWorld ? await resolveWorldSceneId(worlds, serverName, sceneId) : sceneId
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId) : sceneId
   const place = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
@@ -104,7 +102,7 @@ export async function addSceneStreamAccessHandler(
     })
 
     if (existingAccess) {
-      await removeReplacedIngress(livekit, logger, existingAccess, ingress.ingressId)
+      await livekit.removeReplacedIngress(existingAccess.ingress_id, ingress.ingressId)
     }
 
     logger.info(`Created new OBS stream key for place ${place.id}`, {
