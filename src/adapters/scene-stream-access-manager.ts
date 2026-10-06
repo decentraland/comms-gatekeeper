@@ -1,4 +1,4 @@
-import { FOUR_DAYS, FOUR_HOURS } from '../logic/time'
+import { FOUR_HOURS } from '../logic/time'
 import { AppComponents, AddSceneStreamAccessInput, ISceneStreamAccessManager, SceneStreamAccess } from '../types'
 import { StreamingAccessNotFoundError } from '../types/errors'
 import SQL from 'sql-template-strings'
@@ -167,6 +167,8 @@ export async function createSceneStreamAccessManagerComponent({
 
   async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>[]> {
     const now = Date.now()
+    // Keep the four-day literal typed exactly as in idx_stream_cleanup_expiration.
+    // A bigint parameter selects a different PostgreSQL addition operator and loses the index range scan.
     // Separate indexed branches avoid an OR across the growing access history.
     // Retrying advances ready_at, so failing rows cannot monopolize the batch.
     const result = await database.query<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>>(SQL`
@@ -176,11 +178,11 @@ export async function createSceneStreamAccessManagerComponent({
             AND ingress_cleanup_claim_until <= ${now}
           ORDER BY ingress_cleanup_retry_at, id LIMIT 100)
         UNION ALL
-        (SELECT id, ingress_id, place_id, COALESCE(expiration_time, created_at + ${FOUR_DAYS}) AS ready_at
+        (SELECT id, ingress_id, place_id, COALESCE(expiration_time, created_at + 345600000) AS ready_at
           FROM scene_stream_access
           WHERE active = true AND streaming = false AND ingress_cleanup_pending = false
-            AND COALESCE(expiration_time, created_at + ${FOUR_DAYS}) <= ${now}
-          ORDER BY COALESCE(expiration_time, created_at + ${FOUR_DAYS}), id LIMIT 100)
+            AND COALESCE(expiration_time, created_at + 345600000) <= ${now}
+          ORDER BY COALESCE(expiration_time, created_at + 345600000), id LIMIT 100)
       ) candidates ORDER BY ready_at, id LIMIT 100
     `)
     return result.rows
@@ -197,7 +199,7 @@ export async function createSceneStreamAccessManagerComponent({
       WHERE id = ${id} AND ingress_cleanup_claim_until <= ${now}
         AND ingress_cleanup_retry_at <= ${now} AND (
           ingress_cleanup_pending = true OR (
-            active = true AND streaming = false AND COALESCE(expiration_time, created_at + ${FOUR_DAYS}) <= ${now}
+            active = true AND streaming = false AND COALESCE(expiration_time, created_at + 345600000) <= ${now}
           )
         ) RETURNING id
     `)
