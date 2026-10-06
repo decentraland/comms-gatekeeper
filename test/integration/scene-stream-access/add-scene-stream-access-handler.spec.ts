@@ -4,7 +4,7 @@ import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { InvalidRequestError, StreamingAccessNotFoundError } from '../../../src/types/errors'
-import { IngressInfo } from 'livekit-server-sdk'
+import { IngressClient, IngressInfo } from 'livekit-server-sdk'
 import { FOUR_DAYS } from '../../../src/logic/time'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
@@ -35,6 +35,11 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   })
 
   beforeEach(async () => {
+    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
+    const removeReplacedIngress = components.livekit.removeReplacedIngress
+    stubComponents.livekit.removeReplacedIngress.mockImplementation(removeReplacedIngress)
+    jest.spyOn(IngressClient.prototype, 'deleteIngress').mockResolvedValue(undefined)
     mockIngress = {
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
@@ -425,6 +430,11 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
   })
 
   beforeEach(async () => {
+    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
+    const removeReplacedIngress = components.livekit.removeReplacedIngress
+    stubComponents.livekit.removeReplacedIngress.mockImplementation(removeReplacedIngress)
+    jest.spyOn(IngressClient.prototype, 'deleteIngress').mockResolvedValue(undefined)
     mockSceneStreamAccess = {
       id: 'mock-access-id',
       place_id: placeId,
@@ -602,7 +612,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     })
 
     it('should delete the ingress of the replaced key', () => {
-      expect(stubComponents.livekit.removeIngress).toHaveBeenCalledWith('stale-ingress-id')
+      expect(stubComponents.livekit.removeReplacedIngress).toHaveBeenCalledWith('stale-ingress-id', 'fresh-ingress-id')
     })
 
     it('should respond with the new streaming key', async () => {
@@ -627,7 +637,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
           url: 'rtmp://new-url'
         })
       )
-      stubComponents.livekit.removeIngress.mockRejectedValueOnce(new Error('LiveKit unavailable'))
+      jest.spyOn(IngressClient.prototype, 'deleteIngress').mockRejectedValueOnce(new Error('LiveKit unavailable'))
     })
 
     it('should serve the persisted replacement even if cleanup fails', async () => {
@@ -642,7 +652,8 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       )
       expect(response.status).toBe(200)
       expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalled()
-      expect(stubComponents.livekit.removeIngress).toHaveBeenCalledWith('old-ingress')
+      expect(stubComponents.livekit.removeReplacedIngress).toHaveBeenCalledWith('old-ingress', 'new-ingress')
+      expect(IngressClient.prototype.deleteIngress).toHaveBeenCalledWith('old-ingress')
     })
   })
 
@@ -719,7 +730,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
 
     describe('and the world scene id resolves', () => {
       beforeEach(async () => {
-        stubComponents.worlds.fetchWorldSceneId.mockResolvedValueOnce('bafkreiresolvedscene')
+        stubComponents.worlds.resolveWorldSceneId.mockResolvedValueOnce('bafkreiresolvedscene')
         stubComponents.livekit.getWorldSceneRoomName.mockReturnValueOnce(
           'world-prod-scene-room-name.dcl.eth-bafkreiresolvedscene'
         )
@@ -744,7 +755,9 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       let response: Response
 
       beforeEach(async () => {
-        stubComponents.worlds.fetchWorldSceneId.mockRejectedValueOnce(new Error('world has no scenes'))
+        stubComponents.worlds.resolveWorldSceneId.mockRejectedValueOnce(
+          new InvalidRequestError('Failed to resolve scene ID for world name.dcl.eth')
+        )
 
         response = await makeRequest(
           components.localFetch,

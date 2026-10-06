@@ -1,4 +1,3 @@
-import { resolveWorldSceneId } from '../../../logic/world-scene'
 import { randomUUID } from 'crypto'
 import { FOUR_DAYS } from '../../../logic/time'
 import { validate } from '../../../logic/utils'
@@ -77,7 +76,7 @@ export async function resetSceneStreamAccessHandler(
   }
 
   try {
-    const resolvedSceneId = isWorld ? await resolveWorldSceneId(worlds, serverName, sceneId) : sceneId
+    const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId) : sceneId
     const place = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
 
     const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)

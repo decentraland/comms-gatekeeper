@@ -1514,3 +1514,61 @@ describe('when removing a participant', () => {
     })
   })
 })
+
+describe('when cleaning up a replaced stream access', () => {
+  let deleteIngressSpy: jest.SpyInstance
+  let replaced: { place_id: string; ingress_id: string }
+
+  beforeEach(() => {
+    deleteIngressSpy = jest.spyOn(IngressClient.prototype, 'deleteIngress').mockResolvedValue(undefined)
+    replaced = { place_id: 'place', ingress_id: 'old-ingress' }
+  })
+
+  afterEach(() => {
+    deleteIngressSpy.mockRestore()
+  })
+
+  it('should remove the old ingress when its replacement differs', async () => {
+    await livekitComponent.removeReplacedIngress(replaced.ingress_id, 'new-ingress')
+    expect(deleteIngressSpy).toHaveBeenCalledWith('old-ingress')
+  })
+
+  describe('and the existing row has no ingress', () => {
+    beforeEach(() => {
+      replaced.ingress_id = ''
+    })
+
+    it('should leave ingresses untouched', async () => {
+      await livekitComponent.removeReplacedIngress(replaced.ingress_id, 'new-ingress')
+      expect(deleteIngressSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the replacement reuses the ingress', () => {
+    it('should keep the ingress', async () => {
+      await livekitComponent.removeReplacedIngress(replaced.ingress_id, 'old-ingress')
+      expect(deleteIngressSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the replacement has no ingress', () => {
+    it('should remove the old ingress', async () => {
+      await livekitComponent.removeReplacedIngress(replaced.ingress_id, undefined)
+      expect(deleteIngressSpy).toHaveBeenCalledWith('old-ingress')
+    })
+  })
+
+  describe('and LiveKit rejects cleanup', () => {
+    beforeEach(() => {
+      deleteIngressSpy.mockRejectedValueOnce(new Error('unavailable'))
+    })
+
+    it('should log the failure without rejecting the persisted replacement', async () => {
+      await expect(livekitComponent.removeReplacedIngress(replaced.ingress_id, 'new-ingress')).resolves.toBeUndefined()
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ ingressId: 'old-ingress' })
+      )
+    })
+  })
+})

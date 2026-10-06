@@ -1,4 +1,3 @@
-import { resolveWorldSceneId } from '../../logic/world-scene'
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../types/errors'
@@ -71,7 +70,7 @@ export async function commsSceneHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  const resolvedSceneId = isWorld ? await resolveWorldSceneId(worlds, realmName, sceneId) : sceneId
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId) : sceneId
 
   // Check if user is banned from the scene (skip for local preview)
   if (!isLocalPreview) {
