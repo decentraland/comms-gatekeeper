@@ -37,7 +37,7 @@ export async function createSceneStreamAccessManagerComponent({
     try {
       await client.query(
         SQL`UPDATE scene_stream_access
-            SET active = false
+            SET active = false, ingress_cleanup_pending = (ingress_id != '' AND ingress_id != ${input.ingress_id})
             WHERE place_id = ${input.place_id} AND active = true`
       )
 
@@ -47,7 +47,7 @@ export async function createSceneStreamAccessManagerComponent({
         SQL`INSERT INTO scene_stream_access
             (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, room_id, generated_by)
             VALUES
-            (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true, ${input.expiration_time || null}, ${input.room_id || null}, ${input.generated_by || null})
+            (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true, ${input.expiration_time ?? null}, ${input.room_id || null}, ${input.generated_by || null})
             RETURNING *`
       )
 
@@ -87,7 +87,7 @@ export async function createSceneStreamAccessManagerComponent({
     logger.debug('Getting stream access', { placeId })
 
     const result = await database.query<SceneStreamAccess>(
-      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active 
+      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, room_id, generated_by
           FROM scene_stream_access 
           WHERE place_id = ${placeId} AND active = true 
           LIMIT 1`
@@ -155,21 +155,28 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]
   }
 
-  async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]> {
-    const now = Date.now()
-    const fourDaysAgo = Date.now() - FOUR_DAYS
-    const result = await database.query<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>>(
-      SQL`SELECT ingress_id, place_id
-        FROM scene_stream_access
-        WHERE active = true
-          AND streaming = false
-          AND (
-            (expiration_time IS NOT NULL AND expiration_time < ${now})
-            OR (expiration_time IS NULL AND created_at < ${fourDaysAgo})
-          )
-        LIMIT 100`
-    )
+  async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>[]> {
+    const result = await database.query<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>>(SQL`
+      SELECT id, ingress_id, place_id FROM scene_stream_access
+      WHERE ingress_cleanup_pending = true OR (
+        active = true AND streaming = false AND COALESCE(expiration_time, created_at + ${FOUR_DAYS}) <= ${Date.now()}
+      ) LIMIT 100
+    `)
     return result.rows
+  }
+
+  async function claimExpiredAccess(id: string): Promise<boolean> {
+    const result = await database.query(SQL`
+      UPDATE scene_stream_access SET active = false, ingress_cleanup_pending = true
+      WHERE id = ${id} AND (ingress_cleanup_pending = true OR (
+        active = true AND streaming = false AND COALESCE(expiration_time, created_at + ${FOUR_DAYS}) <= ${Date.now()}
+      )) RETURNING id
+    `)
+    return result.rowCount > 0
+  }
+
+  async function completeExpiredAccessCleanup(id: string): Promise<void> {
+    await database.query(SQL`UPDATE scene_stream_access SET ingress_cleanup_pending = false WHERE id = ${id}`)
   }
 
   async function startStreaming(ingressId: string): Promise<void> {
@@ -233,6 +240,8 @@ export async function createSceneStreamAccessManagerComponent({
     getLatestAccessByPlaceId,
     getActiveIngressIds,
     getExpiredStreamingKeys,
+    claimExpiredAccess,
+    completeExpiredAccessCleanup,
     startStreaming,
     stopStreaming,
     isStreaming,

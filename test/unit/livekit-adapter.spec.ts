@@ -1572,3 +1572,20 @@ describe('when cleaning up a replaced stream access', () => {
     })
   })
 })
+
+describe('when creating a fresh ingress for renewal', () => {
+  beforeEach(() => {
+    listIngressSpy.mockClear()
+    createIngressSpy.mockClear()
+    listIngressSpy.mockResolvedValue([{ ingressId: 'old-ingress', streamKey: 'old-key' }])
+    createIngressSpy.mockResolvedValue({ ingressId: 'fresh-ingress', streamKey: 'fresh-key' })
+  })
+
+  it('should mint a fresh credential without reusing the room ingress', async () => {
+    expect(await livekitComponent.createIngress('room', 'streamer')).toEqual(
+      expect.objectContaining({ streamKey: 'fresh-key' })
+    )
+    expect(listIngressSpy).not.toHaveBeenCalled()
+    expect(createIngressSpy).toHaveBeenCalledWith(0, expect.objectContaining({ roomName: 'room' }))
+  })
+})

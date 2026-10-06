@@ -54,17 +54,16 @@ export async function createStreamingKeyTTLChecker(
           )
 
           for (const expiredStreamKey of expiredStreamingKeys) {
-            const { ingress_id: ingressId, place_id: placeId } = expiredStreamKey
+            const { id, ingress_id: ingressId, place_id: placeId } = expiredStreamKey
             const place = placesById[placeId]
             try {
-              // Cast 2.0 rows carry an empty ingress_id; removeIngress('') would throw and skip
-              // the removeAccess below, leaving the row active to re-error every tick. Only call
-              // removeIngress when there's a real id (mirrors streaming-ttl-checker).
+              // A replacement or a stream start after selection invalidates this claim.
+              if (!(await sceneStreamAccessManager.claimExpiredAccess(id))) continue
               if (ingressId) {
                 await livekit.removeIngress(ingressId)
               }
-              await sceneStreamAccessManager.removeAccess(placeId)
-              if (place) {
+              await sceneStreamAccessManager.completeExpiredAccessCleanup(id)
+              if (place && !(await sceneStreamAccessManager.getLatestAccessByPlaceId(placeId))) {
                 await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_EXPIRED, place)
               }
               logger.info(

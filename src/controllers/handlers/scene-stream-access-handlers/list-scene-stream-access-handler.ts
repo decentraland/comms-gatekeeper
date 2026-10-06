@@ -1,8 +1,13 @@
-import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../../types/errors'
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  UnauthorizedError,
+  StreamingAccessNotFoundError
+} from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
 import { PlaceAttributes } from '../../../types/places.type'
-import { FOUR_DAYS } from '../../../logic/time'
+import { getStreamAccessExpirationTime } from '../../../logic/time'
 
 export async function listSceneStreamAccessHandler(
   ctx: Pick<
@@ -64,6 +69,9 @@ export async function listSceneStreamAccessHandler(
   }
 
   const access = await sceneStreamAccessManager.getAccess(place.id)
+  if (getStreamAccessExpirationTime(access) <= Date.now()) {
+    throw new StreamingAccessNotFoundError('Streaming access has expired')
+  }
 
   return {
     status: 200,
@@ -71,7 +79,7 @@ export async function listSceneStreamAccessHandler(
       streaming_url: access.streaming_url,
       streaming_key: access.streaming_key,
       created_at: Number(access.created_at),
-      ends_at: Number(access.created_at) + FOUR_DAYS
+      ends_at: getStreamAccessExpirationTime(access)
     }
   }
 }

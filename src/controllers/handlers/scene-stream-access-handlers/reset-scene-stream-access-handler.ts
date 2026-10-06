@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { FOUR_DAYS } from '../../../logic/time'
+import { FOUR_DAYS, getStreamAccessExpirationTime } from '../../../logic/time'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
 import {
@@ -112,7 +112,7 @@ export async function resetSceneStreamAccessHandler(
     logger.info(`Removed access ${placeId}`)
 
     const participantIdentity = randomUUID()
-    const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
+    const ingress = await livekit.createIngress(roomName, `${participantIdentity}-streamer`)
     logger.info(`Created ingress ${ingress.ingressId}`)
     const expirationTime = Date.now() + FOUR_DAYS
     const access = await sceneStreamAccessManager.addAccess({
@@ -133,7 +133,7 @@ export async function resetSceneStreamAccessHandler(
         streaming_url: access.streaming_url,
         streaming_key: access.streaming_key,
         created_at: Number(access.created_at),
-        ends_at: access.expiration_time ? Number(access.expiration_time) : Number(access.created_at) + FOUR_DAYS
+        ends_at: getStreamAccessExpirationTime(access)
       }
     }
   } catch (error) {

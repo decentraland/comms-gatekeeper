@@ -1,3 +1,4 @@
+import { SceneStreamAccess } from '../../../src/types'
 import { test } from '../../components'
 import SQL from 'sql-template-strings'
 
@@ -16,6 +17,81 @@ test('Cast: Streaming Expiration', function ({ components }) {
     await components.database.query(
       SQL`DELETE FROM scene_stream_access WHERE place_id LIKE 'test-expiration-%' OR place_id LIKE 'test-reset-%'`
     )
+  })
+
+  describe('when renewal races with an expired-row snapshot', () => {
+    let expired: SceneStreamAccess
+    let replacement: SceneStreamAccess
+
+    beforeEach(async () => {
+      expired = await components.sceneStreamAccessManager.addAccess({
+        place_id: 'test-expiration-race',
+        ingress_id: 'old-ingress',
+        streaming_key: 'old-key',
+        streaming_url: 'rtmp://old',
+        room_id: 'room',
+        expiration_time: Date.now() - 1
+      })
+    })
+
+    describe('and renewal happens before the cleanup claim', () => {
+      beforeEach(async () => {
+        await components.sceneStreamAccessManager.getExpiredStreamingKeys()
+        replacement = await components.sceneStreamAccessManager.addAccess({
+          place_id: expired.place_id,
+          ingress_id: 'new-ingress',
+          streaming_key: 'new-key',
+          streaming_url: 'rtmp://new',
+          room_id: 'room',
+          expiration_time: Date.now() + FOUR_DAYS
+        })
+      })
+
+      it('should claim only old ingress cleanup and preserve the new access', async () => {
+        expect(await components.sceneStreamAccessManager.claimExpiredAccess(expired.id)).toBe(true)
+        expect(await components.sceneStreamAccessManager.getAccessByStreamingKey('new-key')).toEqual(
+          expect.objectContaining({ id: replacement.id, active: true, ingress_id: 'new-ingress' })
+        )
+      })
+    })
+
+    describe('and cleanup claims the expired row before renewal', () => {
+      beforeEach(async () => {
+        await components.sceneStreamAccessManager.claimExpiredAccess(expired.id)
+        replacement = await components.sceneStreamAccessManager.addAccess({
+          place_id: expired.place_id,
+          ingress_id: 'new-ingress',
+          streaming_key: 'new-key',
+          streaming_url: 'rtmp://new',
+          room_id: 'room',
+          expiration_time: Date.now() + FOUR_DAYS
+        })
+      })
+
+      it('should retry old cleanup without deactivating the new row', async () => {
+        expect(await components.sceneStreamAccessManager.getExpiredStreamingKeys()).toEqual(
+          expect.arrayContaining([expect.objectContaining({ id: expired.id, ingress_id: 'old-ingress' })])
+        )
+        expect(await components.sceneStreamAccessManager.claimExpiredAccess(expired.id)).toBe(true)
+        await components.sceneStreamAccessManager.completeExpiredAccessCleanup(expired.id)
+        expect(await components.sceneStreamAccessManager.getAccessByStreamingKey('new-key')).toEqual(
+          expect.objectContaining({ id: replacement.id, active: true, ingress_id: 'new-ingress' })
+        )
+        expect(await components.sceneStreamAccessManager.getExpiredStreamingKeys()).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ id: expired.id })])
+        )
+      })
+    })
+
+    describe('and the old stream starts before cleanup claims it', () => {
+      beforeEach(async () => {
+        await components.sceneStreamAccessManager.startStreaming('old-ingress')
+      })
+
+      it('should refuse to claim the now-streaming row', async () => {
+        expect(await components.sceneStreamAccessManager.claimExpiredAccess(expired.id)).toBe(false)
+      })
+    })
   })
 
   describe('when checking for expired streaming keys', () => {

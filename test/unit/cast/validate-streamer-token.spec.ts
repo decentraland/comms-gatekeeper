@@ -44,7 +44,7 @@ describe('when validating a streamer token', () => {
     mockLivekit = createLivekitMockedComponent({
       getWorldSceneRoomName: jest.fn().mockReturnValue('world-prod-scene-room-test-world.dcl.eth-bafkreiscene123'),
       getSceneRoomName: jest.fn().mockReturnValue('scene-test-realm:bafkreiscene123'),
-      getOrCreateIngress: jest.fn().mockResolvedValue({
+      createIngress: jest.fn().mockResolvedValue({
         url: 'rtmp://test-url',
         streamKey: 'test-stream-key',
         ingressId: 'test-ingress-id'
@@ -84,6 +84,31 @@ describe('when validating a streamer token', () => {
       config: mockConfig,
       sceneBanManager: createSceneBanManagerMockedComponent(),
       userModeration: createUserModerationMockedComponent()
+    })
+  })
+
+  describe('and a legacy key has passed its four-day deadline', () => {
+    beforeEach(() => {
+      mockSceneStreamAccessManager.getAccessByStreamingKey.mockResolvedValueOnce({
+        id: 'legacy',
+        place_id: 'place',
+        streaming_key: 'legacy-key',
+        streaming_url: 'rtmp://test',
+        ingress_id: 'ingress',
+        active: true,
+        streaming: false,
+        streaming_start_time: 0,
+        created_at: String(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        expiration_time: null,
+        room_id: 'room'
+      })
+    })
+
+    it('should reject before issuing credentials', async () => {
+      await expect(castComponent.validateStreamerToken('legacy-key', 'streamer')).rejects.toThrow(
+        ExpiredStreamingKeyError
+      )
+      expect(mockLivekit.generateCredentials).not.toHaveBeenCalled()
     })
   })
 

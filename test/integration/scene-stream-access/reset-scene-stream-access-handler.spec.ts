@@ -133,7 +133,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       expect(response.status).toBe(401)
       expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith(metadataLand.sceneId, undefined)
       expect(stubComponents.places.getPlaceByParcel).not.toHaveBeenCalled()
-      expect(stubComponents.livekit.getOrCreateIngress).not.toHaveBeenCalled()
+      expect(stubComponents.livekit.createIngress).not.toHaveBeenCalled()
       expect(stubComponents.livekit.removeIngress).not.toHaveBeenCalled()
     })
   })
@@ -144,7 +144,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       metadataLand.sceneId = 'unpublished-local-scene'
       stubComponents.livekit.isLocalPreview.mockReturnValueOnce(true)
       stubComponents.livekit.getSceneRoomName.mockReturnValue('scene-localpreview:unpublished-local-scene')
-      stubComponents.livekit.getOrCreateIngress.mockResolvedValue(mockIngress)
+      stubComponents.livekit.createIngress.mockResolvedValue(mockIngress)
       stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
       stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(mockSceneStreamAccess)
     })
@@ -219,7 +219,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
     stubComponents.livekit.removeIngress.mockResolvedValue(undefined)
     stubComponents.sceneStreamAccessManager.removeAccess.mockResolvedValue(undefined)
-    stubComponents.livekit.getOrCreateIngress.mockResolvedValue(newMockIngress)
+    stubComponents.livekit.createIngress.mockResolvedValue(newMockIngress)
     stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(newMockSceneStreamAccess)
 
     const response = await makeRequest(
@@ -244,7 +244,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     expect(stubComponents.sceneStreamAccessManager.getAccess).toHaveBeenCalledWith(placeId)
     expect(stubComponents.livekit.removeIngress).toHaveBeenCalledWith(mockSceneStreamAccess.ingress_id)
     expect(stubComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith(placeId)
-    expect(stubComponents.livekit.getOrCreateIngress).toHaveBeenCalled()
+    expect(stubComponents.livekit.createIngress).toHaveBeenCalled()
     expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalled()
   })
 
@@ -269,7 +269,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
     stubComponents.livekit.removeIngress.mockResolvedValue(undefined)
     stubComponents.sceneStreamAccessManager.removeAccess.mockResolvedValue(undefined)
-    stubComponents.livekit.getOrCreateIngress.mockResolvedValue(newMockIngress)
+    stubComponents.livekit.createIngress.mockResolvedValue(newMockIngress)
     stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(newMockSceneStreamAccess)
 
     const beforeRequest = Date.now()
@@ -326,7 +326,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
     stubComponents.livekit.removeIngress.mockResolvedValue(undefined)
     stubComponents.sceneStreamAccessManager.removeAccess.mockResolvedValue(undefined)
-    stubComponents.livekit.getOrCreateIngress.mockResolvedValue(newMockIngress)
+    stubComponents.livekit.createIngress.mockResolvedValue(newMockIngress)
     stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(newMockSceneStreamAccess)
 
     const response = await makeRequest(
@@ -351,7 +351,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     expect(stubComponents.sceneStreamAccessManager.getAccess).toHaveBeenCalledWith(placeWorldId)
     expect(stubComponents.livekit.removeIngress).toHaveBeenCalledWith(mockSceneStreamAccess.ingress_id)
     expect(stubComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith(placeWorldId)
-    expect(stubComponents.livekit.getOrCreateIngress).toHaveBeenCalled()
+    expect(stubComponents.livekit.createIngress).toHaveBeenCalled()
     expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalled()
   })
 
@@ -413,7 +413,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       stubComponents.worlds.resolveWorldSceneId.mockResolvedValueOnce('bafkreiworldscene123')
       stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-room')
       stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
-      stubComponents.livekit.getOrCreateIngress.mockResolvedValue(mockIngress)
+      stubComponents.livekit.createIngress.mockResolvedValue(mockIngress)
       stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(mockSceneStreamAccess)
     })
 
@@ -472,7 +472,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
       stubComponents.livekit.removeIngress.mockResolvedValue(undefined)
       stubComponents.sceneStreamAccessManager.removeAccess.mockResolvedValue(undefined)
-      stubComponents.livekit.getOrCreateIngress.mockResolvedValue(newMockIngress)
+      stubComponents.livekit.createIngress.mockResolvedValue(newMockIngress)
       stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(newMockSceneStreamAccess)
     })
 
@@ -535,7 +535,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValueOnce(mockSceneStreamAccess)
       stubComponents.livekit.removeIngress.mockResolvedValueOnce(undefined)
       stubComponents.sceneStreamAccessManager.removeAccess.mockResolvedValueOnce(undefined)
-      stubComponents.livekit.getOrCreateIngress.mockResolvedValueOnce(newIngress)
+      stubComponents.livekit.createIngress.mockResolvedValueOnce(newIngress)
       stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValueOnce({
         ...mockSceneStreamAccess,
         streaming_url: newIngress.url,
@@ -673,7 +673,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       await makeRequest(components.localFetch, '/scene-stream-access', { method: 'PUT', metadata: metadataLand }, owner)
 
       expect(stubComponents.livekit.removeIngress).not.toHaveBeenCalled()
-      expect(stubComponents.livekit.getOrCreateIngress).not.toHaveBeenCalled()
+      expect(stubComponents.livekit.createIngress).not.toHaveBeenCalled()
     })
   })
 })

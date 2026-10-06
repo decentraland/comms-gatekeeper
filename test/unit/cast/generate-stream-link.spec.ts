@@ -46,7 +46,7 @@ describe('when generating a stream link', () => {
     mockLivekit = createLivekitMockedComponent({
       getWorldSceneRoomName: jest.fn().mockReturnValue('world-prod-scene-room-test-world.dcl.eth-bafkreiscene123'),
       getSceneRoomName: jest.fn().mockReturnValue('scene-test-realm:bafkreiscene123'),
-      getOrCreateIngress: jest.fn().mockResolvedValue({
+      createIngress: jest.fn().mockResolvedValue({
         url: 'rtmp://test-url',
         streamKey: 'test-stream-key',
         ingressId: 'test-ingress-id'
@@ -324,10 +324,10 @@ describe('when generating a stream link', () => {
         expect(result.streamingKey).toBe('test-stream-key')
       })
 
-      describe('and the room is still served by the same ingress', () => {
+      describe('and renewal rotates the room ingress', () => {
         beforeEach(async () => {
-          mockLivekit.getOrCreateIngress.mockResolvedValueOnce(
-            new IngressInfo({ ingressId: 'test-ingress-id', streamKey: 'test-stream-key', url: 'rtmp://test-url' })
+          mockLivekit.createIngress.mockResolvedValueOnce(
+            new IngressInfo({ ingressId: 'fresh-ingress-id', streamKey: 'fresh-stream-key', url: 'rtmp://test-url' })
           )
           await castComponent.generateStreamLink({
             walletAddress: '0xowner123',
@@ -337,8 +337,8 @@ describe('when generating a stream link', () => {
           })
         })
 
-        it('should pass the reused ingress to guarded cleanup', () => {
-          expect(mockLivekit.removeReplacedIngress).toHaveBeenCalledWith('test-ingress-id', 'test-ingress-id')
+        it('should remove the expired ingress after minting a fresh one', () => {
+          expect(mockLivekit.removeReplacedIngress).toHaveBeenCalledWith('test-ingress-id', 'fresh-ingress-id')
         })
       })
     })
@@ -376,7 +376,7 @@ describe('when generating a stream link', () => {
 
       describe('and the requested room is served by a new ingress', () => {
         beforeEach(() => {
-          mockLivekit.getOrCreateIngress.mockResolvedValueOnce({
+          mockLivekit.createIngress.mockResolvedValueOnce({
             url: 'rtmp://new-url',
             streamKey: 'new-stream-key',
             ingressId: 'new-ingress-id'
@@ -470,7 +470,7 @@ describe('when generating a stream link', () => {
     it('should not create a LiveKit ingress', async () => {
       await expect(castComponent.generateStreamLink(params)).rejects.toThrow(ForbiddenError)
 
-      expect(mockLivekit.getOrCreateIngress).not.toHaveBeenCalled()
+      expect(mockLivekit.createIngress).not.toHaveBeenCalled()
     })
 
     it('should reject before checking scene admin permissions, so the error never reveals admin status', async () => {
@@ -511,7 +511,7 @@ describe('when generating a stream link', () => {
       it('should not create a LiveKit ingress, so no streaming key is minted', async () => {
         await expect(castComponent.generatePreviewStreamLink(params)).rejects.toThrow(ForbiddenError)
 
-        expect(mockLivekit.getOrCreateIngress).not.toHaveBeenCalled()
+        expect(mockLivekit.createIngress).not.toHaveBeenCalled()
       })
     })
 

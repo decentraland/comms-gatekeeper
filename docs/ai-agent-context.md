@@ -359,3 +359,20 @@ the broader inherited workflow reports this suite as skipped without the opt-in 
 of passing unexecuted assertions. Reproduce locally with the same flag:
 `NATS_INTEGRATION_REQUIRED=true yarn test --runInBand --no-coverage test/integration/cluster-subscriber.spec.ts`.
 The suite uses real NATS request/reply and real JWT signing; LiveKit membership is explicitly stubbed.
+
+
+## Stream-access expiration and renewal
+
+All credential consumers use `getStreamAccessExpirationTime`: the stored timestamp or, for legacy
+rows, `created_at + FOUR_DAYS`. Equality with the current time is expired. GET stream-access does
+not return expired keys. Renewal creates a fresh LiveKit ingress and key, including for a currently
+streaming expired access; the admin must update OBS. A same-room ingress is never reused for a new
+access row. The `createIngress` operation is distinct from `getOrCreateIngress` for this reason.
+
+The key-expiry job snapshots row IDs, then atomically claims an expired non-streaming row by ID.
+Claiming deactivates that row and sets `ingress_cleanup_pending`. Replacement also queues cleanup
+of the old, distinct ingress. Failed LiveKit deletions remain pending and are retried by later ticks.
+A renewal always has a different ingress, so a stale cleanup snapshot cannot delete its ingress or
+deactivate its row. Notifications are suppressed while a newer active access exists for the place.
+Deploy the `ingress_cleanup_pending` migration before running this code. No active credential is
+rewritten by that migration.

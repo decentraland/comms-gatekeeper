@@ -1,3 +1,4 @@
+import { getStreamAccessExpirationTime } from '../../../logic/time'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
 
@@ -39,7 +40,7 @@ export async function getStreamInfoHandler(
     throw new InvalidRequestError('Stream access is not active')
   }
 
-  if (streamAccess.expiration_time && Number(streamAccess.expiration_time) < Date.now()) {
+  if (getStreamAccessExpirationTime(streamAccess) <= Date.now()) {
     logger.debug(`Stream access has expired for key: ${streamingKey.substring(0, 20)}...`)
     throw new InvalidRequestError('Stream access has expired')
   }

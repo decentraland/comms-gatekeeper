@@ -11,5 +11,7 @@ export const FOUR_HOURS = 4 * 60 * 60 * 1000
 export function getStreamAccessExpirationTime(
   access: Pick<SceneStreamAccess, 'expiration_time' | 'created_at'>
 ): number {
-  return access.expiration_time ? Number(access.expiration_time) : Number(access.created_at) + FOUR_DAYS
+  return access.expiration_time !== null && access.expiration_time !== undefined
+    ? Number(access.expiration_time)
+    : Number(access.created_at) + FOUR_DAYS
 }

@@ -127,7 +127,7 @@ export function createCastComponent(
     } else {
       // Create new stream key with ingress for OBS compatibility
       const participantIdentity = randomUUID()
-      const ingress = await livekit.getOrCreateIngress(roomId, `${participantIdentity}-streamer`)
+      const ingress = await livekit.createIngress(roomId, `${participantIdentity}-streamer`)
 
       // Use ingress streamKey for full OBS compatibility
       streamingKey = ingress.streamKey
@@ -252,9 +252,9 @@ export function createCastComponent(
     }
 
     // Check if token has expired (for temporary stream links)
-    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
+    if (Date.now() >= getStreamAccessExpirationTime(streamAccess)) {
       logger.warn(`Expired streaming token: ${streamingKey.substring(0, 8)}...`, {
-        expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
+        expiredAt: new Date(getStreamAccessExpirationTime(streamAccess)).toISOString()
       })
       throw new ExpiredStreamingKeyError()
     }
@@ -411,11 +411,11 @@ export function createCastComponent(
     }
 
     // Check if the stream access has expired (4 days limit for Cast2)
-    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
+    if (Date.now() >= getStreamAccessExpirationTime(streamAccess)) {
       logger.warn(`Expired stream access for location ${location}`, {
         placeId: place.id,
         isWorldName: isWorldName ? 'true' : 'false',
-        expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
+        expiredAt: new Date(getStreamAccessExpirationTime(streamAccess)).toISOString()
       })
       throw new ExpiredStreamAccessError()
     }
@@ -464,7 +464,7 @@ export function createCastComponent(
       throw new InvalidStreamingKeyError()
     }
 
-    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
+    if (Date.now() >= getStreamAccessExpirationTime(streamAccess)) {
       logger.warn(`Expired streaming key for presentation bot: ${streamingKey.substring(0, 8)}...`)
       throw new ExpiredStreamingKeyError()
     }

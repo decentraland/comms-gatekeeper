@@ -91,7 +91,7 @@ export async function addSceneStreamAccessHandler(
     })
   } else {
     const participantIdentity = randomUUID()
-    const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
+    const ingress = await livekit.createIngress(roomName, `${participantIdentity}-streamer`)
     const expirationTime = Date.now() + FOUR_DAYS
 
     access = await sceneStreamAccessManager.addAccess({

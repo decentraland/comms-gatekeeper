@@ -202,11 +202,11 @@ export type SceneStreamAccess = {
   streaming_key: string
   streaming_url: string
   ingress_id: string
-  created_at: number
+  created_at: number | string
   active: boolean
   streaming: boolean
   streaming_start_time: number
-  expiration_time?: string
+  expiration_time?: string | number | null
   room_id?: string
   generated_by?: string
 }
@@ -250,7 +250,11 @@ export interface ISceneStreamAccessManager {
   getAccessByRoomId(roomId: string): Promise<SceneStreamAccess | null>
   getLatestAccessByPlaceId(placeId: string): Promise<SceneStreamAccess | null>
   getActiveIngressIds(placeId: string): Promise<string[]>
-  getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]>
+  getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>[]>
+  /** Atomically claims this expired row, or resumes its pending cleanup. */
+  claimExpiredAccess(id: string): Promise<boolean>
+  /** Marks durable ingress cleanup complete for this exact row. */
+  completeExpiredAccessCleanup(id: string): Promise<void>
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>
   isStreaming(ingressId: string): Promise<boolean>

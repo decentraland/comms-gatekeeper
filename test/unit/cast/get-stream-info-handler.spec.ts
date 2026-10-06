@@ -53,6 +53,20 @@ describe('when getting stream info', () => {
     } as any
   }
 
+  describe('and a legacy stream access has expired', () => {
+    beforeEach(() => {
+      mockSceneStreamAccessManager.getAccessByStreamingKey.mockResolvedValueOnce({
+        ...validStreamAccess,
+        expiration_time: null,
+        created_at: String(Date.now() - 5 * 24 * 60 * 60 * 1000)
+      })
+    })
+
+    it('should reject the expired key', async () => {
+      await expect(getStreamInfoHandler(createContext('valid-stream-key'))).rejects.toThrow('Stream access has expired')
+    })
+  })
+
   describe('and the streaming key is missing', () => {
     it('should throw an InvalidRequestError', async () => {
       await expect(getStreamInfoHandler(createContext(''))).rejects.toThrow(InvalidRequestError)

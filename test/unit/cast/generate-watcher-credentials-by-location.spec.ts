@@ -60,7 +60,7 @@ describe('when generating watcher credentials by location', () => {
     mockLivekit = createLivekitMockedComponent({
       getWorldSceneRoomName: jest.fn().mockReturnValue('world-prod-scene-room-test-world.dcl.eth-bafkreiscene123'),
       getSceneRoomName: jest.fn().mockReturnValue('scene-test-realm:bafkreiscene123'),
-      getOrCreateIngress: jest.fn().mockResolvedValue({
+      createIngress: jest.fn().mockResolvedValue({
         url: 'rtmp://test-url',
         streamKey: 'test-stream-key',
         ingressId: 'test-ingress-id'
