@@ -18,6 +18,29 @@ test('Cast: Streaming Expiration', function ({ components }) {
     )
   })
 
+  describe('when a world stream access still has its legacy mixed-case room', () => {
+    beforeEach(async () => {
+      await components.sceneStreamAccessManager.addAccess({
+        place_id: 'test-expiration-world',
+        ingress_id: 'world-ingress',
+        streaming_key: 'world-key',
+        streaming_url: 'rtmp://world',
+        room_id: 'world-MyWorld.eth-SCENE',
+        expiration_time: Date.now() + FOUR_DAYS
+      })
+    })
+
+    it('should find it for a canonical world-room lookup', async () => {
+      expect(await components.sceneStreamAccessManager.getAccessByRoomId('world-myworld.eth-scene', true)).toEqual(
+        expect.objectContaining({ place_id: 'test-expiration-world' })
+      )
+    })
+
+    it('should keep normal room lookups case-sensitive', async () => {
+      expect(await components.sceneStreamAccessManager.getAccessByRoomId('world-myworld.eth-scene')).toBeNull()
+    })
+  })
+
   describe('when checking for expired streaming keys', () => {
     it('should return keys that have expiration_time in the past', async () => {
       const now = Date.now()

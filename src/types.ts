@@ -247,7 +247,8 @@ export interface ISceneStreamAccessManager {
   removeAccessByPlaceIds(placeIds: string[]): Promise<void>
   getAccess(placeId: string): Promise<SceneStreamAccess>
   getAccessByStreamingKey(streamingKey: string): Promise<SceneStreamAccess | null>
-  getAccessByRoomId(roomId: string): Promise<SceneStreamAccess | null>
+  /** World rooms may match legacy casing; Genesis content IDs must remain case-sensitive. */
+  getAccessByRoomId(roomId: string, isWorldRoom?: boolean): Promise<SceneStreamAccess | null>
   getLatestAccessByPlaceId(placeId: string): Promise<SceneStreamAccess | null>
   getActiveIngressIds(placeId: string): Promise<string[]>
   getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]>
