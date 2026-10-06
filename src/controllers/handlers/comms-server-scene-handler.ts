@@ -1,3 +1,4 @@
+import { resolveWorldSceneId } from '../../logic/world-scene'
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath, Permissions } from '../../types'
 import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
@@ -46,18 +47,7 @@ export async function commsServerSceneHandler(
   // through to the scene-room name below — which is what `/get-scene-adapter` mints for it.
   // Any other name lands the authoritative server in a different room than its own clients.
   if (isWorld) {
-    // The caller may send the world name as the sceneId instead of the content hash.
-    // Resolve the real sceneId from the world's about endpoint to ensure the room name
-    // matches the one used by ban/stream/cast operations.
-    let worldSceneId = sceneId
-    if (sceneId.endsWith('.eth')) {
-      try {
-        worldSceneId = await worlds.fetchWorldSceneId(realmName)
-      } catch (error) {
-        logger.error(`Failed to fetch scene ID for world ${realmName}: ${error}`)
-        throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
-      }
-    }
+    const worldSceneId = await resolveWorldSceneId(worlds, realmName, sceneId)
     room = livekit.getWorldSceneRoomName(realmName, worldSceneId)
   } else {
     room = livekit.getSceneRoomName(realmName, sceneId)

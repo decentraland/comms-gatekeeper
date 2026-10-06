@@ -89,17 +89,15 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       isWorld: false
     })
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
-      id: placeId,
-      positions: ['10,20'],
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
-
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
-      id: placeWorldId,
-      world_name: 'name.dcl.eth',
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(
+      async (_sceneId, worldName) =>
+        ({
+          id: worldName ? placeWorldId : placeId,
+          positions: ['10,20'],
+          world_name: worldName,
+          owner: owner.authChain[0].payload
+        }) as PlaceAttributes
+    )
 
     stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: true,
@@ -112,6 +110,29 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     stubComponents.livekit.getSceneRoomName.mockReturnValue(`test-realm:test-scene`)
     stubComponents.livekit.getWorldRoomName.mockReturnValue(`name.dcl.eth`)
     stubComponents.notifications.sendNotificationType.mockResolvedValue(undefined)
+  })
+
+  describe('when the supplied scene belongs to another owner', () => {
+    beforeEach(() => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValueOnce(false)
+    })
+
+    it('should authorize the scene ID rather than the supplied parcel and leave ingresses untouched', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'PUT',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(401)
+      expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith(metadataLand.sceneId, undefined)
+      expect(stubComponents.places.getPlaceByParcel).not.toHaveBeenCalled()
+      expect(stubComponents.livekit.getOrCreateIngress).not.toHaveBeenCalled()
+      expect(stubComponents.livekit.removeIngress).not.toHaveBeenCalled()
+    })
   })
 
   afterEach(async () => {
@@ -325,6 +346,39 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
     )
 
     expect(response.status).toBe(400)
+  })
+
+  describe('when the world scene ID is a legacy world name', () => {
+    beforeEach(() => {
+      metadataWorld.sceneId = 'NAME.DCL.ETH'
+      jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataWorld)
+      stubComponents.worlds.fetchWorldSceneId.mockResolvedValueOnce('BAFKREIWORLDSCENE123')
+      stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-room')
+      stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
+      stubComponents.livekit.getOrCreateIngress.mockResolvedValue(mockIngress)
+      stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(mockSceneStreamAccess)
+    })
+
+    it('should authorize and persist the resolved scene room', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'PUT',
+          metadata: metadataWorld
+        },
+        owner
+      )
+      expect(response.status).toBe(200)
+      expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith('bafkreiworldscene123', 'name.dcl.eth')
+      expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith('name.dcl.eth', 'bafkreiworldscene123')
+      expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+        expect.objectContaining({
+          room_id: 'world-room',
+          generated_by: owner.authChain[0].payload.toLowerCase()
+        })
+      )
+    })
   })
 
   describe('when world has sceneId', () => {

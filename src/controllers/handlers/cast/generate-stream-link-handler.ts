@@ -1,3 +1,4 @@
+import { resolveWorldSceneId } from '../../../logic/world-scene'
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
@@ -10,10 +11,8 @@ export async function generateStreamLinkHandler(
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { cast, livekit, worlds, logs }
+    components: { cast, livekit, worlds }
   } = context
-
-  const logger = logs.getLogger('generate-stream-link-handler')
 
   // Validate signed fetch and extract auth data
   const { identity, sceneId, realm, isWorld, deviceIdentifier } = await validate(context)
@@ -26,18 +25,7 @@ export async function generateStreamLinkHandler(
     throw new InvalidRequestError('sceneId is required in authMetadata for Cast2 chat functionality')
   }
 
-  // The client may send the world name as the sceneId instead of the real content hash. Resolve
-  // it to the actual entity id so both the LiveKit room name and the Place lookup use the same
-  // hash the scene participants use (mirrors comms-scene-handler). Genesis scenes pass through.
-  let resolvedSceneId = sceneId
-  if (isWorld && sceneId.endsWith('.eth')) {
-    try {
-      resolvedSceneId = await worlds.fetchWorldSceneId(realmName)
-    } catch (error) {
-      logger.error(`Failed to resolve scene ID for world ${realmName}: ${error}`)
-      throw new InvalidRequestError(`Failed to resolve scene ID for world ${realmName}`)
-    }
-  }
+  const resolvedSceneId = isWorld ? await resolveWorldSceneId(worlds, realmName, sceneId) : sceneId
 
   const result = isPreview
     ? await cast.generatePreviewStreamLink({

@@ -304,6 +304,31 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       })
     })
 
+    describe('when a banned user supplies an uppercase world content ID', () => {
+      beforeEach(() => {
+        worldMetadata.sceneId = 'BAFKREIABCDEF123'
+        stubComponents.sceneBans.isUserBanned.mockImplementation(async (_identity, params) => {
+          if (params.sceneId !== 'bafkreiabcdef123') throw new Error('Unknown scene')
+          return true
+        })
+        stubComponents.worlds.hasWorldAccessPermission.mockResolvedValue(true)
+      })
+
+      it('should reject the canonical scene ban before minting credentials', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: worldMetadata
+          },
+          owner
+        )
+        expect(response.status).toBe(403)
+        expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
+      })
+    })
+
     describe('when client sends world name as sceneId', () => {
       let worldNameAsSceneIdMetadata: Metadata
 

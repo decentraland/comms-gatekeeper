@@ -1,3 +1,4 @@
+import { resolveWorldSceneId } from '../../../logic/world-scene'
 import { randomUUID } from 'crypto'
 import { FOUR_DAYS } from '../../../logic/time'
 import { validate } from '../../../logic/utils'
@@ -8,7 +9,6 @@ import {
   LivekitIngressNotFoundError,
   UnauthorizedError
 } from '../../../types/errors'
-import { PlaceAttributes } from '../../../types/places.type'
 import { NotificationStreamingType } from '../../../types/notification.type'
 
 export async function resetSceneStreamAccessHandler(
@@ -22,18 +22,28 @@ export async function resetSceneStreamAccessHandler(
       | 'logs'
       | 'config'
       | 'notifications'
-      | 'userModeration',
+      | 'userModeration'
+      | 'worlds',
       '/scene-stream-access/reset'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, notifications, userModeration },
+    components: {
+      logs,
+      sceneStreamAccessManager,
+      sceneManager,
+      places,
+      livekit,
+      notifications,
+      userModeration,
+      worlds
+    },
     verification
   } = ctx
   const logger = logs.getLogger('reset-scene-stream-access-handler')
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
   const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
@@ -43,7 +53,6 @@ export async function resetSceneStreamAccessHandler(
   const authenticatedAddress = verification.auth
 
   const {
-    parcel,
     realm: { hostname, serverName },
     sceneId,
     deviceIdentifier
@@ -68,12 +77,8 @@ export async function resetSceneStreamAccessHandler(
   }
 
   try {
-    let place: PlaceAttributes
-    if (isWorld) {
-      place = await getWorldScenePlace(serverName, parcel)
-    } else {
-      place = await getPlaceByParcel(parcel)
-    }
+    const resolvedSceneId = isWorld ? await resolveWorldSceneId(worlds, serverName, sceneId) : sceneId
+    const place = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
 
     const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
     if (!isOwnerOrAdmin) {
@@ -99,9 +104,9 @@ export async function resetSceneStreamAccessHandler(
     logger.info(`Removed access ${place.id}`)
     let roomName: string
     if (isWorld) {
-      roomName = livekit.getWorldSceneRoomName(serverName, sceneId)
+      roomName = livekit.getWorldSceneRoomName(serverName, resolvedSceneId)
     } else {
-      roomName = livekit.getSceneRoomName(serverName, sceneId)
+      roomName = livekit.getSceneRoomName(serverName, resolvedSceneId)
     }
 
     const participantIdentity = randomUUID()

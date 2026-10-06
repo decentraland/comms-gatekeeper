@@ -285,6 +285,9 @@ describe('when generating a stream link', () => {
 
       describe('and the room is still served by the same ingress', () => {
         beforeEach(async () => {
+          mockLivekit.getOrCreateIngress.mockResolvedValueOnce(
+            new IngressInfo({ ingressId: 'test-ingress-id', streamKey: 'test-stream-key', url: 'rtmp://test-url' })
+          )
           await castComponent.generateStreamLink({
             walletAddress: '0xowner123',
             worldName: 'test-world.dcl.eth',

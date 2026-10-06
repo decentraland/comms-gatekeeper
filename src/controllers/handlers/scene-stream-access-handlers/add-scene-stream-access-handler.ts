@@ -1,11 +1,10 @@
+import { resolveWorldSceneId } from '../../../logic/world-scene'
 import { randomUUID } from 'crypto'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { SceneStreamAccess } from '../../../types'
-import { PlaceAttributes } from '../../../types/places.type'
 import { FOUR_DAYS } from '../../../logic/time'
-import { getErrorMessage } from '../../../logic/errors'
 import { removeReplacedIngress } from '../../../logic/stream-access'
 
 export async function addSceneStreamAccessHandler(
@@ -30,7 +29,7 @@ export async function addSceneStreamAccessHandler(
     verification
   } = ctx
   const logger = logs.getLogger('add-scene-stream-access-handler')
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
   const { isSceneOwnerOrAdmin } = sceneManager
   if (!verification?.auth) {
     logger.debug('Authentication required')
@@ -39,7 +38,6 @@ export async function addSceneStreamAccessHandler(
   const authenticatedAddress = verification.auth
 
   const {
-    parcel,
     realm: { hostname, serverName },
     sceneId,
     deviceIdentifier
@@ -62,29 +60,13 @@ export async function addSceneStreamAccessHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  let place: PlaceAttributes
-  if (isWorld) {
-    place = await getWorldScenePlace(serverName, parcel)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  const resolvedSceneId = isWorld ? await resolveWorldSceneId(worlds, serverName, sceneId) : sceneId
+  const place = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
   if (!isOwnerOrAdmin) {
     logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
-  }
-
-  // Clients may send the world name as the sceneId; resolve it as generate-stream-link does so the
-  // room check below compares against the room the scene actually uses.
-  let resolvedSceneId = sceneId
-  if (isWorld && sceneId.endsWith('.eth')) {
-    try {
-      resolvedSceneId = await worlds.fetchWorldSceneId(serverName)
-    } catch (error) {
-      logger.error(`Failed to resolve scene ID for world ${serverName}`, { error: getErrorMessage(error) })
-      throw new InvalidRequestError(`Failed to resolve scene ID for world ${serverName}`)
-    }
   }
 
   let roomName: string
@@ -118,7 +100,7 @@ export async function addSceneStreamAccessHandler(
       ingress_id: ingress.ingressId!,
       room_id: roomName,
       expiration_time: expirationTime,
-      generated_by: authenticatedAddress
+      generated_by: authenticatedAddress.toLowerCase()
     })
 
     if (existingAccess) {
