@@ -16,6 +16,11 @@ export async function createContentClientComponent(
   const max = (await config.getNumber('CONTENT_CLIENT_CACHE_MAX')) ?? 1000
   const ttl = (await config.getNumber('CONTENT_CLIENT_CACHE_TTL')) ?? 1000 * 60 * 5 // 5 minutes default
 
+  const negativeTtl = (await config.getNumber('CONTENT_CLIENT_NEGATIVE_CACHE_TTL')) ?? 5000
+  // Cache confirmed misses briefly so a newly synced deployment can be retried promptly.
+  // Transient upstream failures are never negative-cached.
+  const missingEntities = new LRUCache<string, true>({ max, ttl: negativeTtl })
+
   const logger = logs.getLogger('cached-content-client-component')
 
   const catalystContentUrl = await config.requireString('CATALYST_CONTENT_URL')
@@ -47,6 +52,7 @@ export async function createContentClientComponent(
     }
     if (unavailable)
       throw new ServiceUnavailableError('Scene verification is temporarily unavailable; retry after content sync')
+    missingEntities.set(sceneId, true)
     throw new PlaceNotFoundError(`Scene ${sceneId} is not available on the trusted content servers yet`)
   }
 
@@ -81,6 +87,9 @@ export async function createContentClientComponent(
 
   return {
     fetchEntityById: async (sceneId: string) => {
+      if (missingEntities.has(sceneId)) {
+        throw new PlaceNotFoundError(`Scene ${sceneId} is not available on the trusted content servers yet`)
+      }
       return cache.fetch(`id:${sceneId}`) as Promise<Entity | undefined>
     },
     fetchEntitiesByPointers: async (pointers: string[]) => {
