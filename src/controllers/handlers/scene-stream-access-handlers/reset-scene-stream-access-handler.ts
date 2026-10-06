@@ -6,6 +6,9 @@ import {
   ForbiddenError,
   InvalidRequestError,
   LivekitIngressNotFoundError,
+  PlaceNotFoundError,
+  StreamingAccessNotFoundError,
+  ServiceUnavailableError,
   UnauthorizedError
 } from '../../../types/errors'
 import { NotificationStreamingType } from '../../../types/notification.type'
@@ -52,19 +55,20 @@ export async function resetSceneStreamAccessHandler(
   const authenticatedAddress = verification.auth
 
   const {
+    parcel,
     realm: { hostname, serverName },
     sceneId,
     deviceIdentifier
   } = await validate(ctx)
-  const isWorld = !!hostname?.includes('worlds-content-server')
+  const isPreview = livekit.isLocalPreview(serverName)
+  const isWorld = !isPreview && !!hostname?.includes('worlds-content-server')
 
   // sceneId is required for all requests
   if (!sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  // Outside the try below, which maps anything but UnauthorizedError to a 500. Before the admin
-  // check too: this mints a streaming key, and validateStreamerToken honours a key without
+  // Before the admin check: this mints a streaming key, and validateStreamerToken honours a key without
   // re-checking the wallet.
   const { isBanned } = await userModeration.getActiveBanForConnection({
     address: authenticatedAddress.toLowerCase(),
@@ -76,16 +80,21 @@ export async function resetSceneStreamAccessHandler(
   }
 
   try {
-    const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId) : sceneId
-    const place = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
+    const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
+    const roomName = isWorld
+      ? livekit.getWorldSceneRoomName(serverName, resolvedSceneId)
+      : livekit.getSceneRoomName(serverName, resolvedSceneId)
+    const place = isPreview ? undefined : await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
+    const placeId = place?.id ?? roomName
 
-    const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+    const isOwnerOrAdmin =
+      isPreview || (place !== undefined && (await isSceneOwnerOrAdmin(place, authenticatedAddress)))
     if (!isOwnerOrAdmin) {
-      logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
+      logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${placeId}`)
       throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
     }
 
-    const existingAccess = await sceneStreamAccessManager.getAccess(place.id)
+    const existingAccess = await sceneStreamAccessManager.getAccess(placeId)
     logger.info(`Removing ingress ${existingAccess.ingress_id}`)
     try {
       await livekit.removeIngress(existingAccess.ingress_id)
@@ -98,22 +107,16 @@ export async function resetSceneStreamAccessHandler(
       }
     }
     logger.info(`Removed ingress ${existingAccess.ingress_id}`)
-    logger.info(`Removing access ${place.id}`)
-    await sceneStreamAccessManager.removeAccess(place.id)
-    logger.info(`Removed access ${place.id}`)
-    let roomName: string
-    if (isWorld) {
-      roomName = livekit.getWorldSceneRoomName(serverName, resolvedSceneId)
-    } else {
-      roomName = livekit.getSceneRoomName(serverName, resolvedSceneId)
-    }
+    logger.info(`Removing access ${placeId}`)
+    await sceneStreamAccessManager.removeAccess(placeId)
+    logger.info(`Removed access ${placeId}`)
 
     const participantIdentity = randomUUID()
     const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
     logger.info(`Created ingress ${ingress.ingressId}`)
     const expirationTime = Date.now() + FOUR_DAYS
     const access = await sceneStreamAccessManager.addAccess({
-      place_id: place.id,
+      place_id: placeId,
       streaming_url: ingress.url!,
       streaming_key: ingress.streamKey!,
       ingress_id: ingress.ingressId!,
@@ -122,7 +125,7 @@ export async function resetSceneStreamAccessHandler(
       generated_by: authenticatedAddress.toLowerCase()
     })
     logger.info(`Created access ${access.id}`)
-    await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_RESET, place)
+    if (place) await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_RESET, place)
 
     return {
       status: 200,
@@ -142,6 +145,14 @@ export async function resetSceneStreamAccessHandler(
           error: error.message
         }
       }
+    }
+    if (error instanceof ServiceUnavailableError) return { status: 503, body: { error: error.message } }
+    if (
+      error instanceof InvalidRequestError ||
+      error instanceof PlaceNotFoundError ||
+      error instanceof StreamingAccessNotFoundError
+    ) {
+      return { status: error instanceof InvalidRequestError ? 400 : 404, body: { error: error.message } }
     }
     return {
       status: 500,

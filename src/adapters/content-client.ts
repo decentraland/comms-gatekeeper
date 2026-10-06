@@ -2,6 +2,8 @@ import { LRUCache } from 'lru-cache'
 import { ContentClient, createContentClient } from 'dcl-catalyst-client'
 import { Entity } from '@dcl/schemas'
 import { AppComponents } from '../types'
+import { PlaceNotFoundError, ServiceUnavailableError } from '../types/errors'
+import { getErrorMessage } from '../logic/errors'
 import { IContentClientComponent } from '../types/content-client.type'
 
 type CacheKey = `id:${string}` | `ptr:${string}`
@@ -18,6 +20,35 @@ export async function createContentClientComponent(
 
   const catalystContentUrl = await config.requireString('CATALYST_CONTENT_URL')
   const client: ContentClient = createContentClient({ url: catalystContentUrl, fetcher: fetch })
+  // Only operator-configured servers are trusted; never use a caller-supplied realm URL.
+  const fallbackUrls =
+    (await config.getString('CATALYST_FALLBACK_CONTENT_URLS'))
+      ?.split(',')
+      .map((url) => url.trim())
+      .filter(Boolean) ?? []
+  const entityClients = [
+    client,
+    ...fallbackUrls
+      .filter((url) => url !== catalystContentUrl)
+      .map((url) => createContentClient({ url, fetcher: fetch }))
+  ]
+
+  async function fetchEntityFromTrustedServers(sceneId: string): Promise<Entity> {
+    let unavailable = false
+    for (const entityClient of entityClients) {
+      try {
+        const entities = await entityClient.fetchEntitiesByIds([sceneId], { attempts: 1, timeout: 5000 })
+        const entity = entities.find((candidate) => candidate.id === sceneId)
+        if (entity) return entity
+      } catch (error) {
+        unavailable = true
+        logger.warn('Trusted content lookup failed', { sceneId, error: getErrorMessage(error) })
+      }
+    }
+    if (unavailable)
+      throw new ServiceUnavailableError('Scene verification is temporarily unavailable; retry after content sync')
+    throw new PlaceNotFoundError(`Scene ${sceneId} is not available on the trusted content servers yet`)
+  }
 
   const cache = new LRUCache<CacheKey, CacheValue>({
     max,
@@ -27,7 +58,7 @@ export async function createContentClientComponent(
         if (key.startsWith('id:')) {
           const sceneId = key.slice('id:'.length)
           logger.debug(`Fetching entity for sceneId: ${sceneId}`)
-          const entity = await client.fetchEntityById(sceneId)
+          const entity = await fetchEntityFromTrustedServers(sceneId)
           logger.debug(`Successfully fetched entity for sceneId: ${sceneId}`)
           return entity
         }

@@ -366,7 +366,11 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           )
 
           expect(response.status).toBe(200)
-          expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith('test-world.eth', 'test-world.eth')
+          expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
+            'test-world.eth',
+            'test-world.eth',
+            '10,20'
+          )
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(
             'test-world.eth',
@@ -424,7 +428,11 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(body).toEqual({
             error: 'User is banned from this scene'
           })
-          expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith('test-world.eth', 'test-world.eth')
+          expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
+            'test-world.eth',
+            'test-world.eth',
+            '10,20'
+          )
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.worlds.hasWorldAccessPermission).not.toHaveBeenCalled()
         })

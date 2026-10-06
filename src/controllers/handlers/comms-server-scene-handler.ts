@@ -14,7 +14,7 @@ export async function commsServerSceneHandler(
   } = context
 
   const logger = logs.getLogger('comms-scene-handler')
-  const { sceneId, identity, realm } = await validate(context)
+  const { sceneId, identity, realm, parcel } = await validate(context)
   let room: string
   const permissions: Permissions = {
     cast: [],
@@ -46,7 +46,7 @@ export async function commsServerSceneHandler(
   // through to the scene-room name below — which is what `/get-scene-adapter` mints for it.
   // Any other name lands the authoritative server in a different room than its own clients.
   if (isWorld) {
-    const worldSceneId = await worlds.resolveWorldSceneId(realmName, sceneId)
+    const worldSceneId = await worlds.resolveWorldSceneId(realmName, sceneId, parcel)
     room = livekit.getWorldSceneRoomName(realmName, worldSceneId)
   } else {
     room = livekit.getSceneRoomName(realmName, sceneId)

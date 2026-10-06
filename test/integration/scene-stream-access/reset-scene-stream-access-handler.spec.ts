@@ -1,3 +1,4 @@
+import { InvalidRequestError, PlaceNotFoundError } from '../../../src/types/errors'
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
@@ -133,6 +134,61 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
       expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith(metadataLand.sceneId, undefined)
       expect(stubComponents.places.getPlaceByParcel).not.toHaveBeenCalled()
       expect(stubComponents.livekit.getOrCreateIngress).not.toHaveBeenCalled()
+      expect(stubComponents.livekit.removeIngress).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when local preview is explicitly enabled', () => {
+    beforeEach(() => {
+      metadataLand.realm.serverName = 'localpreview'
+      metadataLand.sceneId = 'unpublished-local-scene'
+      stubComponents.livekit.isLocalPreview.mockReturnValueOnce(true)
+      stubComponents.livekit.getSceneRoomName.mockReturnValue('scene-localpreview:unpublished-local-scene')
+      stubComponents.livekit.getOrCreateIngress.mockResolvedValue(mockIngress)
+      stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
+      stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(mockSceneStreamAccess)
+    })
+
+    it('should use a synthetic preview place without resolving a published entity', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'PUT',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(200)
+      expect(stubComponents.places.getPlaceBySceneId).not.toHaveBeenCalled()
+      expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+        expect.objectContaining({
+          place_id: 'scene-localpreview:unpublished-local-scene',
+          room_id: 'scene-localpreview:unpublished-local-scene'
+        })
+      )
+    })
+  })
+
+  describe.each([
+    [400, new InvalidRequestError('Unresolvable world scene')],
+    [404, new PlaceNotFoundError('Scene not found')]
+  ])('when scene resolution fails with HTTP %s', (status, error) => {
+    beforeEach(() => {
+      stubComponents.places.getPlaceBySceneId.mockRejectedValueOnce(error)
+    })
+
+    it('should return the domain status without touching stream access', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'PUT',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(status)
       expect(stubComponents.livekit.removeIngress).not.toHaveBeenCalled()
     })
   })

@@ -36,11 +36,13 @@ export async function addSceneStreamAccessHandler(
   const authenticatedAddress = verification.auth
 
   const {
+    parcel,
     realm: { hostname, serverName },
     sceneId,
     deviceIdentifier
   } = await validate(ctx)
-  const isWorld = !!hostname?.includes('worlds-content-server')
+  const isPreview = livekit.isLocalPreview(serverName)
+  const isWorld = !isPreview && !!hostname?.includes('worlds-content-server')
 
   // Before the admin check: this returns a streaming key, and validateStreamerToken honours a key
   // without re-checking the wallet.
@@ -58,25 +60,22 @@ export async function addSceneStreamAccessHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId) : sceneId
-  const place = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
+  const roomName = isWorld
+    ? livekit.getWorldSceneRoomName(serverName, resolvedSceneId)
+    : livekit.getSceneRoomName(serverName, resolvedSceneId)
+  const place = isPreview ? undefined : await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
+  const placeId = place?.id ?? roomName
 
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  const isOwnerOrAdmin = isPreview || (place !== undefined && (await isSceneOwnerOrAdmin(place, authenticatedAddress)))
   if (!isOwnerOrAdmin) {
-    logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
+    logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${placeId}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
-  }
-
-  let roomName: string
-  if (isWorld) {
-    roomName = livekit.getWorldSceneRoomName(serverName, resolvedSceneId)
-  } else {
-    roomName = livekit.getSceneRoomName(serverName, resolvedSceneId)
   }
 
   // Reuse the active key only while it streams into this room; one minted for another room (a
   // redeploy, or before world room names were lower-cased) feeds a room nobody is in.
-  const existingAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(place.id)
+  const existingAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(placeId)
 
   let access: SceneStreamAccess
   if (
@@ -85,8 +84,8 @@ export async function addSceneStreamAccessHandler(
     getStreamAccessExpirationTime(existingAccess) > Date.now()
   ) {
     access = existingAccess
-    logger.info(`Reusing existing OBS stream key for place ${place.id}`, {
-      placeId: place.id,
+    logger.info(`Reusing existing OBS stream key for place ${placeId}`, {
+      placeId,
       streamingKey: access.streaming_key.substring(0, 8) + '...',
       ingressId: access.ingress_id
     })
@@ -96,7 +95,7 @@ export async function addSceneStreamAccessHandler(
     const expirationTime = Date.now() + FOUR_DAYS
 
     access = await sceneStreamAccessManager.addAccess({
-      place_id: place.id,
+      place_id: placeId,
       streaming_url: ingress.url!,
       streaming_key: ingress.streamKey!,
       ingress_id: ingress.ingressId!,
@@ -109,8 +108,8 @@ export async function addSceneStreamAccessHandler(
       await livekit.removeReplacedIngress(existingAccess.ingress_id, ingress.ingressId)
     }
 
-    logger.info(`Created new OBS stream key for place ${place.id}`, {
-      placeId: place.id,
+    logger.info(`Created new OBS stream key for place ${placeId}`, {
+      placeId,
       streamingKey: access.streaming_key.substring(0, 8) + '...',
       ingressId: access.ingress_id,
       expiresAt: new Date(expirationTime).toISOString()
