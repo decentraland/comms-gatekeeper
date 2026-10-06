@@ -47,7 +47,7 @@ describe('StreamingKeyTTLChecker', () => {
       sceneStreamAccessManager: {
         getExpiredStreamingKeys: jest.fn().mockResolvedValue([]),
         claimExpiredAccess: jest.fn().mockResolvedValue(true),
-        completeExpiredAccessCleanup: jest.fn(),
+        completeExpiredAccessCleanup: jest.fn().mockResolvedValue(true),
         getLatestAccessByPlaceId: jest.fn().mockResolvedValue(null)
       },
       livekit: {
@@ -68,6 +68,20 @@ describe('StreamingKeyTTLChecker', () => {
     }
 
     streamingKeyChecker = await createStreamingKeyTTLChecker(mockedComponents)
+  })
+
+  describe('when cleanup is a replacement or the worker lost its lease', () => {
+    beforeEach(() => {
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValueOnce([
+        { id: 'expired-row', place_id: 'test-place', ingress_id: 'test-ingress' }
+      ])
+      mockedComponents.sceneStreamAccessManager.completeExpiredAccessCleanup.mockResolvedValueOnce(false)
+    })
+
+    it('should not send an expiration notification', async () => {
+      await executeOnTick(streamingKeyChecker, startOptions)
+      expect(mockedComponents.notifications.sendNotificationType).not.toHaveBeenCalled()
+    })
   })
 
   describe('start', () => {
@@ -94,7 +108,10 @@ describe('StreamingKeyTTLChecker', () => {
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 1 expired streaming keys.')
       expect(mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys).toHaveBeenCalled()
       expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('test-ingress')
-      expect(mockedComponents.sceneStreamAccessManager.claimExpiredAccess).toHaveBeenCalledWith('expired-row')
+      expect(mockedComponents.sceneStreamAccessManager.claimExpiredAccess).toHaveBeenCalledWith(
+        'expired-row',
+        expect.any(String)
+      )
       expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
         NotificationStreamingType.STREAMING_KEY_EXPIRED,
         { id: 'test-place' }
@@ -111,7 +128,10 @@ describe('StreamingKeyTTLChecker', () => {
       await executeOnTick(streamingKeyChecker, startOptions)
 
       expect(mockedComponents.livekit.removeIngress).not.toHaveBeenCalled()
-      expect(mockedComponents.sceneStreamAccessManager.claimExpiredAccess).toHaveBeenCalledWith('expired-row')
+      expect(mockedComponents.sceneStreamAccessManager.claimExpiredAccess).toHaveBeenCalledWith(
+        'expired-row',
+        expect.any(String)
+      )
     })
 
     describe('and the place is not found for the expired key', () => {
@@ -135,7 +155,10 @@ describe('StreamingKeyTTLChecker', () => {
       it('should remove the access', async () => {
         await executeOnTick(streamingKeyChecker, startOptions)
 
-        expect(mockedComponents.sceneStreamAccessManager.claimExpiredAccess).toHaveBeenCalledWith('expired-row')
+        expect(mockedComponents.sceneStreamAccessManager.claimExpiredAccess).toHaveBeenCalledWith(
+          'expired-row',
+          expect.any(String)
+        )
       })
 
       it('should not send a notification', async () => {

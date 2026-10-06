@@ -157,27 +157,58 @@ export async function createSceneStreamAccessManagerComponent({
   }
 
   async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>[]> {
+    const now = Date.now()
+    // Separate indexed branches avoid an OR across the growing access history.
+    // Retrying advances ready_at, so failing rows cannot monopolize the batch.
     const result = await database.query<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>>(SQL`
-      SELECT id, ingress_id, place_id FROM scene_stream_access
-      WHERE ingress_cleanup_pending = true OR (
-        active = true AND streaming = false AND COALESCE(expiration_time, created_at + ${FOUR_DAYS}) <= ${Date.now()}
-      ) LIMIT 100
+      SELECT id, ingress_id, place_id FROM (
+        (SELECT id, ingress_id, place_id, ingress_cleanup_retry_at AS ready_at FROM scene_stream_access
+          WHERE ingress_cleanup_pending = true AND ingress_cleanup_retry_at <= ${now}
+            AND ingress_cleanup_claim_until <= ${now}
+          ORDER BY ingress_cleanup_retry_at, id LIMIT 100)
+        UNION ALL
+        (SELECT id, ingress_id, place_id, COALESCE(expiration_time, created_at + ${FOUR_DAYS}) AS ready_at
+          FROM scene_stream_access
+          WHERE active = true AND streaming = false AND ingress_cleanup_pending = false
+            AND COALESCE(expiration_time, created_at + ${FOUR_DAYS}) <= ${now}
+          ORDER BY COALESCE(expiration_time, created_at + ${FOUR_DAYS}), id LIMIT 100)
+      ) candidates ORDER BY ready_at, id LIMIT 100
     `)
     return result.rows
   }
 
-  async function claimExpiredAccess(id: string): Promise<boolean> {
+  async function claimExpiredAccess(id: string, claimToken: string): Promise<boolean> {
+    const now = Date.now()
     const result = await database.query(SQL`
-      UPDATE scene_stream_access SET active = false, ingress_cleanup_pending = true
-      WHERE id = ${id} AND (ingress_cleanup_pending = true OR (
-        active = true AND streaming = false AND COALESCE(expiration_time, created_at + ${FOUR_DAYS}) <= ${Date.now()}
-      )) RETURNING id
+      UPDATE scene_stream_access SET active = false, ingress_cleanup_pending = true,
+        ingress_cleanup_expired = (ingress_cleanup_expired OR active),
+        ingress_cleanup_claim_token = ${claimToken},
+        ingress_cleanup_claim_until = ${now + 5 * 60 * 1000},
+        ingress_cleanup_retry_at = ${now + 10 * 60 * 1000}
+      WHERE id = ${id} AND ingress_cleanup_claim_until <= ${now}
+        AND ingress_cleanup_retry_at <= ${now} AND (
+          ingress_cleanup_pending = true OR (
+            active = true AND streaming = false AND COALESCE(expiration_time, created_at + ${FOUR_DAYS}) <= ${now}
+          )
+        ) RETURNING id
     `)
     return result.rowCount > 0
   }
 
-  async function completeExpiredAccessCleanup(id: string): Promise<void> {
-    await database.query(SQL`UPDATE scene_stream_access SET ingress_cleanup_pending = false WHERE id = ${id}`)
+  async function completeExpiredAccessCleanup(id: string, claimToken: string): Promise<boolean> {
+    // Only the current lease holder may complete cleanup and send an expiry notification.
+    // Replacement cleanup has ingress_cleanup_expired=false and never notifies.
+    const result = await database.query<{ ingress_cleanup_expired: boolean }>(SQL`
+      UPDATE scene_stream_access AS cleaned SET ingress_cleanup_pending = false, ingress_cleanup_claim_token = NULL,
+        ingress_cleanup_claim_until = 0
+      WHERE id = ${id} AND ingress_cleanup_claim_token = ${claimToken}
+        AND ingress_cleanup_claim_until > ${Date.now()}
+      RETURNING (ingress_cleanup_expired AND NOT EXISTS (
+        SELECT 1 FROM scene_stream_access newer
+        WHERE newer.place_id = cleaned.place_id AND newer.id != cleaned.id AND newer.created_at >= cleaned.created_at
+      )) AS ingress_cleanup_expired
+    `)
+    return result.rows[0]?.ingress_cleanup_expired ?? false
   }
 
   async function startStreaming(ingressId: string): Promise<void> {

@@ -777,52 +777,6 @@ describe('when updating participant permissions', () => {
   })
 })
 
-describe('when getting or creating ingress', () => {
-  const roomName = 'test-room'
-  const participantIdentity = 'test-participant'
-  const mockIngress = {
-    ingressId: 'ingress-123',
-    name: `${roomName}-ingress`,
-    roomName: roomName,
-    participantIdentity: participantIdentity,
-    url: 'rtmp://test.com/live',
-    streamKey: 'stream-key-123'
-  }
-
-  describe('when ingress already exists', () => {
-    beforeEach(() => {
-      listIngressSpy.mockResolvedValue([mockIngress])
-    })
-
-    it('should return existing ingress', async () => {
-      const result = await livekitComponent.getOrCreateIngress(roomName, participantIdentity)
-
-      expect(result).toBe(mockIngress)
-      expect(listIngressSpy).toHaveBeenCalledWith({ roomName })
-      expect(createIngressSpy).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('when ingress does not exist', () => {
-    beforeEach(() => {
-      listIngressSpy.mockResolvedValue([])
-      createIngressSpy.mockResolvedValue(mockIngress)
-    })
-
-    it('should create new ingress and return it', async () => {
-      const result = await livekitComponent.getOrCreateIngress(roomName, participantIdentity)
-
-      expect(result).toBe(mockIngress)
-      expect(listIngressSpy).toHaveBeenCalledWith({ roomName })
-      expect(createIngressSpy).toHaveBeenCalledWith(0, {
-        name: `${roomName}-ingress`,
-        roomName: roomName,
-        participantIdentity
-      })
-    })
-  })
-})
-
 describe('when updating room metadata', () => {
   const roomId = 'test-room'
   const mockRoom = {

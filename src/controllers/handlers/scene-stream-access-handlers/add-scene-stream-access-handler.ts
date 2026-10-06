@@ -1,7 +1,12 @@
 import { randomUUID } from 'crypto'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
-import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../../types/errors'
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  UnauthorizedError,
+  StreamRenewalConflictError
+} from '../../../types/errors'
 import { SceneStreamAccess } from '../../../types'
 import { FOUR_DAYS, getStreamAccessExpirationTime } from '../../../logic/time'
 
@@ -90,6 +95,7 @@ export async function addSceneStreamAccessHandler(
       ingressId: access.ingress_id
     })
   } else {
+    if (existingAccess?.streaming) throw new StreamRenewalConflictError()
     const participantIdentity = randomUUID()
     const ingress = await livekit.createIngress(roomName, `${participantIdentity}-streamer`)
     const expirationTime = Date.now() + FOUR_DAYS

@@ -252,10 +252,10 @@ export interface ISceneStreamAccessManager {
   getLatestAccessByPlaceId(placeId: string): Promise<SceneStreamAccess | null>
   getActiveIngressIds(placeId: string): Promise<string[]>
   getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>[]>
-  /** Atomically claims this expired row, or resumes its pending cleanup. */
-  claimExpiredAccess(id: string): Promise<boolean>
-  /** Marks durable ingress cleanup complete for this exact row. */
-  completeExpiredAccessCleanup(id: string): Promise<void>
+  /** Leases cleanup for five minutes, using a unique token to fence completion; retries wait ten minutes. */
+  claimExpiredAccess(id: string, claimToken: string): Promise<boolean>
+  /** Completes the current lease; returns true only for an expiry eligible for notification. */
+  completeExpiredAccessCleanup(id: string, claimToken: string): Promise<boolean>
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>
   isStreaming(ingressId: string): Promise<boolean>

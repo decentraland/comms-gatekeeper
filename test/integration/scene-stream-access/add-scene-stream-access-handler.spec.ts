@@ -654,13 +654,13 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     })
   })
 
-  describe.each([false, true])('when replacing a stale ingress with streaming=%s', (streaming) => {
+  describe('when replacing an idle stale ingress', () => {
     beforeEach(() => {
       stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
         ...mockSceneStreamAccess,
         room_id: 'old-room',
         ingress_id: 'old-ingress',
-        streaming
+        streaming: false
       })
       stubComponents.livekit.createIngress.mockResolvedValueOnce(
         new IngressInfo({
@@ -689,56 +689,78 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     })
   })
 
-  describe.each(['past', 'boundary', 'legacy', 'streaming'])(
-    'when the requested room has an expired key (%s)',
-    (expiration) => {
-      let now: number
+  describe.each(['past', 'boundary', 'legacy'])('when the requested room has an expired key (%s)', (expiration) => {
+    let now: number
 
-      beforeEach(() => {
-        now = 1800000000000
-        jest.spyOn(Date, 'now').mockReturnValue(now)
-        stubComponents.livekit.getSceneRoomName.mockReturnValue('requested-room')
-        stubComponents.sceneStreamAccessManager.addAccess.mockImplementationOnce(async (input) => ({
-          ...mockSceneStreamAccess,
-          ...input,
-          created_at: String(now),
-          expiration_time: String(input.expiration_time)
-        }))
-        stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
-          ...mockSceneStreamAccess,
-          room_id: 'requested-room',
-          streaming_key: 'expired-key',
-          ingress_id: 'expired-ingress',
-          streaming: expiration === 'streaming',
-          created_at: String(now - FOUR_DAYS - 1),
-          expiration_time: expiration === 'legacy' ? null : String(expiration === 'past' ? now - 1 : now)
+    beforeEach(() => {
+      now = 1800000000000
+      jest.spyOn(Date, 'now').mockReturnValue(now)
+      stubComponents.livekit.getSceneRoomName.mockReturnValue('requested-room')
+      stubComponents.sceneStreamAccessManager.addAccess.mockImplementationOnce(async (input) => ({
+        ...mockSceneStreamAccess,
+        ...input,
+        created_at: String(now),
+        expiration_time: String(input.expiration_time)
+      }))
+      stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+        ...mockSceneStreamAccess,
+        room_id: 'requested-room',
+        streaming_key: 'expired-key',
+        ingress_id: 'expired-ingress',
+        streaming: false,
+        created_at: String(now - FOUR_DAYS - 1),
+        expiration_time: expiration === 'legacy' ? null : String(expiration === 'past' ? now - 1 : now)
+      })
+    })
+
+    it('should renew access instead of returning the expired record', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual(
+        expect.objectContaining({ streaming_key: 'mock-stream-key', ends_at: now + FOUR_DAYS })
+      )
+      expect(stubComponents.livekit.createIngress).toHaveBeenCalledWith('requested-room', expect.any(String))
+      expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expiration_time: now + FOUR_DAYS
         })
-      })
+      )
+    })
+  })
 
-      it('should renew access instead of returning the expired record', async () => {
-        const response = await makeRequest(
-          components.localFetch,
-          '/scene-stream-access',
-          {
-            method: 'POST',
-            metadata: metadataLand
-          },
-          owner
-        )
-        expect(response.status).toBe(200)
-        expect(await response.json()).toEqual(
-          expect.objectContaining({ streaming_key: 'mock-stream-key', ends_at: now + FOUR_DAYS })
-        )
-        expect(stubComponents.livekit.createIngress).toHaveBeenCalledWith('requested-room', expect.any(String))
-        expect(stubComponents.livekit.getOrCreateIngress).not.toHaveBeenCalled()
-        expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
-          expect.objectContaining({
-            expiration_time: now + FOUR_DAYS
-          })
-        )
+  describe.each(['requested-room', 'old-room'])('when renewal would interrupt a live broadcast in %s', (room) => {
+    beforeEach(() => {
+      stubComponents.livekit.getSceneRoomName.mockReturnValue('requested-room')
+      stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+        ...mockSceneStreamAccess,
+        room_id: room,
+        streaming: true,
+        expiration_time: Date.now() - 1
       })
-    }
-  )
+    })
+
+    it('should return a conflict without creating or deleting an ingress', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        { method: 'POST', metadata: metadataLand },
+        owner
+      )
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({ error: expect.stringContaining('Stop it before renewing') })
+      expect(stubComponents.livekit.createIngress).not.toHaveBeenCalled()
+      expect(stubComponents.livekit.removeReplacedIngress).not.toHaveBeenCalled()
+      expect(stubComponents.sceneStreamAccessManager.addAccess).not.toHaveBeenCalled()
+    })
+  })
 
   describe('when the place has an active key for the requested room', () => {
     let response: Response

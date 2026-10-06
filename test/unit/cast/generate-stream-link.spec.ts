@@ -3,7 +3,7 @@ import { IngressInfo } from 'livekit-server-sdk'
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { GenerateStreamLinkResult, ICastComponent } from '../../../src/logic/cast/types'
 import { NotSceneAdminError } from '../../../src/logic/cast/errors'
-import { ForbiddenError } from '../../../src/types/errors'
+import { ForbiddenError, StreamRenewalConflictError } from '../../../src/types/errors'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
@@ -289,6 +289,36 @@ describe('when generating a stream link', () => {
         })
         expect(result.expiresAt).toBe(new Date(expired ? now + FOUR_DAYS : deadline).toISOString())
         expect(mockSceneStreamAccessManager.addAccess).toHaveBeenCalledTimes(expired ? 1 : 0)
+      })
+    })
+
+    describe('and the expired access is still broadcasting', () => {
+      beforeEach(() => {
+        mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+          id: 'live-access',
+          place_id: 'place-123',
+          streaming_url: 'rtmp://live',
+          streaming_key: 'live-key',
+          ingress_id: 'live-ingress',
+          room_id: 'scene-test-realm:bafkreiscene123',
+          created_at: Date.now() - FOUR_DAYS,
+          expiration_time: Date.now() - 1,
+          active: true,
+          streaming: true,
+          streaming_start_time: Date.now() - 60000
+        })
+      })
+
+      it('should reject implicit renewal without interrupting the broadcast', async () => {
+        await expect(
+          castComponent.generateStreamLink({
+            walletAddress: '0xowner123',
+            realmName: 'test-realm',
+            sceneId: 'bafkreiscene123'
+          })
+        ).rejects.toThrow(StreamRenewalConflictError)
+        expect(mockLivekit.createIngress).not.toHaveBeenCalled()
+        expect(mockLivekit.removeReplacedIngress).not.toHaveBeenCalled()
       })
     })
 

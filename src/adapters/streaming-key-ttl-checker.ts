@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { isErrorWithMessage } from '../logic/errors'
 import { AppComponents } from '../types'
 import { IStreamingKeyChecker } from '../types/checker.type'
@@ -57,13 +58,14 @@ export async function createStreamingKeyTTLChecker(
             const { id, ingress_id: ingressId, place_id: placeId } = expiredStreamKey
             const place = placesById[placeId]
             try {
-              // A replacement or a stream start after selection invalidates this claim.
-              if (!(await sceneStreamAccessManager.claimExpiredAccess(id))) continue
+              // Lease this row across service instances; a stream start invalidates expiry eligibility.
+              const claimToken = randomUUID()
+              if (!(await sceneStreamAccessManager.claimExpiredAccess(id, claimToken))) continue
               if (ingressId) {
                 await livekit.removeIngress(ingressId)
               }
-              await sceneStreamAccessManager.completeExpiredAccessCleanup(id)
-              if (place && !(await sceneStreamAccessManager.getLatestAccessByPlaceId(placeId))) {
+              const shouldNotify = await sceneStreamAccessManager.completeExpiredAccessCleanup(id, claimToken)
+              if (shouldNotify && place && !(await sceneStreamAccessManager.getLatestAccessByPlaceId(placeId))) {
                 await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_EXPIRED, place)
               }
               logger.info(

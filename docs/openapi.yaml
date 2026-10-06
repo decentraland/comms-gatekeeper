@@ -708,7 +708,8 @@ paths:
       summary: Add scene stream access
       description: |
         Adds streaming access for a specific scene or world.
-        Expired access is renewed with a fresh ingress and key, including while streaming.
+        Expired idle access is renewed with a fresh ingress and key.
+        Returns 409 if replacement would interrupt a live broadcast; stop it first or explicitly reset its key.
         Streamers must update their OBS key after renewal.
         Only scene owners or administrators can add stream access.
         Legacy world-name scene IDs are resolved using the signed parcel in multi-scene worlds.
@@ -751,6 +752,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
           description: Trusted content servers unavailable; retry after content sync
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '409':
+          description: A broadcast is still live; stop it before renewing or explicitly reset its key
           content:
             application/json:
               schema:
@@ -1747,6 +1754,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '403':
           description: Forbidden - The caller has an active platform ban, or last connected from a banned device
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '409':
+          description: A broadcast is still live; stop it before renewing or explicitly reset its key
           content:
             application/json:
               schema:

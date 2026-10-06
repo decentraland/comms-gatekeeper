@@ -423,14 +423,6 @@ export async function createLivekitComponent(
     }
   }
 
-  async function getOrCreateIngress(roomName: string, participantIdentity: string): Promise<IngressInfo> {
-    const ingresses = await ingressClient.listIngress({
-      roomName: roomName
-    })
-
-    return ingresses[0] ?? createIngress(roomName, participantIdentity)
-  }
-
   /**
    * Creates a fresh RTMP credential, including when the room already has an ingress.
    * @param roomName - Destination room.
@@ -691,7 +683,6 @@ export async function createLivekitComponent(
     removeParticipantFromAllRooms,
     getRoom,
     getRoomInfo,
-    getOrCreateIngress,
     createIngress,
     removeIngress,
     removeReplacedIngress,

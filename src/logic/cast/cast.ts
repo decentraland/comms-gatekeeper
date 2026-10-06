@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { AppComponents } from '../../types'
 import { PlaceAttributes } from '../../types/places.type'
-import { ForbiddenError } from '../../types/errors'
+import { ForbiddenError, StreamRenewalConflictError } from '../../types/errors'
 import {
   InvalidStreamingKeyError,
   ExpiredStreamingKeyError,
@@ -125,6 +125,7 @@ export function createCastComponent(
         roomId: existingAccess.room_id || 'none'
       })
     } else {
+      if (existingAccess?.streaming) throw new StreamRenewalConflictError()
       // Create new stream key with ingress for OBS compatibility
       const participantIdentity = randomUUID()
       const ingress = await livekit.createIngress(roomId, `${participantIdentity}-streamer`)
