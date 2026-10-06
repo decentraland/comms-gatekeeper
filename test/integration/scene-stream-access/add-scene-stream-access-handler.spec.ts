@@ -646,6 +646,41 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
     })
   })
 
+  describe.each(['past', 'boundary', 'legacy'])('when the requested room has an expired key (%s)', (expiration) => {
+    let now: number
+
+    beforeEach(() => {
+      now = 1800000000000
+      jest.spyOn(Date, 'now').mockReturnValue(now)
+      stubComponents.livekit.getSceneRoomName.mockReturnValue('requested-room')
+      stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+        ...mockSceneStreamAccess,
+        room_id: 'requested-room',
+        streaming_key: 'expired-key',
+        created_at: now - FOUR_DAYS - 1,
+        expiration_time: expiration === 'legacy' ? null : String(expiration === 'past' ? now - 1 : now)
+      })
+    })
+
+    it('should renew access instead of returning the expired record', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(200)
+      expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expiration_time: now + FOUR_DAYS
+        })
+      )
+    })
+  })
+
   describe('when the place has an active key for the requested room', () => {
     let response: Response
 

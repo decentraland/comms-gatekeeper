@@ -10,7 +10,7 @@ import {
   ExpiredStreamAccessError
 } from './errors'
 import { FOUR_DAYS } from '../time'
-import { removeReplacedIngress } from '../stream-access'
+import { getStreamAccessExpirationTime, removeReplacedIngress } from '../stream-access'
 import {
   ICastComponent,
   GenerateStreamLinkParams,
@@ -110,16 +110,14 @@ export function createCastComponent(
     // - Has not expired
     // - Has the same room_id (same location)
     const canReuse =
-      existingAccess &&
-      existingAccess.room_id === roomId &&
-      (!existingAccess.expiration_time || Number(existingAccess.expiration_time) > Date.now())
+      existingAccess && existingAccess.room_id === roomId && getStreamAccessExpirationTime(existingAccess) > Date.now()
 
     let streamingKey: string
     let expirationTime: number
 
     if (canReuse && existingAccess) {
       streamingKey = existingAccess.streaming_key
-      expirationTime = existingAccess.expiration_time ? Number(existingAccess.expiration_time) : Date.now() + FOUR_DAYS
+      expirationTime = getStreamAccessExpirationTime(existingAccess)
 
       logger.info(`Reusing existing stream key for place ${place.id}`, {
         placeId: place.id,

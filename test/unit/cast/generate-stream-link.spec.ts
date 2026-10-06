@@ -1,3 +1,4 @@
+import { FOUR_DAYS } from '../../../src/logic/time'
 import { IngressInfo } from 'livekit-server-sdk'
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { GenerateStreamLinkResult, ICastComponent } from '../../../src/logic/cast/types'
@@ -248,6 +249,46 @@ describe('when generating a stream link', () => {
 
         expect(result.streamingKey).toBe('existing-stream-key')
         expect(mockSceneStreamAccessManager.addAccess).not.toHaveBeenCalled()
+      })
+    })
+
+    describe.each([true, false])('and a legacy key is expired=%s', (expired) => {
+      let now: number
+      let deadline: number
+
+      beforeEach(() => {
+        now = 1800000000000
+        deadline = expired ? now - 1 : now + 1000
+        jest.spyOn(Date, 'now').mockReturnValue(now)
+        mockLivekit.getWorldSceneRoomName.mockReturnValue('world-room')
+        mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+          id: 'access-123',
+          place_id: 'world-scene-place-456',
+          streaming_url: 'rtmp://test-url',
+          ingress_id: 'test-ingress-id',
+          created_at: deadline - FOUR_DAYS,
+          active: true,
+          streaming: false,
+          streaming_start_time: 0,
+          streaming_key: 'legacy-key',
+          room_id: 'world-room',
+          expiration_time: null
+        })
+      })
+
+      afterEach(() => {
+        jest.restoreAllMocks()
+      })
+
+      it('should use the legacy cleanup deadline to decide whether to renew access', async () => {
+        const result = await castComponent.generateStreamLink({
+          walletAddress: '0xowner123',
+          worldName: 'test-world.dcl.eth',
+          sceneId: 'bafkreiscene123',
+          realmName: 'test-world.dcl.eth'
+        })
+        expect(result.expiresAt).toBe(new Date(expired ? now + FOUR_DAYS : deadline).toISOString())
+        expect(mockSceneStreamAccessManager.addAccess).toHaveBeenCalledTimes(expired ? 1 : 0)
       })
     })
 

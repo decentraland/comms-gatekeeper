@@ -2,6 +2,7 @@ import { ILoggerComponent } from '@well-known-components/interfaces'
 import { SceneStreamAccess } from '../types'
 import { ILivekitComponent } from '../types/livekit.type'
 import { getErrorMessage } from './errors'
+import { FOUR_DAYS } from './time'
 
 /**
  * Deletes the LiveKit ingress of a stream access that was just replaced. The cleanup jobs only
@@ -33,4 +34,15 @@ export async function removeReplacedIngress(
       error: getErrorMessage(error)
     })
   }
+}
+
+/**
+ * Returns the stored expiration, or the legacy four-day deadline used by the TTL cleanup job.
+ * @param access - Stream access timestamps from the database.
+ * @returns Expiration in milliseconds since the Unix epoch.
+ */
+export function getStreamAccessExpirationTime(
+  access: Pick<SceneStreamAccess, 'expiration_time' | 'created_at'>
+): number {
+  return access.expiration_time ? Number(access.expiration_time) : Number(access.created_at) + FOUR_DAYS
 }

@@ -5,7 +5,7 @@ import { HandlerContextWithPath } from '../../../types'
 import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { SceneStreamAccess } from '../../../types'
 import { FOUR_DAYS } from '../../../logic/time'
-import { removeReplacedIngress } from '../../../logic/stream-access'
+import { getStreamAccessExpirationTime, removeReplacedIngress } from '../../../logic/stream-access'
 
 export async function addSceneStreamAccessHandler(
   ctx: Pick<
@@ -81,7 +81,11 @@ export async function addSceneStreamAccessHandler(
   const existingAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(place.id)
 
   let access: SceneStreamAccess
-  if (existingAccess && existingAccess.room_id === roomName) {
+  if (
+    existingAccess &&
+    existingAccess.room_id === roomName &&
+    getStreamAccessExpirationTime(existingAccess) > Date.now()
+  ) {
     access = existingAccess
     logger.info(`Reusing existing OBS stream key for place ${place.id}`, {
       placeId: place.id,
@@ -121,7 +125,7 @@ export async function addSceneStreamAccessHandler(
       streaming_url: access.streaming_url,
       streaming_key: access.streaming_key,
       created_at: Number(access.created_at),
-      ends_at: access.expiration_time ? Number(access.expiration_time) : Number(access.created_at) + FOUR_DAYS
+      ends_at: getStreamAccessExpirationTime(access)
     }
   }
 }
