@@ -70,7 +70,7 @@ export async function commsSceneHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId) : sceneId
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel) : sceneId
 
   // Check if user is banned from the scene (skip for local preview)
   if (!isLocalPreview) {

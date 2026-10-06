@@ -139,6 +139,38 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     })
   })
 
+  describe('when local preview is explicitly enabled', () => {
+    beforeEach(() => {
+      metadataLand.realm.serverName = 'localpreview'
+      metadataLand.sceneId = 'unpublished-local-scene'
+      stubComponents.livekit.isLocalPreview.mockReturnValueOnce(true)
+      stubComponents.livekit.getSceneRoomName.mockReturnValue('scene-localpreview:unpublished-local-scene')
+      stubComponents.livekit.getOrCreateIngress.mockResolvedValue(mockIngress)
+      stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
+      stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(mockSceneStreamAccess)
+    })
+
+    it('should use a synthetic preview place without resolving a published entity', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(200)
+      expect(stubComponents.places.getPlaceBySceneId).not.toHaveBeenCalled()
+      expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+        expect.objectContaining({
+          place_id: 'scene-localpreview:unpublished-local-scene',
+          room_id: 'scene-localpreview:unpublished-local-scene'
+        })
+      )
+    })
+  })
+
   afterEach(async () => {
     await cleanup.cleanup()
     jest.restoreAllMocks()
