@@ -195,7 +195,7 @@ export function createCastComponent(
     // Resolve the place from the SAME sceneId that the room is derived from. Using the
     // caller-supplied `parcel` here (as before) would let an admin of any one place mint a
     // streamer key for a different scene's room.
-    const place = await places.getPlaceBySceneId(sceneId, worldName)
+    const place = await places.getPlaceBySceneId(sceneId, worldName, params.parcel)
 
     const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
     if (!isAdmin) {
@@ -379,14 +379,12 @@ export function createCastComponent(
     // Before resolving the location, so an unresolvable place still rejects.
     await assertNoActivePlatformBan(watcherAddress.toLowerCase(), deviceIdentifier)
 
-    const isWorldName = location.endsWith('.eth')
+    const isWorldName = location.toLowerCase().endsWith('.eth')
 
     let place: PlaceAttributes
-    if (isWorldName && parcel) {
+    if (isWorldName) {
+      // A missing parcel is supported only when the world has one unambiguous scene.
       place = await places.getWorldScenePlace(location, parcel)
-    } else if (isWorldName) {
-      // Backwards compatibility: fall back to world-level lookup when no parcel is provided
-      place = await places.getWorldByName(location)
     } else {
       place = await places.getPlaceByParcel(location)
     }

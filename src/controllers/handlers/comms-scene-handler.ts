@@ -132,7 +132,7 @@ export async function commsSceneHandler(
       // Resolve the place from the SAME sceneId used to build `room`, not from the
       // separately-supplied `parcel`. Otherwise an admin of an unrelated place could be
       // added as a presenter in this scene's room by mismatching parcel and sceneId.
-      const place = await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined)
+      const place = await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined, parcel)
       const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, identity)
       if (isAdmin) {
         await cast.addPresenter(room, identity)

@@ -1,3 +1,4 @@
+import { createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
@@ -31,6 +32,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   let metadataWorld: Metadata
 
   beforeEach(async () => {
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     cleanup = new TestCleanup(components.database)
 
     const { sceneAdminManager } = components
@@ -91,19 +93,21 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
-      id: placeId,
-      positions: ['10,20'],
-      owner: ownerAddress
-    } as PlaceAttributes)
-
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
-      id: placeId,
-      positions: [],
-      world_name: 'test-world',
-      world: true,
-      owner: ownerAddress
-    } as PlaceAttributes)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
+      worldName
+        ? createMockedWorldPlace({
+            id: placeId,
+            positions: [],
+            world_name: 'test-world',
+            world: true,
+            owner: ownerAddress
+          })
+        : createMockedPlace({
+            id: placeId,
+            positions: ['10,20'],
+            owner: ownerAddress
+          })
+    )
 
     stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: false,
@@ -275,7 +279,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when scene is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue(null)
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue(null)
 
     const response = await makeRequest(
       localFetch,

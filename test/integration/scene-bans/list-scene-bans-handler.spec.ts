@@ -33,6 +33,7 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
   })
 
   beforeEach(async () => {
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     // Generate unique place IDs for each test to avoid interference
     testPlaceId = `place-id-list-${Date.now()}-${Math.random()}`
     worldPlaceId = `world-place-id-list-${Date.now()}-${Math.random()}`
@@ -88,8 +89,9 @@ test('GET /scene-bans', ({ components, stubComponents }) => {
       owner: owner.authChain[0].payload
     })
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
+      worldName ? mockedWorldPlace : mockedPlace
+    )
   })
 
   afterEach(async () => {

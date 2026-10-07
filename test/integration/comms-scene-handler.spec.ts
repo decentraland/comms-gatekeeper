@@ -16,8 +16,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
   let metadata: Metadata
 
   beforeEach(async () => {
-    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     metadata = {
       identity: owner.authChain[0].payload,
       realmName: 'test-realm',

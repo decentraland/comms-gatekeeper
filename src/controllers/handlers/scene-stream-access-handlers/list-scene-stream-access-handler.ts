@@ -12,18 +12,25 @@ import { getStreamAccessExpirationTime } from '../../../logic/time'
 export async function listSceneStreamAccessHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'fetch' | 'sceneStreamAccessManager' | 'sceneManager' | 'places' | 'logs' | 'config' | 'userModeration',
+      | 'fetch'
+      | 'sceneStreamAccessManager'
+      | 'sceneManager'
+      | 'worlds'
+      | 'places'
+      | 'logs'
+      | 'config'
+      | 'userModeration',
       '/scene-stream-access'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, sceneManager, places, userModeration },
+    components: { worlds, logs, sceneStreamAccessManager, sceneManager, places, userModeration },
     verification
   } = ctx
   const logger = logs.getLogger('get-scene-stream-access-handler')
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
   const { isSceneOwnerOrAdmin } = sceneManager
   if (!verification?.auth) {
     logger.debug('Authentication required')
@@ -55,12 +62,8 @@ export async function listSceneStreamAccessHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  let place: PlaceAttributes
-  if (isWorld) {
-    place = await getWorldScenePlace(serverName, parcel)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
+  const place: PlaceAttributes = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined, parcel)
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
   if (!isOwnerOrAdmin) {

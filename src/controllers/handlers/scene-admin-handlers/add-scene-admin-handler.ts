@@ -12,6 +12,7 @@ export async function addSceneAdminHandler(
       | 'logs'
       | 'config'
       | 'sceneManager'
+      | 'worlds'
       | 'places'
       | 'names'
       | 'sceneBans'
@@ -23,12 +24,12 @@ export async function addSceneAdminHandler(
   >
 ) {
   const {
-    components: { sceneAdminManager, sceneManager, places, names, sceneBans, roomMetadataSync, livekit },
+    components: { worlds, sceneAdminManager, sceneManager, places, names, sceneBans, roomMetadataSync, livekit },
     request,
     verification
   } = ctx
 
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
@@ -46,14 +47,9 @@ export async function addSceneAdminHandler(
 
   const isWorld = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
-
-  let place: PlaceAttributes
-
-  if (isWorld) {
-    place = await getWorldScenePlace(serverName, parcel)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
+  const place: PlaceAttributes = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined, parcel)
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
 
@@ -86,7 +82,7 @@ export async function addSceneAdminHandler(
   }
 
   const isBanned = await sceneBans.isUserBanned(adminToAdd, {
-    sceneId: sceneId,
+    sceneId: resolvedSceneId,
     parcel: parcel,
     realmName: serverName,
     isWorld: isWorld
@@ -98,7 +94,7 @@ export async function addSceneAdminHandler(
 
   // Compute the room name before mutating the DB so a malformed-params throw
   // cannot leave the DB and LiveKit metadata out of sync.
-  const roomName = livekit.getRoomName(serverName, { isWorld, sceneId })
+  const roomName = livekit.getRoomName(serverName, { isWorld, sceneId: resolvedSceneId })
 
   await sceneAdminManager.addAdmin({
     place_id: place.id,

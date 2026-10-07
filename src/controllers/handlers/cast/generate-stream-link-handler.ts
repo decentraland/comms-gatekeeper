@@ -32,6 +32,7 @@ export async function generateStreamLinkHandler(
       })
     : await cast.generateStreamLink({
         walletAddress: identity,
+        parcel,
         worldName: isWorld ? realm.serverName : undefined,
         sceneId: resolvedSceneId,
         realmName,

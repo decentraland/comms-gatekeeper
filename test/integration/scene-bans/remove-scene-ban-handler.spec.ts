@@ -31,6 +31,7 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
   })
 
   beforeEach(async () => {
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     // Generate unique place IDs for each test to avoid interference
     testPlaceId = `place-id-unban-${Date.now()}-${Math.random()}`
     worldPlaceId = `world-place-id-unban-${Date.now()}-${Math.random()}`
@@ -73,8 +74,9 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
       owner: owner.authChain[0].payload
     })
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
+      worldName ? mockedWorldPlace : mockedPlace
+    )
     stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
     stubComponents.sceneBanManager.removeBan.mockResolvedValue(undefined)
     stubComponents.livekit.getRoomName.mockReturnValue('test-room-name')

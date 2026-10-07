@@ -35,8 +35,7 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
   })
 
   beforeEach(async () => {
-    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     mockIngress = {
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
@@ -131,7 +130,11 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
         owner
       )
       expect(response.status).toBe(401)
-      expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith(metadataLand.sceneId, undefined)
+      expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith(
+        metadataLand.sceneId,
+        undefined,
+        metadataLand.parcel
+      )
       expect(stubComponents.places.getPlaceByParcel).not.toHaveBeenCalled()
       expect(stubComponents.livekit.createIngress).not.toHaveBeenCalled()
       expect(stubComponents.livekit.removeIngress).not.toHaveBeenCalled()
@@ -428,7 +431,11 @@ test('PUT /scene-stream-access - resets streaming access for scenes', ({ compone
         owner
       )
       expect(response.status).toBe(200)
-      expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith('bafkreiworldscene123', 'name.dcl.eth')
+      expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith(
+        'bafkreiworldscene123',
+        'name.dcl.eth',
+        metadataWorld.parcel
+      )
       expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith('name.dcl.eth', 'bafkreiworldscene123')
       expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
         expect.objectContaining({

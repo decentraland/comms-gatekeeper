@@ -50,6 +50,14 @@ info:
 
     Most endpoints require Signed Fetch authentication with a complete identity header chain including scene metadata (sceneId, parcel, realmName).
 
+    Scene admin, ban, stream-access and presenter requests require `sceneId`. A signed `parcel`,
+    when supplied, must belong to that deployment. World content IDs must identify an active
+    deployment in the requested world; mismatched world IDs are rejected with `400`, and a place
+    that cannot be resolved is rejected with `404` on routes using place authorization.
+    Legacy world-name scene IDs remain supported: the parcel selects the deployment in a
+    multi-scene world, while a single-scene world can be resolved without a parcel. Opted-out
+    world scenes remain accessible; removed scenes do not.
+
     ### Base URLs
 
     - Production: `https://comms-gatekeeper.decentraland.org`
@@ -1664,7 +1672,9 @@ paths:
       description: |
         Generates LiveKit credentials for a watcher to view streams in a location.
         This endpoint allows users to join as viewers in a specific location (parcel or world)
-        and watch active streams.
+        and watch active streams. For world locations, pass `parcel` to select the scene.
+        Omitting it remains supported for single-scene worlds; multi-scene worlds return `400`
+        instead of selecting an arbitrary scene.
 
         Requires Signed Fetch authentication from a wallet (a `decentraland-kernel-scene` signer is
         rejected: viewers are end users, not scenes). A verified wallet is required because

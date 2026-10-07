@@ -203,3 +203,12 @@ export function getNotificationMetadata(
   }
   return metadata
 }
+
+/** Validates bounded wallet or streamer identities, including preview place IDs containing colons. */
+export function isValidPresenterIdentity(identity: string): boolean {
+  return (
+    identity.length <= 512 &&
+    (/^0x[a-fA-F0-9]{40}$/.test(identity) ||
+      /^stream:.+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(identity))
+  )
+}

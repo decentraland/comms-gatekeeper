@@ -220,7 +220,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneAdmins,
     livekit,
     places,
-    contentClient,
     lands,
     cache,
     logs
@@ -228,6 +227,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   // Scene ban components
   const sceneBans = createSceneBansComponent({
+    worlds,
     sceneBanManager,
     livekit,
     logs,

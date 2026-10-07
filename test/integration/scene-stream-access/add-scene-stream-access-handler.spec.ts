@@ -35,8 +35,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   })
 
   beforeEach(async () => {
-    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     const removeReplacedIngress = components.livekit.removeReplacedIngress
     stubComponents.livekit.removeReplacedIngress.mockImplementation(removeReplacedIngress)
     jest.spyOn(IngressClient.prototype, 'deleteIngress').mockResolvedValue(undefined)
@@ -132,7 +131,11 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
         owner
       )
       expect(response.status).toBe(401)
-      expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith(metadataLand.sceneId, undefined)
+      expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith(
+        metadataLand.sceneId,
+        undefined,
+        metadataLand.parcel
+      )
       expect(stubComponents.places.getPlaceByParcel).not.toHaveBeenCalled()
       expect(stubComponents.livekit.createIngress).not.toHaveBeenCalled()
       expect(stubComponents.livekit.removeIngress).not.toHaveBeenCalled()
@@ -462,8 +465,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
   })
 
   beforeEach(async () => {
-    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     const removeReplacedIngress = components.livekit.removeReplacedIngress
     stubComponents.livekit.removeReplacedIngress.mockImplementation(removeReplacedIngress)
     jest.spyOn(IngressClient.prototype, 'deleteIngress').mockResolvedValue(undefined)

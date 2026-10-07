@@ -6,6 +6,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
   let mockStreamLinkResult: any
 
   beforeEach(() => {
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     mockStreamLinkResult = {
       streamLink: 'https://cast2.decentraland.org/s/cast2-link-abc123',
       watcherLink: 'https://cast2.decentraland.org/w/10,20',
@@ -50,6 +51,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
     expect(body.expiresAt).toBeDefined()
     expect(body.expiresInDays).toBe(4)
     expect(spyComponents.cast.generateStreamLink).toHaveBeenCalledWith({
+      parcel: '10,20',
       walletAddress: owner.authChain[0].payload,
       worldName: undefined,
       sceneId: 'bafytest123',
@@ -207,6 +209,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
   })
 
   it('should generate stream link for world with scene_id and realm_name', async () => {
+    spyComponents.worlds.resolveWorldSceneId.mockResolvedValue('bafytest456')
     const response = await makeRequest(
       components.localFetch,
       '/cast/generate-stream-link',
@@ -218,7 +221,8 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
             serverName: 'myworld.dcl.eth',
             hostname: 'https://worlds-content-server.decentraland.org',
             protocol: 'https'
-          }
+          },
+          parcel: '3,4'
         }
       },
       owner
@@ -233,8 +237,10 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       walletAddress: owner.authChain[0].payload,
       worldName: 'myworld.dcl.eth',
       sceneId: 'bafytest456',
-      realmName: 'myworld.dcl.eth'
+      realmName: 'myworld.dcl.eth',
+      parcel: '3,4'
     })
+    expect(spyComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith('myworld.dcl.eth', 'bafytest456', '3,4')
   })
 
   it('should reject request without sceneId and realmName when authentication is missing metadata', async () => {

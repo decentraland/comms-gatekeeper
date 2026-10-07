@@ -32,6 +32,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   let allAdminResults: SceneAdminWithName[]
 
   beforeEach(async () => {
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     cleanup = new TestCleanup(components.database)
     allAdminResults = []
 
@@ -104,17 +105,11 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
-      id: placeId,
-      positions: ['10,20'],
-      world: false
-    } as PlaceAttributes)
-
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
-      id: placeId,
-      world_name: 'name.dcl.eth',
-      world: true
-    } as PlaceAttributes)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
+      worldName
+        ? ({ id: placeId, world_name: 'name.dcl.eth', world: true } as PlaceAttributes)
+        : ({ id: placeId, positions: ['10,20'], world: false } as PlaceAttributes)
+    )
 
     stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
 
@@ -158,7 +153,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -184,7 +179,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -210,7 +205,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -286,7 +281,9 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 404 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockRejectedValue(new PlaceNotFoundError('Could not find scene information'))
+    stubComponents.places.getPlaceBySceneId.mockRejectedValue(
+      new PlaceNotFoundError('Could not find scene information')
+    )
 
     const response = await makeRequest(
       localFetch,
@@ -315,7 +312,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataLand)
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       positions: ['10,20']
     } as PlaceAttributes)
@@ -340,7 +337,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
@@ -364,7 +361,9 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
   it('returns 404 when the scene is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockRejectedValue(new PlaceNotFoundError('Could not find scene information'))
+    stubComponents.places.getPlaceBySceneId.mockRejectedValue(
+      new PlaceNotFoundError('Could not find scene information')
+    )
 
     const response = await makeRequest(
       localFetch,
@@ -383,7 +382,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -409,7 +408,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -489,7 +488,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const extraAddress2 = '0x2222222222222222222222222222222222222222'
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -551,7 +550,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
     const { localFetch } = components
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataWorld)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: placeId,
       world_name: 'name.dcl.eth',
       world: true
@@ -747,7 +746,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
 
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLandLease)
 
-      stubComponents.places.getPlaceByParcel.mockResolvedValue({
+      stubComponents.places.getPlaceBySceneId.mockResolvedValue({
         positions: [metadataLandLease.parcel],
         id: testPlaceId,
         world: false
@@ -855,7 +854,7 @@ test('GET /scene-admin - lists all active administrators for scenes', ({ compone
         name === 'AUTHORITATIVE_SERVER_ADDRESS' ? serverPublicKey : undefined
       )
 
-      stubComponents.places.getPlaceByParcel.mockResolvedValue({
+      stubComponents.places.getPlaceBySceneId.mockResolvedValue({
         id: placeId,
         positions: ['10,20'],
         world: false

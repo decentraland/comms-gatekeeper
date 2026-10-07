@@ -7,9 +7,9 @@ export type IPlacesComponent = IBaseComponent & {
    * Used for scene-specific operations where we need the place for a specific scene within a world.
    * Queries /places endpoint with positions and names[] parameters.
    * @param worldName - The world name (e.g., "myworld.dcl.eth")
-   * @param position - The parcel position (e.g., "10,20")
+   * @param position - The parcel position (omit only for a single-scene world) (e.g., "10,20")
    */
-  getWorldScenePlace(worldName: string, position: string): Promise<PlaceAttributes>
+  getWorldScenePlace(worldName: string, position?: string): Promise<PlaceAttributes>
   /**
    * Gets a world scene place by resolving the entity ID through the worlds content server,
    * then querying the Places API with the resulting base parcel.
@@ -25,9 +25,10 @@ export type IPlacesComponent = IBaseComponent & {
    * API returns the place there.
    * @param sceneId - The scene entity id (authoritative — the room is keyed by it).
    * @param worldName - The world name for world scenes; omit for Genesis City scenes.
+   * @param parcel - Optional signed parcel, which must belong to the deployment.
    * @throws {PlaceNotFoundError} If the scene entity or its base parcel cannot be resolved.
    */
-  getPlaceBySceneId(sceneId: string, worldName?: string): Promise<PlaceAttributes>
+  getPlaceBySceneId(sceneId: string, worldName?: string, parcel?: string): Promise<PlaceAttributes>
   /**
    * @deprecated Use getWorldScenePlace instead. Kept only for backwards compatibility
    * with legacy rooms that lack a sceneId.

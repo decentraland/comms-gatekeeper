@@ -7,19 +7,27 @@ import { RemoveSceneAdminRequestBody } from './schemas'
 export async function removeSceneAdminHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'roomMetadataSync' | 'livekit',
+      | 'sceneAdminManager'
+      | 'logs'
+      | 'config'
+      | 'fetch'
+      | 'sceneManager'
+      | 'worlds'
+      | 'places'
+      | 'roomMetadataSync'
+      | 'livekit',
       '/scene-admin'
     >,
     'components' | 'url' | 'params' | 'verification' | 'request'
   >
 ) {
   const {
-    components: { logs, sceneAdminManager, sceneManager, places, roomMetadataSync, livekit },
+    components: { worlds, logs, sceneAdminManager, sceneManager, places, roomMetadataSync, livekit },
     request,
     verification
   } = ctx
 
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
   const logger = logs.getLogger('remove-scene-admin-handler')
 
@@ -43,12 +51,9 @@ export async function removeSceneAdminHandler(
   const isWorld = hostname.includes('worlds-content-server')
   const authenticatedAddress = verification.auth.toLowerCase()
 
-  let place: PlaceAttributes
-  if (isWorld) {
-    place = await getWorldScenePlace(serverName, parcel)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
+  const place: PlaceAttributes = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined, parcel)
   if (!place) {
     throw new InvalidRequestError('Place not found')
   }
@@ -72,7 +77,7 @@ export async function removeSceneAdminHandler(
 
   // Compute the room name before mutating the DB so a malformed-params throw
   // cannot leave the DB and LiveKit metadata out of sync.
-  const roomName = livekit.getRoomName(serverName, { isWorld, sceneId })
+  const roomName = livekit.getRoomName(serverName, { isWorld, sceneId: resolvedSceneId })
 
   await sceneAdminManager.removeAdmin(place.id, adminToRemove)
 

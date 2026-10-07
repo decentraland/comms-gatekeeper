@@ -6,18 +6,21 @@ import { PlaceAttributes } from '../../../types/places.type'
 
 export async function listSceneAdminsHandler(
   ctx: Pick<
-    HandlerContextWithPath<'logs' | 'config' | 'fetch' | 'places' | 'names' | 'sceneAdmins' | 'lands', '/scene-admin'>,
+    HandlerContextWithPath<
+      'logs' | 'config' | 'fetch' | 'worlds' | 'places' | 'names' | 'sceneAdmins' | 'lands',
+      '/scene-admin'
+    >,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, config, places, names, sceneAdmins, lands },
+    components: { worlds, logs, config, places, names, sceneAdmins, lands },
     url,
     verification
   } = ctx
 
   const logger = logs.getLogger('list-scene-admins-handler')
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
@@ -27,6 +30,7 @@ export async function listSceneAdminsHandler(
   const authenticatedAddress = verification.auth.toLowerCase()
 
   const {
+    sceneId,
     parcel,
     realm: { hostname, serverName }
   } = await validate(ctx)
@@ -35,13 +39,9 @@ export async function listSceneAdminsHandler(
     authoritativeServerIdentity && authenticatedAddress.toLowerCase() === authoritativeServerIdentity.toLowerCase()
 
   const isWorld = hostname.includes('worlds-content-server')
-
-  let place: PlaceAttributes
-  if (isWorld) {
-    place = await getWorldScenePlace(serverName, parcel)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
+  const place: PlaceAttributes = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined, parcel)
 
   // Allow any authenticated scene participant to list admins.
   // This enables all clients to validate admin identity for applying changes.

@@ -7,14 +7,12 @@ import { IRoomMetadataSyncComponent } from '../../src/logic/room-metadata-sync/t
 import { ISceneBanManager } from '../../src/types'
 import { ILivekitComponent } from '../../src/types/livekit.type'
 import { IPlacesComponent, PlaceAttributes } from '../../src/types/places.type'
-import { IContentClientComponent } from '../../src/types/content-client.type'
 import { ISceneAdmins } from '../../src/types/scene.type'
 import { ILandComponent } from '../../src/adapters/lands'
 import { createLivekitMockedComponent } from '../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createSceneBanManagerMockedComponent } from '../mocks/scene-ban-manager-mock'
 import { createMockedPlace, createPlacesMockedComponent } from '../mocks/places-mock'
-import { createContentClientMockedComponent } from '../mocks/content-client-mock'
 import { createSceneAdminsMockedComponent } from '../mocks/scene-admins-mock'
 import { createLandsMockedComponent } from '../mocks/lands-mock'
 
@@ -24,7 +22,6 @@ describe('RoomMetadataSyncComponent', () => {
   let sceneBanManager: jest.Mocked<ISceneBanManager>
   let sceneAdmins: jest.Mocked<ISceneAdmins>
   let places: jest.Mocked<IPlacesComponent>
-  let contentClient: jest.Mocked<IContentClientComponent>
   let lands: jest.Mocked<ILandComponent>
   let cache: ICacheStorageComponent
   let logs: jest.Mocked<ILoggerComponent>
@@ -35,7 +32,6 @@ describe('RoomMetadataSyncComponent', () => {
     sceneBanManager = createSceneBanManagerMockedComponent()
     sceneAdmins = createSceneAdminsMockedComponent()
     places = createPlacesMockedComponent()
-    contentClient = createContentClientMockedComponent()
     lands = createLandsMockedComponent()
     cache = createInMemoryCacheComponent()
     logs = createLoggerMockedComponent()
@@ -46,7 +42,6 @@ describe('RoomMetadataSyncComponent', () => {
       sceneAdmins,
       livekit,
       places,
-      contentClient,
       lands,
       cache,
       logs
@@ -192,23 +187,13 @@ describe('RoomMetadataSyncComponent', () => {
           realmName: 'test-realm',
           roomType: RoomType.SCENE
         })
-        contentClient.fetchEntityById.mockResolvedValue({
-          id: 'scene-id',
-          type: 'scene' as any,
-          timestamp: 1,
-          version: 'v3',
-          pointers: ['-1,-1'],
-          content: [],
-          metadata: { scene: { base: '-1,-1', parcels: ['-1,-1'] } }
-        })
-        places.getPlaceByParcel.mockResolvedValue(mockPlace)
+        places.getPlaceBySceneId.mockResolvedValue(mockPlace)
 
         await component.updateRoomMetadataForRoom(mockRoom)
       })
 
-      it('should resolve the place via content client + getPlaceByParcel', () => {
-        expect(contentClient.fetchEntityById).toHaveBeenCalledWith('scene-id')
-        expect(places.getPlaceByParcel).toHaveBeenCalledWith('-1,-1')
+      it('should resolve the place by deployment identity', () => {
+        expect(places.getPlaceBySceneId).toHaveBeenCalledWith('scene-id')
       })
 
       it('should refresh metadata for the resolved place', () => {
@@ -236,8 +221,8 @@ describe('RoomMetadataSyncComponent', () => {
         expect(places.getWorldScenePlaceByEntityId).toHaveBeenCalledWith('test-world', 'scene-id')
       })
 
-      it('should not call the content client', () => {
-        expect(contentClient.fetchEntityById).not.toHaveBeenCalled()
+      it('should not resolve a Genesis place', () => {
+        expect(places.getPlaceBySceneId).not.toHaveBeenCalled()
       })
     })
 
@@ -249,15 +234,15 @@ describe('RoomMetadataSyncComponent', () => {
           realmName: 'test-realm',
           roomType: RoomType.WORLD
         })
-        places.getWorldByName.mockResolvedValue(mockPlace)
+        places.getWorldScenePlace.mockResolvedValue(mockPlace)
 
         await component.updateRoomMetadataForRoom(mockRoom)
       })
 
-      it('should fall back to getWorldByName', () => {
-        expect(places.getWorldByName).toHaveBeenCalledWith('test-world')
+      it('should fall back to getWorldScenePlace', () => {
+        expect(places.getWorldScenePlace).toHaveBeenCalledWith('test-world')
         expect(places.getWorldScenePlaceByEntityId).not.toHaveBeenCalled()
-        expect(contentClient.fetchEntityById).not.toHaveBeenCalled()
+        expect(places.getPlaceBySceneId).not.toHaveBeenCalled()
       })
     })
 
@@ -275,7 +260,7 @@ describe('RoomMetadataSyncComponent', () => {
 
       it('should not perform any place lookup or metadata write', () => {
         expect(places.getPlaceByParcel).not.toHaveBeenCalled()
-        expect(contentClient.fetchEntityById).not.toHaveBeenCalled()
+        expect(places.getPlaceBySceneId).not.toHaveBeenCalled()
         expect(livekit.updateRoomMetadata).not.toHaveBeenCalled()
       })
     })
@@ -294,9 +279,9 @@ describe('RoomMetadataSyncComponent', () => {
 
       it('should not perform any place lookup or metadata write', () => {
         expect(places.getWorldScenePlace).not.toHaveBeenCalled()
-        expect(places.getWorldByName).not.toHaveBeenCalled()
+        expect(places.getWorldScenePlace).not.toHaveBeenCalled()
         expect(places.getPlaceByParcel).not.toHaveBeenCalled()
-        expect(contentClient.fetchEntityById).not.toHaveBeenCalled()
+        expect(places.getPlaceBySceneId).not.toHaveBeenCalled()
         expect(livekit.updateRoomMetadata).not.toHaveBeenCalled()
       })
     })
@@ -314,7 +299,7 @@ describe('RoomMetadataSyncComponent', () => {
       })
 
       it('should not attempt a place lookup, since a preview scene id resolves to no entity', () => {
-        expect(contentClient.fetchEntityById).not.toHaveBeenCalled()
+        expect(places.getPlaceBySceneId).not.toHaveBeenCalled()
         expect(places.getPlaceByParcel).not.toHaveBeenCalled()
       })
 
@@ -337,7 +322,7 @@ describe('RoomMetadataSyncComponent', () => {
 
       it('should not attempt a place lookup', () => {
         expect(places.getWorldScenePlaceByEntityId).not.toHaveBeenCalled()
-        expect(places.getWorldByName).not.toHaveBeenCalled()
+        expect(places.getWorldScenePlace).not.toHaveBeenCalled()
       })
 
       it('should not write room metadata', () => {

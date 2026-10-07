@@ -1,3 +1,4 @@
+import { createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import { TestCleanup } from '../../db-cleanup'
@@ -36,6 +37,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   })
 
   beforeEach(async () => {
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     mockIngress = {
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
@@ -88,16 +90,19 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       sceneId: 'test-scene',
       isWorld: false
     })
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
-      id: placeId,
-      positions: ['10,20'],
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
-      id: placeWorldId,
-      world_name: 'name.dcl.eth',
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
+      worldName
+        ? createMockedWorldPlace({
+            id: placeWorldId,
+            world_name: 'name.dcl.eth',
+            owner: owner.authChain[0].payload
+          })
+        : createMockedPlace({
+            id: placeId,
+            positions: ['10,20'],
+            owner: owner.authChain[0].payload
+          })
+    )
     stubComponents.places.getWorldByName.mockResolvedValue({
       id: 'world-place-id',
       world_name: 'name.dcl.eth',
@@ -253,7 +258,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     const { localFetch } = components
     stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: anotherPlaceId,
       positions: ['15,20'],
       owner: owner.authChain[0].payload
@@ -348,7 +353,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 400 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockRejectedValue(
+    stubComponents.places.getPlaceBySceneId.mockRejectedValue(
       new InvalidRequestError('Could not find scene information')
     )
 

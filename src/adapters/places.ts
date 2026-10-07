@@ -1,3 +1,5 @@
+import { SceneParcels } from '@dcl/schemas'
+import { isPlaceRemoved } from '../logic/utils'
 import { AppComponents } from '../types'
 import { PlaceNotFoundError } from '../types/errors'
 import { IPlacesComponent, PlaceAttributes, PlaceResponse } from '../types/places.type'
@@ -16,12 +18,15 @@ export async function createPlacesComponent(
   async function getPlaceByParcel(parcel: string): Promise<PlaceAttributes> {
     const response = await fetchFromCache.fetch(`${placesApiUrl}/places?positions=${encodeURIComponent(parcel)}`)
 
-    if (!response?.data?.length) {
+    const place = response?.data?.find(
+      (candidate) => !isPlaceRemoved(candidate) && !candidate.world && candidate.positions.includes(parcel)
+    )
+    if (!place) {
       logger.info(`No place found with parcel ${parcel}`)
       throw new PlaceNotFoundError(`No place found with parcel ${parcel}`)
     }
 
-    return response.data[0]
+    return place
   }
 
   /**
@@ -29,18 +34,29 @@ export async function createPlacesComponent(
    * Used for scene-specific operations where we need the place for a specific scene within a world.
    * Queries /places endpoint with positions and names[] parameters.
    */
-  async function getWorldScenePlace(worldName: string, position: string): Promise<PlaceAttributes> {
+  async function getWorldScenePlace(worldName: string, position?: string): Promise<PlaceAttributes> {
+    if (!position) {
+      const sceneId = await worlds.resolveWorldSceneId(worldName, worldName)
+      return getWorldScenePlaceByEntityId(worldName, sceneId)
+    }
     const lowercasedWorldName = worldName.toLowerCase()
     const response = await fetchFromCache.fetch(
       `${placesApiUrl}/places?positions=${encodeURIComponent(position)}&names=${encodeURIComponent(lowercasedWorldName)}&include_opted_out=true`
     )
 
-    if (!response?.data?.length) {
+    const place = response?.data?.find(
+      (candidate) =>
+        !isPlaceRemoved(candidate) &&
+        candidate.world &&
+        candidate.world_name?.toLowerCase() === lowercasedWorldName &&
+        candidate.positions.includes(position)
+    )
+    if (!place) {
       logger.info(`No world scene place found for world ${worldName} at position ${position}`)
       throw new PlaceNotFoundError(`No world scene place found for world ${worldName} at position ${position}`)
     }
 
-    return response.data[0]
+    return place
   }
 
   /**
@@ -98,14 +114,14 @@ export async function createPlacesComponent(
    * to obtain the base parcel, then querying the Places API.
    */
   async function getWorldScenePlaceByEntityId(worldName: string, entityId: string): Promise<PlaceAttributes> {
-    const metadata = await worlds.fetchWorldSceneEntityMetadataById(entityId)
+    const scene = await worlds.fetchWorldSceneByEntityId(worldName, entityId)
 
-    if (!metadata?.scene?.base) {
+    if (!scene?.baseParcel) {
       logger.info(`No scene entity found for entity ID ${entityId} in world ${worldName}`)
       throw new PlaceNotFoundError(`No scene entity found for entity ID ${entityId} in world ${worldName}`)
     }
 
-    return getWorldScenePlace(worldName, metadata.scene.base)
+    return getWorldScenePlace(worldName, scene.baseParcel)
   }
 
   /**
@@ -114,19 +130,36 @@ export async function createPlacesComponent(
    * caller prove rights over one place while acting on a different scene's room. World scenes and
    * Genesis City scenes live on different content servers, so each uses its own entity lookup.
    */
-  async function getPlaceBySceneId(sceneId: string, worldName?: string): Promise<PlaceAttributes> {
+  async function getPlaceBySceneId(sceneId: string, worldName?: string, parcel?: string): Promise<PlaceAttributes> {
     if (worldName) {
-      return getWorldScenePlaceByEntityId(worldName, sceneId)
+      if (!parcel) return getWorldScenePlaceByEntityId(worldName, sceneId)
+      const scene = await worlds.fetchWorldSceneByPointer(worldName, parcel)
+      if (!scene || scene.entityId.toLowerCase() !== sceneId.toLowerCase() || !scene.parcels.includes(parcel)) {
+        throw new PlaceNotFoundError(`Scene ${sceneId} is not active at ${parcel} in world ${worldName}`)
+      }
+      return getWorldScenePlace(worldName, parcel)
     }
 
     const entity = await contentClient.fetchEntityById(sceneId)
-    const base = entity?.metadata?.scene?.base
-    if (!base) {
+    const scene = entity?.metadata?.scene
+    const pointers = entity?.pointers
+    const validPointers =
+      Array.isArray(pointers) &&
+      pointers.length > 0 &&
+      pointers.every((pointer) => typeof pointer === 'string') &&
+      SceneParcels.validate({ base: pointers[0], parcels: pointers })
+    const pointerSet = validPointers ? new Set(pointers) : new Set<string>()
+    const validIdentity =
+      SceneParcels.validate(scene) &&
+      pointerSet.size === scene.parcels.length &&
+      scene.parcels.every((value) => pointerSet.has(value)) &&
+      (!parcel || scene.parcels.includes(parcel))
+    if (!validIdentity) {
       logger.info(`No scene entity found for scene ID ${sceneId}`)
       throw new PlaceNotFoundError(`No scene entity found for scene ID ${sceneId}`)
     }
 
-    return getPlaceByParcel(base)
+    return getPlaceByParcel(scene.base)
   }
 
   return {

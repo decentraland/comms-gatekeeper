@@ -6,10 +6,12 @@ export type WorldScene = {
   deployer: string
   entityId: string
   parcels: string[]
+  baseParcel?: string
 }
 
 // Metadata structure returned by the worlds content server /contents/:entityId endpoint
 export type WorldSceneEntityMetadata = {
+  worldConfiguration?: { name?: string; dclName?: string }
   scene: {
     base: string
     parcels: string[]
@@ -17,6 +19,8 @@ export type WorldSceneEntityMetadata = {
 }
 
 export type IWorldComponent = IBaseComponent & {
+  /** Finds an active deployment in the specified world, including legacy entities without metadata. */
+  fetchWorldSceneByEntityId(worldName: string, entityId: string): Promise<WorldScene | undefined>
   fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined>
   fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined>
   fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined>

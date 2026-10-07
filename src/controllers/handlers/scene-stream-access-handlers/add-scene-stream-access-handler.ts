@@ -69,7 +69,9 @@ export async function addSceneStreamAccessHandler(
   const roomName = isWorld
     ? livekit.getWorldSceneRoomName(serverName, resolvedSceneId)
     : livekit.getSceneRoomName(serverName, resolvedSceneId)
-  const place = isPreview ? undefined : await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
+  const place = isPreview
+    ? undefined
+    : await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined, parcel)
   const placeId = place?.id ?? roomName
 
   const isOwnerOrAdmin = isPreview || (place !== undefined && (await isSceneOwnerOrAdmin(place, authenticatedAddress)))

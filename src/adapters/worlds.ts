@@ -1,3 +1,4 @@
+import { SceneParcels } from '@dcl/schemas'
 import { AppComponents, NamesResponse } from '../types'
 import { ensureSlashAtTheEnd } from '../logic/utils'
 import {
@@ -77,6 +78,71 @@ export async function createWorldsComponent(
 
     logger.debug(`Found scene entity ${entityId} with base parcel ${result.metadata.scene.base}`)
     return result.metadata
+  }
+
+  /**
+   * Resolves an entity against the live world index, without caching deployment membership.
+   * @param worldName - World that must contain the deployment.
+   * @param entityId - Requested deployment ID.
+   * @returns The active scene and its base parcel, or undefined when it does not belong to the world.
+   */
+  async function fetchWorldSceneByEntityId(worldName: string, entityId: string): Promise<WorldScene | undefined> {
+    entityId = entityId.toLowerCase()
+    const metadata = await fetchWorldSceneEntityMetadataById(entityId)
+    const declaredWorldName = metadata?.worldConfiguration?.name ?? metadata?.worldConfiguration?.dclName
+    const sceneMetadata = metadata?.scene
+
+    if (declaredWorldName && declaredWorldName.toLowerCase() !== worldName.toLowerCase()) {
+      logger.warn(`Scene entity ${entityId} is not valid for world ${worldName}`)
+      return undefined
+    }
+
+    if (sceneMetadata && !SceneParcels.validate(sceneMetadata)) {
+      logger.warn(`Scene entity ${entityId} has invalid parcel metadata for world ${worldName}`)
+      return undefined
+    }
+
+    if (sceneMetadata) {
+      const scene = await fetchWorldSceneByPointer(worldName, sceneMetadata.base)
+      if (
+        !scene ||
+        scene.entityId.toLowerCase() !== entityId.toLowerCase() ||
+        !scene.parcels.includes(sceneMetadata.base)
+      ) {
+        logger.warn(`Scene entity ${entityId} is not active at ${sceneMetadata.base} in world ${worldName}`)
+        return undefined
+      }
+      return { ...scene, baseParcel: sceneMetadata.base }
+    }
+
+    // Legacy entities may lack metadata. In that case, the world-scoped scenes
+    // index is authoritative for both membership and the effective base parcel.
+    const pageSize = 100
+    const signal = AbortSignal.timeout(5000)
+    let offset = 0
+    let total = 1
+    while (offset < total) {
+      const response = await fetch.fetch(
+        `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes?limit=${pageSize}&offset=${offset}`,
+        { signal }
+      )
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined)
+        return undefined
+      }
+      const result: { scenes?: WorldScene[]; total?: number } = await response.json()
+      if (!result.scenes?.length) return undefined
+      const scene = result.scenes.find((candidate) => candidate.entityId.toLowerCase() === entityId.toLowerCase())
+      if (scene) {
+        const baseParcel = scene.baseParcel ?? scene.parcels?.[0]
+        return SceneParcels.validate({ base: baseParcel, parcels: scene.parcels })
+          ? { ...scene, baseParcel }
+          : undefined
+      }
+      total = result.total ?? 0
+      offset += pageSize
+    }
+    return undefined
   }
 
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
@@ -224,19 +290,22 @@ export async function createWorldsComponent(
    * @param sceneId - Content ID or legacy world name.
    * @param parcel - Requested parcel, required to disambiguate multi-scene worlds.
    * @returns The lowercase content ID used by both authorization and LiveKit.
-   * @throws InvalidRequestError when the legacy world scene cannot be resolved.
+   * @throws InvalidRequestError when the scene does not belong to the requested world or parcel.
    */
   async function resolveWorldSceneId(worldName: string, sceneId: string, parcel?: string): Promise<string> {
-    if (!sceneId.toLowerCase().endsWith('.eth')) {
-      return sceneId.toLowerCase()
-    }
+    const isLegacyName = sceneId.toLowerCase().endsWith('.eth')
     try {
       if (parcel) {
         const scene = await fetchWorldSceneByPointer(worldName, parcel)
-        if (!scene) throw new InvalidRequestError(`No scene found at ${parcel} in world ${worldName}`)
+        if (!scene || (!isLegacyName && scene.entityId.toLowerCase() !== sceneId.toLowerCase())) {
+          throw new InvalidRequestError(`Scene ${sceneId} is not active at ${parcel} in world ${worldName}`)
+        }
         return scene.entityId.toLowerCase()
       }
-      return (await fetchWorldSceneId(worldName)).toLowerCase()
+      if (isLegacyName) return (await fetchWorldSceneId(worldName)).toLowerCase()
+      const scene = await fetchWorldSceneByEntityId(worldName, sceneId)
+      if (!scene) throw new InvalidRequestError(`Scene ${sceneId} is not active in world ${worldName}`)
+      return scene.entityId.toLowerCase()
     } catch (error) {
       logger.warn('Failed to resolve world scene', {
         worldName,
@@ -250,6 +319,7 @@ export async function createWorldsComponent(
 
   return {
     resolveWorldSceneId,
+    fetchWorldSceneByEntityId,
     fetchWorldActionPermissions,
     fetchWorldSceneByPointer,
     fetchWorldSceneEntityMetadataById,

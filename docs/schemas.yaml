@@ -489,6 +489,10 @@ components:
           type: string
           description: 'Location (parcel coordinates or world name)'
           example: '20,-4'
+        parcel:
+          type: string
+          description: 'Scene parcel within a world; required for worlds with multiple scenes'
+          example: '1,4'
         identity:
           type: string
           description: 'Display name for the watcher'
