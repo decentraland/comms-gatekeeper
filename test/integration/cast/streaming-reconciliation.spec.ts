@@ -1,3 +1,6 @@
+import { PoolClient } from 'pg'
+import { IngressInfo, WebhookEvent } from 'livekit-server-sdk'
+import { createIngressStartedHandler } from '../../../src/logic/livekit-webhook/event-handlers/ingress-started-handler'
 import SQL from 'sql-template-strings'
 import { SceneStreamAccess, StreamingStateSnapshot } from '../../../src/types'
 import { test } from '../../components'
@@ -5,6 +8,8 @@ import { test } from '../../components'
 test('Cast: Streaming State Reconciliation', function ({ components }) {
   let access: SceneStreamAccess
   let snapshot: StreamingStateSnapshot
+  let startedHandler: ReturnType<typeof createIngressStartedHandler>
+  let startedEvent: WebhookEvent
 
   beforeEach(async () => {
     await components.database.query(SQL`DELETE FROM scene_stream_access WHERE place_id LIKE 'test-reconcile-%'`)
@@ -15,8 +20,11 @@ test('Cast: Streaming State Reconciliation', function ({ components }) {
       streaming_url: 'rtmp://example',
       expiration_time: Date.now() - 1
     })
-    await components.sceneStreamAccessManager.startStreaming(access.ingress_id)
-    await components.database.query(SQL`UPDATE scene_stream_access SET streaming_start_time = ${Date.now() - 180000}
+    startedHandler = createIngressStartedHandler({ sceneStreamAccessManager: components.sceneStreamAccessManager })
+    startedEvent = new WebhookEvent({ ingressInfo: new IngressInfo({ ingressId: access.ingress_id }) })
+    await startedHandler.handle(startedEvent)
+    await components.database
+      .query(SQL`UPDATE scene_stream_access SET streaming_checked_at = -1, streaming_start_time = ${Date.now() - 180000}
       WHERE id = ${access.id}`)
   })
 
@@ -66,7 +74,14 @@ test('Cast: Streaming State Reconciliation', function ({ components }) {
 
     describe('and a new started webhook arrives', () => {
       beforeEach(async () => {
-        await components.sceneStreamAccessManager.startStreaming(access.ingress_id)
+        await startedHandler.handle(startedEvent)
+      })
+
+      it('should preserve the original TTL clock across duplicate deliveries', async () => {
+        await startedHandler.handle(startedEvent)
+        expect(await components.sceneStreamAccessManager.getLatestAccessByPlaceId(access.place_id)).toEqual(
+          expect.objectContaining({ streaming_start_time: snapshot.streaming_start_time })
+        )
       })
 
       it('should preserve the newer streaming state', async () => {
@@ -96,7 +111,8 @@ test('Cast: Streaming State Reconciliation', function ({ components }) {
 
   describe('when a stream has just started', () => {
     beforeEach(async () => {
-      await components.sceneStreamAccessManager.startStreaming(access.ingress_id)
+      await components.sceneStreamAccessManager.stopStreaming(access.ingress_id)
+      await startedHandler.handle(startedEvent)
     })
 
     it('should allow the ingress and webhook state time to settle', async () => {
@@ -106,25 +122,64 @@ test('Cast: Streaming State Reconciliation', function ({ components }) {
     })
   })
 
+  describe('when another worker holds a candidate row lock', () => {
+    let lockedClient: PoolClient
+    let pending: Promise<StreamingStateSnapshot[]> | undefined
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    let result: StreamingStateSnapshot[] | null
+
+    beforeEach(async () => {
+      lockedClient = await components.database.getPool().connect()
+      await lockedClient.query('BEGIN')
+      await lockedClient.query(SQL`SELECT id FROM scene_stream_access WHERE id = ${access.id} FOR UPDATE`)
+    })
+
+    afterEach(async () => {
+      if (timeout) clearTimeout(timeout)
+      await lockedClient.query('ROLLBACK')
+      lockedClient.release()
+      await pending
+    })
+
+    it('should finish without waiting for the locked candidate', async () => {
+      pending = components.sceneStreamAccessManager.getStreamingAccessesToReconcile()
+      result = await Promise.race([
+        pending,
+        new Promise<null>((resolve) => {
+          timeout = setTimeout(() => resolve(null), 2000)
+        })
+      ])
+      expect(result).not.toBeNull()
+      expect(result).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: access.id })]))
+    })
+  })
+
   describe('when more than one batch of streams needs checking', () => {
     let first: StreamingStateSnapshot[]
     let second: StreamingStateSnapshot[]
+    let fixtureIds: Set<string>
 
     beforeEach(async () => {
-      await components.database.query(SQL`
+      fixtureIds = new Set(
+        (
+          await components.database.query<{ id: string }>(SQL`
         INSERT INTO scene_stream_access (id, place_id, ingress_id, streaming_key, streaming_url,
-          created_at, active, streaming, streaming_start_time)
+          created_at, active, streaming, streaming_start_time, streaming_checked_at)
         SELECT gen_random_uuid(), 'test-reconcile-batch-' || n, 'batch-ingress-' || n, 'batch-key-' || n,
-          'rtmp://example', 0, true, true, 0 FROM generate_series(1, 100) n
+          'rtmp://example', 0, true, true, 0, -2 FROM generate_series(1, 21) n RETURNING id
       `)
+        ).rows.map((row) => row.id)
+      )
       first = await components.sceneStreamAccessManager.getStreamingAccessesToReconcile()
       second = await components.sceneStreamAccessManager.getStreamingAccessesToReconcile()
     })
 
-    it('should rotate past the first batch even if those lookups fail', () => {
-      expect(first).toHaveLength(100)
-      expect(second).toHaveLength(1)
-      expect(new Set([...first, ...second].map((row) => row.id)).size).toBe(101)
+    it('should rotate through the fixtures without assuming the database has no other streams', () => {
+      expect(first.filter((row) => fixtureIds.has(row.id))).toHaveLength(20)
+      expect(second.filter((row) => fixtureIds.has(row.id))).toHaveLength(1)
+      expect(new Set([...first, ...second].filter((row) => fixtureIds.has(row.id)).map((row) => row.id))).toEqual(
+        fixtureIds
+      )
     })
   })
 })

@@ -12,11 +12,9 @@ export function createIngressStartedHandler(
         return
       }
 
-      const isStreaming = await components.sceneStreamAccessManager.isStreaming(webhookEvent.ingressInfo.ingressId)
-
-      if (!isStreaming) {
-        await components.sceneStreamAccessManager.startStreaming(webhookEvent.ingressInfo.ingressId)
-      }
+      // Always invalidate in-flight reconciliation, even when a missed end event left
+      // streaming=true. The manager preserves an already-running stream's TTL clock.
+      await components.sceneStreamAccessManager.startStreaming(webhookEvent.ingressInfo.ingressId)
     }
   }
 }

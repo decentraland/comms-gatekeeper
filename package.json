@@ -54,6 +54,7 @@
     "tabWidth": 2
   },
   "dependencies": {
+    "@livekit/protocol": "1.48.0",
     "@aws-sdk/client-sns": "^3.787.0",
     "@dcl/analytics-component": "^1.0.3",
     "@dcl/core-commons": "^0.10.1",

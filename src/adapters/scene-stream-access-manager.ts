@@ -238,11 +238,11 @@ export async function createSceneStreamAccessManagerComponent({
         WHERE active = true AND streaming = true AND ingress_id != ''
           AND streaming_start_time <= ${now - 2 * 60 * 1000}
           AND streaming_checked_at <= ${now - 60 * 1000}
-        ORDER BY streaming_checked_at, id LIMIT 100 FOR UPDATE SKIP LOCKED
+        ORDER BY streaming_checked_at, id LIMIT 20 FOR UPDATE SKIP LOCKED
       )
       UPDATE scene_stream_access access SET streaming_checked_at = ${now}
       FROM candidates WHERE access.id = candidates.id
-      RETURNING access.id, access.ingress_id, access.streaming_start_time
+      RETURNING access.id, access.ingress_id, access.streaming_start_time, access.streaming_state_version
     `)
     return result.rows
   }
@@ -251,7 +251,8 @@ export async function createSceneStreamAccessManagerComponent({
     const result = await database.query(SQL`
       UPDATE scene_stream_access SET streaming = false
       WHERE id = ${snapshot.id} AND ingress_id = ${snapshot.ingress_id} AND active = true AND streaming = true
-        AND streaming_start_time = ${snapshot.streaming_start_time}
+        AND streaming_start_time IS NOT DISTINCT FROM ${snapshot.streaming_start_time}
+        AND streaming_state_version = ${snapshot.streaming_state_version}
     `)
     return result.rowCount > 0
   }
@@ -260,7 +261,9 @@ export async function createSceneStreamAccessManagerComponent({
     const now = Date.now()
     const query = SQL`
       UPDATE scene_stream_access
-      SET streaming = true, streaming_start_time = ${now}
+      SET streaming = true,
+        streaming_start_time = CASE WHEN streaming = true THEN COALESCE(streaming_start_time, ${now}) ELSE ${now} END,
+        streaming_state_version = streaming_state_version + 1
       WHERE `.append(activeIngressCondition(ingressId))
     await database.query(query)
   }

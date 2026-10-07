@@ -15,8 +15,8 @@ export async function createStreamingTTLChecker(
   async function reconcileStreamingState(): Promise<void> {
     try {
       const snapshots = await sceneStreamAccessManager.getStreamingAccessesToReconcile()
-      // Five concurrent, individually time-bounded reads keep outages from delaying the TTL pass
-      // by up to 100 sequential network timeouts.
+      // At most 20 reads in groups of five: API timeouts add at most four five-second
+      // waits, after the existing four-hour enforcement pass has finished.
       for (let i = 0; i < snapshots.length; i += 5) {
         await Promise.all(
           snapshots.slice(i, i + 5).map(async (snapshot) => {
@@ -56,8 +56,6 @@ export async function createStreamingTTLChecker(
         isProcessing = true
         try {
           logger.info(`Looking into active streamings.`)
-
-          await reconcileStreamingState()
 
           const expiredStreamings = await sceneStreamAccessManager.getExpiredStreamAccesses()
           logger.info(`Found ${expiredStreamings.length} active streamings to verify.`)
@@ -114,6 +112,7 @@ export async function createStreamingTTLChecker(
         } catch (error) {
           logger.error(`Error while checking places: ${error}`)
         } finally {
+          await reconcileStreamingState()
           isProcessing = false
         }
       },
