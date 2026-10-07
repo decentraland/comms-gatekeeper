@@ -89,6 +89,8 @@ export type ILivekitComponent = IBaseComponent & {
   getRoomInfo: (roomName: string) => Promise<Room | null>
   /** Creates a new ingress instead of reusing an existing RTMP credential. */
   createIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
+  /** Reads one ingress: buffering/publishing=true, stopped/missing=false, unknown=undefined. Throws on API failure. */
+  isIngressStreaming: (ingressId: string) => Promise<boolean | undefined>
   removeIngress: (ingressId: string) => Promise<IngressInfo | undefined>
   /** Best-effort cleanup of a previous ingress, preserving an ingress reused by its replacement. */
   removeReplacedIngress: (previousIngressId: string, newIngressId: string | undefined) => Promise<void>

@@ -386,3 +386,23 @@ The additive migrations run automatically at component startup. For the first de
 cleanup protocol, stop all previous-version instances before starting the new ones: old workers
 still deactivate by place ID and do not honor leases. A rolling overlap with the previous cleanup
 implementation is unsafe; subsequent versions using the lease protocol can overlap.
+
+## Recovering missed ingress-ended webhooks
+
+The existing minute-based streaming TTL checker also reconciles older RTMP streaming flags with
+LiveKit. It skips starts less than two minutes old and rows without an ingress ID. Each pass selects
+at most 100 rows, ordered by their last check, and postpones another check for at least one minute.
+Selection uses row locks to prevent simultaneous workers from selecting the same initial batch;
+advancing `streaming_checked_at` lets later batches progress even when API calls fail.
+
+LiveKit reads use five concurrent requests with five-second timeouts. Buffering and publishing
+remain streaming. Confirmed inactive, error, complete, or missing ingresses may clear the flag;
+unknown state and API failures leave it unchanged. The database update requires the same access
+ID, ingress ID, and start timestamp to still be active and streaming, preserving any newer start
+webhook or replacement access. Reconciliation itself does not delete ingresses or send expiry
+notifications. Normal renewal and expiry cleanup can proceed after a stale flag is cleared.
+The existing four-hour streaming limit remains in place, even if reconciliation fails.
+
+The `streaming_checked_at` column and partial index are installed by the startup migration.
+Recovery is eventual: the two-minute start grace, checker schedule, batch backlog, and API
+availability determine when a missed end event is repaired. Explicit key reset remains available.

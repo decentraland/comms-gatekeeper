@@ -1,5 +1,11 @@
 import { FOUR_HOURS } from '../logic/time'
-import { AppComponents, AddSceneStreamAccessInput, ISceneStreamAccessManager, SceneStreamAccess } from '../types'
+import {
+  AppComponents,
+  AddSceneStreamAccessInput,
+  ISceneStreamAccessManager,
+  SceneStreamAccess,
+  StreamingStateSnapshot
+} from '../types'
 import { StreamingAccessNotFoundError } from '../types/errors'
 import SQL from 'sql-template-strings'
 
@@ -222,6 +228,34 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]?.ingress_cleanup_expired ?? false
   }
 
+  async function getStreamingAccessesToReconcile(): Promise<StreamingStateSnapshot[]> {
+    const now = Date.now()
+    // Skip recent starts to allow LiveKit and webhook state to settle. Advancing checked_at
+    // rotates through long-lived streams and failed lookups instead of selecting the same batch.
+    const result = await database.query<StreamingStateSnapshot>(SQL`
+      WITH candidates AS (
+        SELECT id FROM scene_stream_access
+        WHERE active = true AND streaming = true AND ingress_id != ''
+          AND streaming_start_time <= ${now - 2 * 60 * 1000}
+          AND streaming_checked_at <= ${now - 60 * 1000}
+        ORDER BY streaming_checked_at, id LIMIT 100 FOR UPDATE SKIP LOCKED
+      )
+      UPDATE scene_stream_access access SET streaming_checked_at = ${now}
+      FROM candidates WHERE access.id = candidates.id
+      RETURNING access.id, access.ingress_id, access.streaming_start_time
+    `)
+    return result.rows
+  }
+
+  async function clearStaleStreamingState(snapshot: StreamingStateSnapshot): Promise<boolean> {
+    const result = await database.query(SQL`
+      UPDATE scene_stream_access SET streaming = false
+      WHERE id = ${snapshot.id} AND ingress_id = ${snapshot.ingress_id} AND active = true AND streaming = true
+        AND streaming_start_time = ${snapshot.streaming_start_time}
+    `)
+    return result.rowCount > 0
+  }
+
   async function startStreaming(ingressId: string): Promise<void> {
     const now = Date.now()
     const query = SQL`
@@ -285,6 +319,8 @@ export async function createSceneStreamAccessManagerComponent({
     getExpiredStreamingKeys,
     claimExpiredAccess,
     completeExpiredAccessCleanup,
+    getStreamingAccessesToReconcile,
+    clearStaleStreamingState,
     startStreaming,
     stopStreaming,
     isStreaming,

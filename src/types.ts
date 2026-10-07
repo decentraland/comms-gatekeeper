@@ -241,6 +241,8 @@ export interface ISceneAdminManager {
   removeAllAdminsByPlaceIds(placeIds: string[]): Promise<void>
 }
 
+export type StreamingStateSnapshot = Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'streaming_start_time'>
+
 export interface ISceneStreamAccessManager {
   addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess>
   removeAccess(placeId: string): Promise<void>
@@ -256,6 +258,10 @@ export interface ISceneStreamAccessManager {
   claimExpiredAccess(id: string, claimToken: string): Promise<boolean>
   /** Completes the current lease; returns true only for an expiry eligible for notification. */
   completeExpiredAccessCleanup(id: string, claimToken: string): Promise<boolean>
+  /** Claims up to 100 old streaming flags for a bounded reconciliation pass; retries wait one minute. */
+  getStreamingAccessesToReconcile(): Promise<StreamingStateSnapshot[]>
+  /** Clears a confirmed stale flag only if this row's ingress and start timestamp still match. */
+  clearStaleStreamingState(snapshot: StreamingStateSnapshot): Promise<boolean>
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>
   isStreaming(ingressId: string): Promise<boolean>

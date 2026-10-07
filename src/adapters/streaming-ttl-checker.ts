@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../logic/errors'
 import { AppComponents } from '../types'
 import { IStreamingChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
@@ -11,6 +12,38 @@ export async function createStreamingTTLChecker(
   let job: CronJob
   let isProcessing = false
 
+  async function reconcileStreamingState(): Promise<void> {
+    try {
+      const snapshots = await sceneStreamAccessManager.getStreamingAccessesToReconcile()
+      // Five concurrent, individually time-bounded reads keep outages from delaying the TTL pass
+      // by up to 100 sequential network timeouts.
+      for (let i = 0; i < snapshots.length; i += 5) {
+        await Promise.all(
+          snapshots.slice(i, i + 5).map(async (snapshot) => {
+            try {
+              if ((await livekit.isIngressStreaming(snapshot.ingress_id)) === false) {
+                if (await sceneStreamAccessManager.clearStaleStreamingState(snapshot)) {
+                  logger.info('Recovered a stale streaming flag', {
+                    ingressId: snapshot.ingress_id,
+                    accessId: snapshot.id
+                  })
+                }
+              }
+            } catch (error) {
+              logger.error('Could not reconcile streaming state', {
+                ingressId: snapshot.ingress_id,
+                error: getErrorMessage(error)
+              })
+            }
+          })
+        )
+      }
+    } catch (error) {
+      // Reconciliation failure must not prevent the existing four-hour streaming limit.
+      logger.error('Could not select streaming states to reconcile', { error: getErrorMessage(error) })
+    }
+  }
+
   async function start(): Promise<void> {
     job = new CronJob(
       '* * * * *',
@@ -23,6 +56,8 @@ export async function createStreamingTTLChecker(
         isProcessing = true
         try {
           logger.info(`Looking into active streamings.`)
+
+          await reconcileStreamingState()
 
           const expiredStreamings = await sceneStreamAccessManager.getExpiredStreamAccesses()
           logger.info(`Found ${expiredStreamings.length} active streamings to verify.`)

@@ -1,3 +1,4 @@
+import { StreamingStateSnapshot } from '../../src/types'
 import { createStreamingTTLChecker } from '../../src/adapters/streaming-ttl-checker'
 import { CronJob } from 'cron'
 import { IBaseComponent } from '@well-known-components/interfaces'
@@ -45,11 +46,14 @@ describe('StreamingTTLChecker', () => {
         })
       },
       sceneStreamAccessManager: {
+        getStreamingAccessesToReconcile: jest.fn().mockResolvedValue([]),
+        clearStaleStreamingState: jest.fn(),
         getExpiredStreamAccesses: jest.fn(),
         killStreaming: jest.fn(),
         removeAccess: jest.fn()
       },
       livekit: {
+        isIngressStreaming: jest.fn(),
         removeIngress: jest.fn()
       },
       places: {
@@ -67,6 +71,66 @@ describe('StreamingTTLChecker', () => {
     }
 
     streamingChecker = await createStreamingTTLChecker(mockedComponents)
+  })
+
+  describe('when reconciling old streaming flags', () => {
+    let snapshot: StreamingStateSnapshot
+
+    beforeEach(() => {
+      snapshot = { id: 'access', ingress_id: 'ingress', streaming_start_time: 1000 }
+      mockedComponents.sceneStreamAccessManager.getStreamingAccessesToReconcile.mockResolvedValueOnce([snapshot])
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValueOnce([])
+    })
+
+    describe('and LiveKit confirms the ingress has stopped', () => {
+      beforeEach(() => {
+        mockedComponents.livekit.isIngressStreaming.mockResolvedValueOnce(false)
+        mockedComponents.sceneStreamAccessManager.clearStaleStreamingState.mockResolvedValueOnce(true)
+      })
+
+      it('should conditionally clear the snapshot without deleting its ingress', async () => {
+        await executeOnTick(streamingChecker, startOptions)
+        expect(mockedComponents.sceneStreamAccessManager.clearStaleStreamingState).toHaveBeenCalledWith(snapshot)
+        expect(mockedComponents.livekit.removeIngress).not.toHaveBeenCalled()
+      })
+    })
+
+    describe.each([true, undefined])('and LiveKit state is active or unknown (%s)', (state) => {
+      beforeEach(() => {
+        mockedComponents.livekit.isIngressStreaming.mockResolvedValueOnce(state)
+      })
+
+      it('should leave the streaming flag untouched', async () => {
+        await executeOnTick(streamingChecker, startOptions)
+        expect(mockedComponents.sceneStreamAccessManager.clearStaleStreamingState).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and LiveKit is unavailable', () => {
+      beforeEach(() => {
+        mockedComponents.livekit.isIngressStreaming.mockRejectedValueOnce(new Error('unavailable'))
+      })
+
+      it('should preserve the flag and continue the existing TTL check', async () => {
+        await executeOnTick(streamingChecker, startOptions)
+        expect(mockedComponents.sceneStreamAccessManager.clearStaleStreamingState).not.toHaveBeenCalled()
+        expect(mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses).toHaveBeenCalled()
+      })
+    })
+  })
+
+  describe('when selecting reconciliation candidates fails', () => {
+    beforeEach(() => {
+      mockedComponents.sceneStreamAccessManager.getStreamingAccessesToReconcile.mockRejectedValueOnce(
+        new Error('database unavailable')
+      )
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValueOnce([])
+    })
+
+    it('should continue the existing TTL check', async () => {
+      await executeOnTick(streamingChecker, startOptions)
+      expect(mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses).toHaveBeenCalled()
+    })
   })
 
   describe('start', () => {
