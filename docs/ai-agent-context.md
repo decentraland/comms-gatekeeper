@@ -359,3 +359,30 @@ the broader inherited workflow reports this suite as skipped without the opt-in 
 of passing unexecuted assertions. Reproduce locally with the same flag:
 `NATS_INTEGRATION_REQUIRED=true yarn test --runInBand --no-coverage test/integration/cluster-subscriber.spec.ts`.
 The suite uses real NATS request/reply and real JWT signing; LiveKit membership is explicitly stubbed.
+
+
+## Stream-access expiration and renewal
+
+All credential consumers use `getStreamAccessExpirationTime`: the stored timestamp or, for legacy
+rows, `created_at + FOUR_DAYS`. Equality with the current time is expired. GET stream-access does
+not return expired keys. Automatic renewal creates a fresh LiveKit ingress and key only when the
+existing access is not streaming. Add and Cast link generation return 409 if replacement would
+interrupt a live broadcast. Stop the broadcast first, or explicitly use the reset endpoint, which
+immediately deletes the previous ingress through `removeReplacedIngress` and requires an OBS key
+update. Idle-key renewal also immediately attempts deletion after persisting the replacement.
+Failed deletions remain queued for the cleanup job.
+
+Cleanup selects at most 100 rows ordered by expiry/retry time, using separate indexed queries for
+new expirations and pending deletions. A claim leases one row for five minutes with a unique token
+and moves its retry time ten minutes forward. Repeated failures therefore move behind other ready
+work. A crashed worker's row becomes retryable without manual intervention. Only the current lease
+holder can complete cleanup; stale workers cannot complete another worker's claim or notify.
+Only genuine expirations can notify, and newer access records suppress the old notification even
+when an admin has since deleted the replacement. Replacement cleanup never sends expiry notices.
+Notification delivery is best effort after completion; a crash between completion and delivery can
+lose a notification, but cannot duplicate it through another cleanup claim.
+
+The additive migrations run automatically at component startup. For the first deployment of this
+cleanup protocol, stop all previous-version instances before starting the new ones: old workers
+still deactivate by place ID and do not honor leases. A rolling overlap with the previous cleanup
+implementation is unsafe; subsequent versions using the lease protocol can overlap.

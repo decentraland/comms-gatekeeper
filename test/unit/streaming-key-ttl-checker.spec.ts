@@ -46,7 +46,9 @@ describe('StreamingKeyTTLChecker', () => {
       },
       sceneStreamAccessManager: {
         getExpiredStreamingKeys: jest.fn().mockResolvedValue([]),
-        removeAccess: jest.fn()
+        claimExpiredAccess: jest.fn().mockResolvedValue(true),
+        completeExpiredAccessCleanup: jest.fn().mockResolvedValue(true),
+        getLatestAccessByPlaceId: jest.fn().mockResolvedValue(null)
       },
       livekit: {
         removeIngress: jest.fn()
@@ -68,6 +70,20 @@ describe('StreamingKeyTTLChecker', () => {
     streamingKeyChecker = await createStreamingKeyTTLChecker(mockedComponents)
   })
 
+  describe('when cleanup is a replacement or the worker lost its lease', () => {
+    beforeEach(() => {
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValueOnce([
+        { id: 'expired-row', place_id: 'test-place', ingress_id: 'test-ingress' }
+      ])
+      mockedComponents.sceneStreamAccessManager.completeExpiredAccessCleanup.mockResolvedValueOnce(false)
+    })
+
+    it('should not send an expiration notification', async () => {
+      await executeOnTick(streamingKeyChecker, startOptions)
+      expect(mockedComponents.notifications.sendNotificationType).not.toHaveBeenCalled()
+    })
+  })
+
   describe('start', () => {
     it('should start the cron job', async () => {
       await streamingKeyChecker.start(startOptions)
@@ -79,6 +95,7 @@ describe('StreamingKeyTTLChecker', () => {
     it('should call getExpiredStreamingKeys and log success', async () => {
       mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValue([
         {
+          id: 'expired-row',
           place_id: 'test-place',
           ingress_id: 'test-ingress'
         }
@@ -91,7 +108,10 @@ describe('StreamingKeyTTLChecker', () => {
       expect(mockedComponents.logs.getLogger().info).toHaveBeenCalledWith('Found 1 expired streaming keys.')
       expect(mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys).toHaveBeenCalled()
       expect(mockedComponents.livekit.removeIngress).toHaveBeenCalledWith('test-ingress')
-      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('test-place')
+      expect(mockedComponents.sceneStreamAccessManager.claimExpiredAccess).toHaveBeenCalledWith(
+        'expired-row',
+        expect.any(String)
+      )
       expect(mockedComponents.notifications.sendNotificationType).toHaveBeenCalledWith(
         NotificationStreamingType.STREAMING_KEY_EXPIRED,
         { id: 'test-place' }
@@ -102,19 +122,23 @@ describe('StreamingKeyTTLChecker', () => {
       // Cast 2.0 rows have ingress_id ''. removeIngress('') would throw and skip removeAccess,
       // leaving the row active to re-error every tick.
       mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValue([
-        { place_id: 'test-place', ingress_id: '' }
+        { id: 'expired-row', place_id: 'test-place', ingress_id: '' }
       ])
 
       await executeOnTick(streamingKeyChecker, startOptions)
 
       expect(mockedComponents.livekit.removeIngress).not.toHaveBeenCalled()
-      expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('test-place')
+      expect(mockedComponents.sceneStreamAccessManager.claimExpiredAccess).toHaveBeenCalledWith(
+        'expired-row',
+        expect.any(String)
+      )
     })
 
     describe('and the place is not found for the expired key', () => {
       beforeEach(async () => {
         mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValue([
           {
+            id: 'expired-row',
             place_id: 'unknown-place',
             ingress_id: 'test-ingress'
           }
@@ -131,7 +155,10 @@ describe('StreamingKeyTTLChecker', () => {
       it('should remove the access', async () => {
         await executeOnTick(streamingKeyChecker, startOptions)
 
-        expect(mockedComponents.sceneStreamAccessManager.removeAccess).toHaveBeenCalledWith('unknown-place')
+        expect(mockedComponents.sceneStreamAccessManager.claimExpiredAccess).toHaveBeenCalledWith(
+          'expired-row',
+          expect.any(String)
+        )
       })
 
       it('should not send a notification', async () => {
@@ -150,6 +177,37 @@ describe('StreamingKeyTTLChecker', () => {
       expect(mockedComponents.logs.getLogger().error).toHaveBeenCalledWith(
         `Error while removing expired streaming keys: Test error`
       )
+    })
+  })
+
+  describe('when the selected row was already revoked without pending ingress cleanup', () => {
+    beforeEach(() => {
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValueOnce([
+        { id: 'expired-row', place_id: 'test-place', ingress_id: 'old-ingress' }
+      ])
+      mockedComponents.sceneStreamAccessManager.claimExpiredAccess.mockResolvedValueOnce(false)
+    })
+
+    it('should leave the replacement ingress and access untouched and send no expiry notification', async () => {
+      await executeOnTick(streamingKeyChecker, startOptions)
+      expect(mockedComponents.livekit.removeIngress).not.toHaveBeenCalled()
+      expect(mockedComponents.sceneStreamAccessManager.completeExpiredAccessCleanup).not.toHaveBeenCalled()
+      expect(mockedComponents.notifications.sendNotificationType).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when a claimed ingress cannot be deleted', () => {
+    beforeEach(() => {
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamingKeys.mockResolvedValueOnce([
+        { id: 'expired-row', place_id: 'test-place', ingress_id: 'old-ingress' }
+      ])
+      mockedComponents.livekit.removeIngress.mockRejectedValueOnce(new Error('Unavailable'))
+    })
+
+    it('should keep the cleanup pending for another attempt', async () => {
+      await executeOnTick(streamingKeyChecker, startOptions)
+      expect(mockedComponents.sceneStreamAccessManager.completeExpiredAccessCleanup).not.toHaveBeenCalled()
+      expect(mockedComponents.notifications.sendNotificationType).not.toHaveBeenCalled()
     })
   })
 

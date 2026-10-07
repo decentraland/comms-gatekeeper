@@ -1,8 +1,9 @@
+import { FOUR_DAYS } from '../../../src/logic/time'
 import { IngressInfo } from 'livekit-server-sdk'
 import { createCastComponent } from '../../../src/logic/cast/cast'
 import { GenerateStreamLinkResult, ICastComponent } from '../../../src/logic/cast/types'
 import { NotSceneAdminError } from '../../../src/logic/cast/errors'
-import { ForbiddenError } from '../../../src/types/errors'
+import { ForbiddenError, StreamRenewalConflictError } from '../../../src/types/errors'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { createLivekitMockedComponent } from '../../mocks/livekit-mock'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
@@ -45,7 +46,7 @@ describe('when generating a stream link', () => {
     mockLivekit = createLivekitMockedComponent({
       getWorldSceneRoomName: jest.fn().mockReturnValue('world-prod-scene-room-test-world.dcl.eth-bafkreiscene123'),
       getSceneRoomName: jest.fn().mockReturnValue('scene-test-realm:bafkreiscene123'),
-      getOrCreateIngress: jest.fn().mockResolvedValue({
+      createIngress: jest.fn().mockResolvedValue({
         url: 'rtmp://test-url',
         streamKey: 'test-stream-key',
         ingressId: 'test-ingress-id'
@@ -251,6 +252,76 @@ describe('when generating a stream link', () => {
       })
     })
 
+    describe.each([true, false])('and a legacy key is expired=%s', (expired) => {
+      let now: number
+      let deadline: number
+
+      beforeEach(() => {
+        now = 1800000000000
+        deadline = expired ? now - 1 : now + 1000
+        jest.spyOn(Date, 'now').mockReturnValue(now)
+        mockLivekit.getWorldSceneRoomName.mockReturnValue('world-room')
+        mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+          id: 'access-123',
+          place_id: 'world-scene-place-456',
+          streaming_url: 'rtmp://test-url',
+          ingress_id: 'test-ingress-id',
+          created_at: deadline - FOUR_DAYS,
+          active: true,
+          streaming: false,
+          streaming_start_time: 0,
+          streaming_key: 'legacy-key',
+          room_id: 'world-room',
+          expiration_time: null
+        })
+      })
+
+      afterEach(() => {
+        jest.restoreAllMocks()
+      })
+
+      it('should use the legacy cleanup deadline to decide whether to renew access', async () => {
+        const result = await castComponent.generateStreamLink({
+          walletAddress: '0xowner123',
+          worldName: 'test-world.dcl.eth',
+          sceneId: 'bafkreiscene123',
+          realmName: 'test-world.dcl.eth'
+        })
+        expect(result.expiresAt).toBe(new Date(expired ? now + FOUR_DAYS : deadline).toISOString())
+        expect(mockSceneStreamAccessManager.addAccess).toHaveBeenCalledTimes(expired ? 1 : 0)
+      })
+    })
+
+    describe('and the expired access is still broadcasting', () => {
+      beforeEach(() => {
+        mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+          id: 'live-access',
+          place_id: 'place-123',
+          streaming_url: 'rtmp://live',
+          streaming_key: 'live-key',
+          ingress_id: 'live-ingress',
+          room_id: 'scene-test-realm:bafkreiscene123',
+          created_at: Date.now() - FOUR_DAYS,
+          expiration_time: Date.now() - 1,
+          active: true,
+          streaming: true,
+          streaming_start_time: Date.now() - 60000
+        })
+      })
+
+      it('should reject implicit renewal without interrupting the broadcast', async () => {
+        await expect(
+          castComponent.generateStreamLink({
+            walletAddress: '0xowner123',
+            realmName: 'test-realm',
+            sceneId: 'bafkreiscene123'
+          })
+        ).rejects.toThrow(StreamRenewalConflictError)
+        expect(mockLivekit.createIngress).not.toHaveBeenCalled()
+        expect(mockLivekit.removeReplacedIngress).not.toHaveBeenCalled()
+      })
+    })
+
     describe('and the access has expired', () => {
       beforeEach(() => {
         const expiredAccess = {
@@ -283,10 +354,10 @@ describe('when generating a stream link', () => {
         expect(result.streamingKey).toBe('test-stream-key')
       })
 
-      describe('and the room is still served by the same ingress', () => {
+      describe('and renewal rotates the room ingress', () => {
         beforeEach(async () => {
-          mockLivekit.getOrCreateIngress.mockResolvedValueOnce(
-            new IngressInfo({ ingressId: 'test-ingress-id', streamKey: 'test-stream-key', url: 'rtmp://test-url' })
+          mockLivekit.createIngress.mockResolvedValueOnce(
+            new IngressInfo({ ingressId: 'fresh-ingress-id', streamKey: 'fresh-stream-key', url: 'rtmp://test-url' })
           )
           await castComponent.generateStreamLink({
             walletAddress: '0xowner123',
@@ -296,8 +367,8 @@ describe('when generating a stream link', () => {
           })
         })
 
-        it('should pass the reused ingress to guarded cleanup', () => {
-          expect(mockLivekit.removeReplacedIngress).toHaveBeenCalledWith('test-ingress-id', 'test-ingress-id')
+        it('should remove the expired ingress after minting a fresh one', () => {
+          expect(mockLivekit.removeReplacedIngress).toHaveBeenCalledWith('test-ingress-id', 'fresh-ingress-id')
         })
       })
     })
@@ -335,7 +406,7 @@ describe('when generating a stream link', () => {
 
       describe('and the requested room is served by a new ingress', () => {
         beforeEach(() => {
-          mockLivekit.getOrCreateIngress.mockResolvedValueOnce({
+          mockLivekit.createIngress.mockResolvedValueOnce({
             url: 'rtmp://new-url',
             streamKey: 'new-stream-key',
             ingressId: 'new-ingress-id'
@@ -429,7 +500,7 @@ describe('when generating a stream link', () => {
     it('should not create a LiveKit ingress', async () => {
       await expect(castComponent.generateStreamLink(params)).rejects.toThrow(ForbiddenError)
 
-      expect(mockLivekit.getOrCreateIngress).not.toHaveBeenCalled()
+      expect(mockLivekit.createIngress).not.toHaveBeenCalled()
     })
 
     it('should reject before checking scene admin permissions, so the error never reveals admin status', async () => {
@@ -470,7 +541,7 @@ describe('when generating a stream link', () => {
       it('should not create a LiveKit ingress, so no streaming key is minted', async () => {
         await expect(castComponent.generatePreviewStreamLink(params)).rejects.toThrow(ForbiddenError)
 
-        expect(mockLivekit.getOrCreateIngress).not.toHaveBeenCalled()
+        expect(mockLivekit.createIngress).not.toHaveBeenCalled()
       })
     })
 

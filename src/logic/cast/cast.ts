@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { AppComponents } from '../../types'
 import { PlaceAttributes } from '../../types/places.type'
-import { ForbiddenError } from '../../types/errors'
+import { ForbiddenError, StreamRenewalConflictError } from '../../types/errors'
 import {
   InvalidStreamingKeyError,
   ExpiredStreamingKeyError,
@@ -9,7 +9,7 @@ import {
   NotSceneAdminError,
   ExpiredStreamAccessError
 } from './errors'
-import { FOUR_DAYS } from '../time'
+import { FOUR_DAYS, getStreamAccessExpirationTime } from '../time'
 import {
   ICastComponent,
   GenerateStreamLinkParams,
@@ -109,16 +109,14 @@ export function createCastComponent(
     // - Has not expired
     // - Has the same room_id (same location)
     const canReuse =
-      existingAccess &&
-      existingAccess.room_id === roomId &&
-      (!existingAccess.expiration_time || Number(existingAccess.expiration_time) > Date.now())
+      existingAccess && existingAccess.room_id === roomId && getStreamAccessExpirationTime(existingAccess) > Date.now()
 
     let streamingKey: string
     let expirationTime: number
 
     if (canReuse && existingAccess) {
       streamingKey = existingAccess.streaming_key
-      expirationTime = existingAccess.expiration_time ? Number(existingAccess.expiration_time) : Date.now() + FOUR_DAYS
+      expirationTime = getStreamAccessExpirationTime(existingAccess)
 
       logger.info(`Reusing existing stream key for place ${place.id}`, {
         placeId: place.id,
@@ -127,9 +125,10 @@ export function createCastComponent(
         roomId: existingAccess.room_id || 'none'
       })
     } else {
+      if (existingAccess?.streaming) throw new StreamRenewalConflictError()
       // Create new stream key with ingress for OBS compatibility
       const participantIdentity = randomUUID()
-      const ingress = await livekit.getOrCreateIngress(roomId, `${participantIdentity}-streamer`)
+      const ingress = await livekit.createIngress(roomId, `${participantIdentity}-streamer`)
 
       // Use ingress streamKey for full OBS compatibility
       streamingKey = ingress.streamKey
@@ -254,9 +253,9 @@ export function createCastComponent(
     }
 
     // Check if token has expired (for temporary stream links)
-    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
+    if (Date.now() >= getStreamAccessExpirationTime(streamAccess)) {
       logger.warn(`Expired streaming token: ${streamingKey.substring(0, 8)}...`, {
-        expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
+        expiredAt: new Date(getStreamAccessExpirationTime(streamAccess)).toISOString()
       })
       throw new ExpiredStreamingKeyError()
     }
@@ -413,11 +412,11 @@ export function createCastComponent(
     }
 
     // Check if the stream access has expired (4 days limit for Cast2)
-    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
+    if (Date.now() >= getStreamAccessExpirationTime(streamAccess)) {
       logger.warn(`Expired stream access for location ${location}`, {
         placeId: place.id,
         isWorldName: isWorldName ? 'true' : 'false',
-        expiredAt: new Date(Number(streamAccess.expiration_time)).toISOString()
+        expiredAt: new Date(getStreamAccessExpirationTime(streamAccess)).toISOString()
       })
       throw new ExpiredStreamAccessError()
     }
@@ -466,7 +465,7 @@ export function createCastComponent(
       throw new InvalidStreamingKeyError()
     }
 
-    if (streamAccess.expiration_time && Date.now() > Number(streamAccess.expiration_time)) {
+    if (Date.now() >= getStreamAccessExpirationTime(streamAccess)) {
       logger.warn(`Expired streaming key for presentation bot: ${streamingKey.substring(0, 8)}...`)
       throw new ExpiredStreamingKeyError()
     }

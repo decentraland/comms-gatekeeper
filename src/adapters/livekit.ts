@@ -423,31 +423,16 @@ export async function createLivekitComponent(
     }
   }
 
-  async function getOrCreateIngress(roomName: string, participantIdentity: string): Promise<IngressInfo> {
-    const ingresses = await ingressClient.listIngress({
-      roomName: roomName
-    })
-
-    const ingressOptions: CreateIngressOptions = {
-      name: `${roomName}-ingress`,
-      roomName: roomName,
-      participantIdentity
-    }
-
-    let ingress: IngressInfo
-    if (ingresses.length > 0) {
-      ingress = ingresses[0]
-    } else {
-      ingress = await ingressClient.createIngress(IngressInput.RTMP_INPUT, ingressOptions)
-      // Do not log the full IngressInfo: it contains `streamKey` (the RTMP push credential)
-      // and the ingest `url`, which together grant publish access to the room. Log only
-      // non-sensitive identifiers.
-      logger.info(`Ingress created for room ${roomName}.`, {
-        ingressId: ingress.ingressId || 'none',
-        participantIdentity
-      })
-    }
-
+  /**
+   * Creates a fresh RTMP credential, including when the room already has an ingress.
+   * @param roomName - Destination room.
+   * @param participantIdentity - Identity for this ingress.
+   * @returns The newly created ingress and its credentials.
+   */
+  async function createIngress(roomName: string, participantIdentity: string): Promise<IngressInfo> {
+    const ingressOptions: CreateIngressOptions = { name: `${roomName}-ingress`, roomName, participantIdentity }
+    const ingress = await ingressClient.createIngress(IngressInput.RTMP_INPUT, ingressOptions)
+    logger.info('Ingress created', { roomName, ingressId: ingress.ingressId, participantIdentity })
     return ingress
   }
 
@@ -698,7 +683,7 @@ export async function createLivekitComponent(
     removeParticipantFromAllRooms,
     getRoom,
     getRoomInfo,
-    getOrCreateIngress,
+    createIngress,
     removeIngress,
     removeReplacedIngress,
     getWebhookEvent

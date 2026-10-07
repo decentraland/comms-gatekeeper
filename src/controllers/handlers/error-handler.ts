@@ -2,6 +2,7 @@ import { IHttpServerComponent } from '@dcl/core-commons'
 import { NotAuthorizedError } from '@dcl/http-commons'
 import { GlobalContext } from '../../types'
 import {
+  StreamRenewalConflictError,
   InvalidRequestError,
   NotFoundError,
   PlaceNotFoundError,
@@ -28,6 +29,10 @@ export async function errorHandler(
   try {
     return await next()
   } catch (error: any) {
+    if (error instanceof StreamRenewalConflictError) {
+      return { status: 409, body: { error: error.message } }
+    }
+
     if (error instanceof InvalidRequestError) {
       return {
         status: 400,

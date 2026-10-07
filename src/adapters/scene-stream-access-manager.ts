@@ -1,4 +1,4 @@
-import { FOUR_DAYS, FOUR_HOURS } from '../logic/time'
+import { FOUR_HOURS } from '../logic/time'
 import { AppComponents, AddSceneStreamAccessInput, ISceneStreamAccessManager, SceneStreamAccess } from '../types'
 import { StreamingAccessNotFoundError } from '../types/errors'
 import SQL from 'sql-template-strings'
@@ -37,7 +37,7 @@ export async function createSceneStreamAccessManagerComponent({
     try {
       await client.query(
         SQL`UPDATE scene_stream_access
-            SET active = false
+            SET active = false, ingress_cleanup_pending = (ingress_id != '' AND ingress_id != ${input.ingress_id})
             WHERE place_id = ${input.place_id} AND active = true`
       )
 
@@ -47,7 +47,7 @@ export async function createSceneStreamAccessManagerComponent({
         SQL`INSERT INTO scene_stream_access
             (id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, room_id, generated_by)
             VALUES
-            (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true, ${input.expiration_time || null}, ${input.room_id || null}, ${input.generated_by || null})
+            (gen_random_uuid(), ${input.place_id}, ${input.streaming_key}, ${input.streaming_url}, ${input.ingress_id}, ${now}, true, ${input.expiration_time ?? null}, ${input.room_id || null}, ${input.generated_by || null})
             RETURNING *`
       )
 
@@ -87,7 +87,7 @@ export async function createSceneStreamAccessManagerComponent({
     logger.debug('Getting stream access', { placeId })
 
     const result = await database.query<SceneStreamAccess>(
-      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active 
+      SQL`SELECT id, place_id, streaming_key, streaming_url, ingress_id, created_at, active, expiration_time, room_id, generated_by
           FROM scene_stream_access 
           WHERE place_id = ${placeId} AND active = true 
           LIMIT 1`
@@ -165,21 +165,61 @@ export async function createSceneStreamAccessManagerComponent({
     return result.rows[0]
   }
 
-  async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>[]> {
+  async function getExpiredStreamingKeys(): Promise<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>[]> {
     const now = Date.now()
-    const fourDaysAgo = Date.now() - FOUR_DAYS
-    const result = await database.query<Pick<SceneStreamAccess, 'ingress_id' | 'place_id'>>(
-      SQL`SELECT ingress_id, place_id
-        FROM scene_stream_access
-        WHERE active = true
-          AND streaming = false
-          AND (
-            (expiration_time IS NOT NULL AND expiration_time < ${now})
-            OR (expiration_time IS NULL AND created_at < ${fourDaysAgo})
-          )
-        LIMIT 100`
-    )
+    // Keep the four-day literal typed exactly as in idx_stream_cleanup_expiration.
+    // A bigint parameter selects a different PostgreSQL addition operator and loses the index range scan.
+    // Separate indexed branches avoid an OR across the growing access history.
+    // Retrying advances ready_at, so failing rows cannot monopolize the batch.
+    const result = await database.query<Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'place_id'>>(SQL`
+      SELECT id, ingress_id, place_id FROM (
+        (SELECT id, ingress_id, place_id, ingress_cleanup_retry_at AS ready_at FROM scene_stream_access
+          WHERE ingress_cleanup_pending = true AND ingress_cleanup_retry_at <= ${now}
+            AND ingress_cleanup_claim_until <= ${now}
+          ORDER BY ingress_cleanup_retry_at, id LIMIT 100)
+        UNION ALL
+        (SELECT id, ingress_id, place_id, COALESCE(expiration_time, created_at + 345600000) AS ready_at
+          FROM scene_stream_access
+          WHERE active = true AND streaming = false AND ingress_cleanup_pending = false
+            AND COALESCE(expiration_time, created_at + 345600000) <= ${now}
+          ORDER BY COALESCE(expiration_time, created_at + 345600000), id LIMIT 100)
+      ) candidates ORDER BY ready_at, id LIMIT 100
+    `)
     return result.rows
+  }
+
+  async function claimExpiredAccess(id: string, claimToken: string): Promise<boolean> {
+    const now = Date.now()
+    const result = await database.query(SQL`
+      UPDATE scene_stream_access SET active = false, ingress_cleanup_pending = true,
+        ingress_cleanup_expired = (ingress_cleanup_expired OR active),
+        ingress_cleanup_claim_token = ${claimToken},
+        ingress_cleanup_claim_until = ${now + 5 * 60 * 1000},
+        ingress_cleanup_retry_at = ${now + 10 * 60 * 1000}
+      WHERE id = ${id} AND ingress_cleanup_claim_until <= ${now}
+        AND ingress_cleanup_retry_at <= ${now} AND (
+          ingress_cleanup_pending = true OR (
+            active = true AND streaming = false AND COALESCE(expiration_time, created_at + 345600000) <= ${now}
+          )
+        ) RETURNING id
+    `)
+    return result.rowCount > 0
+  }
+
+  async function completeExpiredAccessCleanup(id: string, claimToken: string): Promise<boolean> {
+    // Only the current lease holder may complete cleanup and send an expiry notification.
+    // Replacement cleanup has ingress_cleanup_expired=false and never notifies.
+    const result = await database.query<{ ingress_cleanup_expired: boolean }>(SQL`
+      UPDATE scene_stream_access AS cleaned SET ingress_cleanup_pending = false, ingress_cleanup_claim_token = NULL,
+        ingress_cleanup_claim_until = 0
+      WHERE id = ${id} AND ingress_cleanup_claim_token = ${claimToken}
+        AND ingress_cleanup_claim_until > ${Date.now()}
+      RETURNING (ingress_cleanup_expired AND NOT EXISTS (
+        SELECT 1 FROM scene_stream_access newer
+        WHERE newer.place_id = cleaned.place_id AND newer.id != cleaned.id AND newer.created_at >= cleaned.created_at
+      )) AS ingress_cleanup_expired
+    `)
+    return result.rows[0]?.ingress_cleanup_expired ?? false
   }
 
   async function startStreaming(ingressId: string): Promise<void> {
@@ -243,6 +283,8 @@ export async function createSceneStreamAccessManagerComponent({
     getLatestAccessByPlaceId,
     getActiveIngressIds,
     getExpiredStreamingKeys,
+    claimExpiredAccess,
+    completeExpiredAccessCleanup,
     startStreaming,
     stopStreaming,
     isStreaming,

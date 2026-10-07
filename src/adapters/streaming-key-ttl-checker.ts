@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { isErrorWithMessage } from '../logic/errors'
 import { AppComponents } from '../types'
 import { IStreamingKeyChecker } from '../types/checker.type'
@@ -54,17 +55,17 @@ export async function createStreamingKeyTTLChecker(
           )
 
           for (const expiredStreamKey of expiredStreamingKeys) {
-            const { ingress_id: ingressId, place_id: placeId } = expiredStreamKey
+            const { id, ingress_id: ingressId, place_id: placeId } = expiredStreamKey
             const place = placesById[placeId]
             try {
-              // Cast 2.0 rows carry an empty ingress_id; removeIngress('') would throw and skip
-              // the removeAccess below, leaving the row active to re-error every tick. Only call
-              // removeIngress when there's a real id (mirrors streaming-ttl-checker).
+              // Lease this row across service instances; a stream start invalidates expiry eligibility.
+              const claimToken = randomUUID()
+              if (!(await sceneStreamAccessManager.claimExpiredAccess(id, claimToken))) continue
               if (ingressId) {
                 await livekit.removeIngress(ingressId)
               }
-              await sceneStreamAccessManager.removeAccess(placeId)
-              if (place) {
+              const shouldNotify = await sceneStreamAccessManager.completeExpiredAccessCleanup(id, claimToken)
+              if (shouldNotify && place && !(await sceneStreamAccessManager.getLatestAccessByPlaceId(placeId))) {
                 await notifications.sendNotificationType(NotificationStreamingType.STREAMING_KEY_EXPIRED, place)
               }
               logger.info(

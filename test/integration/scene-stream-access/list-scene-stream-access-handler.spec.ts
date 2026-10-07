@@ -99,6 +99,29 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
     stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
   })
 
+  describe('when a legacy access has expired', () => {
+    beforeEach(() => {
+      stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValueOnce({
+        ...mockSceneStreamAccess,
+        created_at: String(Date.now() - FOUR_DAYS - 1),
+        expiration_time: null
+      })
+    })
+
+    it('should return 404 instead of an expired credential', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'GET',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(404)
+    })
+  })
+
   it('returns 200 with streaming access when user has land permission', async () => {
     const { localFetch } = components
 
@@ -119,7 +142,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: mockSceneStreamAccess.created_at,
-      ends_at: mockSceneStreamAccess.created_at + FOUR_DAYS
+      ends_at: Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
     })
   })
 
@@ -173,7 +196,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: mockSceneStreamAccess.created_at,
-      ends_at: mockSceneStreamAccess.created_at + FOUR_DAYS
+      ends_at: Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
     })
   })
 
@@ -213,7 +236,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       streaming_url: mockSceneStreamAccess.streaming_url,
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: mockSceneStreamAccess.created_at,
-      ends_at: mockSceneStreamAccess.created_at + FOUR_DAYS
+      ends_at: Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
     })
   })
 

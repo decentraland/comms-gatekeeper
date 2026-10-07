@@ -116,7 +116,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.sceneAdminManager.isAdmin.mockResolvedValue(false)
     stubComponents.livekit.getSceneRoomName.mockReturnValue(`test-realm:test-scene`)
     stubComponents.livekit.getWorldRoomName.mockReturnValue(`name.dcl.eth`)
-    stubComponents.livekit.getOrCreateIngress.mockResolvedValue(mockIngress)
+    stubComponents.livekit.createIngress.mockResolvedValue(mockIngress)
     stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
     stubComponents.sceneManager.getUserScenePermissions.mockResolvedValue({
       owner: true,
