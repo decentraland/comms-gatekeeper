@@ -1,3 +1,4 @@
+import { InvalidRequestError } from '../../src/types/errors'
 import { test } from '../components'
 import { makeRequest, owner, nonOwner } from '../utils'
 import { Room } from 'livekit-server-sdk'
@@ -15,6 +16,8 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
   let metadata: Metadata
 
   beforeEach(async () => {
+    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
     metadata = {
       identity: owner.authChain[0].payload,
       realmName: 'test-realm',
@@ -304,6 +307,31 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       })
     })
 
+    describe('when a banned user supplies an uppercase world content ID', () => {
+      beforeEach(() => {
+        worldMetadata.sceneId = 'BAFKREIABCDEF123'
+        stubComponents.sceneBans.isUserBanned.mockImplementation(async (_identity, params) => {
+          if (params.sceneId !== 'bafkreiabcdef123') throw new Error('Unknown scene')
+          return true
+        })
+        stubComponents.worlds.hasWorldAccessPermission.mockResolvedValue(true)
+      })
+
+      it('should reject the canonical scene ban before minting credentials', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          {
+            method: 'POST',
+            metadata: worldMetadata
+          },
+          owner
+        )
+        expect(response.status).toBe(403)
+        expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
+      })
+    })
+
     describe('when client sends world name as sceneId', () => {
       let worldNameAsSceneIdMetadata: Metadata
 
@@ -320,7 +348,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
       describe('and the world about endpoint returns the scene ID', () => {
         beforeEach(() => {
-          stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('bafkreiabcdef123')
+          stubComponents.worlds.resolveWorldSceneId.mockResolvedValue('bafkreiabcdef123')
           stubComponents.livekit.getWorldSceneRoomName.mockReturnValue(
             'world-prd-scene-room-test-world.eth-bafkreiabcdef123'
           )
@@ -338,7 +366,11 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           )
 
           expect(response.status).toBe(200)
-          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth')
+          expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
+            'test-world.eth',
+            'test-world.eth',
+            '10,20'
+          )
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(
             'test-world.eth',
@@ -349,7 +381,9 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
       describe('and the world about endpoint fails', () => {
         beforeEach(() => {
-          stubComponents.worlds.fetchWorldSceneId.mockRejectedValue(new Error('HTTP 404'))
+          stubComponents.worlds.resolveWorldSceneId.mockRejectedValue(
+            new InvalidRequestError('Failed to resolve scene ID for world test-world.eth')
+          )
         })
 
         it('should return 400 without reaching the ban check', async () => {
@@ -374,7 +408,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
       describe('and the user is banned from the resolved world scene', () => {
         beforeEach(() => {
-          stubComponents.worlds.fetchWorldSceneId.mockResolvedValue('bafkreiabcdef123')
+          stubComponents.worlds.resolveWorldSceneId.mockResolvedValue('bafkreiabcdef123')
           stubComponents.sceneBans.isUserBanned.mockResolvedValue(true)
         })
 
@@ -394,7 +428,11 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(body).toEqual({
             error: 'User is banned from this scene'
           })
-          expect(stubComponents.worlds.fetchWorldSceneId).toHaveBeenCalledWith('test-world.eth')
+          expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
+            'test-world.eth',
+            'test-world.eth',
+            '10,20'
+          )
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.worlds.hasWorldAccessPermission).not.toHaveBeenCalled()
         })

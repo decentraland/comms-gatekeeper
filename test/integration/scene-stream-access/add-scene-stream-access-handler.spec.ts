@@ -4,7 +4,7 @@ import { TestCleanup } from '../../db-cleanup'
 import * as handlersUtils from '../../../src/logic/utils'
 import { PlaceAttributes } from '../../../src/types/places.type'
 import { InvalidRequestError, StreamingAccessNotFoundError } from '../../../src/types/errors'
-import { IngressInfo } from 'livekit-server-sdk'
+import { IngressClient, IngressInfo } from 'livekit-server-sdk'
 import { FOUR_DAYS } from '../../../src/logic/time'
 
 test('GET /scene-stream-access - gets streaming access for scenes', ({ components, stubComponents }) => {
@@ -35,6 +35,11 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   })
 
   beforeEach(async () => {
+    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
+    const removeReplacedIngress = components.livekit.removeReplacedIngress
+    stubComponents.livekit.removeReplacedIngress.mockImplementation(removeReplacedIngress)
+    jest.spyOn(IngressClient.prototype, 'deleteIngress').mockResolvedValue(undefined)
     mockIngress = {
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
@@ -78,17 +83,15 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
-      id: placeId,
-      positions: ['10,20'],
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
-
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
-      id: placeWorldId,
-      world_name: 'name.dcl.eth',
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(
+      async (_sceneId, worldName) =>
+        ({
+          id: worldName ? placeWorldId : placeId,
+          positions: ['10,20'],
+          world_name: worldName,
+          owner: owner.authChain[0].payload
+        }) as PlaceAttributes
+    )
 
     stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: true,
@@ -113,6 +116,61 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(null)
   })
 
+  describe('when the supplied scene belongs to another owner', () => {
+    beforeEach(() => {
+      stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValueOnce(false)
+    })
+
+    it('should authorize the scene ID rather than the supplied parcel and leave ingresses untouched', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(401)
+      expect(stubComponents.places.getPlaceBySceneId).toHaveBeenCalledWith(metadataLand.sceneId, undefined)
+      expect(stubComponents.places.getPlaceByParcel).not.toHaveBeenCalled()
+      expect(stubComponents.livekit.getOrCreateIngress).not.toHaveBeenCalled()
+      expect(stubComponents.livekit.removeIngress).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when local preview is explicitly enabled', () => {
+    beforeEach(() => {
+      metadataLand.realm.serverName = 'localpreview'
+      metadataLand.sceneId = 'unpublished-local-scene'
+      stubComponents.livekit.isLocalPreview.mockReturnValueOnce(true)
+      stubComponents.livekit.getSceneRoomName.mockReturnValue('scene-localpreview:unpublished-local-scene')
+      stubComponents.livekit.getOrCreateIngress.mockResolvedValue(mockIngress)
+      stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
+      stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValue(mockSceneStreamAccess)
+    })
+
+    it('should use a synthetic preview place without resolving a published entity', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(200)
+      expect(stubComponents.places.getPlaceBySceneId).not.toHaveBeenCalled()
+      expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+        expect.objectContaining({
+          place_id: 'scene-localpreview:unpublished-local-scene',
+          room_id: 'scene-localpreview:unpublished-local-scene'
+        })
+      )
+    })
+  })
+
   afterEach(async () => {
     await cleanup.cleanup()
     jest.restoreAllMocks()
@@ -122,7 +180,10 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
     const { localFetch } = components
 
     // Configure getLatestAccessByPlaceId to return existing access (reuse scenario)
-    stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(mockSceneStreamAccess)
+    stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue({
+      ...mockSceneStreamAccess,
+      room_id: 'test-realm:test-scene'
+    })
 
     const response = await makeRequest(
       localFetch,
@@ -206,7 +267,10 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
       hasLandLease: false
     })
     // Configure getLatestAccessByPlaceId to return existing access (reuse scenario)
-    stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(mockSceneStreamAccess)
+    stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue({
+      ...mockSceneStreamAccess,
+      room_id: 'test-realm:test-scene'
+    })
 
     const response = await makeRequest(
       localFetch,
@@ -237,7 +301,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 200 with a new streaming access when it does not exist', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
       id: anotherPlaceId,
       positions: ['11,22'],
       owner: owner.authChain[0].payload
@@ -352,7 +416,7 @@ test('GET /scene-stream-access - gets streaming access for scenes', ({ component
   it('returns 400 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockRejectedValue(
+    stubComponents.places.getPlaceBySceneId.mockRejectedValue(
       new InvalidRequestError('Could not find scene information')
     )
 
@@ -398,6 +462,11 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
   })
 
   beforeEach(async () => {
+    const resolveWorldSceneId = components.worlds.resolveWorldSceneId
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(resolveWorldSceneId)
+    const removeReplacedIngress = components.livekit.removeReplacedIngress
+    stubComponents.livekit.removeReplacedIngress.mockImplementation(removeReplacedIngress)
+    jest.spyOn(IngressClient.prototype, 'deleteIngress').mockResolvedValue(undefined)
     mockSceneStreamAccess = {
       id: 'mock-access-id',
       place_id: placeId,
@@ -436,17 +505,15 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue({
-      id: placeId,
-      positions: ['10,20'],
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
-
-    stubComponents.places.getWorldScenePlace.mockResolvedValue({
-      id: placeWorldId,
-      world_name: 'name.dcl.eth',
-      owner: owner.authChain[0].payload
-    } as PlaceAttributes)
+    stubComponents.places.getPlaceBySceneId.mockImplementation(
+      async (_sceneId, worldName) =>
+        ({
+          id: worldName ? placeWorldId : placeId,
+          positions: ['10,20'],
+          world_name: worldName,
+          owner: owner.authChain[0].payload
+        }) as PlaceAttributes
+    )
 
     stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: true,
@@ -534,6 +601,172 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
       streaming_key: mockSceneStreamAccess.streaming_key,
       created_at: Number(mockSceneStreamAccess.created_at),
       ends_at: Number(mockSceneStreamAccess.created_at) + FOUR_DAYS
+    })
+  })
+
+  describe('when the place has an active key for another room', () => {
+    let response: Response
+    let requestedRoom: string
+
+    beforeEach(async () => {
+      requestedRoom = 'genesis-city-prod-scene-room-test-realm:test-scene'
+      stubComponents.livekit.getSceneRoomName.mockReturnValueOnce(requestedRoom)
+      stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+        ...mockSceneStreamAccess,
+        streaming_key: 'stale-stream-key',
+        ingress_id: 'stale-ingress-id',
+        room_id: 'genesis-city-prod-scene-room-test-realm:redeployed-scene'
+      })
+      stubComponents.livekit.getOrCreateIngress.mockResolvedValueOnce({
+        url: 'rtmp://fresh-stream-url',
+        streamKey: 'fresh-stream-key',
+        ingressId: 'fresh-ingress-id'
+      } as IngressInfo)
+      stubComponents.sceneStreamAccessManager.addAccess.mockResolvedValueOnce({
+        ...mockSceneStreamAccess,
+        streaming_key: 'fresh-stream-key',
+        ingress_id: 'fresh-ingress-id',
+        room_id: requestedRoom
+      })
+
+      response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        { method: 'POST', metadata: metadataLand },
+        owner
+      )
+    })
+
+    it('should create a key for the requested room', () => {
+      expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalledWith(
+        expect.objectContaining({ room_id: requestedRoom })
+      )
+    })
+
+    it('should delete the ingress of the replaced key', () => {
+      expect(stubComponents.livekit.removeReplacedIngress).toHaveBeenCalledWith('stale-ingress-id', 'fresh-ingress-id')
+    })
+
+    it('should respond with the new streaming key', async () => {
+      const body = await response.json()
+
+      expect(body.streaming_key).toBe('fresh-stream-key')
+    })
+  })
+
+  describe.each([false, true])('when replacing a stale ingress with streaming=%s', (streaming) => {
+    beforeEach(() => {
+      stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+        ...mockSceneStreamAccess,
+        room_id: 'old-room',
+        ingress_id: 'old-ingress',
+        streaming
+      })
+      stubComponents.livekit.getOrCreateIngress.mockResolvedValueOnce(
+        new IngressInfo({
+          ingressId: 'new-ingress',
+          streamKey: 'new-key',
+          url: 'rtmp://new-url'
+        })
+      )
+      jest.spyOn(IngressClient.prototype, 'deleteIngress').mockRejectedValueOnce(new Error('LiveKit unavailable'))
+    })
+
+    it('should serve the persisted replacement even if cleanup fails', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        {
+          method: 'POST',
+          metadata: metadataLand
+        },
+        owner
+      )
+      expect(response.status).toBe(200)
+      expect(stubComponents.sceneStreamAccessManager.addAccess).toHaveBeenCalled()
+      expect(stubComponents.livekit.removeReplacedIngress).toHaveBeenCalledWith('old-ingress', 'new-ingress')
+      expect(IngressClient.prototype.deleteIngress).toHaveBeenCalledWith('old-ingress')
+    })
+  })
+
+  describe('when the place has an active key for the requested room', () => {
+    let response: Response
+
+    beforeEach(async () => {
+      const requestedRoom = 'genesis-city-prod-scene-room-test-realm:test-scene'
+      stubComponents.livekit.getSceneRoomName.mockReturnValueOnce(requestedRoom)
+      stubComponents.sceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValueOnce({
+        ...mockSceneStreamAccess,
+        streaming_key: 'current-stream-key',
+        room_id: requestedRoom
+      })
+
+      response = await makeRequest(
+        components.localFetch,
+        '/scene-stream-access',
+        { method: 'POST', metadata: metadataLand },
+        owner
+      )
+    })
+
+    it('should respond with the existing streaming key', async () => {
+      const body = await response.json()
+
+      expect(body.streaming_key).toBe('current-stream-key')
+    })
+
+    it('should not create a new key', () => {
+      expect(stubComponents.sceneStreamAccessManager.addAccess).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when a world request sends the world name as the scene id', () => {
+    beforeEach(() => {
+      jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce({ ...metadataWorld, sceneId: 'name.dcl.eth' })
+    })
+
+    describe('and the world scene id resolves', () => {
+      beforeEach(async () => {
+        stubComponents.worlds.resolveWorldSceneId.mockResolvedValueOnce('bafkreiresolvedscene')
+        stubComponents.livekit.getWorldSceneRoomName.mockReturnValueOnce(
+          'world-prod-scene-room-name.dcl.eth-bafkreiresolvedscene'
+        )
+
+        await makeRequest(
+          components.localFetch,
+          '/scene-stream-access',
+          { method: 'POST', metadata: { ...metadataWorld, sceneId: 'name.dcl.eth' } },
+          owner
+        )
+      })
+
+      it('should build the room from the resolved scene id', () => {
+        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(
+          'name.dcl.eth',
+          'bafkreiresolvedscene'
+        )
+      })
+    })
+
+    describe('and the world scene id cannot be resolved', () => {
+      let response: Response
+
+      beforeEach(async () => {
+        stubComponents.worlds.resolveWorldSceneId.mockRejectedValueOnce(
+          new InvalidRequestError('Failed to resolve scene ID for world name.dcl.eth')
+        )
+
+        response = await makeRequest(
+          components.localFetch,
+          '/scene-stream-access',
+          { method: 'POST', metadata: { ...metadataWorld, sceneId: 'name.dcl.eth' } },
+          owner
+        )
+      })
+
+      it('should respond with a 400', () => {
+        expect(response.status).toBe(400)
+      })
     })
   })
 
@@ -715,7 +948,7 @@ test('POST /scene-stream-access - adds streaming access for a scene', ({ compone
   it('returns 400 when request is invalid', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceByParcel.mockRejectedValue(new InvalidRequestError('Invalid request'))
+    stubComponents.places.getPlaceBySceneId.mockRejectedValue(new InvalidRequestError('Invalid request'))
 
     const response = await makeRequest(
       localFetch,

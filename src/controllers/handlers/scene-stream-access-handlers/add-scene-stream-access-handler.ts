@@ -1,14 +1,8 @@
 import { randomUUID } from 'crypto'
 import { validate } from '../../../logic/utils'
 import { HandlerContextWithPath } from '../../../types'
-import {
-  ForbiddenError,
-  InvalidRequestError,
-  StreamingAccessNotFoundError,
-  UnauthorizedError
-} from '../../../types/errors'
+import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { SceneStreamAccess } from '../../../types'
-import { PlaceAttributes } from '../../../types/places.type'
 import { FOUR_DAYS } from '../../../logic/time'
 
 export async function addSceneStreamAccessHandler(
@@ -21,18 +15,19 @@ export async function addSceneStreamAccessHandler(
       | 'livekit'
       | 'logs'
       | 'config'
-      | 'userModeration',
+      | 'userModeration'
+      | 'worlds',
       '/scene-stream-access'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, userModeration },
+    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, userModeration, worlds },
     verification
   } = ctx
   const logger = logs.getLogger('add-scene-stream-access-handler')
-  const { getWorldScenePlace, getPlaceByParcel } = places
+  const { getPlaceBySceneId } = places
   const { isSceneOwnerOrAdmin } = sceneManager
   if (!verification?.auth) {
     logger.debug('Authentication required')
@@ -46,7 +41,8 @@ export async function addSceneStreamAccessHandler(
     sceneId,
     deviceIdentifier
   } = await validate(ctx)
-  const isWorld = !!hostname?.includes('worlds-content-server')
+  const isPreview = livekit.isLocalPreview(serverName)
+  const isWorld = !isPreview && !!hostname?.includes('worlds-content-server')
 
   // Before the admin check: this returns a streaming key, and validateStreamerToken honours a key
   // without re-checking the wallet.
@@ -64,60 +60,56 @@ export async function addSceneStreamAccessHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  let place: PlaceAttributes
-  if (isWorld) {
-    place = await getWorldScenePlace(serverName, parcel)
-  } else {
-    place = await getPlaceByParcel(parcel)
-  }
+  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
+  const roomName = isWorld
+    ? livekit.getWorldSceneRoomName(serverName, resolvedSceneId)
+    : livekit.getSceneRoomName(serverName, resolvedSceneId)
+  const place = isPreview ? undefined : await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
+  const placeId = place?.id ?? roomName
 
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  const isOwnerOrAdmin = isPreview || (place !== undefined && (await isSceneOwnerOrAdmin(place, authenticatedAddress)))
   if (!isOwnerOrAdmin) {
-    logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${place.id}`)
+    logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${placeId}`)
     throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
   }
 
-  let roomName: string
-  if (isWorld) {
-    roomName = livekit.getWorldSceneRoomName(serverName, sceneId)
-  } else {
-    roomName = livekit.getSceneRoomName(serverName, sceneId)
-  }
+  // Reuse the active key only while it streams into this room; one minted for another room (a
+  // redeploy, or before world room names were lower-cased) feeds a room nobody is in.
+  const existingAccess = await sceneStreamAccessManager.getLatestAccessByPlaceId(placeId)
 
   let access: SceneStreamAccess
-  try {
-    access = await sceneStreamAccessManager.getAccess(place.id)
-    logger.info(`Reusing existing OBS stream key for place ${place.id}`, {
-      placeId: place.id,
+  if (existingAccess && existingAccess.room_id === roomName) {
+    access = existingAccess
+    logger.info(`Reusing existing OBS stream key for place ${placeId}`, {
+      placeId,
       streamingKey: access.streaming_key.substring(0, 8) + '...',
       ingressId: access.ingress_id
     })
-  } catch (error) {
-    if (error instanceof StreamingAccessNotFoundError) {
-      const participantIdentity = randomUUID()
-      const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
-      const expirationTime = Date.now() + FOUR_DAYS
+  } else {
+    const participantIdentity = randomUUID()
+    const ingress = await livekit.getOrCreateIngress(roomName, `${participantIdentity}-streamer`)
+    const expirationTime = Date.now() + FOUR_DAYS
 
-      access = await sceneStreamAccessManager.addAccess({
-        place_id: place.id,
-        streaming_url: ingress.url!,
-        streaming_key: ingress.streamKey!,
-        ingress_id: ingress.ingressId!,
-        room_id: roomName,
-        expiration_time: expirationTime,
-        generated_by: authenticatedAddress
-      })
+    access = await sceneStreamAccessManager.addAccess({
+      place_id: placeId,
+      streaming_url: ingress.url!,
+      streaming_key: ingress.streamKey!,
+      ingress_id: ingress.ingressId!,
+      room_id: roomName,
+      expiration_time: expirationTime,
+      generated_by: authenticatedAddress.toLowerCase()
+    })
 
-      logger.info(`Created new OBS stream key for place ${place.id}`, {
-        placeId: place.id,
-        streamingKey: access.streaming_key.substring(0, 8) + '...',
-        ingressId: access.ingress_id,
-        expiresAt: new Date(expirationTime).toISOString()
-      })
-    } else {
-      logger.debug('Error getting stream access: ', { error: JSON.stringify(error) })
-      throw error
+    if (existingAccess) {
+      await livekit.removeReplacedIngress(existingAccess.ingress_id, ingress.ingressId)
     }
+
+    logger.info(`Created new OBS stream key for place ${placeId}`, {
+      placeId,
+      streamingKey: access.streaming_key.substring(0, 8) + '...',
+      ingressId: access.ingress_id,
+      expiresAt: new Date(expirationTime).toISOString()
+    })
   }
 
   return {

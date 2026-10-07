@@ -1,3 +1,6 @@
+import SQL from 'sql-template-strings'
+import { Room } from 'livekit-server-sdk'
+import { createMockedWorldPlace } from '../../mocks/places-mock'
 import { test } from '../../components'
 import { makeRequest, owner } from '../../utils'
 import { NotSceneAdminError } from '../../../src/logic/cast/errors'
@@ -17,6 +20,56 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
 
   afterEach(() => {
     jest.resetAllMocks()
+  })
+
+  describe('when a world stream still uses a legacy mixed-case room', () => {
+    let worldMetadata: typeof metadata
+    let canonicalRoom: string
+
+    beforeEach(async () => {
+      worldMetadata = {
+        ...metadata,
+        sceneId: 'SCENE',
+        realm: {
+          ...metadata.realm,
+          serverName: 'MyWorld.eth',
+          hostname: 'https://worlds-content-server.decentraland.org'
+        }
+      }
+      canonicalRoom = components.livekit.getWorldSceneRoomName('MyWorld.eth', 'SCENE')
+      await components.sceneStreamAccessManager.addAccess({
+        place_id: 'test-presenter-world',
+        room_id: canonicalRoom.replace('myworld.eth-scene', 'MyWorld.eth-SCENE'),
+        ingress_id: 'test-presenter-world-ingress',
+        streaming_key: 'test-presenter-world-key',
+        streaming_url: 'rtmp://test',
+        expiration_time: Date.now() + 60000
+      })
+      spyComponents.places.getPlaceStatusByIds.mockResolvedValueOnce([
+        createMockedWorldPlace({ id: 'test-presenter-world', world_name: 'myworld.eth' })
+      ])
+      spyComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValueOnce(true)
+      spyComponents.livekit.getRoomInfo.mockResolvedValueOnce(
+        new Room({ metadata: JSON.stringify({ presenters: [validAddress] }) })
+      )
+    })
+
+    afterEach(async () => {
+      await components.database.query(SQL`DELETE FROM scene_stream_access WHERE place_id = 'test-presenter-world'`)
+    })
+
+    it('should authorize and list presenters through the real room parser and database lookup', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/cast/presenters',
+        { method: 'GET', metadata: worldMetadata },
+        owner
+      )
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ presenters: [validAddress] })
+      expect(spyComponents.sceneManager.isSceneOwnerOrAdmin).toHaveBeenCalled()
+      expect(spyComponents.livekit.getRoomInfo).toHaveBeenCalledWith(canonicalRoom)
+    })
   })
 
   describe('when getting presenters', () => {

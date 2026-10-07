@@ -7,6 +7,7 @@ import {
   WorldScene,
   WorldSceneEntityMetadata
 } from '../types/worlds.type'
+import { getErrorMessage } from '../logic/errors'
 import { InvalidRequestError } from '../types/errors'
 
 export async function createWorldsComponent(
@@ -38,7 +39,7 @@ export async function createWorldsComponent(
     const response = await fetch.fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pointers: [pointer] })
+      body: JSON.stringify({ coordinates: [pointer] })
     })
 
     if (!response.ok) {
@@ -54,7 +55,11 @@ export async function createWorldsComponent(
       return undefined
     }
 
-    const scene = result.scenes[0]
+    const scene = result.scenes.find((candidate) => candidate.parcels?.includes(pointer))
+    if (!scene) {
+      logger.warn('World scene response did not contain the requested parcel', { worldName, pointer })
+      return undefined
+    }
     logger.debug(`Found scene ${scene.entityId} for world ${worldName} at pointer ${pointer}`)
     return scene
   }
@@ -190,6 +195,9 @@ export async function createWorldsComponent(
       throw new InvalidRequestError(`No scenes found for world ${worldName}`)
     }
 
+    if (scenesUrn.length !== 1) {
+      throw new InvalidRequestError(`A parcel is required to resolve a scene in multi-scene world ${worldName}`)
+    }
     const urnMatch = scenesUrn[0].match(/^urn:decentraland:entity:([^?]+)/)
     if (!urnMatch) {
       throw new InvalidRequestError(`Invalid scene URN format for world ${worldName}: ${scenesUrn[0]}`)
@@ -210,7 +218,38 @@ export async function createWorldsComponent(
     )
   }
 
+  /**
+   * Resolves legacy world-name scene IDs and canonicalizes world content IDs before authorization.
+   * @param worldName - World whose scene is requested.
+   * @param sceneId - Content ID or legacy world name.
+   * @param parcel - Requested parcel, required to disambiguate multi-scene worlds.
+   * @returns The lowercase content ID used by both authorization and LiveKit.
+   * @throws InvalidRequestError when the legacy world scene cannot be resolved.
+   */
+  async function resolveWorldSceneId(worldName: string, sceneId: string, parcel?: string): Promise<string> {
+    if (!sceneId.toLowerCase().endsWith('.eth')) {
+      return sceneId.toLowerCase()
+    }
+    try {
+      if (parcel) {
+        const scene = await fetchWorldSceneByPointer(worldName, parcel)
+        if (!scene) throw new InvalidRequestError(`No scene found at ${parcel} in world ${worldName}`)
+        return scene.entityId.toLowerCase()
+      }
+      return (await fetchWorldSceneId(worldName)).toLowerCase()
+    } catch (error) {
+      logger.warn('Failed to resolve world scene', {
+        worldName,
+        sceneId,
+        parcel: parcel || '',
+        error: getErrorMessage(error)
+      })
+      throw new InvalidRequestError(`Failed to resolve scene ID for world ${worldName}`)
+    }
+  }
+
   return {
+    resolveWorldSceneId,
     fetchWorldActionPermissions,
     fetchWorldSceneByPointer,
     fetchWorldSceneEntityMetadataById,

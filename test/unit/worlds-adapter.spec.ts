@@ -51,6 +51,102 @@ describe('worlds adapter', () => {
     })
   })
 
+  describe('when resolving a world scene ID', () => {
+    it('should lowercase a content ID without an upstream request', async () => {
+      expect(await worldsComponent.resolveWorldSceneId('name.eth', 'BAFKREISCENE')).toBe('bafkreiscene')
+      expect(mockFetch.fetch).not.toHaveBeenCalled()
+    })
+
+    describe('and the caller supplies an uppercase legacy world name', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest
+            .fn()
+            .mockResolvedValueOnce({ configurations: { scenesUrn: ['urn:decentraland:entity:BAFKREISCENE'] } })
+        })
+      })
+
+      it('should resolve and normalize the content ID', async () => {
+        expect(await worldsComponent.resolveWorldSceneId('name.eth', 'NAME.ETH')).toBe('bafkreiscene')
+      })
+    })
+
+    describe('and the world lookup fails', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockRejectedValueOnce(new Error('unavailable'))
+      })
+
+      it('should reject with the resolution error', async () => {
+        await expect(worldsComponent.resolveWorldSceneId('name.eth', 'name.eth')).rejects.toThrow(
+          'Failed to resolve scene ID for world name.eth'
+        )
+      })
+    })
+  })
+
+  describe('when resolving a legacy ID in a multi-scene world', () => {
+    beforeEach(() => {
+      mockFetch.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValueOnce({
+          scenes: [
+            { entityId: 'first-scene', parcels: ['0,0'] },
+            { entityId: 'SECOND-SCENE', parcels: ['10,20', '10,21'] }
+          ]
+        })
+      })
+    })
+
+    it('should resolve the scene covering the requested parcel instead of the first scene', async () => {
+      expect(await worldsComponent.resolveWorldSceneId('name.eth', 'NAME.ETH', '10,21')).toBe('second-scene')
+      expect(mockFetch.fetch).toHaveBeenCalledWith(
+        `${worldContentUrl}/world/name.eth/scenes`,
+        expect.objectContaining({
+          body: JSON.stringify({ coordinates: ['10,21'] })
+        })
+      )
+    })
+  })
+
+  describe('when a multi-scene legacy request has no parcel', () => {
+    beforeEach(() => {
+      mockFetch.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValueOnce({
+          configurations: { scenesUrn: ['urn:decentraland:entity:first', 'urn:decentraland:entity:second'] }
+        })
+      })
+    })
+
+    it('should reject ambiguity and log its underlying cause', async () => {
+      await expect(worldsComponent.resolveWorldSceneId('name.eth', 'name.eth')).rejects.toThrow('Failed to resolve')
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to resolve world scene',
+        expect.objectContaining({
+          error: 'A parcel is required to resolve a scene in multi-scene world name.eth'
+        })
+      )
+    })
+  })
+
+  describe('when the world response has no scene at the requested parcel', () => {
+    beforeEach(() => {
+      mockFetch.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValueOnce({
+          scenes: [{ entityId: 'unrelated', parcels: ['0,0'] }]
+        })
+      })
+    })
+
+    it('should reject instead of choosing an unrelated scene', async () => {
+      await expect(worldsComponent.resolveWorldSceneId('name.eth', 'name.eth', '10,20')).rejects.toThrow(
+        'Failed to resolve'
+      )
+    })
+  })
+
   describe('when fetching a world scene by pointer', () => {
     const worldName = 'myworld.dcl.eth'
     const pointer = '0,0'
@@ -83,7 +179,7 @@ describe('worlds adapter', () => {
           expect(mockFetch.fetch).toHaveBeenCalledWith(`${worldContentUrl}/world/${worldName.toLowerCase()}/scenes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pointers: [pointer] })
+            body: JSON.stringify({ coordinates: [pointer] })
           })
           expect(result).toEqual(mockScene)
         })

@@ -688,6 +688,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '503':
+          description: Trusted content servers unavailable; retry after content sync
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
@@ -703,6 +709,9 @@ paths:
       description: |
         Adds streaming access for a specific scene or world.
         Only scene owners or administrators can add stream access.
+        Legacy world-name scene IDs are resolved using the signed parcel in multi-scene worlds.
+        Explicitly enabled local preview uses a synthetic place without requiring a deployed entity.
+        Unpublished or unsynced production scenes must be verified on a configured trusted content server.
         Requires Signed Fetch authentication from decentraland-kernel-scene.
         Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
       security:
@@ -714,7 +723,7 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/AddSceneStreamAccessRequest'
       responses:
-        '201':
+        '200':
           description: Stream access added successfully
           content:
             application/json:
@@ -734,6 +743,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '403':
           description: Forbidden - The caller has an active platform ban, or last connected from a banned device
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '503':
+          description: Trusted content servers unavailable; retry after content sync
           content:
             application/json:
               schema:
@@ -772,6 +787,12 @@ paths:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '503':
+          description: Trusted content servers unavailable; retry after content sync
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '500':
           description: Internal server error
           content:
@@ -787,14 +808,20 @@ paths:
       description: |
         Resets streaming access for a specific scene or world.
         This will stop any active streaming and reset the access configuration.
-        Only scene owners or administrators can reset stream access.
+        Only scene owners or administrators can reset stream access. Enabled local preview uses a synthetic place.
         Requires Signed Fetch authentication from decentraland-kernel-scene.
         Must include the complete identity header chain: x-identity-auth-chain-0, x-identity-auth-chain-1, x-identity-auth-chain-2, x-identity-timestamp, and x-identity-metadata.
       security:
         - SignedFetch: []
       responses:
-        '204':
+        '200':
           description: Stream access reset successfully
+        '400':
+          description: Invalid or ambiguous scene identity
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '401':
           description: Unauthorized - Authentication required
           content:
@@ -809,6 +836,12 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Stream access not found
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '503':
+          description: Trusted content servers unavailable; retry after content sync
           content:
             application/json:
               schema:

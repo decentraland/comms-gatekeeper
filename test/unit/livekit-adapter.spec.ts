@@ -331,6 +331,11 @@ describe('when getting a world room name', () => {
     const result = livekitComponent.getWorldRoomName(worldName)
     expect(result).toBe('world-env-test-world')
   })
+
+  it('should lower-case the world name so it matches the room the worlds-content-server mints', () => {
+    const result = livekitComponent.getWorldRoomName('MyWorld.dcl.eth')
+    expect(result).toBe('world-env-myworld.dcl.eth')
+  })
 })
 
 describe('when getting a world scene room name', () => {
@@ -339,6 +344,11 @@ describe('when getting a world scene room name', () => {
     const sceneId = 'bafkreiabcdef123'
     const result = livekitComponent.getWorldSceneRoomName(worldName, sceneId)
     expect(result).toBe('world-prod-scene-room-test-world-bafkreiabcdef123')
+  })
+
+  it('should lower-case the world name and scene id so it matches the room the worlds-content-server mints', () => {
+    const result = livekitComponent.getWorldSceneRoomName('MyWorld.dcl.eth', 'BAFKREIABCDEF123')
+    expect(result).toBe('world-prod-scene-room-myworld.dcl.eth-bafkreiabcdef123')
   })
 })
 
@@ -1501,6 +1511,64 @@ describe('when removing a participant', () => {
       expect(removeParticipantSpy).toHaveBeenCalledWith(roomName, identity, {
         revokeTokenTs: BigInt(1_700_000_123)
       })
+    })
+  })
+})
+
+describe('when cleaning up a replaced stream access', () => {
+  let deleteIngressSpy: jest.SpyInstance
+  let replaced: { place_id: string; ingress_id: string }
+
+  beforeEach(() => {
+    deleteIngressSpy = jest.spyOn(IngressClient.prototype, 'deleteIngress').mockResolvedValue(undefined)
+    replaced = { place_id: 'place', ingress_id: 'old-ingress' }
+  })
+
+  afterEach(() => {
+    deleteIngressSpy.mockRestore()
+  })
+
+  it('should remove the old ingress when its replacement differs', async () => {
+    await livekitComponent.removeReplacedIngress(replaced.ingress_id, 'new-ingress')
+    expect(deleteIngressSpy).toHaveBeenCalledWith('old-ingress')
+  })
+
+  describe('and the existing row has no ingress', () => {
+    beforeEach(() => {
+      replaced.ingress_id = ''
+    })
+
+    it('should leave ingresses untouched', async () => {
+      await livekitComponent.removeReplacedIngress(replaced.ingress_id, 'new-ingress')
+      expect(deleteIngressSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the replacement reuses the ingress', () => {
+    it('should keep the ingress', async () => {
+      await livekitComponent.removeReplacedIngress(replaced.ingress_id, 'old-ingress')
+      expect(deleteIngressSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the replacement has no ingress', () => {
+    it('should remove the old ingress', async () => {
+      await livekitComponent.removeReplacedIngress(replaced.ingress_id, undefined)
+      expect(deleteIngressSpy).toHaveBeenCalledWith('old-ingress')
+    })
+  })
+
+  describe('and LiveKit rejects cleanup', () => {
+    beforeEach(() => {
+      deleteIngressSpy.mockRejectedValueOnce(new Error('unavailable'))
+    })
+
+    it('should log the failure without rejecting the persisted replacement', async () => {
+      await expect(livekitComponent.removeReplacedIngress(replaced.ingress_id, 'new-ingress')).resolves.toBeUndefined()
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ ingressId: 'old-ingress' })
+      )
     })
   })
 })

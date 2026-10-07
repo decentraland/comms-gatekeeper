@@ -89,6 +89,8 @@ export type ILivekitComponent = IBaseComponent & {
   getRoomInfo: (roomName: string) => Promise<Room | null>
   getOrCreateIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>
   removeIngress: (ingressId: string) => Promise<IngressInfo | undefined>
+  /** Best-effort cleanup of a previous ingress, preserving an ingress reused by its replacement. */
+  removeReplacedIngress: (previousIngressId: string, newIngressId: string | undefined) => Promise<void>
   getWebhookEvent: (body: string, authorization: string) => Promise<WebhookEvent>
   getParticipantInfo: (roomId: string, participantId: string) => Promise<ParticipantInfo | null>
   /**

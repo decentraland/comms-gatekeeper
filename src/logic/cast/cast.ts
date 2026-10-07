@@ -146,6 +146,10 @@ export function createCastComponent(
         generated_by: walletAddress
       })
 
+      if (existingAccess) {
+        await livekit.removeReplacedIngress(existingAccess.ingress_id, ingress.ingressId)
+      }
+
       logger.info(`Stream link generated for place ${place.id} by ${walletAddress}`, {
         placeId: place.id,
         streamingKey: streamingKey.substring(0, 20) + '...',
@@ -511,13 +515,15 @@ export function createCastComponent(
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function validatePresenterAdmin(roomId: string, callerAddress: string): Promise<void> {
-    const streamAccess = await sceneStreamAccessManager.getAccessByRoomId(roomId)
+    const { realmName, worldName } = livekit.getRoomMetadataFromRoomName(roomId)
+    const streamAccess = worldName
+      ? await sceneStreamAccessManager.getAccessByRoomId(roomId, true)
+      : await sceneStreamAccessManager.getAccessByRoomId(roomId)
     if (!streamAccess) {
       throw new NoActiveStreamError(roomId)
     }
 
     // Local preview: synthetic place IDs don't exist in the Places API — skip admin check
-    const { realmName } = livekit.getRoomMetadataFromRoomName(roomId)
     if (livekit.isLocalPreview(realmName)) {
       return
     }

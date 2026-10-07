@@ -22,7 +22,7 @@ import {
   RoomMetadata,
   CredentialOptions
 } from '../types/livekit.type'
-import { isErrorWithMessage } from '../logic/errors'
+import { getErrorMessage, isErrorWithMessage } from '../logic/errors'
 
 export const COMMUNITY_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-community'
 export const PRIVATE_VOICE_CHAT_ROOM_PREFIX = 'voice-chat-private-'
@@ -203,17 +203,29 @@ export async function createLivekitComponent(
    * Gets the world room name without sceneId.
    * Used for world-wide operations like getting all participants in a world.
    * Uses the COMMS_ROOM_PREFIX which matches the world content server prefix.
+   *
+   * The world name is lower-cased to match the room the worlds-content-server mints for clients
+   * (`${prefix}${worldName.toLowerCase()}`). LiveKit room names are case-sensitive, so a world
+   * configured as `MyWorld.dcl.eth` would otherwise get two rooms differing only by case.
    */
   function getWorldRoomName(worldName: string): string {
-    return `${commsRoomPrefix}${worldName}`
+    return `${commsRoomPrefix}${worldName.toLowerCase()}`
   }
 
   /**
    * Gets the world scene room name with sceneId.
    * Used for scene-specific operations within a world.
+   *
+   * Both parts are lower-cased to match the worlds-content-server, which mints the client's room as
+   * `${prefix}${worldName.toLowerCase()}-${sceneId.toLowerCase()}`. This is the room the
+   * authoritative server joins via /get-server-scene-adapter: with a mixed-case world name it landed
+   * in a room its own clients were not in and the two never exchanged a message.
+   *
+   * Folding the scene id is safe only because worlds accept CIDv1 (lowercase) entity ids alone;
+   * Genesis City ids can be mixed-case CIDv0, so getSceneRoomName must keep them verbatim.
    */
   function getWorldSceneRoomName(worldName: string, sceneId: string): string {
-    return `${worldRoomPrefix}${worldName}-${sceneId}`
+    return `${worldRoomPrefix}${worldName.toLowerCase()}-${sceneId.toLowerCase()}`
   }
 
   function getSceneRoomName(realmName: string, sceneId: string): string {
@@ -246,7 +258,7 @@ export async function createLivekitComponent(
 
   function getRoomMetadataFromRoomName(roomName: string): RoomMetadata {
     // Island room: island-{islandName}. Checked first, ahead of the scene and world
-    // branches, because those match on configurable prefixes that are empty by default —
+    // branches, because legacy or custom configurations may still set empty prefixes —
     // `roomName.startsWith('')` is always true, so an empty SCENE_ROOM_PREFIX would
     // swallow every island room and report it to SNS as a scene with a bogus realm.
     // `island-` is a literal prefix no other room shape in this service produces, so
@@ -449,6 +461,25 @@ export async function createLivekitComponent(
       }
       logger.error(`Error removing ingress ${ingressId}:`, { error: JSON.stringify(error) })
       throw error
+    }
+  }
+
+  /**
+   * Removes an obsolete ingress after its replacement is persisted, unless it is still reused.
+   * Cleanup is best-effort: a LiveKit failure must not reject the persisted replacement.
+   * @param previousIngressId - Previous ingress, or an empty string for an access without one.
+   * @param newIngressId - Ingress serving the replacement, if any.
+   * @returns Resolves after cleanup or after logging its failure.
+   */
+  async function removeReplacedIngress(previousIngressId: string, newIngressId: string | undefined): Promise<void> {
+    if (!previousIngressId || previousIngressId === newIngressId) return
+    try {
+      await removeIngress(previousIngressId)
+    } catch (error) {
+      logger.warn('Failed to remove a replaced ingress', {
+        ingressId: previousIngressId,
+        error: getErrorMessage(error)
+      })
     }
   }
 
@@ -669,6 +700,7 @@ export async function createLivekitComponent(
     getRoomInfo,
     getOrCreateIngress,
     removeIngress,
+    removeReplacedIngress,
     getWebhookEvent
   }
 }
