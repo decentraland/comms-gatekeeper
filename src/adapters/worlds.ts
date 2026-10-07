@@ -28,6 +28,21 @@ export async function createWorldsComponent(
   const permissionsCache = cachedFetch.cache<PermissionsOverWorld>()
   const sceneEntityMetadataCache = new LRUCache<string, WorldSceneEntityMetadata>({ max: 1000, ttl: 300000 })
   const requestTimeout = (await config.getNumber('WORLD_SCENE_REQUEST_TIMEOUT_MS')) ?? 5000
+  const sceneCacheTtl = (await config.getNumber('WORLD_SCENE_CACHE_TTL_MS')) ?? 5000
+  const parcelPermissionsCacheTtl = (await config.getNumber('WORLD_PARCEL_PERMISSIONS_CACHE_TTL_MS')) ?? 10000
+  const scenesCache = cachedFetch.cache<WorldScene>({ ttl: sceneCacheTtl, allowStaleOnFetchRejection: false })
+  const aboutCache = cachedFetch.cache<{ configurations?: { scenesUrn?: string[] } }>({
+    ttl: sceneCacheTtl,
+    allowStaleOnFetchRejection: false
+  })
+  const parcelPermissionsCache = cachedFetch.cache<string[]>({
+    ttl: parcelPermissionsCacheTtl,
+    allowStaleOnFetchRejection: false
+  })
+  const permissionAddressesCache = cachedFetch.cache<string[]>({
+    ttl: parcelPermissionsCacheTtl,
+    allowStaleOnFetchRejection: false
+  })
 
   async function fetchWorldJson<T>(url: string, options: RequestInit = {}): Promise<T | undefined> {
     try {
@@ -55,15 +70,19 @@ export async function createWorldsComponent(
   }
 
   async function fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined> {
-    const result = await fetchWorldJson<{ scenes: WorldScene[] }>(
-      `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ coordinates: [pointer] })
+    return scenesCache.fetch(JSON.stringify(['pointer', worldName.toLowerCase(), pointer]), {
+      context: async () => {
+        const result = await fetchWorldJson<{ scenes: WorldScene[] }>(
+          `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ coordinates: [pointer] })
+          }
+        )
+        return result?.scenes?.find((scene) => scene.parcels?.includes(pointer))
       }
-    )
-    return result?.scenes?.find((scene) => scene.parcels?.includes(pointer))
+    })
   }
 
   async function fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined> {
@@ -72,7 +91,7 @@ export async function createWorldsComponent(
     const entity = await fetchWorldJson<{ metadata?: WorldSceneEntityMetadata }>(
       `${worldContentUrl}/contents/${encodeURIComponent(entityId)}`
     )
-    // Content-addressed metadata is immutable; misses and live membership are never cached across requests.
+    // Content-addressed metadata is immutable; only successful metadata responses are cached here.
     if (entity?.metadata?.scene) sceneEntityMetadataCache.set(entityId, entity.metadata)
     return entity?.metadata?.scene ? entity.metadata : undefined
   }
@@ -85,16 +104,20 @@ export async function createWorldsComponent(
    * @throws ServiceUnavailableError when the upstream cannot verify membership.
    */
   async function fetchWorldSceneByEntityId(worldName: string, entityId: string): Promise<WorldScene | undefined> {
-    const result = await fetchWorldJson<{ scenes: WorldScene[] }>(
-      `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes?entity_id=${encodeURIComponent(entityId.toLowerCase())}&limit=1`
-    )
-    const scene = result?.scenes?.find((candidate) => candidate.entityId.toLowerCase() === entityId.toLowerCase())
-    if (!scene) return undefined
-    const baseParcel = scene.baseParcel ?? scene.parcels?.[0]
-    if (!SceneParcels.validate({ base: baseParcel, parcels: scene.parcels })) {
-      throw new ServiceUnavailableError('World scene index returned invalid parcel metadata')
-    }
-    return { ...scene, baseParcel }
+    return scenesCache.fetch(JSON.stringify(['entity', worldName.toLowerCase(), entityId.toLowerCase()]), {
+      context: async () => {
+        const result = await fetchWorldJson<{ scenes: WorldScene[] }>(
+          `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes?entity_id=${encodeURIComponent(entityId.toLowerCase())}&limit=1`
+        )
+        const scene = result?.scenes?.find((candidate) => candidate.entityId.toLowerCase() === entityId.toLowerCase())
+        if (!scene) return undefined
+        const baseParcel = scene.baseParcel ?? scene.parcels?.[0]
+        if (!SceneParcels.validate({ base: baseParcel, parcels: scene.parcels })) {
+          throw new ServiceUnavailableError('World scene index returned invalid parcel metadata')
+        }
+        return { ...scene, baseParcel }
+      }
+    })
   }
 
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
@@ -148,17 +171,24 @@ export async function createWorldsComponent(
     worldName: string,
     permissionName: string
   ): Promise<string[] | undefined> {
-    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions/${encodeURIComponent(permissionName)}/address/${encodeURIComponent(address.toLowerCase())}/parcels`
-    const response = await fetch.fetch(url)
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined)
-      if (response.status === 404) {
-        return undefined
+    return parcelPermissionsCache.fetch(
+      JSON.stringify([worldName.toLowerCase(), address.toLowerCase(), permissionName]),
+      {
+        context: async () => {
+          const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions/${encodeURIComponent(permissionName)}/address/${encodeURIComponent(address.toLowerCase())}/parcels`
+          const response = await fetch.fetch(url)
+          if (!response.ok) {
+            await response.body?.cancel().catch(() => undefined)
+            if (response.status === 404) {
+              return undefined
+            }
+            throw new Error(`Error getting ${url}, status: ${response.status}`)
+          }
+          const result = (await response.json()) as { total: number; parcels: string[] }
+          return result?.parcels ?? []
+        }
       }
-      throw new Error(`Error getting ${url}, status: ${response.status}`)
-    }
-    const result = (await response.json()) as { total: number; parcels: string[] }
-    return result?.parcels ?? []
+    )
   }
 
   /**
@@ -170,24 +200,31 @@ export async function createWorldsComponent(
     permissionName: string,
     parcels: string[]
   ): Promise<string[]> {
-    if (parcels.length === 0) {
-      return []
-    }
+    return permissionAddressesCache.fetch(
+      JSON.stringify([worldName.toLowerCase(), permissionName, [...new Set(parcels)].sort()]),
+      {
+        context: async () => {
+          if (parcels.length === 0) {
+            return []
+          }
 
-    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions/${encodeURIComponent(permissionName)}/parcels`
-    const response = await fetch.fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parcels })
-    })
+          const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions/${encodeURIComponent(permissionName)}/parcels`
+          const response = await fetch.fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parcels })
+          })
 
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined)
-      throw new Error(`Failed to fetch parcel permission addresses: HTTP ${response.status}`)
-    }
+          if (!response.ok) {
+            await response.body?.cancel().catch(() => undefined)
+            throw new Error(`Failed to fetch parcel permission addresses: HTTP ${response.status}`)
+          }
 
-    const result = (await response.json()) as { total: number; addresses: string[] }
-    return result.addresses ?? []
+          const result = (await response.json()) as { total: number; addresses: string[] }
+          return result.addresses ?? []
+        }
+      }
+    )
   }
 
   /**
@@ -197,7 +234,9 @@ export async function createWorldsComponent(
    */
   async function fetchWorldSceneId(worldName: string): Promise<string> {
     const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/about`
-    const about = await fetchWorldJson<{ configurations?: { scenesUrn?: string[] } }>(url)
+    const about = await aboutCache.fetch(url, {
+      context: () => fetchWorldJson<{ configurations?: { scenesUrn?: string[] } }>(url)
+    })
 
     const scenesUrn = about?.configurations?.scenesUrn
     if (!scenesUrn || scenesUrn.length === 0) {
@@ -299,6 +338,10 @@ export async function createWorldsComponent(
     resolveWorldScene,
     [STOP_COMPONENT]: async () => {
       sceneEntityMetadataCache.clear()
+      scenesCache.clear()
+      aboutCache.clear()
+      parcelPermissionsCache.clear()
+      permissionAddressesCache.clear()
     },
     fetchWorldSceneByEntityId,
     fetchWorldActionPermissions,

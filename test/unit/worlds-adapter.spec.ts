@@ -19,6 +19,7 @@ describe('worlds adapter', () => {
 
   beforeEach(async () => {
     mockConfig = createConfigMockedComponent({
+      getNumber: jest.fn().mockImplementation(async (key) => (key === 'WORLD_SCENE_CACHE_TTL_MS' ? 20 : undefined)),
       requireString: jest.fn().mockImplementation((key) => {
         switch (key) {
           case 'WORLD_CONTENT_URL':
@@ -41,6 +42,11 @@ describe('worlds adapter', () => {
 
     mockFetch = { fetch: jest.fn() }
     mockCachedFetch = createCachedFetchMockedComponent()
+    const realCache = await cachedFetchComponent({
+      fetch: mockFetch,
+      logs: { getLogger: jest.fn().mockReturnValue(mockLogger) }
+    })
+    mockCachedFetch.cache.mockImplementation(realCache.cache)
 
     worldsComponent = await createWorldsComponent({
       config: mockConfig,
@@ -197,12 +203,13 @@ describe('worlds adapter', () => {
         })
     })
 
-    it('should return the verified parcel and scene ID, then revalidate on a subsequent operation', async () => {
+    it('should reuse the verified scene briefly, then revalidate after expiration', async () => {
       await expect(worldsComponent.resolveWorldScene('name.eth', 'scene-id', '1,2')).resolves.toEqual({
         sceneId: 'scene-id',
         parcel: '1,2'
       })
       expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
+      await new Promise((resolve) => setTimeout(resolve, 30))
       await expect(worldsComponent.resolveWorldScene('name.eth', 'scene-id', '1,2')).rejects.toThrow(
         InvalidRequestError
       )

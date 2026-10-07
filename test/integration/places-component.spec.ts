@@ -1,5 +1,6 @@
 import { createMockedPlace, createMockedWorldPlace } from '../mocks/places-mock'
 import { InvalidRequestError } from '../../src/types/errors'
+import { cachedFetchComponent } from '../../src/adapters/fetch'
 import { createPlacesComponent } from '../../src/adapters/places'
 import { PlaceNotFoundError } from '../../src/types/errors'
 import { PlaceAttributes, PlaceResponse } from '../../src/types/places.type'
@@ -29,7 +30,7 @@ describe('PlacesComponent', () => {
         return Promise.resolve(values[key] || '')
       }),
       getString: jest.fn(),
-      getNumber: jest.fn(),
+      getNumber: jest.fn().mockImplementation(async (key) => (key === 'PLACES_CACHE_TTL_MS' ? 20 : undefined)),
       requireNumber: jest.fn()
     }
 
@@ -57,6 +58,7 @@ describe('PlacesComponent', () => {
 
     placesComponent = await createPlacesComponent({
       config: mockConfig,
+      cachedFetch: await cachedFetchComponent({ fetch: mockFetchComponent, logs: mockLogs }),
       logs: mockLogs,
       fetch: mockFetchComponent,
       worlds: mockWorlds,
@@ -437,6 +439,7 @@ describe('PlacesComponent', () => {
       }
 
       mockFetch.mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve(mockResponse)
       })
 
@@ -447,7 +450,8 @@ describe('PlacesComponent', () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(['1', '2'])
+        body: JSON.stringify(['1', '2']),
+        signal: expect.any(AbortSignal)
       })
 
       expect(result).toEqual([
@@ -462,6 +466,7 @@ describe('PlacesComponent', () => {
       }
 
       mockFetch.mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve(mockResponse)
       })
 
@@ -472,7 +477,8 @@ describe('PlacesComponent', () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(['1', '2'])
+        body: JSON.stringify(['1', '2']),
+        signal: expect.any(AbortSignal)
       })
     })
   })
@@ -609,8 +615,10 @@ describe('PlacesComponent', () => {
         .mockResolvedValueOnce({ data: [createMockedPlace({ id: 'new-place', positions: ['1,2'] })] })
     })
 
-    it('should use the fresh place instead of the previous authorization result', async () => {
+    it('should reuse the place until expiration, then fetch the changed place', async () => {
       await expect(placesComponent.getPlaceByParcel('1,2')).resolves.toMatchObject({ id: 'old-place' })
+      await expect(placesComponent.getPlaceByParcel('1,2')).resolves.toMatchObject({ id: 'old-place' })
+      await new Promise((resolve) => setTimeout(resolve, 30))
       await expect(placesComponent.getPlaceByParcel('1,2')).resolves.toMatchObject({ id: 'new-place' })
       expect(mockFetch).toHaveBeenCalledTimes(2)
     })

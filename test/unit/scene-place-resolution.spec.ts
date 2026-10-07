@@ -7,7 +7,7 @@ import { InvalidRequestError } from '../../src/types/errors'
 import { createConfigMockedComponent } from '../mocks/config-mock'
 import { createLoggerMockedComponent } from '../mocks/logger-mock'
 import { createFetchMockedComponent } from '../mocks/fetch-mock'
-import { createCachedFetchMockedComponent } from '../mocks/cached-fetch'
+import { cachedFetchComponent } from '../../src/adapters/fetch'
 import { createContentClientMockedComponent } from '../mocks/content-client-mock'
 import { createMockedWorldPlace } from '../mocks/places-mock'
 
@@ -18,13 +18,18 @@ describe('when resolving a scene and its place with the real adapters', () => {
   let place: PlaceAttributes
 
   beforeEach(async () => {
-    const config = createConfigMockedComponent({ requireString: jest.fn().mockResolvedValue('https://upstream') })
+    const config = createConfigMockedComponent({
+      requireString: jest.fn().mockResolvedValue('https://upstream'),
+      getNumber: jest.fn().mockImplementation(async (key) => (key.endsWith('CACHE_TTL_MS') ? 20 : undefined))
+    })
     const logs = createLoggerMockedComponent()
     fetch = createFetchMockedComponent()
     place = createMockedWorldPlace({ world_name: 'name.eth', positions: ['1,2'], base_position: '1,2' })
-    worlds = await createWorldsComponent({ config, logs, fetch, cachedFetch: createCachedFetchMockedComponent() })
+    const cachedFetch = await cachedFetchComponent({ fetch, logs })
+    worlds = await createWorldsComponent({ config, logs, fetch, cachedFetch })
     places = await createPlacesComponent({
       config,
+      cachedFetch,
       logs,
       fetch,
       worlds,
@@ -62,8 +67,9 @@ describe('when resolving a scene and its place with the real adapters', () => {
       )
     })
 
-    it('should reject the old deployment instead of reusing a cached result', async () => {
+    it('should reject the old deployment after the short cache expires', async () => {
       await places.resolveScenePlace('scene-id', 'name.eth', '1,2')
+      await new Promise((resolve) => setTimeout(resolve, 30))
       await expect(places.resolveScenePlace('scene-id', 'name.eth', '1,2')).rejects.toThrow(InvalidRequestError)
       expect(fetch.fetch).toHaveBeenCalledTimes(3)
     })

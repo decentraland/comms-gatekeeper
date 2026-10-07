@@ -68,6 +68,10 @@ info:
     footprint. Identifiable previous world rooms also refresh their ban/admin metadata using the
     current place. Ambiguous legacy rooms retain their existing metadata. Genesis joins retain
     previous deployment compatibility; operations requiring an active Genesis deployment bypass the pointer cache.
+    Active world scene and world-about lookups are cached for 5 seconds by default; Places
+    lookups and world parcel permissions are cached for 10 seconds. Changes can take these
+    intervals to become visible. Expired data is not served when a refresh fails. Database ban
+    checks remain uncached. Cache lifetimes are configurable through the service environment.
     Upstream verification failures return `503` with `Retry-After: 1`, rather than `400`.
 
     ### Base URLs
