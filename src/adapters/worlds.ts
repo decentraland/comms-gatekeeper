@@ -1,3 +1,6 @@
+import { STOP_COMPONENT } from '@well-known-components/interfaces'
+import { AsyncLocalStorage } from 'async_hooks'
+import { LRUCache } from 'lru-cache'
 import { SceneParcels } from '@dcl/schemas'
 import { AppComponents, NamesResponse } from '../types'
 import { ensureSlashAtTheEnd } from '../logic/utils'
@@ -9,7 +12,7 @@ import {
   WorldSceneEntityMetadata
 } from '../types/worlds.type'
 import { getErrorMessage } from '../logic/errors'
-import { InvalidRequestError } from '../types/errors'
+import { InvalidRequestError, ServiceUnavailableError } from '../types/errors'
 
 export async function createWorldsComponent(
   components: Pick<AppComponents, 'config' | 'cachedFetch' | 'fetch' | 'logs'>
@@ -23,7 +26,39 @@ export async function createWorldsComponent(
   ])
 
   const permissionsCache = cachedFetch.cache<PermissionsOverWorld>()
-  const sceneEntityMetadataCache = cachedFetch.cache<{ metadata: WorldSceneEntityMetadata }>()
+  const sceneEntityMetadataCache = new LRUCache<string, WorldSceneEntityMetadata>({ max: 1000, ttl: 300000 })
+  const requestScenes = new AsyncLocalStorage<Map<string, Promise<WorldScene | undefined>>>()
+  const requestTimeout = (await config.getNumber('WORLD_SCENE_REQUEST_TIMEOUT_MS')) ?? 5000
+
+  function withSceneResolutionScope<T>(action: () => Promise<T>): Promise<T> {
+    return requestScenes.run(new Map(), action)
+  }
+
+  function oncePerRequest(key: string, lookup: () => Promise<WorldScene | undefined>): Promise<WorldScene | undefined> {
+    const scope = requestScenes.getStore()
+    const pending = scope?.get(key)
+    if (pending) return pending
+    const result = lookup()
+    scope?.set(key, result)
+    return result
+  }
+
+  async function fetchWorldJson<T>(url: string, options: RequestInit = {}): Promise<T | undefined> {
+    try {
+      const response = await fetch.fetch(url, { ...options, signal: AbortSignal.timeout(requestTimeout) })
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined)
+        if (response.status === 404) return undefined
+        if (response.status === 400) throw new InvalidRequestError('Invalid world scene request')
+        throw new ServiceUnavailableError('World scene verification is temporarily unavailable')
+      }
+      return await response.json()
+    } catch (error) {
+      if (error instanceof InvalidRequestError || error instanceof ServiceUnavailableError) throw error
+      logger.warn('World scene lookup failed', { url, error: getErrorMessage(error) })
+      throw new ServiceUnavailableError('World scene verification is temporarily unavailable')
+    }
+  }
   const namesCache = cachedFetch.cache<NamesResponse>()
 
   async function fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined> {
@@ -34,115 +69,50 @@ export async function createWorldsComponent(
   }
 
   async function fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined> {
-    const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes`
-    logger.debug(`Fetching world scene for ${worldName} at pointer ${pointer}`)
-
-    const response = await fetch.fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ coordinates: [pointer] })
+    return oncePerRequest(JSON.stringify(['parcel', worldName.toLowerCase(), pointer]), async () => {
+      const result = await fetchWorldJson<{ scenes: WorldScene[] }>(
+        `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ coordinates: [pointer] })
+        }
+      )
+      return result?.scenes?.find((scene) => scene.parcels?.includes(pointer))
     })
-
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined)
-      logger.warn(`Failed to fetch world scene for ${worldName} at pointer ${pointer}: HTTP ${response.status}`)
-      return undefined
-    }
-
-    const result = (await response.json()) as { scenes: WorldScene[]; total: number }
-
-    if (!result.scenes || result.scenes.length === 0) {
-      logger.debug(`No scene found for world ${worldName} at pointer ${pointer}`)
-      return undefined
-    }
-
-    const scene = result.scenes.find((candidate) => candidate.parcels?.includes(pointer))
-    if (!scene) {
-      logger.warn('World scene response did not contain the requested parcel', { worldName, pointer })
-      return undefined
-    }
-    logger.debug(`Found scene ${scene.entityId} for world ${worldName} at pointer ${pointer}`)
-    return scene
   }
 
   async function fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined> {
-    const url = `${worldContentUrl}/contents/${encodeURIComponent(entityId)}`
-    logger.debug(`Fetching world scene entity metadata for ${entityId}`)
-
-    const result = await sceneEntityMetadataCache.fetch(url)
-
-    if (!result?.metadata?.scene) {
-      logger.debug(`No scene entity metadata found for entity ID ${entityId}`)
-      return undefined
-    }
-
-    logger.debug(`Found scene entity ${entityId} with base parcel ${result.metadata.scene.base}`)
-    return result.metadata
+    const cached = sceneEntityMetadataCache.get(entityId)
+    if (cached) return cached
+    const entity = await fetchWorldJson<{ metadata?: WorldSceneEntityMetadata }>(
+      `${worldContentUrl}/contents/${encodeURIComponent(entityId)}`
+    )
+    // Content-addressed metadata is immutable; misses and live membership are never cached across requests.
+    if (entity?.metadata?.scene) sceneEntityMetadataCache.set(entityId, entity.metadata)
+    return entity?.metadata?.scene ? entity.metadata : undefined
   }
 
   /**
-   * Resolves an entity against the live world index, without caching deployment membership.
+   * Queries the exact active deployment in a world, without scanning its scene list.
    * @param worldName - World that must contain the deployment.
    * @param entityId - Requested deployment ID.
-   * @returns The active scene and its base parcel, or undefined when it does not belong to the world.
+   * @returns The active scene, or undefined for a confirmed miss.
+   * @throws ServiceUnavailableError when the upstream cannot verify membership.
    */
   async function fetchWorldSceneByEntityId(worldName: string, entityId: string): Promise<WorldScene | undefined> {
-    entityId = entityId.toLowerCase()
-    const metadata = await fetchWorldSceneEntityMetadataById(entityId)
-    const declaredWorldName = metadata?.worldConfiguration?.name ?? metadata?.worldConfiguration?.dclName
-    const sceneMetadata = metadata?.scene
-
-    if (declaredWorldName && declaredWorldName.toLowerCase() !== worldName.toLowerCase()) {
-      logger.warn(`Scene entity ${entityId} is not valid for world ${worldName}`)
-      return undefined
-    }
-
-    if (sceneMetadata && !SceneParcels.validate(sceneMetadata)) {
-      logger.warn(`Scene entity ${entityId} has invalid parcel metadata for world ${worldName}`)
-      return undefined
-    }
-
-    if (sceneMetadata) {
-      const scene = await fetchWorldSceneByPointer(worldName, sceneMetadata.base)
-      if (
-        !scene ||
-        scene.entityId.toLowerCase() !== entityId.toLowerCase() ||
-        !scene.parcels.includes(sceneMetadata.base)
-      ) {
-        logger.warn(`Scene entity ${entityId} is not active at ${sceneMetadata.base} in world ${worldName}`)
-        return undefined
-      }
-      return { ...scene, baseParcel: sceneMetadata.base }
-    }
-
-    // Legacy entities may lack metadata. In that case, the world-scoped scenes
-    // index is authoritative for both membership and the effective base parcel.
-    const pageSize = 100
-    const signal = AbortSignal.timeout(5000)
-    let offset = 0
-    let total = 1
-    while (offset < total) {
-      const response = await fetch.fetch(
-        `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes?limit=${pageSize}&offset=${offset}`,
-        { signal }
+    return oncePerRequest(JSON.stringify(['entity', worldName.toLowerCase(), entityId.toLowerCase()]), async () => {
+      const result = await fetchWorldJson<{ scenes: WorldScene[] }>(
+        `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/scenes?entity_id=${encodeURIComponent(entityId.toLowerCase())}&limit=1`
       )
-      if (!response.ok) {
-        await response.body?.cancel().catch(() => undefined)
-        return undefined
+      const scene = result?.scenes?.find((candidate) => candidate.entityId.toLowerCase() === entityId.toLowerCase())
+      if (!scene) return undefined
+      const baseParcel = scene.baseParcel ?? scene.parcels?.[0]
+      if (!SceneParcels.validate({ base: baseParcel, parcels: scene.parcels })) {
+        throw new ServiceUnavailableError('World scene index returned invalid parcel metadata')
       }
-      const result: { scenes?: WorldScene[]; total?: number } = await response.json()
-      if (!result.scenes?.length) return undefined
-      const scene = result.scenes.find((candidate) => candidate.entityId.toLowerCase() === entityId.toLowerCase())
-      if (scene) {
-        const baseParcel = scene.baseParcel ?? scene.parcels?.[0]
-        return SceneParcels.validate({ base: baseParcel, parcels: scene.parcels })
-          ? { ...scene, baseParcel }
-          : undefined
-      }
-      total = result.total ?? 0
-      offset += pageSize
-    }
-    return undefined
+      return { ...scene, baseParcel }
+    })
   }
 
   async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
@@ -245,18 +215,9 @@ export async function createWorldsComponent(
    */
   async function fetchWorldSceneId(worldName: string): Promise<string> {
     const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/about`
-    const response = await fetch.fetch(url)
+    const about = await fetchWorldJson<{ configurations?: { scenesUrn?: string[] } }>(url)
 
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined)
-      throw new InvalidRequestError(`Failed to fetch world about for ${worldName}: HTTP ${response.status}`)
-    }
-
-    const about = (await response.json()) as {
-      configurations?: { scenesUrn?: string[] }
-    }
-
-    const scenesUrn = about.configurations?.scenesUrn
+    const scenesUrn = about?.configurations?.scenesUrn
     if (!scenesUrn || scenesUrn.length === 0) {
       throw new InvalidRequestError(`No scenes found for world ${worldName}`)
     }
@@ -289,15 +250,36 @@ export async function createWorldsComponent(
    * @param worldName - World whose scene is requested.
    * @param sceneId - Content ID or legacy world name.
    * @param parcel - Requested parcel, required to disambiguate multi-scene worlds.
+   * @param options - Joins may retain an old ID whose metadata proves the same world and current footprint.
    * @returns The lowercase content ID used by both authorization and LiveKit.
    * @throws InvalidRequestError when the scene does not belong to the requested world or parcel.
+   * @throws ServiceUnavailableError when the upstream cannot verify the scene.
    */
-  async function resolveWorldSceneId(worldName: string, sceneId: string, parcel?: string): Promise<string> {
+  async function resolveWorldSceneId(
+    worldName: string,
+    sceneId: string,
+    parcel?: string,
+    options?: { allowPreviousDeployment?: boolean }
+  ): Promise<string> {
     const isLegacyName = sceneId.toLowerCase().endsWith('.eth')
     try {
       if (parcel) {
         const scene = await fetchWorldSceneByPointer(worldName, parcel)
-        if (!scene || (!isLegacyName && scene.entityId.toLowerCase() !== sceneId.toLowerCase())) {
+        if (!scene) throw new InvalidRequestError(`No active scene at ${parcel} in world ${worldName}`)
+        if (!isLegacyName && scene.entityId.toLowerCase() !== sceneId.toLowerCase()) {
+          if (options?.allowPreviousDeployment) {
+            const metadata = await fetchWorldSceneEntityMetadataById(sceneId.toLowerCase())
+            const declaredWorld = metadata?.worldConfiguration?.name ?? metadata?.worldConfiguration?.dclName
+            if (
+              declaredWorld?.toLowerCase() === worldName.toLowerCase() &&
+              SceneParcels.validate(metadata?.scene) &&
+              metadata.scene.parcels.includes(parcel) &&
+              metadata.scene.parcels.length === scene.parcels.length &&
+              metadata.scene.parcels.every((value) => scene.parcels.includes(value))
+            ) {
+              return sceneId.toLowerCase()
+            }
+          }
           throw new InvalidRequestError(`Scene ${sceneId} is not active at ${parcel} in world ${worldName}`)
         }
         return scene.entityId.toLowerCase()
@@ -313,12 +295,19 @@ export async function createWorldsComponent(
         parcel: parcel || '',
         error: getErrorMessage(error)
       })
-      throw new InvalidRequestError(`Failed to resolve scene ID for world ${worldName}`)
+      if (error instanceof InvalidRequestError) throw error
+      if (error instanceof ServiceUnavailableError) throw error
+      throw new ServiceUnavailableError(`Scene verification is temporarily unavailable for world ${worldName}`)
     }
   }
 
   return {
     resolveWorldSceneId,
+    withSceneResolutionScope,
+    [STOP_COMPONENT]: async () => {
+      requestScenes.disable()
+      sceneEntityMetadataCache.clear()
+    },
     fetchWorldSceneByEntityId,
     fetchWorldActionPermissions,
     fetchWorldSceneByPointer,

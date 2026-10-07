@@ -85,4 +85,32 @@ describe('when looking up an entity across trusted content servers', () => {
       await expect(component.fetchEntityById('scene-b')).rejects.toThrow(PlaceNotFoundError)
     })
   })
+  describe('and an active deployment check follows a cached pointer lookup', () => {
+    beforeEach(() => {
+      fetch
+        .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 'old-deployment' }])))
+        .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 'new-deployment' }])))
+    })
+
+    it('should bypass the pointer cache for mutation authorization', async () => {
+      await expect(component.fetchEntitiesByPointers(['1,2'])).resolves.toEqual([{ id: 'old-deployment' }])
+      await expect(component.fetchEntitiesByPointers(['1,2'], { skipCache: true })).resolves.toEqual([
+        { id: 'new-deployment' }
+      ])
+    })
+  })
+  describe('and only a trusted fallback has the active deployment', () => {
+    beforeEach(() => {
+      fetch
+        .mockResolvedValueOnce(new Response('[]'))
+        .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 'new-deployment' }])))
+    })
+
+    it('should retain trusted fallback support during active deployment checks', async () => {
+      await expect(
+        component.fetchEntitiesByPointers(['1,2'], { skipCache: true, expectedEntityId: 'new-deployment' })
+      ).resolves.toEqual([{ id: 'new-deployment' }])
+      expect(fetch).toHaveBeenCalledTimes(2)
+    })
+  })
 })

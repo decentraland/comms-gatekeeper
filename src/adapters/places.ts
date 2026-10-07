@@ -1,22 +1,35 @@
 import { SceneParcels } from '@dcl/schemas'
 import { isPlaceRemoved } from '../logic/utils'
 import { AppComponents } from '../types'
-import { PlaceNotFoundError } from '../types/errors'
+import { PlaceNotFoundError, ServiceUnavailableError } from '../types/errors'
 import { IPlacesComponent, PlaceAttributes, PlaceResponse } from '../types/places.type'
 
 export async function createPlacesComponent(
-  components: Pick<AppComponents, 'config' | 'cachedFetch' | 'logs' | 'fetch' | 'worlds' | 'contentClient'>
+  components: Pick<AppComponents, 'config' | 'logs' | 'fetch' | 'worlds' | 'contentClient'>
 ): Promise<IPlacesComponent> {
-  const { config, cachedFetch, logs, fetch, worlds, contentClient } = components
+  const { config, logs, fetch, worlds, contentClient } = components
 
   const logger = logs.getLogger('places-component')
 
   const placesApiUrl = await config.requireString('PLACES_API_URL')
 
-  const fetchFromCache = cachedFetch.cache<PlaceResponse>()
+  async function fetchPlaces(url: string): Promise<PlaceResponse> {
+    try {
+      const response = await fetch.fetch(url, { signal: AbortSignal.timeout(5000) })
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined)
+        if (response.status === 404) throw new PlaceNotFoundError('Place not found')
+        throw new ServiceUnavailableError('Place verification is temporarily unavailable')
+      }
+      return await response.json()
+    } catch (error) {
+      if (error instanceof PlaceNotFoundError || error instanceof ServiceUnavailableError) throw error
+      throw new ServiceUnavailableError('Place verification is temporarily unavailable')
+    }
+  }
 
   async function getPlaceByParcel(parcel: string): Promise<PlaceAttributes> {
-    const response = await fetchFromCache.fetch(`${placesApiUrl}/places?positions=${encodeURIComponent(parcel)}`)
+    const response = await fetchPlaces(`${placesApiUrl}/places?positions=${encodeURIComponent(parcel)}`)
 
     const place = response?.data?.find(
       (candidate) => !isPlaceRemoved(candidate) && !candidate.world && candidate.positions.includes(parcel)
@@ -40,7 +53,7 @@ export async function createPlacesComponent(
       return getWorldScenePlaceByEntityId(worldName, sceneId)
     }
     const lowercasedWorldName = worldName.toLowerCase()
-    const response = await fetchFromCache.fetch(
+    const response = await fetchPlaces(
       `${placesApiUrl}/places?positions=${encodeURIComponent(position)}&names=${encodeURIComponent(lowercasedWorldName)}&include_opted_out=true`
     )
 
@@ -113,9 +126,20 @@ export async function createPlacesComponent(
    * Gets a world scene place by resolving the entity ID through the worlds content server
    * to obtain the base parcel, then querying the Places API.
    */
-  async function getWorldScenePlaceByEntityId(worldName: string, entityId: string): Promise<PlaceAttributes> {
+  async function getWorldScenePlaceByEntityId(
+    worldName: string,
+    entityId: string,
+    options?: { allowPreviousDeployment?: boolean }
+  ): Promise<PlaceAttributes> {
     const scene = await worlds.fetchWorldSceneByEntityId(worldName, entityId)
 
+    if (!scene?.baseParcel && options?.allowPreviousDeployment) {
+      const metadata = await worlds.fetchWorldSceneEntityMetadataById(entityId)
+      if (SceneParcels.validate(metadata?.scene)) {
+        await worlds.resolveWorldSceneId(worldName, entityId, metadata.scene.base, { allowPreviousDeployment: true })
+        return getWorldScenePlace(worldName, metadata.scene.base)
+      }
+    }
     if (!scene?.baseParcel) {
       logger.info(`No scene entity found for entity ID ${entityId} in world ${worldName}`)
       throw new PlaceNotFoundError(`No scene entity found for entity ID ${entityId} in world ${worldName}`)
@@ -130,9 +154,14 @@ export async function createPlacesComponent(
    * caller prove rights over one place while acting on a different scene's room. World scenes and
    * Genesis City scenes live on different content servers, so each uses its own entity lookup.
    */
-  async function getPlaceBySceneId(sceneId: string, worldName?: string, parcel?: string): Promise<PlaceAttributes> {
+  async function getPlaceBySceneId(
+    sceneId: string,
+    worldName?: string,
+    parcel?: string,
+    options?: { allowPreviousDeployment?: boolean }
+  ): Promise<PlaceAttributes> {
     if (worldName) {
-      if (!parcel) return getWorldScenePlaceByEntityId(worldName, sceneId)
+      if (!parcel) return getWorldScenePlaceByEntityId(worldName, sceneId, options)
       const scene = await worlds.fetchWorldSceneByPointer(worldName, parcel)
       if (!scene || scene.entityId.toLowerCase() !== sceneId.toLowerCase() || !scene.parcels.includes(parcel)) {
         throw new PlaceNotFoundError(`Scene ${sceneId} is not active at ${parcel} in world ${worldName}`)
@@ -159,6 +188,15 @@ export async function createPlacesComponent(
       throw new PlaceNotFoundError(`No scene entity found for scene ID ${sceneId}`)
     }
 
+    if (!options?.allowPreviousDeployment) {
+      const activeEntities = await contentClient.fetchEntitiesByPointers([scene.base], {
+        skipCache: true,
+        expectedEntityId: sceneId
+      })
+      if (!activeEntities.some((active) => active.id === sceneId)) {
+        throw new PlaceNotFoundError(`Scene ${sceneId} is no longer active at ${scene.base}`)
+      }
+    }
     return getPlaceByParcel(scene.base)
   }
 

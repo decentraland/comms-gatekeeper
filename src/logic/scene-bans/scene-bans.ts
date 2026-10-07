@@ -348,6 +348,10 @@ export function createSceneBansComponent(
 
     let place: PlaceAttributes
 
+    // Only internal callers may reuse a place already verified for this request.
+    if (params.verifiedPlaceId) {
+      return sceneBanManager.isBanned(params.verifiedPlaceId, address.toLowerCase())
+    }
     // When both are supplied, the parcel must belong to the same deployment as the room.
     if (sceneId && parcel) {
       const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel) : sceneId

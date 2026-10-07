@@ -92,7 +92,23 @@ export async function createContentClientComponent(
       }
       return cache.fetch(`id:${sceneId}`) as Promise<Entity | undefined>
     },
-    fetchEntitiesByPointers: async (pointers: string[]) => {
+    fetchEntitiesByPointers: async (pointers, options) => {
+      if (options?.skipCache) {
+        let unavailable = false
+        for (const entityClient of entityClients) {
+          try {
+            const entities = await entityClient.fetchEntitiesByPointers(pointers, { timeout: 5000, attempts: 1 })
+            if (!options.expectedEntityId || entities.some((entity) => entity.id === options.expectedEntityId)) {
+              return entities
+            }
+          } catch (error) {
+            unavailable = true
+            logger.warn('Active scene verification failed', { error: getErrorMessage(error) })
+          }
+        }
+        if (unavailable) throw new ServiceUnavailableError('Active scene verification is temporarily unavailable')
+        return []
+      }
       const result = await cache.fetch(`ptr:${pointers[0]}`)
       return (result as Entity[]) ?? []
     }

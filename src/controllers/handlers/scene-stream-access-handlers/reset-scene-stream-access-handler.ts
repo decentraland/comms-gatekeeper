@@ -148,7 +148,8 @@ export async function resetSceneStreamAccessHandler(
         }
       }
     }
-    if (error instanceof ServiceUnavailableError) return { status: 503, body: { error: error.message } }
+    if (error instanceof ServiceUnavailableError)
+      return { status: 503, headers: { 'Retry-After': '1' }, body: { error: error.message } }
     if (
       error instanceof InvalidRequestError ||
       error instanceof PlaceNotFoundError ||

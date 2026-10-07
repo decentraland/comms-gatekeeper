@@ -2,6 +2,7 @@ import { Room } from 'livekit-server-sdk'
 import { RoomType } from '@dcl/schemas'
 import { AppComponents } from '../../types'
 import { PlaceAttributes } from '../../types/places.type'
+import { InvalidRequestError, PlaceNotFoundError } from '../../types/errors'
 import { isErrorWithMessage } from '../errors'
 import { IRoomMetadataSyncComponent } from './types'
 
@@ -96,7 +97,7 @@ export function createRoomMetadataSyncComponent(
       let place: PlaceAttributes
 
       if (worldName && sceneId) {
-        place = await places.getWorldScenePlaceByEntityId(worldName, sceneId)
+        place = await places.getWorldScenePlaceByEntityId(worldName, sceneId, { allowPreviousDeployment: true })
       } else if (worldName) {
         // Legacy rooms without a scene ID can only be resolved in single-scene worlds.
         place = await places.getWorldScenePlace(worldName)
@@ -109,11 +110,17 @@ export function createRoomMetadataSyncComponent(
           logger.warn(`Room ${room.name} parsed as a scene but has no sceneId; skipping metadata refresh`)
           return
         }
-        place = await places.getPlaceBySceneId(sceneId)
+        place = await places.getPlaceBySceneId(sceneId, undefined, undefined, { allowPreviousDeployment: true })
       }
 
       await refreshRoomMetadata(place, room.name)
     } catch (error) {
+      if (error instanceof InvalidRequestError || error instanceof PlaceNotFoundError) {
+        // A legacy or retired room cannot be mapped safely. Keep the cooldown and
+        // existing metadata rather than retrying an identical permanent miss on every event.
+        logger.debug('Skipping metadata refresh for an unresolved scene room', { roomName: room.name })
+        return
+      }
       // Release the cooldown slot so the next webhook can retry promptly. A
       // genuine outage will keep failing here, but that's the right signal —
       // the upstream service is down regardless of how often we retry.

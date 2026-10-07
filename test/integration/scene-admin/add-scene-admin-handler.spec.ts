@@ -635,6 +635,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledWith(admin.authChain[0].payload.toLowerCase(), {
+        verifiedPlaceId: mockedPlace.id,
         sceneId: metadataLand.sceneId,
         parcel: metadataLand.parcel,
         realmName: metadataLand.realm.serverName,
@@ -661,6 +662,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledWith(admin.authChain[0].payload.toLowerCase(), {
+        verifiedPlaceId: mockedWorldPlace.id,
         sceneId: metadataWorld.sceneId,
         parcel: metadataWorld.parcel,
         realmName: metadataWorld.realm.serverName,

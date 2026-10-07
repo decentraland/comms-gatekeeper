@@ -114,7 +114,12 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(mockWorldRealm, mockSceneId, mockParcel)
+        expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
+          mockWorldRealm,
+          mockSceneId,
+          mockParcel,
+          { allowPreviousDeployment: true }
+        )
         expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(mockWorldRealm, 'active-world-scene')
         expect(stubComponents.livekit.generateCredentials).toHaveBeenCalledWith(
           'authoritative-server',

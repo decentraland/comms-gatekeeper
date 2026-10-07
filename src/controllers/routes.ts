@@ -89,6 +89,8 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
 
   const router = new Router<GlobalContext>()
   router.use(errorHandler)
+  const withSceneResolutionScope = components.worlds.withSceneResolutionScope
+  router.use((_ctx, next) => withSceneResolutionScope(next))
 
   const auth = authVerificationMiddleware({
     fetcher: components.fetch,

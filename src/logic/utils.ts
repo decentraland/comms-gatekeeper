@@ -209,6 +209,6 @@ export function isValidPresenterIdentity(identity: string): boolean {
   return (
     identity.length <= 512 &&
     (/^0x[a-fA-F0-9]{40}$/.test(identity) ||
-      /^stream:.+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(identity))
+      /^stream:[a-zA-Z0-9._:+\/=-]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(identity))
   )
 }

@@ -1,3 +1,4 @@
+import { InvalidRequestError, PlaceNotFoundError } from '../../src/types/errors'
 import { ICacheStorageComponent } from '@dcl/core-commons'
 import { createInMemoryCacheComponent } from '@dcl/memory-cache-component'
 import { RoomType } from '@dcl/schemas'
@@ -193,7 +194,9 @@ describe('RoomMetadataSyncComponent', () => {
       })
 
       it('should resolve the place by deployment identity', () => {
-        expect(places.getPlaceBySceneId).toHaveBeenCalledWith('scene-id')
+        expect(places.getPlaceBySceneId).toHaveBeenCalledWith('scene-id', undefined, undefined, {
+          allowPreviousDeployment: true
+        })
       })
 
       it('should refresh metadata for the resolved place', () => {
@@ -218,7 +221,9 @@ describe('RoomMetadataSyncComponent', () => {
       })
 
       it('should resolve the place via getWorldScenePlaceByEntityId', () => {
-        expect(places.getWorldScenePlaceByEntityId).toHaveBeenCalledWith('test-world', 'scene-id')
+        expect(places.getWorldScenePlaceByEntityId).toHaveBeenCalledWith('test-world', 'scene-id', {
+          allowPreviousDeployment: true
+        })
       })
 
       it('should not resolve a Genesis place', () => {
@@ -345,6 +350,29 @@ describe('RoomMetadataSyncComponent', () => {
 
       it('should swallow the error and not write metadata', () => {
         expect(livekit.updateRoomMetadata).not.toHaveBeenCalled()
+      })
+    })
+
+    describe.each([
+      ['ambiguous legacy', new InvalidRequestError('A parcel is required')],
+      ['retired deployment', new PlaceNotFoundError('Scene is no longer active')]
+    ])('and the room has an %s lookup failure', (_label, error) => {
+      beforeEach(async () => {
+        livekit.getRoomMetadataFromRoomName.mockReturnValue({
+          sceneId: 'old-scene',
+          worldName: 'name.eth',
+          realmName: 'name.eth',
+          roomType: RoomType.WORLD
+        })
+        places.getWorldScenePlaceByEntityId.mockRejectedValue(error)
+        await component.updateRoomMetadataForRoom(mockRoom)
+        await component.updateRoomMetadataForRoom(mockRoom)
+      })
+
+      it('should retain the cooldown and existing metadata without repeated errors', () => {
+        expect(places.getWorldScenePlaceByEntityId).toHaveBeenCalledTimes(1)
+        expect(livekit.updateRoomMetadata).not.toHaveBeenCalled()
+        expect(logs.getLogger('room-metadata-sync').error).not.toHaveBeenCalled()
       })
     })
 

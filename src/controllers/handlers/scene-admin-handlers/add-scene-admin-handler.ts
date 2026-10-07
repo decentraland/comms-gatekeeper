@@ -82,6 +82,7 @@ export async function addSceneAdminHandler(
   }
 
   const isBanned = await sceneBans.isUserBanned(adminToAdd, {
+    verifiedPlaceId: place.id,
     sceneId: resolvedSceneId,
     parcel: parcel,
     realmName: serverName,

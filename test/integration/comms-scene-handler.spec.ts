@@ -1,4 +1,4 @@
-import { InvalidRequestError } from '../../src/types/errors'
+import { InvalidRequestError, ServiceUnavailableError } from '../../src/types/errors'
 import { test } from '../components'
 import { makeRequest, owner, nonOwner } from '../utils'
 import { Room } from 'livekit-server-sdk'
@@ -30,6 +30,13 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       owner: owner.authChain[0].payload
     } as PlaceAttributes)
 
+    stubComponents.places.getPlaceBySceneId.mockResolvedValue({ id: placeId, positions: ['10,20'] } as PlaceAttributes)
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+      id: placeId,
+      positions: ['10,20'],
+      world: true
+    } as PlaceAttributes)
+    stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
     stubComponents.denyList.isDenylisted.mockResolvedValue(false)
     stubComponents.userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
     stubComponents.livekit.getSceneRoomName.mockReturnValue(`test-realm:test-scene`)
@@ -368,7 +375,8 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
             'test-world.eth',
             'test-world.eth',
-            '10,20'
+            '10,20',
+            { allowPreviousDeployment: true }
           )
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(
@@ -381,11 +389,11 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       describe('and the world about endpoint fails', () => {
         beforeEach(() => {
           stubComponents.worlds.resolveWorldSceneId.mockRejectedValue(
-            new InvalidRequestError('Failed to resolve scene ID for world test-world.eth')
+            new ServiceUnavailableError('World scene verification is temporarily unavailable')
           )
         })
 
-        it('should return 400 without reaching the ban check', async () => {
+        it('should return 503 with a retry hint without reaching the ban check', async () => {
           const response = await makeRequest(
             components.localFetch,
             '/get-scene-adapter',
@@ -396,10 +404,11 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
             owner
           )
 
-          expect(response.status).toBe(400)
+          expect(response.status).toBe(503)
+          expect(response.headers.get('retry-after')).toBe('1')
           const body = await response.json()
           expect(body).toEqual({
-            error: 'Failed to resolve scene ID for world test-world.eth'
+            error: 'World scene verification is temporarily unavailable'
           })
           expect(stubComponents.sceneBans.isUserBanned).not.toHaveBeenCalled()
         })
@@ -430,7 +439,8 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
             'test-world.eth',
             'test-world.eth',
-            '10,20'
+            '10,20',
+            { allowPreviousDeployment: true }
           )
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.worlds.hasWorldAccessPermission).not.toHaveBeenCalled()
@@ -537,7 +547,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
         stubComponents.worlds.hasWorldAccessPermission.mockResolvedValue(true)
         stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-prd-scene-room-test-world.eth-bafytest123')
-        stubComponents.places.getWorldByName.mockRejectedValue(new Error('Places API down'))
+        stubComponents.sceneManager.isSceneOwnerOrAdmin.mockRejectedValue(new Error('Admin lookup down'))
         stubComponents.livekit.generateCredentials.mockResolvedValue({
           url: 'wss://test-livekit-url',
           token: 'test-token'
@@ -682,6 +692,75 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         expect(body).toEqual({
           error: 'Access denied, invalid signed-fetch request, no sceneId'
         })
+      })
+    })
+  })
+  describe('when scene-ban verification fails', () => {
+    beforeEach(() => {
+      stubComponents.sceneBans.isUserBanned.mockRejectedValueOnce(new Error('database unavailable'))
+    })
+
+    it('should return a retryable 503 without issuing a token', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/get-scene-adapter',
+        { method: 'POST', metadata },
+        owner
+      )
+      expect(response.status).toBe(503)
+      expect(response.headers.get('retry-after')).toBe('1')
+      expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('when a previous world deployment reconnects', () => {
+    beforeEach(() => {
+      metadata.realmName = 'name.eth'
+      metadata.sceneId = 'old-deployment'
+      stubComponents.worlds.resolveWorldSceneId.mockResolvedValueOnce('old-deployment')
+      stubComponents.worlds.hasWorldAccessPermission.mockResolvedValueOnce(true)
+      stubComponents.sceneBans.isUserBanned.mockResolvedValue(true)
+    })
+
+    it('should enforce the current place ban before issuing an old-room token', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/get-scene-adapter',
+        { method: 'POST', metadata },
+        owner
+      )
+      expect(response.status).toBe(403)
+      expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          verifiedPlaceId: placeId,
+          sceneId: 'old-deployment'
+        })
+      )
+      expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
+    })
+    describe('and the user is not banned', () => {
+      beforeEach(() => {
+        stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
+        stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-room-old-deployment')
+        stubComponents.livekit.generateCredentials.mockResolvedValue({ url: 'wss://livekit.example', token: 'token' })
+      })
+
+      it('should issue credentials for the existing deployment room', async () => {
+        const response = await makeRequest(
+          components.localFetch,
+          '/get-scene-adapter',
+          { method: 'POST', metadata },
+          owner
+        )
+        expect(response.status).toBe(200)
+        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith('name.eth', 'old-deployment')
+        expect(stubComponents.livekit.generateCredentials).toHaveBeenCalledWith(
+          expect.any(String),
+          'world-room-old-deployment',
+          expect.any(Object),
+          false
+        )
       })
     })
   })

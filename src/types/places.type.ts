@@ -16,7 +16,11 @@ export type IPlacesComponent = IBaseComponent & {
    * @param worldName - The world name (e.g., "myworld.dcl.eth")
    * @param entityId - The scene entity ID from the worlds content server
    */
-  getWorldScenePlaceByEntityId(worldName: string, entityId: string): Promise<PlaceAttributes>
+  getWorldScenePlaceByEntityId(
+    worldName: string,
+    entityId: string,
+    options?: { allowPreviousDeployment?: boolean }
+  ): Promise<PlaceAttributes>
   /**
    * Resolves the place that owns the scene identified by `sceneId`. This is the counterpart to
    * LiveKit room naming (also keyed by `sceneId`), so admin/ban checks resolve the same place the
@@ -28,7 +32,12 @@ export type IPlacesComponent = IBaseComponent & {
    * @param parcel - Optional signed parcel, which must belong to the deployment.
    * @throws {PlaceNotFoundError} If the scene entity or its base parcel cannot be resolved.
    */
-  getPlaceBySceneId(sceneId: string, worldName?: string, parcel?: string): Promise<PlaceAttributes>
+  getPlaceBySceneId(
+    sceneId: string,
+    worldName?: string,
+    parcel?: string,
+    options?: { allowPreviousDeployment?: boolean }
+  ): Promise<PlaceAttributes>
   /**
    * @deprecated Use getWorldScenePlace instead. Kept only for backwards compatibility
    * with legacy rooms that lack a sceneId.

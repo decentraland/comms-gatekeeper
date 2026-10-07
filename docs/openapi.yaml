@@ -51,12 +51,17 @@ info:
     Most endpoints require Signed Fetch authentication with a complete identity header chain including scene metadata (sceneId, parcel, realmName).
 
     Scene admin, ban, stream-access and presenter requests require `sceneId`. A signed `parcel`,
-    when supplied, must belong to that deployment. World content IDs must identify an active
-    deployment in the requested world; mismatched world IDs are rejected with `400`, and a place
+    when supplied, must belong to that deployment. Scene admin, ban and stream-access requests verify the active
+    deployment in Genesis or the requested world. Mismatched world IDs are rejected with `400`, and a place
     that cannot be resolved is rejected with `404` on routes using place authorization.
     Legacy world-name scene IDs remain supported: the parcel selects the deployment in a
     multi-scene world, while a single-scene world can be resolved without a parcel. Opted-out
-    world scenes remain accessible; removed scenes do not.
+    world scenes remain accessible; removed scenes do not. Joins may reconnect to a previous
+    world deployment when its content-server metadata matches the world and the current parcel
+    footprint. Identifiable previous world rooms also refresh their ban/admin metadata using the
+    current place. Ambiguous legacy rooms retain their existing metadata. The join exception does not apply to mutations. Genesis joins also retain previous
+    deployment compatibility, while mutations verify the active entity without the pointer cache.
+    Upstream verification failures return `503` with `Retry-After: 1`, rather than `400`.
 
     ### Base URLs
 
@@ -246,6 +251,18 @@ paths:
               type: object
               description: 'Signed fetch request with scene and user information'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Scene adapter generated successfully
           content:
@@ -253,7 +270,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/SceneAdapterResponse'
         '400':
-          description: Invalid request
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -266,6 +283,70 @@ paths:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '403':
           description: Forbidden - User is banned from this scene
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found - Realm or scene not found
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+      tags:
+        - Communications
+
+  /get-server-scene-adapter:
+    post:
+      operationId: getServerSceneAdapter
+      summary: Get authoritative server scene communication adapter
+      description: |
+        Issues scene-room credentials to the configured authoritative server identity.
+        Requires signed-fetch sceneId and realm metadata. World joins can retain a previous
+        deployment ID when its metadata matches the world and the current parcel footprint.
+        Verification outages return 503 with Retry-After; mismatches return 400.
+      security:
+        - SignedFetch: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 'Signed fetch request with scene and user information'
+      responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '200':
+          description: Scene adapter generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/SceneAdapterResponse'
+        '400':
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - Invalid authentication or blacklisted user
           content:
             application/json:
               schema:
@@ -379,6 +460,24 @@ paths:
             type: string
           description: 'Filter by specific admin address'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Scene administrators retrieved successfully
           content:
@@ -388,7 +487,7 @@ paths:
                 items:
                   $ref: './schemas.yaml#/components/schemas/SceneAdmin'
         '400':
-          description: Invalid request parameters
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -425,10 +524,28 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/AddSceneAdminRequest'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '204':
           description: Scene administrator added successfully
         '400':
-          description: Invalid request - Invalid admin address or user already has permissions
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -465,10 +582,28 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/RemoveSceneAdminRequest'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '204':
           description: Scene administrator removed successfully
         '400':
-          description: Invalid request
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -519,6 +654,24 @@ paths:
             default: 0
           description: 'Number of bans to skip'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Scene bans retrieved successfully
           content:
@@ -526,7 +679,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ListSceneBansResponse'
         '400':
-          description: Invalid request parameters
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -563,10 +716,28 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/AddSceneBanRequest'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '204':
           description: User banned successfully
         '400':
-          description: Invalid request - Invalid address or missing required fields
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -603,10 +774,28 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/AddSceneBanRequest'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '204':
           description: Ban removed successfully
         '400':
-          description: Invalid request
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -638,6 +827,30 @@ paths:
       security:
         - SignedFetch: []
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Banned addresses retrieved successfully
           content:
@@ -672,6 +885,12 @@ paths:
       security:
         - SignedFetch: []
       responses:
+        '400':
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Stream access information retrieved successfully
           content:
@@ -697,7 +916,13 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
-          description: Trusted content servers unavailable; retry after content sync
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           content:
             application/json:
               schema:
@@ -734,6 +959,12 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/AddSceneStreamAccessRequest'
       responses:
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Stream access added successfully
           content:
@@ -741,7 +972,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/SceneStreamAccess'
         '400':
-          description: Invalid request
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -759,7 +990,13 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
-          description: Trusted content servers unavailable; retry after content sync
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           content:
             application/json:
               schema:
@@ -790,6 +1027,12 @@ paths:
       security:
         - SignedFetch: []
       responses:
+        '400':
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '204':
           description: Stream access removed successfully
         '401':
@@ -805,7 +1048,13 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
-          description: Trusted content servers unavailable; retry after content sync
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           content:
             application/json:
               schema:
@@ -834,7 +1083,7 @@ paths:
         '200':
           description: Stream access reset successfully
         '400':
-          description: Invalid or ambiguous scene identity
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -858,7 +1107,13 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
-          description: Trusted content servers unavailable; retry after content sync
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           content:
             application/json:
               schema:
@@ -1689,6 +1944,24 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/WatcherTokenRequest'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Watcher token generated successfully
           content:
@@ -1696,7 +1969,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/WatcherTokenResponse'
         '400':
-          description: Invalid request - Missing required fields
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -1744,6 +2017,24 @@ paths:
       security:
         - SignedFetch: []
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Stream link generated successfully
           content:
@@ -1751,7 +2042,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/GenerateStreamLinkResponse'
         '400':
-          description: Invalid request - Missing required fields or invalid scene data
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -2327,6 +2618,30 @@ paths:
       security:
         - SignedFetch: []
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Presenters listed successfully
           content:
@@ -2365,9 +2680,28 @@ paths:
           required: true
           schema:
             type: string
-            pattern: '^0x[0-9a-fA-F]{40}$'
-          description: 'Ethereum address of the participant to promote (0x + 40 hex characters)'
+            maxLength: 512
+            pattern: '^(0x[0-9a-fA-F]{40}|stream:[a-zA-Z0-9._:+/=-]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'
+          description: 'Wallet address or generated streamer identity to promote, including base64 preview IDs'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Participant promoted to presenter
           content:
@@ -2375,7 +2709,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
         '400':
-          description: Invalid participantIdentity format
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:
@@ -2410,9 +2744,28 @@ paths:
           required: true
           schema:
             type: string
-            pattern: '^0x[0-9a-fA-F]{40}$'
-          description: 'Ethereum address of the participant to demote (0x + 40 hex characters)'
+            maxLength: 512
+            pattern: '^(0x[0-9a-fA-F]{40}|stream:[a-zA-Z0-9._:+/=-]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'
+          description: 'Wallet address or generated streamer identity to demote, including base64 preview IDs'
       responses:
+        '503':
+          description: Scene or ban verification temporarily unavailable; retry after the indicated delay
+          headers:
+            Retry-After:
+              description: Seconds before retrying verification
+              schema:
+                type: string
+                example: '1'
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
+        '404':
+          description: Scene, place or active stream not found; the deployment may have been superseded
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Participant demoted from presenter
           content:
@@ -2420,7 +2773,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
         '400':
-          description: Invalid participantIdentity format
+          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
           content:
             application/json:
               schema:

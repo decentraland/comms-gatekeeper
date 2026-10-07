@@ -14,7 +14,12 @@ describe('PlacesComponent', () => {
     jest.clearAllMocks()
 
     mockFetch = jest.fn()
-    const mockFetchComponent = { fetch: mockFetch }
+    const mockFetchComponent = {
+      fetch: jest.fn(async (url, options) => {
+        const response = await (options?.method ? mockFetch(url, options) : mockFetch(url))
+        return response?.json || response?.ok === false ? response : { ok: true, json: async () => response }
+      })
+    }
 
     const mockConfig = {
       requireString: jest.fn().mockImplementation((key) => {
@@ -38,12 +43,6 @@ describe('PlacesComponent', () => {
       })
     }
 
-    const mockCachedFetch = {
-      cache: jest.fn().mockImplementation(() => ({
-        fetch: mockFetch
-      }))
-    }
-
     mockWorlds = {
       fetchWorldSceneEntityMetadataById: jest.fn(),
       fetchWorldSceneByEntityId: jest.fn(),
@@ -52,12 +51,12 @@ describe('PlacesComponent', () => {
     }
 
     mockContentClient = {
-      fetchEntityById: jest.fn()
+      fetchEntityById: jest.fn(),
+      fetchEntitiesByPointers: jest.fn().mockResolvedValue([{ id: 'bafkreiscene123' }])
     }
 
     placesComponent = await createPlacesComponent({
       config: mockConfig,
-      cachedFetch: mockCachedFetch,
       logs: mockLogs,
       fetch: mockFetchComponent,
       worlds: mockWorlds,
@@ -575,6 +574,66 @@ describe('PlacesComponent', () => {
       it('should reject instead of selecting the first scene', async () => {
         await expect(placesComponent.getWorldScenePlace('name.eth')).rejects.toThrow(InvalidRequestError)
         expect(mockFetch).not.toHaveBeenCalled()
+      })
+    })
+  })
+  describe('when a Genesis deployment has been superseded', () => {
+    beforeEach(() => {
+      mockContentClient.fetchEntityById.mockResolvedValue({
+        pointers: ['1,2'],
+        metadata: { scene: { base: '1,2', parcels: ['1,2'] } }
+      })
+      mockContentClient.fetchEntitiesByPointers.mockResolvedValue([{ id: 'new-deployment' }])
+      mockFetch.mockResolvedValue({ data: [createMockedPlace({ positions: ['1,2'] })] })
+    })
+
+    it('should reject mutations against the old deployment', async () => {
+      await expect(placesComponent.getPlaceBySceneId('old-deployment')).rejects.toThrow(PlaceNotFoundError)
+      expect(mockContentClient.fetchEntitiesByPointers).toHaveBeenCalledWith(['1,2'], {
+        skipCache: true,
+        expectedEntityId: 'old-deployment'
+      })
+    })
+
+    it('should retain join compatibility for a validated previous deployment', async () => {
+      await expect(
+        placesComponent.getPlaceBySceneId('old-deployment', undefined, undefined, { allowPreviousDeployment: true })
+      ).resolves.toMatchObject({ positions: ['1,2'] })
+    })
+  })
+
+  describe('when Places data changes between requests', () => {
+    beforeEach(() => {
+      mockFetch
+        .mockResolvedValueOnce({ data: [createMockedPlace({ id: 'old-place', positions: ['1,2'] })] })
+        .mockResolvedValueOnce({ data: [createMockedPlace({ id: 'new-place', positions: ['1,2'] })] })
+    })
+
+    it('should use the fresh place instead of the previous authorization result', async () => {
+      await expect(placesComponent.getPlaceByParcel('1,2')).resolves.toMatchObject({ id: 'old-place' })
+      await expect(placesComponent.getPlaceByParcel('1,2')).resolves.toMatchObject({ id: 'new-place' })
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+    })
+  })
+  describe('when refreshing an older world room after a redeploy', () => {
+    beforeEach(() => {
+      mockWorlds.fetchWorldSceneByEntityId.mockResolvedValueOnce(undefined)
+      mockWorlds.fetchWorldSceneEntityMetadataById.mockResolvedValueOnce({
+        worldConfiguration: { name: 'name.eth' },
+        scene: { base: '1,2', parcels: ['1,2'] }
+      })
+      mockWorlds.resolveWorldSceneId.mockResolvedValueOnce('old-deployment')
+      mockFetch.mockResolvedValueOnce({
+        data: [createMockedWorldPlace({ id: 'current-place', world_name: 'name.eth', positions: ['1,2'] })]
+      })
+    })
+
+    it('should verify its old deployment footprint before resolving the current place for ban metadata', async () => {
+      await expect(
+        placesComponent.getWorldScenePlaceByEntityId('name.eth', 'old-deployment', { allowPreviousDeployment: true })
+      ).resolves.toMatchObject({ id: 'current-place' })
+      expect(mockWorlds.resolveWorldSceneId).toHaveBeenCalledWith('name.eth', 'old-deployment', '1,2', {
+        allowPreviousDeployment: true
       })
     })
   })

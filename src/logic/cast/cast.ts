@@ -267,7 +267,7 @@ export function createCastComponent(
     const roomId = streamAccess.room_id
 
     // Generate unique internal ID for LiveKit identity (prevents collisions)
-    // Format: stream:{placeId}:{timestamp}
+    // Format: stream:{placeId}:{uuid}
     const internalId = `stream:${streamAccess.place_id}:${randomUUID()}`
 
     // Create LiveKit credentials with publish permissions for the scene room

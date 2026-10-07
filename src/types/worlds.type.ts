@@ -19,13 +19,20 @@ export type WorldSceneEntityMetadata = {
 }
 
 export type IWorldComponent = IBaseComponent & {
+  /** Reuses live membership lookups only within a single HTTP request. */
+  withSceneResolutionScope<T>(action: () => Promise<T>): Promise<T>
   /** Finds an active deployment in the specified world, including legacy entities without metadata. */
   fetchWorldSceneByEntityId(worldName: string, entityId: string): Promise<WorldScene | undefined>
   fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined>
   fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined>
   fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined>
   /** Resolves legacy world-name scene IDs and returns the canonical lowercase content ID. */
-  resolveWorldSceneId(worldName: string, sceneId: string, parcel?: string): Promise<string>
+  resolveWorldSceneId(
+    worldName: string,
+    sceneId: string,
+    parcel?: string,
+    options?: { allowPreviousDeployment?: boolean }
+  ): Promise<string>
   fetchWorldSceneId(worldName: string): Promise<string>
   hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean>
   hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean>

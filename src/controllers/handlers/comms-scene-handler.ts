@@ -1,6 +1,13 @@
+import { PlaceAttributes } from '../../types/places.type'
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath, Permissions } from '../../types'
-import { ForbiddenError, InvalidRequestError, UnauthorizedError } from '../../types/errors'
+import {
+  ForbiddenError,
+  InvalidRequestError,
+  PlaceNotFoundError,
+  ServiceUnavailableError,
+  UnauthorizedError
+} from '../../types/errors'
 import { getRequestIp, oldValidate } from '../../logic/utils'
 
 export async function commsSceneHandler(
@@ -64,21 +71,31 @@ export async function commsSceneHandler(
     mute: []
   }
 
-  const isWorld = realmName.endsWith('.eth')
+  const isWorld = realmName.toLowerCase().endsWith('.eth')
 
   if (!sceneId) {
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel) : sceneId
+  const resolvedSceneId = isWorld
+    ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel, { allowPreviousDeployment: true })
+    : sceneId
+
+  let verifiedPlace: PlaceAttributes | undefined
 
   // Check if user is banned from the scene (skip for local preview)
   if (!isLocalPreview) {
     try {
-      // Pass only the resolved sceneId (not parcel): the room this connection joins is derived
-      // from sceneId, so the ban must be evaluated against that exact scene. Supplying parcel
-      // here would let a banned user dodge the check with a mismatched-but-benign parcel.
+      // Old world deployments may reconnect only at the same current footprint. Enforce
+      // today's place bans, and reuse this fresh place for the presenter check below.
+      verifiedPlace =
+        isWorld && parcel
+          ? await places.getWorldScenePlace(realmName, parcel)
+          : await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined, undefined, {
+              allowPreviousDeployment: true
+            })
       const isBanned = await sceneBans.isUserBanned(identity, {
+        verifiedPlaceId: verifiedPlace.id,
         sceneId: resolvedSceneId,
         realmName,
         isWorld
@@ -94,17 +111,22 @@ export async function commsSceneHandler(
         throw new ForbiddenError('User is banned from this scene')
       }
     } catch (error) {
-      if (error instanceof ForbiddenError) {
+      if (
+        error instanceof ForbiddenError ||
+        error instanceof InvalidRequestError ||
+        error instanceof PlaceNotFoundError
+      ) {
         throw error
       }
 
-      // Ignore other errors
+      // Never issue a token when scene-ban enforcement could not complete.
       logger.warn(`Error checking if user ${identity} is banned from scene: ${error}`, {
         sceneId: resolvedSceneId || '',
         realmName,
         parcel,
         isWorld: String(isWorld)
       })
+      throw new ServiceUnavailableError('Scene-ban verification is temporarily unavailable')
     }
   }
 
@@ -129,10 +151,9 @@ export async function commsSceneHandler(
     if (isLocalPreview) {
       await cast.addPresenter(room, identity)
     } else {
-      // Resolve the place from the SAME sceneId used to build `room`, not from the
-      // separately-supplied `parcel`. Otherwise an admin of an unrelated place could be
-      // added as a presenter in this scene's room by mismatching parcel and sceneId.
-      const place = await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined, parcel)
+      // Reuse the same verified place used for the ban check, including old-world joins
+      // whose deployment footprint has been checked against the current world scene.
+      const place = verifiedPlace
       const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, identity)
       if (isAdmin) {
         await cast.addPresenter(room, identity)
