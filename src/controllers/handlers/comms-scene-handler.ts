@@ -77,9 +77,7 @@ export async function commsSceneHandler(
     throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   }
 
-  const resolvedSceneId = isWorld
-    ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel, { allowPreviousDeployment: true })
-    : sceneId
+  let resolvedSceneId = sceneId
 
   let verifiedPlace: PlaceAttributes | undefined
 
@@ -88,12 +86,16 @@ export async function commsSceneHandler(
     try {
       // Old world deployments may reconnect only at the same current footprint. Enforce
       // today's place bans, and reuse this fresh place for the presenter check below.
-      verifiedPlace =
-        isWorld && parcel
-          ? await places.getWorldScenePlace(realmName, parcel)
-          : await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined, undefined, {
-              allowPreviousDeployment: true
-            })
+      const resolved = await places.resolveScenePlace(
+        sceneId,
+        isWorld ? realmName : undefined,
+        isWorld ? parcel : undefined,
+        {
+          allowPreviousDeployment: true
+        }
+      )
+      resolvedSceneId = resolved.sceneId
+      verifiedPlace = resolved.place
       const isBanned = await sceneBans.isUserBanned(identity, {
         verifiedPlaceId: verifiedPlace.id,
         sceneId: resolvedSceneId,

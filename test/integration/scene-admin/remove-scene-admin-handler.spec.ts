@@ -32,7 +32,6 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   let metadataWorld: Metadata
 
   beforeEach(async () => {
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     cleanup = new TestCleanup(components.database)
 
     const { sceneAdminManager } = components
@@ -93,8 +92,9 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
     }
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
-    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
-      worldName
+    stubComponents.places.resolveScenePlace.mockImplementation(async (_sceneId, worldName) => ({
+      sceneId: _sceneId,
+      place: await (worldName
         ? createMockedWorldPlace({
             id: placeId,
             positions: [],
@@ -106,8 +106,8 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
             id: placeId,
             positions: ['10,20'],
             owner: ownerAddress
-          })
-    )
+          }))
+    }))
 
     stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: false,
@@ -279,7 +279,7 @@ test('DELETE /scene-admin - removes administrator access for a scene', ({ compon
   it('returns 400 when scene is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceBySceneId.mockResolvedValue(null)
+    stubComponents.places.resolveScenePlace.mockImplementation(async (sceneId) => ({ sceneId, place: null }))
 
     const response = await makeRequest(
       localFetch,

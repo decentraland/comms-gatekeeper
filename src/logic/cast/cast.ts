@@ -183,19 +183,15 @@ export function createCastComponent(
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, sceneId, realmName, deviceIdentifier } = params
+    const { walletAddress, worldName, sceneId: requestedSceneId, realmName, deviceIdentifier } = params
 
     // Before the admin lookup, so the rejection can't double as an admin-status oracle.
     await assertNoActivePlatformBan(walletAddress.toLowerCase(), deviceIdentifier)
 
+    const { sceneId, place } = await places.resolveScenePlace(requestedSceneId, worldName, params.parcel)
     const roomId = worldName
       ? livekit.getWorldSceneRoomName(worldName, sceneId)
       : livekit.getSceneRoomName(realmName, sceneId)
-
-    // Resolve the place from the SAME sceneId that the room is derived from. Using the
-    // caller-supplied `parcel` here (as before) would let an admin of any one place mint a
-    // streamer key for a different scene's room.
-    const place = await places.getPlaceBySceneId(sceneId, worldName, params.parcel)
 
     const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
     if (!isAdmin) {

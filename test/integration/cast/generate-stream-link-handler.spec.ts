@@ -6,7 +6,6 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
   let mockStreamLinkResult: any
 
   beforeEach(() => {
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     mockStreamLinkResult = {
       streamLink: 'https://cast2.decentraland.org/s/cast2-link-abc123',
       watcherLink: 'https://cast2.decentraland.org/w/10,20',
@@ -209,7 +208,6 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
   })
 
   it('should generate stream link for world with scene_id and realm_name', async () => {
-    spyComponents.worlds.resolveWorldSceneId.mockResolvedValue('bafytest456')
     const response = await makeRequest(
       components.localFetch,
       '/cast/generate-stream-link',
@@ -240,7 +238,7 @@ test('Cast: Generate Stream Link Handler', function ({ components, spyComponents
       realmName: 'myworld.dcl.eth',
       parcel: '3,4'
     })
-    expect(spyComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith('myworld.dcl.eth', 'bafytest456', '3,4')
+    expect(spyComponents.worlds.resolveWorldSceneId).not.toHaveBeenCalled()
   })
 
   it('should reject request without sceneId and realmName when authentication is missing metadata', async () => {

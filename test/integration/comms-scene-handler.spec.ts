@@ -16,7 +16,10 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
   let metadata: Metadata
 
   beforeEach(async () => {
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
+    stubComponents.places.resolveScenePlace.mockImplementation(async (sceneId) => ({
+      sceneId: sceneId.toLowerCase(),
+      place: { id: placeId, positions: ['10,20'] } as PlaceAttributes
+    }))
     metadata = {
       identity: owner.authChain[0].payload,
       realmName: 'test-realm',
@@ -354,7 +357,10 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
       describe('and the world about endpoint returns the scene ID', () => {
         beforeEach(() => {
-          stubComponents.worlds.resolveWorldSceneId.mockResolvedValue('bafkreiabcdef123')
+          stubComponents.places.resolveScenePlace.mockResolvedValue({
+            sceneId: 'bafkreiabcdef123',
+            place: { id: placeId, positions: ['10,20'] } as PlaceAttributes
+          })
           stubComponents.livekit.getWorldSceneRoomName.mockReturnValue(
             'world-prd-scene-room-test-world.eth-bafkreiabcdef123'
           )
@@ -372,7 +378,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           )
 
           expect(response.status).toBe(200)
-          expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
+          expect(stubComponents.places.resolveScenePlace).toHaveBeenCalledWith(
             'test-world.eth',
             'test-world.eth',
             '10,20',
@@ -388,7 +394,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
       describe('and the world about endpoint fails', () => {
         beforeEach(() => {
-          stubComponents.worlds.resolveWorldSceneId.mockRejectedValue(
+          stubComponents.places.resolveScenePlace.mockRejectedValue(
             new ServiceUnavailableError('World scene verification is temporarily unavailable')
           )
         })
@@ -408,7 +414,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(response.headers.get('retry-after')).toBe('1')
           const body = await response.json()
           expect(body).toEqual({
-            error: 'World scene verification is temporarily unavailable'
+            error: 'Scene-ban verification is temporarily unavailable'
           })
           expect(stubComponents.sceneBans.isUserBanned).not.toHaveBeenCalled()
         })
@@ -416,7 +422,10 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
 
       describe('and the user is banned from the resolved world scene', () => {
         beforeEach(() => {
-          stubComponents.worlds.resolveWorldSceneId.mockResolvedValue('bafkreiabcdef123')
+          stubComponents.places.resolveScenePlace.mockResolvedValue({
+            sceneId: 'bafkreiabcdef123',
+            place: { id: placeId, positions: ['10,20'] } as PlaceAttributes
+          })
           stubComponents.sceneBans.isUserBanned.mockResolvedValue(true)
         })
 
@@ -436,7 +445,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           expect(body).toEqual({
             error: 'User is banned from this scene'
           })
-          expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
+          expect(stubComponents.places.resolveScenePlace).toHaveBeenCalledWith(
             'test-world.eth',
             'test-world.eth',
             '10,20',
@@ -717,7 +726,10 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
     beforeEach(() => {
       metadata.realmName = 'name.eth'
       metadata.sceneId = 'old-deployment'
-      stubComponents.worlds.resolveWorldSceneId.mockResolvedValueOnce('old-deployment')
+      stubComponents.places.resolveScenePlace.mockResolvedValueOnce({
+        sceneId: 'old-deployment',
+        place: { id: placeId, positions: ['10,20'] } as PlaceAttributes
+      })
       stubComponents.worlds.hasWorldAccessPermission.mockResolvedValueOnce(true)
       stubComponents.sceneBans.isUserBanned.mockResolvedValue(true)
     })

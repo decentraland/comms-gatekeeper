@@ -27,6 +27,7 @@ test('Scene deployment authorization', ({ components, spyComponents }) => {
     // Exercise the real adapter validation through every HTTP authorization path.
     const places = await createPlacesComponent(components)
     spyComponents.places.getPlaceBySceneId.mockImplementation(places.getPlaceBySceneId)
+    spyComponents.places.resolveScenePlace.mockImplementation(places.resolveScenePlace)
     spyComponents.userModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
   })
 

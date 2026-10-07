@@ -200,11 +200,34 @@ export async function createPlacesComponent(
     return getPlaceByParcel(scene.base)
   }
 
+  /**
+   * Resolves a scene once, returning the exact room identity and its matching place together.
+   * @param sceneId - Requested deployment ID or legacy world name.
+   * @param worldName - World containing the deployment; omit for Genesis City.
+   * @param parcel - Optional parcel that must belong to the requested deployment.
+   * @param options - Whether to allow a verified previous deployment for a join.
+   * @returns Canonical scene ID for room naming and the place for permission checks.
+   * @throws InvalidRequestError, PlaceNotFoundError or ServiceUnavailableError if verification fails.
+   */
+  async function resolveScenePlace(
+    sceneId: string,
+    worldName?: string,
+    parcel?: string,
+    options?: { allowPreviousDeployment?: boolean }
+  ): Promise<{ sceneId: string; place: PlaceAttributes }> {
+    if (worldName) {
+      const scene = await worlds.resolveWorldScene(worldName, sceneId, parcel, options)
+      return { sceneId: scene.sceneId, place: await getWorldScenePlace(worldName, scene.parcel) }
+    }
+    return { sceneId, place: await getPlaceBySceneId(sceneId, undefined, parcel, options) }
+  }
+
   return {
     getPlaceByParcel,
     getWorldScenePlace,
     getWorldScenePlaceByEntityId,
     getPlaceBySceneId,
+    resolveScenePlace,
     getWorldByName,
     getPlaceStatusByIds
   }

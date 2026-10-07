@@ -24,28 +24,18 @@ export async function resetSceneStreamAccessHandler(
       | 'logs'
       | 'config'
       | 'notifications'
-      | 'userModeration'
-      | 'worlds',
+      | 'userModeration',
       '/scene-stream-access/reset'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: {
-      logs,
-      sceneStreamAccessManager,
-      sceneManager,
-      places,
-      livekit,
-      notifications,
-      userModeration,
-      worlds
-    },
+    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, notifications, userModeration },
     verification
   } = ctx
   const logger = logs.getLogger('reset-scene-stream-access-handler')
-  const { getPlaceBySceneId } = places
+  const { resolveScenePlace } = places
   const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
@@ -80,13 +70,12 @@ export async function resetSceneStreamAccessHandler(
   }
 
   try {
-    const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
+    const { sceneId: resolvedSceneId, place } = isPreview
+      ? { sceneId, place: undefined }
+      : await resolveScenePlace(sceneId, isWorld ? serverName : undefined, parcel)
     const roomName = isWorld
       ? livekit.getWorldSceneRoomName(serverName, resolvedSceneId)
       : livekit.getSceneRoomName(serverName, resolvedSceneId)
-    const place = isPreview
-      ? undefined
-      : await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined, parcel)
     const placeId = place?.id ?? roomName
 
     const isOwnerOrAdmin =

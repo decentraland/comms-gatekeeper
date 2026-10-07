@@ -35,7 +35,6 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
   })
 
   beforeEach(async () => {
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     // Generate unique place IDs for each test to avoid interference
     testPlaceId = `place-id-admin-${Date.now()}-${Math.random()}`
     worldPlaceId = `world-place-id-admin-${Date.now()}-${Math.random()}`
@@ -82,9 +81,10 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
-      worldName ? mockedWorldPlace : mockedPlace
-    )
+    stubComponents.places.resolveScenePlace.mockImplementation(async (_sceneId, worldName) => ({
+      sceneId: _sceneId,
+      place: await (worldName ? mockedWorldPlace : mockedPlace)
+    }))
 
     stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: true,

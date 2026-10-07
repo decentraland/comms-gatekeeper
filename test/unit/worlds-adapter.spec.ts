@@ -180,7 +180,7 @@ describe('worlds adapter', () => {
     })
   })
 
-  describe('when scene resolution is scoped to a request', () => {
+  describe('when resolving a scene for place authorization', () => {
     beforeEach(() => {
       mockFetch.fetch
         .mockResolvedValueOnce({
@@ -197,20 +197,15 @@ describe('worlds adapter', () => {
         })
     })
 
-    it('should reuse sequential and concurrent lookups but revalidate on the next request', async () => {
-      await worldsComponent.withSceneResolutionScope(async () => {
-        await worldsComponent.resolveWorldSceneId('name.eth', 'scene-id', '1,2')
-        await Promise.all([
-          worldsComponent.fetchWorldSceneByPointer('NAME.ETH', '1,2'),
-          worldsComponent.fetchWorldSceneByPointer('name.eth', '1,2')
-        ])
+    it('should return the verified parcel and scene ID, then revalidate on a subsequent operation', async () => {
+      await expect(worldsComponent.resolveWorldScene('name.eth', 'scene-id', '1,2')).resolves.toEqual({
+        sceneId: 'scene-id',
+        parcel: '1,2'
       })
       expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
-      await expect(
-        worldsComponent.withSceneResolutionScope(() =>
-          worldsComponent.resolveWorldSceneId('name.eth', 'scene-id', '1,2')
-        )
-      ).rejects.toThrow(InvalidRequestError)
+      await expect(worldsComponent.resolveWorldScene('name.eth', 'scene-id', '1,2')).rejects.toThrow(
+        InvalidRequestError
+      )
       expect(mockFetch.fetch).toHaveBeenCalledTimes(2)
     })
   })
@@ -307,7 +302,7 @@ describe('worlds adapter', () => {
     })
 
     it('should reject ambiguity and log its underlying cause', async () => {
-      await expect(worldsComponent.resolveWorldSceneId('name.eth', 'name.eth')).rejects.toThrow(InvalidRequestError)
+      await expect(worldsComponent.resolveWorldScene('name.eth', 'name.eth')).rejects.toThrow(InvalidRequestError)
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Failed to resolve world scene',
         expect.objectContaining({

@@ -8,6 +8,7 @@ export const createPlacesMockedComponent = (
     getWorldScenePlace: jest.fn(),
     getWorldScenePlaceByEntityId: jest.fn(),
     getPlaceBySceneId: jest.fn(),
+    resolveScenePlace: jest.fn(),
     getWorldByName: jest.fn(),
     getPlaceStatusByIds: jest.fn(),
     ...overrides

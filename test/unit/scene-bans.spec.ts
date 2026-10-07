@@ -1,4 +1,3 @@
-import { createWorldsMockedComponent } from '../mocks/worlds-mock'
 import { IAnalyticsComponent } from '@dcl/analytics-component'
 import { Events } from '@dcl/schemas'
 import { IPublisherComponent } from '@dcl/sns-component'
@@ -23,7 +22,6 @@ import { createPublisherMockedComponent } from '../mocks/publisher-mock'
 import { createRoomMetadataSyncMockedComponent } from '../mocks/room-metadata-sync-mock'
 
 describe('SceneBanComponent', () => {
-  let worlds: ReturnType<typeof createWorldsMockedComponent>
   let sceneBanComponent: ISceneBansComponent
   let livekitMockedComponent: jest.Mocked<ILivekitComponent>
   let sceneManagerMockedComponent: jest.Mocked<ISceneManager>
@@ -49,15 +47,17 @@ describe('SceneBanComponent', () => {
         ? placesMockedComponent.getWorldScenePlace(worldName, parcel)
         : placesMockedComponent.getPlaceByParcel(parcel)
     )
+    placesMockedComponent.resolveScenePlace.mockImplementation(async (sceneId, worldName, parcel) => ({
+      sceneId,
+      place: await placesMockedComponent.getPlaceBySceneId(sceneId, worldName, parcel)
+    }))
     logsMockedComponent = createLoggerMockedComponent()
     analyticsMockedComponent = createAnalyticsMockedComponent()
     namesMockedComponent = createNamesMockedComponent()
     publisherMockedComponent = createPublisherMockedComponent()
     roomMetadataSyncMockedComponent = createRoomMetadataSyncMockedComponent()
 
-    worlds = createWorldsMockedComponent({ resolveWorldSceneId: jest.fn(async (_world, sceneId) => sceneId) })
     sceneBanComponent = createSceneBansComponent({
-      worlds,
       sceneBanManager: sceneBanManagerMockedComponent,
       livekit: livekitMockedComponent,
       sceneManager: sceneManagerMockedComponent,

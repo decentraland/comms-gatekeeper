@@ -1,7 +1,6 @@
 import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../../types/errors'
 import { HandlerContextWithPath } from '../../../types'
 import { validate } from '../../../logic/utils'
-import { PlaceAttributes } from '../../../types/places.type'
 import { AddSceneAdminRequestBody } from './schemas'
 
 export async function addSceneAdminHandler(
@@ -12,7 +11,6 @@ export async function addSceneAdminHandler(
       | 'logs'
       | 'config'
       | 'sceneManager'
-      | 'worlds'
       | 'places'
       | 'names'
       | 'sceneBans'
@@ -24,12 +22,12 @@ export async function addSceneAdminHandler(
   >
 ) {
   const {
-    components: { worlds, sceneAdminManager, sceneManager, places, names, sceneBans, roomMetadataSync, livekit },
+    components: { sceneAdminManager, sceneManager, places, names, sceneBans, roomMetadataSync, livekit },
     request,
     verification
   } = ctx
 
-  const { getPlaceBySceneId } = places
+  const { resolveScenePlace } = places
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
@@ -48,8 +46,7 @@ export async function addSceneAdminHandler(
   const isWorld = !!hostname?.includes('worlds-content-server')
   const authenticatedAddress = verification.auth
   if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
-  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
-  const place: PlaceAttributes = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined, parcel)
+  const { sceneId: resolvedSceneId, place } = await resolveScenePlace(sceneId, isWorld ? serverName : undefined, parcel)
 
   const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
 

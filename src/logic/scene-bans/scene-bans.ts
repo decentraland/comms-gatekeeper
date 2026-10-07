@@ -21,25 +21,14 @@ export function createSceneBansComponent(
     | 'logs'
     | 'sceneManager'
     | 'places'
-    | 'worlds'
     | 'analytics'
     | 'names'
     | 'publisher'
     | 'roomMetadataSync'
   >
 ): ISceneBansComponent {
-  const {
-    sceneBanManager,
-    livekit,
-    logs,
-    sceneManager,
-    places,
-    worlds,
-    analytics,
-    names,
-    publisher,
-    roomMetadataSync
-  } = components
+  const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, publisher, roomMetadataSync } =
+    components
   const logger = logs.getLogger('scene-bans')
 
   /**
@@ -115,8 +104,11 @@ export function createSceneBansComponent(
     })
 
     if (!sceneId) throw new InvalidRequestError('A scene ID is required')
-    const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel) : sceneId
-    const place = await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined, parcel)
+    const { sceneId: resolvedSceneId, place } = await places.resolveScenePlace(
+      sceneId,
+      isWorld ? realmName : undefined,
+      parcel
+    )
 
     // Check if the user performing the ban has permission
     const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, bannedBy)
@@ -211,8 +203,11 @@ export function createSceneBansComponent(
     })
 
     if (!sceneId) throw new InvalidRequestError('A scene ID is required')
-    const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel) : sceneId
-    const place = await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined, parcel)
+    const { sceneId: resolvedSceneId, place } = await places.resolveScenePlace(
+      sceneId,
+      isWorld ? realmName : undefined,
+      parcel
+    )
 
     // Check if the user performing the unban has permission
     const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, unbannedBy)
@@ -353,8 +348,8 @@ export function createSceneBansComponent(
     }
     // When both are supplied, the parcel must belong to the same deployment as the room.
     if (sceneId && parcel) {
-      const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel) : sceneId
-      place = await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined, parcel)
+      const resolved = await places.resolveScenePlace(sceneId, isWorld ? realmName : undefined, parcel)
+      place = resolved.place
     } else if (isWorld && parcel) {
       place = await places.getWorldScenePlace(realmName, parcel)
     } else if (isWorld && sceneId) {

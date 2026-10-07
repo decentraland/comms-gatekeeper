@@ -1,6 +1,13 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
 
 export type IPlacesComponent = IBaseComponent & {
+  /** Verifies the scene once and returns its room ID input together with the matching place. */
+  resolveScenePlace(
+    sceneId: string,
+    worldName?: string,
+    parcel?: string,
+    options?: { allowPreviousDeployment?: boolean }
+  ): Promise<{ sceneId: string; place: PlaceAttributes }>
   getPlaceByParcel(parcel: string): Promise<PlaceAttributes>
   /**
    * Gets a world scene place by world name and position.

@@ -18,9 +18,17 @@ export type WorldSceneEntityMetadata = {
   }
 }
 
+/** A verified deployment identity and a parcel belonging to that deployment. */
+export type ResolvedWorldScene = { sceneId: string; parcel: string }
+
 export type IWorldComponent = IBaseComponent & {
-  /** Reuses live membership lookups only within a single HTTP request. */
-  withSceneResolutionScope<T>(action: () => Promise<T>): Promise<T>
+  /** Verifies a world scene and returns both identifiers needed for its room and place. */
+  resolveWorldScene(
+    worldName: string,
+    sceneId: string,
+    parcel?: string,
+    options?: { allowPreviousDeployment?: boolean }
+  ): Promise<ResolvedWorldScene>
   /** Finds an active deployment in the specified world, including legacy entities without metadata. */
   fetchWorldSceneByEntityId(worldName: string, entityId: string): Promise<WorldScene | undefined>
   fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined>

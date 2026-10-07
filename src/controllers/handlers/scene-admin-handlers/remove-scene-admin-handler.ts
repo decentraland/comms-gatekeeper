@@ -1,33 +1,24 @@
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError, UnauthorizedError } from '../../../types/errors'
 import { validate } from '../../../logic/utils'
-import { PlaceAttributes } from '../../../types/places.type'
 import { RemoveSceneAdminRequestBody } from './schemas'
 
 export async function removeSceneAdminHandler(
   ctx: Pick<
     HandlerContextWithPath<
-      | 'sceneAdminManager'
-      | 'logs'
-      | 'config'
-      | 'fetch'
-      | 'sceneManager'
-      | 'worlds'
-      | 'places'
-      | 'roomMetadataSync'
-      | 'livekit',
+      'sceneAdminManager' | 'logs' | 'config' | 'fetch' | 'sceneManager' | 'places' | 'roomMetadataSync' | 'livekit',
       '/scene-admin'
     >,
     'components' | 'url' | 'params' | 'verification' | 'request'
   >
 ) {
   const {
-    components: { worlds, logs, sceneAdminManager, sceneManager, places, roomMetadataSync, livekit },
+    components: { logs, sceneAdminManager, sceneManager, places, roomMetadataSync, livekit },
     request,
     verification
   } = ctx
 
-  const { getPlaceBySceneId } = places
+  const { resolveScenePlace } = places
   const { getUserScenePermissions, isSceneOwnerOrAdmin } = sceneManager
   const logger = logs.getLogger('remove-scene-admin-handler')
 
@@ -52,8 +43,7 @@ export async function removeSceneAdminHandler(
   const authenticatedAddress = verification.auth.toLowerCase()
 
   if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
-  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
-  const place: PlaceAttributes = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined, parcel)
+  const { sceneId: resolvedSceneId, place } = await resolveScenePlace(sceneId, isWorld ? serverName : undefined, parcel)
   if (!place) {
     throw new InvalidRequestError('Place not found')
   }
