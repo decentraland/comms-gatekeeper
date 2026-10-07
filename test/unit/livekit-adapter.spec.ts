@@ -1,3 +1,4 @@
+import { IngressState_Status } from '@livekit/protocol'
 import {
   RoomServiceClient,
   Room,
@@ -1541,5 +1542,79 @@ describe('when creating a fresh ingress for renewal', () => {
     )
     expect(listIngressSpy).not.toHaveBeenCalled()
     expect(createIngressSpy).toHaveBeenCalledWith(0, expect.objectContaining({ roomName: 'room' }))
+  })
+})
+
+describe('when checking ingress streaming state', () => {
+  beforeEach(() => {
+    listIngressSpy.mockReset()
+  })
+
+  describe.each([
+    [IngressState_Status.ENDPOINT_INACTIVE, false],
+    [IngressState_Status.ENDPOINT_BUFFERING, true],
+    [IngressState_Status.ENDPOINT_PUBLISHING, true],
+    [IngressState_Status.ENDPOINT_ERROR, false],
+    [IngressState_Status.ENDPOINT_COMPLETE, false]
+  ])('and LiveKit reports status %s', (status, expected) => {
+    beforeEach(() => {
+      listIngressSpy.mockResolvedValueOnce([{ ingressId: 'ingress', state: { status } }])
+    })
+
+    it('should distinguish an active or starting ingress from a stopped one', async () => {
+      expect(await livekitComponent.isIngressStreaming('ingress')).toBe(expected)
+      expect(listIngressSpy).toHaveBeenCalledWith({ ingressId: 'ingress' })
+    })
+  })
+
+  describe('and the ingress no longer exists', () => {
+    beforeEach(() => {
+      listIngressSpy.mockResolvedValueOnce([])
+    })
+
+    it('should confirm it is not streaming', async () => {
+      expect(await livekitComponent.isIngressStreaming('ingress')).toBe(false)
+    })
+  })
+
+  describe('and LiveKit responds with not_found', () => {
+    beforeEach(() => {
+      listIngressSpy.mockRejectedValueOnce({ code: 'not_found' })
+    })
+
+    it('should confirm it is not streaming', async () => {
+      expect(await livekitComponent.isIngressStreaming('ingress')).toBe(false)
+    })
+  })
+
+  describe.each([
+    { ingressId: 'ingress' },
+    { ingressId: 'ingress', state: { status: 99 } },
+    { ingressId: 'different', state: { status: IngressState_Status.ENDPOINT_INACTIVE } }
+  ])('and the requested ingress has unknown state (%j)', (ingress) => {
+    beforeEach(() => {
+      listIngressSpy.mockResolvedValueOnce([ingress])
+    })
+
+    it('should leave the state unknown', async () => {
+      expect(await livekitComponent.isIngressStreaming('ingress')).toBeUndefined()
+    })
+  })
+
+  describe('and the API fails', () => {
+    beforeEach(() => {
+      listIngressSpy.mockRejectedValueOnce(new Error('unavailable'))
+    })
+
+    it('should propagate the failure instead of reporting an idle stream', async () => {
+      await expect(livekitComponent.isIngressStreaming('ingress')).rejects.toThrow('unavailable')
+    })
+  })
+
+  describe('and there is no ingress ID', () => {
+    it('should avoid an unfiltered API request and keep state unknown', async () => {
+      expect(await livekitComponent.isIngressStreaming('')).toBeUndefined()
+      expect(listIngressSpy).not.toHaveBeenCalled()
+    })
   })
 })

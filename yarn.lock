@@ -1668,7 +1668,7 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@livekit/protocol@^1.46.3":
+"@livekit/protocol@1.48.0", "@livekit/protocol@^1.46.3":
   version "1.48.0"
   resolved "https://registry.yarnpkg.com/@livekit/protocol/-/protocol-1.48.0.tgz#74d44d65fb049e33c927a6ed46b673cb0386b9ab"
   integrity sha512-fYHYgltH6YavAsokl3qsHLkBdQeKCl4UORVTub5crS3t8JtKFZ0uinHDFQ+XXdNKS6Ub9gcOjV+UHcDiqnWXoQ==

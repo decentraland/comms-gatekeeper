@@ -1,3 +1,4 @@
+import { StreamingStateSnapshot } from '../../src/types'
 import { createStreamingTTLChecker } from '../../src/adapters/streaming-ttl-checker'
 import { CronJob } from 'cron'
 import { IBaseComponent } from '@well-known-components/interfaces'
@@ -45,11 +46,14 @@ describe('StreamingTTLChecker', () => {
         })
       },
       sceneStreamAccessManager: {
+        getStreamingAccessesToReconcile: jest.fn().mockResolvedValue([]),
+        clearStaleStreamingState: jest.fn(),
         getExpiredStreamAccesses: jest.fn(),
         killStreaming: jest.fn(),
         removeAccess: jest.fn()
       },
       livekit: {
+        isIngressStreaming: jest.fn(),
         removeIngress: jest.fn()
       },
       places: {
@@ -67,6 +71,135 @@ describe('StreamingTTLChecker', () => {
     }
 
     streamingChecker = await createStreamingTTLChecker(mockedComponents)
+  })
+
+  describe('when reconciling old streaming flags', () => {
+    let snapshot: StreamingStateSnapshot
+
+    beforeEach(() => {
+      snapshot = { id: 'access', ingress_id: 'ingress', streaming_start_time: '1000', streaming_state_version: '1' }
+      mockedComponents.sceneStreamAccessManager.getStreamingAccessesToReconcile.mockResolvedValueOnce([snapshot])
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValueOnce([])
+    })
+
+    describe('and LiveKit confirms the ingress has stopped', () => {
+      beforeEach(() => {
+        mockedComponents.livekit.isIngressStreaming.mockResolvedValueOnce(false)
+        mockedComponents.sceneStreamAccessManager.clearStaleStreamingState.mockResolvedValueOnce(true)
+      })
+
+      it('should conditionally clear the snapshot without deleting its ingress', async () => {
+        await executeOnTick(streamingChecker, startOptions)
+        expect(mockedComponents.sceneStreamAccessManager.clearStaleStreamingState).toHaveBeenCalledWith(snapshot)
+        expect(mockedComponents.livekit.removeIngress).not.toHaveBeenCalled()
+      })
+    })
+
+    describe.each([true, undefined])('and LiveKit state is active or unknown (%s)', (state) => {
+      beforeEach(() => {
+        mockedComponents.livekit.isIngressStreaming.mockResolvedValueOnce(state)
+      })
+
+      it('should leave the streaming flag untouched', async () => {
+        await executeOnTick(streamingChecker, startOptions)
+        expect(mockedComponents.sceneStreamAccessManager.clearStaleStreamingState).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and LiveKit is unavailable', () => {
+      beforeEach(() => {
+        mockedComponents.livekit.isIngressStreaming.mockRejectedValueOnce(new Error('unavailable'))
+      })
+
+      it('should preserve the flag and continue the existing TTL check', async () => {
+        await executeOnTick(streamingChecker, startOptions)
+        expect(mockedComponents.sceneStreamAccessManager.clearStaleStreamingState).not.toHaveBeenCalled()
+        expect(mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses).toHaveBeenCalled()
+      })
+    })
+  })
+
+  describe('when selecting reconciliation candidates fails', () => {
+    beforeEach(() => {
+      mockedComponents.sceneStreamAccessManager.getStreamingAccessesToReconcile.mockRejectedValueOnce(
+        new Error('database unavailable')
+      )
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValueOnce([])
+    })
+
+    it('should continue the existing TTL check', async () => {
+      await executeOnTick(streamingChecker, startOptions)
+      expect(mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses).toHaveBeenCalled()
+    })
+  })
+
+  describe('when a streaming limit and reconciliation are both due', () => {
+    beforeEach(() => {
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValueOnce([
+        { ingress_id: 'expired', place_id: 'place1', streaming_start_time: '1000' }
+      ])
+    })
+
+    it('should enforce the streaming limit before selecting reconciliation work', async () => {
+      await executeOnTick(streamingChecker, startOptions)
+      expect(mockedComponents.sceneStreamAccessManager.killStreaming.mock.invocationCallOrder[0]).toBeLessThan(
+        mockedComponents.sceneStreamAccessManager.getStreamingAccessesToReconcile.mock.invocationCallOrder[0]
+      )
+    })
+  })
+
+  describe('when a reconciliation batch has more than five entries', () => {
+    let releases: Array<() => void>
+    let active: number
+    let maximumActive: number
+    let run: Promise<void>
+
+    beforeEach(() => {
+      releases = []
+      active = 0
+      maximumActive = 0
+      mockedComponents.sceneStreamAccessManager.getExpiredStreamAccesses.mockResolvedValueOnce([])
+      mockedComponents.sceneStreamAccessManager.getStreamingAccessesToReconcile.mockResolvedValueOnce(
+        Array.from({ length: 12 }, (_, index) => ({
+          id: String(index),
+          ingress_id: 'ingress-' + index,
+          streaming_start_time: '1000',
+          streaming_state_version: '1'
+        }))
+      )
+      mockedComponents.livekit.isIngressStreaming.mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            active++
+            maximumActive = Math.max(maximumActive, active)
+            releases.push(() => {
+              active--
+              resolve(true)
+            })
+          })
+      )
+    })
+
+    afterEach(async () => {
+      mockedComponents.livekit.isIngressStreaming.mockResolvedValue(true)
+      releases.splice(0).forEach((release) => release())
+      await run
+    })
+
+    it('should wait for each group before starting more than five requests', async () => {
+      run = executeOnTick(streamingChecker, startOptions)
+      await new Promise(setImmediate)
+      expect(mockedComponents.livekit.isIngressStreaming).toHaveBeenCalledTimes(5)
+      releases.splice(0).forEach((release) => release())
+      await new Promise(setImmediate)
+      expect(mockedComponents.livekit.isIngressStreaming).toHaveBeenCalledTimes(10)
+      releases.splice(0).forEach((release) => release())
+      await new Promise(setImmediate)
+      expect(mockedComponents.livekit.isIngressStreaming).toHaveBeenCalledTimes(12)
+      releases.splice(0).forEach((release) => release())
+      await run
+      expect(maximumActive).toBe(5)
+    })
   })
 
   describe('start', () => {

@@ -205,7 +205,7 @@ export type SceneStreamAccess = {
   created_at: number | string
   active: boolean
   streaming: boolean
-  streaming_start_time: number
+  streaming_start_time: number | string | null
   expiration_time?: string | number | null
   room_id?: string
   generated_by?: string
@@ -241,6 +241,11 @@ export interface ISceneAdminManager {
   removeAllAdminsByPlaceIds(placeIds: string[]): Promise<void>
 }
 
+export type StreamingStateSnapshot = Pick<SceneStreamAccess, 'id' | 'ingress_id' | 'streaming_start_time'> & {
+  /** PostgreSQL bigint returned as text. Incremented for every ingress-started delivery. */
+  streaming_state_version: string
+}
+
 export interface ISceneStreamAccessManager {
   addAccess(input: AddSceneStreamAccessInput): Promise<SceneStreamAccess>
   removeAccess(placeId: string): Promise<void>
@@ -256,6 +261,11 @@ export interface ISceneStreamAccessManager {
   claimExpiredAccess(id: string, claimToken: string): Promise<boolean>
   /** Completes the current lease; returns true only for an expiry eligible for notification. */
   completeExpiredAccessCleanup(id: string, claimToken: string): Promise<boolean>
+  /** Claims up to 20 old streaming flags for a bounded reconciliation pass; retries wait one minute. */
+  getStreamingAccessesToReconcile(): Promise<StreamingStateSnapshot[]>
+  /** Clears a confirmed stale flag only if this row's ingress, start timestamp, and version still match. */
+  clearStaleStreamingState(snapshot: StreamingStateSnapshot): Promise<boolean>
+  /** Records every start in the reconciliation version, preserving the TTL clock while already streaming. */
   startStreaming(ingressId: string): Promise<void>
   stopStreaming(ingressId: string): Promise<void>
   isStreaming(ingressId: string): Promise<boolean>

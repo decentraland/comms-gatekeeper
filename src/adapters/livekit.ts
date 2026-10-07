@@ -1,3 +1,4 @@
+import { IngressState_Status } from '@livekit/protocol'
 import {
   AccessToken,
   CreateIngressOptions,
@@ -100,6 +101,7 @@ export async function createLivekitComponent(
 
   const roomClient = new RoomServiceClient(prodEndpoints.apiHost, prodApiKey, prodSecret)
   const ingressClient = new IngressClient(prodEndpoints.apiHost, prodApiKey, prodSecret)
+  const ingressStateClient = new IngressClient(prodEndpoints.apiHost, prodApiKey, prodSecret, { requestTimeout: 5 })
   const receiver = new WebhookReceiver(prodApiKey, prodSecret)
 
   async function generateCredentials(
@@ -436,6 +438,41 @@ export async function createLivekitComponent(
     return ingress
   }
 
+  /**
+   * Reads the authoritative status for one ingress. Missing ingress is stopped; missing or
+   * unrecognized state is unknown. Errors propagate so callers preserve the database flag.
+   * @param ingressId - Exact ingress ID to inspect.
+   * @returns True for buffering/publishing, false for stopped/missing, undefined for unknown.
+   */
+  async function isIngressStreaming(ingressId: string): Promise<boolean | undefined> {
+    if (!ingressId) return undefined
+    let ingresses: IngressInfo[]
+    try {
+      ingresses = await ingressStateClient.listIngress({ ingressId })
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        (('code' in error && error.code === 'not_found') || ('status' in error && error.status === 404))
+      )
+        return false
+      throw error
+    }
+    if (ingresses.length === 0) return false
+    const state = ingresses.find((ingress) => ingress.ingressId === ingressId)?.state
+    switch (state?.status) {
+      case IngressState_Status.ENDPOINT_BUFFERING:
+      case IngressState_Status.ENDPOINT_PUBLISHING:
+        return true
+      case IngressState_Status.ENDPOINT_INACTIVE:
+      case IngressState_Status.ENDPOINT_ERROR:
+      case IngressState_Status.ENDPOINT_COMPLETE:
+        return false
+      default:
+        return undefined
+    }
+  }
+
   async function removeIngress(ingressId: string): Promise<IngressInfo | undefined> {
     try {
       return await ingressClient.deleteIngress(ingressId)
@@ -684,6 +721,7 @@ export async function createLivekitComponent(
     getRoom,
     getRoomInfo,
     createIngress,
+    isIngressStreaming,
     removeIngress,
     removeReplacedIngress,
     getWebhookEvent

@@ -386,3 +386,33 @@ The additive migrations run automatically at component startup. For the first de
 cleanup protocol, stop all previous-version instances before starting the new ones: old workers
 still deactivate by place ID and do not honor leases. A rolling overlap with the previous cleanup
 implementation is unsafe; subsequent versions using the lease protocol can overlap.
+
+## Recovering missed ingress-ended webhooks
+
+After its four-hour enforcement pass, the minute-based streaming TTL checker reconciles older
+RTMP streaming flags with LiveKit. It skips starts less than two minutes old and rows without an
+ingress ID. Each pass selects at most 20 rows, ordered by their last check, and postpones another
+check for at least one minute. Row locks with SKIP LOCKED let workers skip busy candidates;
+advancing `streaming_checked_at` rotates batches even when API calls fail.
+
+LiveKit reads use five concurrent requests with five-second timeouts: at most four groups, or
+20 seconds of API timeout waits after enforcement. Buffering and publishing remain streaming.
+Confirmed inactive, error, complete, or missing ingresses may clear the flag; unknown state and
+API failures leave it unchanged. Reconciliation never deletes ingresses or sends notifications.
+Normal renewal and expiry cleanup can proceed after a stale flag is cleared.
+
+Every ingress-started delivery reaches the manager and increments `streaming_state_version`,
+even if a missed end event left `streaming=true`. Clearing a stale flag requires the same access
+ID, ingress ID, start timestamp, and version to still be active and streaming. This fences newer
+start webhooks, including same-millisecond starts, without relying on the boolean flag. Repeated
+starts while already marked streaming preserve the original four-hour clock, so duplicate
+webhook deliveries cannot extend it. If an end event was missed, that clock remains conservative
+until a stopped state is observed. Database bigint timestamps may be strings or null; the version
+is returned as a string and is compared in SQL without JavaScript arithmetic.
+
+Startup migrations add the check timestamp and version columns. The partial index is built
+concurrently in a separate non-transactional migration so its build does not block table writes.
+The initial rollout must avoid overlap with previous-version webhook consumers that skip the
+version update; use the coordinated rollout described above. Recovery is eventual: the two-minute
+start grace, checker schedule, backlog, and API availability determine when a missed end event is
+repaired. Explicit key reset remains available.

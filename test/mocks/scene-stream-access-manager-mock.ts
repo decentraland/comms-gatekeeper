@@ -15,6 +15,8 @@ export const createSceneStreamAccessManagerMockedComponent = (
     getExpiredStreamingKeys: jest.fn(),
     claimExpiredAccess: jest.fn(),
     completeExpiredAccessCleanup: jest.fn(),
+    getStreamingAccessesToReconcile: jest.fn().mockResolvedValue([]),
+    clearStaleStreamingState: jest.fn(),
     startStreaming: jest.fn(),
     stopStreaming: jest.fn(),
     isStreaming: jest.fn(),
