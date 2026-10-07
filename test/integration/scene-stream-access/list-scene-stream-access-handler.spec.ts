@@ -1,4 +1,3 @@
-import { createMockedPlace, createMockedWorldPlace } from '../../mocks/places-mock'
 import { test } from '../../components'
 import { makeRequest, owner, admin, nonOwner } from '../../utils'
 import * as handlersUtils from '../../../src/logic/utils'
@@ -26,7 +25,6 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
   let mockSceneStreamAccess: any
 
   beforeEach(async () => {
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     mockSceneStreamAccess = {
       id: 'mock-access-id',
       place_id: placeId,
@@ -72,19 +70,16 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       sceneId: 'test-scene',
       isWorld: false
     })
-    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
-      worldName
-        ? createMockedWorldPlace({
-            id: placeId,
-            world_name: 'name.dcl.eth',
-            owner: owner.authChain[0].payload
-          })
-        : createMockedPlace({
-            id: placeId,
-            positions: ['10,20'],
-            owner: owner.authChain[0].payload
-          })
-    )
+    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+      id: placeId,
+      positions: ['10,20'],
+      owner: owner.authChain[0].payload
+    } as PlaceAttributes)
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+      id: placeId,
+      world_name: 'name.dcl.eth',
+      owner: owner.authChain[0].payload
+    } as PlaceAttributes)
     stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: true,
       operator: false,
@@ -165,7 +160,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
       sceneId: 'test-scene',
       isWorld: true
     })
-    stubComponents.places.getPlaceBySceneId.mockResolvedValue({
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
       id: placeWorldId,
       world_name: 'name.dcl.eth'
     } as PlaceAttributes)
@@ -314,7 +309,7 @@ test('GET /scene-stream-access - lists streaming access for scenes', ({ componen
   it('returns 400 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceBySceneId.mockRejectedValue(
+    stubComponents.places.getPlaceByParcel.mockRejectedValue(
       new InvalidRequestError('Could not find scene information')
     )
 

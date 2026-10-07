@@ -50,17 +50,24 @@ info:
 
     Most endpoints require Signed Fetch authentication with a complete identity header chain including scene metadata (sceneId, parcel, realmName).
 
-    Scene admin, ban, stream-access and presenter requests require `sceneId`. A signed `parcel`,
-    when supplied, must belong to that deployment. Scene admin, ban and stream-access requests verify the active
-    deployment in Genesis or the requested world. Mismatched world IDs are rejected with `400`, and a place
-    that cannot be resolved is rejected with `404` on routes using place authorization.
+    Operations that add/remove admins or bans, create/reset streaming access, or generate
+    stream links verify that the requested deployment and optional parcel identify the same place.
+    These operations require an active deployment in Genesis or the requested world.
+    Mismatched world IDs return `400`; an unresolved place returns `404`.
+
+    Listing admins or bans and retrieving/revoking streaming access operate on the place selected
+    by parcel (and world name for worlds), without requiring the supplied deployment to remain active.
+    Presenter list/promote/demote operations use the scene ID to select an existing room and authorize
+    against that room's stored stream-access place. A parcel is only needed to resolve legacy
+    world-name scene IDs in multi-scene worlds; actual deployment IDs do not trigger a world lookup.
+
     Legacy world-name scene IDs remain supported: the parcel selects the deployment in a
     multi-scene world, while a single-scene world can be resolved without a parcel. Opted-out
     world scenes remain accessible; removed scenes do not. Joins may reconnect to a previous
     world deployment when its content-server metadata matches the world and the current parcel
     footprint. Identifiable previous world rooms also refresh their ban/admin metadata using the
-    current place. Ambiguous legacy rooms retain their existing metadata. The join exception does not apply to mutations. Genesis joins also retain previous
-    deployment compatibility, while mutations verify the active entity without the pointer cache.
+    current place. Ambiguous legacy rooms retain their existing metadata. Genesis joins retain
+    previous deployment compatibility; operations requiring an active Genesis deployment bypass the pointer cache.
     Upstream verification failures return `503` with `Retry-After: 1`, rather than `400`.
 
     ### Base URLs
@@ -473,7 +480,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
-          description: Scene, place or active stream not found; the deployment may have been superseded
+          description: Place or stream access not found
           content:
             application/json:
               schema:
@@ -487,7 +494,7 @@ paths:
                 items:
                   $ref: './schemas.yaml#/components/schemas/SceneAdmin'
         '400':
-          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          description: Invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -667,7 +674,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
-          description: Scene, place or active stream not found; the deployment may have been superseded
+          description: Place or stream access not found
           content:
             application/json:
               schema:
@@ -679,7 +686,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ListSceneBansResponse'
         '400':
-          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          description: Invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -840,13 +847,13 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
-          description: Scene, place or active stream not found; the deployment may have been superseded
+          description: Place or stream access not found
           content:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '400':
-          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          description: Invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -886,7 +893,7 @@ paths:
         - SignedFetch: []
       responses:
         '400':
-          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          description: Invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -1028,7 +1035,7 @@ paths:
         - SignedFetch: []
       responses:
         '400':
-          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          description: Invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -2631,13 +2638,13 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
-          description: Scene, place or active stream not found; the deployment may have been superseded
+          description: Place or stream access not found
           content:
             application/json:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '400':
-          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          description: Invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -2697,7 +2704,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
-          description: Scene, place or active stream not found; the deployment may have been superseded
+          description: Place or stream access not found
           content:
             application/json:
               schema:
@@ -2709,7 +2716,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
         '400':
-          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          description: Invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -2761,7 +2768,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
-          description: Scene, place or active stream not found; the deployment may have been superseded
+          description: Place or stream access not found
           content:
             application/json:
               schema:
@@ -2773,7 +2780,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
         '400':
-          description: Invalid or ambiguous scene identity, mismatched deployment/parcel, or invalid request format
+          description: Invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:

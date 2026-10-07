@@ -33,7 +33,6 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
   })
 
   beforeEach(async () => {
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     mockIngress = {
       name: 'mock-ingress',
       url: 'rtmp://mock-stream-url',
@@ -77,11 +76,17 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
-      worldName
-        ? ({ id: placeWorldId, world_name: 'name.dcl.eth', owner: owner.authChain[0].payload } as PlaceAttributes)
-        : ({ id: placeId, positions: ['10,20'], owner: owner.authChain[0].payload } as PlaceAttributes)
-    )
+    stubComponents.places.getPlaceByParcel.mockResolvedValue({
+      id: placeId,
+      positions: ['10,20'],
+      owner: owner.authChain[0].payload
+    } as PlaceAttributes)
+
+    stubComponents.places.getWorldScenePlace.mockResolvedValue({
+      id: placeWorldId,
+      world_name: 'name.dcl.eth',
+      owner: owner.authChain[0].payload
+    } as PlaceAttributes)
 
     stubComponents.sceneStreamAccessManager.getAccess.mockResolvedValue(mockSceneStreamAccess)
     stubComponents.sceneStreamAccessManager.removeAccess.mockResolvedValue(undefined)
@@ -231,7 +236,7 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
   it('returns 400 when place is not found', async () => {
     const { localFetch } = components
 
-    stubComponents.places.getPlaceBySceneId.mockRejectedValue(
+    stubComponents.places.getPlaceByParcel.mockRejectedValue(
       new InvalidRequestError('Could not find scene information')
     )
 

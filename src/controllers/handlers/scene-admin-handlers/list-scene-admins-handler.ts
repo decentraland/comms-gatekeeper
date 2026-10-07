@@ -6,21 +6,18 @@ import { PlaceAttributes } from '../../../types/places.type'
 
 export async function listSceneAdminsHandler(
   ctx: Pick<
-    HandlerContextWithPath<
-      'logs' | 'config' | 'fetch' | 'worlds' | 'places' | 'names' | 'sceneAdmins' | 'lands',
-      '/scene-admin'
-    >,
+    HandlerContextWithPath<'logs' | 'config' | 'fetch' | 'places' | 'names' | 'sceneAdmins' | 'lands', '/scene-admin'>,
     'components' | 'url' | 'verification' | 'request' | 'params'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { worlds, logs, config, places, names, sceneAdmins, lands },
+    components: { logs, config, places, names, sceneAdmins, lands },
     url,
     verification
   } = ctx
 
   const logger = logs.getLogger('list-scene-admins-handler')
-  const { getPlaceBySceneId } = places
+  const { getWorldScenePlace, getPlaceByParcel } = places
 
   if (!verification || verification?.auth === undefined) {
     logger.warn('Request without authentication')
@@ -30,7 +27,6 @@ export async function listSceneAdminsHandler(
   const authenticatedAddress = verification.auth.toLowerCase()
 
   const {
-    sceneId,
     parcel,
     realm: { hostname, serverName }
   } = await validate(ctx)
@@ -39,9 +35,14 @@ export async function listSceneAdminsHandler(
     authoritativeServerIdentity && authenticatedAddress.toLowerCase() === authoritativeServerIdentity.toLowerCase()
 
   const isWorld = hostname.includes('worlds-content-server')
-  if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
-  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
-  const place: PlaceAttributes = await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined, parcel)
+
+  // This operation targets a place (or its stored access), not a room chosen by sceneId.
+  let place: PlaceAttributes
+  if (isWorld) {
+    place = await getWorldScenePlace(serverName, parcel)
+  } else {
+    place = await getPlaceByParcel(parcel)
+  }
 
   // Allow any authenticated scene participant to list admins.
   // This enables all clients to validate admin identity for applying changes.

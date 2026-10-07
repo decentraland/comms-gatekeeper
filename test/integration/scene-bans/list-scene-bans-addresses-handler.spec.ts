@@ -28,7 +28,6 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
   let userScenePermissions: UserScenePermissions
 
   beforeEach(async () => {
-    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     cleanup = new TestCleanup(components.database)
 
     mockedPlace = createMockedPlace()
@@ -66,9 +65,8 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
       hasLandLease: true
     }
 
-    stubComponents.places.getPlaceBySceneId.mockImplementation(async (_sceneId, worldName) =>
-      worldName ? mockedWorldPlace : mockedPlace
-    )
+    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
+    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
   })
 
   afterEach(async () => {

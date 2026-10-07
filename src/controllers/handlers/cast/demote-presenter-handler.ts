@@ -35,7 +35,12 @@ export async function demotePresenterHandler(
     throw new InvalidRequestError('sceneId is required in authMetadata')
   }
 
-  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realm.serverName, sceneId, parcel) : sceneId
+  // Content IDs identify an existing room whose stored place controls authorization.
+  // Only legacy world-name IDs need a parcel lookup to select a scene.
+  const resolvedSceneId =
+    isWorld && sceneId.toLowerCase().endsWith('.eth')
+      ? await worlds.resolveWorldSceneId(realm.serverName, sceneId, parcel)
+      : sceneId
   const roomId = isWorld
     ? livekit.getWorldSceneRoomName(realm.serverName, resolvedSceneId)
     : livekit.getSceneRoomName(realm.serverName, sceneId)

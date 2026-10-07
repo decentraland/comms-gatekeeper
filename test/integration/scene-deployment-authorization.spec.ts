@@ -1,3 +1,5 @@
+import { createMockedPlace, createMockedWorldPlace } from '../mocks/places-mock'
+import { ServiceUnavailableError } from '../../src/types/errors'
 import { EntityType } from '@dcl/schemas'
 import { createPlacesComponent } from '../../src/adapters/places'
 import { test } from '../components'
@@ -35,15 +37,10 @@ test('Scene deployment authorization', ({ components, spyComponents }) => {
   describe.each([
     ['POST', '/scene-admin', 'admin'],
     ['DELETE', '/scene-admin', 'admin'],
-    ['GET', '/scene-admin', undefined],
     ['POST', '/scene-bans', 'banned_address'],
     ['DELETE', '/scene-bans', 'banned_address'],
-    ['GET', '/scene-bans', undefined],
-    ['GET', '/scene-bans/addresses', undefined],
     ['POST', '/scene-stream-access', undefined],
     ['PUT', '/scene-stream-access', undefined],
-    ['GET', '/scene-stream-access', undefined],
-    ['DELETE', '/scene-stream-access', undefined],
     ['GET', '/cast/generate-stream-link', undefined]
   ])('when %s %s supplies a parcel outside the deployment', (method, path, addressField) => {
     beforeEach(() => {
@@ -62,6 +59,83 @@ test('Scene deployment authorization', ({ components, spyComponents }) => {
       expect(spyComponents.livekit.createIngress).not.toHaveBeenCalled()
       expect(spyComponents.livekit.removeIngress).not.toHaveBeenCalled()
       expect(spyComponents.livekit.removeParticipant).not.toHaveBeenCalled()
+    })
+  })
+  describe.each([
+    ['GET', '/scene-admin', 200],
+    ['GET', '/scene-bans', 200],
+    ['GET', '/scene-bans/addresses', 200],
+    ['GET', '/scene-stream-access', 200],
+    ['DELETE', '/scene-stream-access', 204]
+  ])('when %s %s operates on a place after redeployment', (method, path, expectedStatus) => {
+    beforeEach(() => {
+      spyComponents.worlds.resolveWorldSceneId.mockRejectedValue(new ServiceUnavailableError('Worlds unavailable'))
+      spyComponents.contentClient.fetchEntityById.mockRejectedValue(new ServiceUnavailableError('Catalyst unavailable'))
+      spyComponents.places.getPlaceBySceneId.mockRejectedValue(new ServiceUnavailableError('Deployment unavailable'))
+      spyComponents.places.getPlaceByParcel.mockResolvedValue(
+        createMockedPlace({ id: 'selected-place', positions: ['1,2'] })
+      )
+      spyComponents.places.getWorldScenePlace.mockResolvedValue(
+        createMockedWorldPlace({ id: 'selected-place', positions: ['1,2'] })
+      )
+      spyComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      spyComponents.sceneAdmins.getAdminsAndExtraAddresses.mockResolvedValue({
+        admins: new Set(),
+        addresses: new Set(),
+        extraAddresses: new Set()
+      })
+      spyComponents.lands.getLeaseHoldersForParcels.mockResolvedValue([])
+      spyComponents.names.getNamesFromAddresses.mockResolvedValue({})
+      spyComponents.sceneBanManager.listBannedAddresses.mockResolvedValue([])
+      spyComponents.sceneBanManager.countBannedAddresses.mockResolvedValue(0)
+      spyComponents.sceneStreamAccessManager.getAccess.mockResolvedValue({
+        id: 'stored-access',
+        active: true,
+        streaming: false,
+        streaming_start_time: null,
+        place_id: 'selected-place',
+        room_id: 'stored-room',
+        ingress_id: 'stored-ingress',
+        streaming_key: 'stored-key',
+        streaming_url: 'rtmp://test',
+        created_at: String(Date.now()),
+        expiration_time: String(Date.now() + 60000)
+      })
+      spyComponents.sceneStreamAccessManager.removeAccess.mockResolvedValue(undefined)
+      spyComponents.livekit.removeIngress.mockResolvedValue(undefined)
+      spyComponents.notifications.sendNotificationType.mockResolvedValue(undefined)
+    })
+
+    describe.each([false, true])('and world is %s', (isWorld) => {
+      beforeEach(() => {
+        if (isWorld) metadata.realm = { serverName: 'selected.eth', hostname: 'https://worlds-content-server.org' }
+      })
+
+      it('should operate on the selected place without resolving the old deployment', async () => {
+        const response = await makeRequest(components.localFetch, path, { method, metadata }, owner)
+        expect(response.status).toBe(expectedStatus)
+        expect(spyComponents.places.getPlaceBySceneId).not.toHaveBeenCalled()
+        expect(spyComponents.worlds.resolveWorldSceneId).not.toHaveBeenCalled()
+        if (path === '/scene-stream-access') {
+          expect(spyComponents.sceneStreamAccessManager.getAccess).toHaveBeenCalledWith('selected-place')
+          if (method === 'DELETE') expect(spyComponents.livekit.removeIngress).toHaveBeenCalledWith('stored-ingress')
+        }
+      })
+
+      if (path !== '/scene-admin') {
+        describe('and the caller has no permission over the selected place', () => {
+          beforeEach(() => {
+            spyComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
+          })
+
+          it('should reject access without returning a key or revoking an ingress', async () => {
+            const response = await makeRequest(components.localFetch, path, { method, metadata }, owner)
+            expect(response.status).toBe(401)
+            expect(spyComponents.sceneStreamAccessManager.getAccess).not.toHaveBeenCalled()
+            expect(spyComponents.livekit.removeIngress).not.toHaveBeenCalled()
+          })
+        })
+      }
     })
   })
 })

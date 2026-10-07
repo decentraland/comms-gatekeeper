@@ -306,9 +306,8 @@ export function createSceneBansComponent(
       limit: limit || 20
     })
 
-    if (!sceneId) throw new InvalidRequestError('A scene ID is required')
-    const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel) : sceneId
-    const place = await places.getPlaceBySceneId(resolvedSceneId, isWorld ? realmName : undefined, parcel)
+    // Both authorization and results use this place; no room is selected by sceneId.
+    const place = isWorld ? await places.getWorldScenePlace(realmName, parcel) : await places.getPlaceByParcel(parcel)
 
     // Check if the user requesting the list has permission
     const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, lowercasedRequestedBy)

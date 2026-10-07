@@ -3,6 +3,7 @@ import { Room } from 'livekit-server-sdk'
 import { createMockedWorldPlace } from '../../mocks/places-mock'
 import { test } from '../../components'
 import { makeRequest, owner } from '../../utils'
+import { ServiceUnavailableError } from '../../../src/types/errors'
 import { NotSceneAdminError } from '../../../src/logic/cast/errors'
 
 test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
@@ -36,7 +37,7 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
           hostname: 'https://worlds-content-server.decentraland.org'
         }
       }
-      spyComponents.worlds.resolveWorldSceneId.mockResolvedValueOnce('scene')
+      spyComponents.worlds.resolveWorldSceneId.mockRejectedValue(new ServiceUnavailableError('Worlds unavailable'))
       canonicalRoom = components.livekit.getWorldSceneRoomName('MyWorld.eth', 'SCENE')
       await components.sceneStreamAccessManager.addAccess({
         place_id: 'test-presenter-world',
@@ -70,6 +71,82 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
       expect(await response.json()).toEqual({ presenters: [validAddress] })
       expect(spyComponents.sceneManager.isSceneOwnerOrAdmin).toHaveBeenCalled()
       expect(spyComponents.livekit.getRoomInfo).toHaveBeenCalledWith(canonicalRoom)
+    })
+  })
+
+  describe.each(['GET', 'PUT', 'DELETE'])('when %s targets a previous world room', (method) => {
+    let worldMetadata: typeof metadata
+    let roomId: string
+    let path: string
+
+    beforeEach(async () => {
+      worldMetadata = {
+        ...metadata,
+        sceneId: 'previous-deployment',
+        parcel: '99,99',
+        realm: { ...metadata.realm, serverName: 'presenters.eth', hostname: 'https://worlds-content-server.org' }
+      }
+      path = method === 'GET' ? '/cast/presenters' : `/cast/presenters/${validAddress}`
+      roomId = components.livekit.getWorldSceneRoomName('presenters.eth', 'previous-deployment')
+      await components.sceneStreamAccessManager.addAccess({
+        place_id: 'previous-presenter-place',
+        room_id: roomId,
+        ingress_id: 'previous-presenter-ingress',
+        streaming_key: 'previous-presenter-key',
+        streaming_url: 'rtmp://test',
+        expiration_time: Date.now() + 60000
+      })
+      spyComponents.worlds.resolveWorldSceneId.mockRejectedValue(new ServiceUnavailableError('Worlds unavailable'))
+      spyComponents.places.getPlaceStatusByIds.mockResolvedValue([
+        createMockedWorldPlace({ id: 'previous-presenter-place', world_name: 'presenters.eth' })
+      ])
+      spyComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      spyComponents.livekit.getRoomInfo.mockResolvedValue(new Room({ metadata: '{"presenters":[]}' }))
+      spyComponents.livekit.getRoom.mockResolvedValue(new Room())
+      spyComponents.livekit.appendToRoomMetadataArray.mockResolvedValue(undefined)
+      spyComponents.livekit.removeFromRoomMetadataArray.mockResolvedValue(undefined)
+    })
+
+    afterEach(async () => {
+      await components.database.query(SQL`DELETE FROM scene_stream_access WHERE place_id = 'previous-presenter-place'`)
+    })
+
+    it('should use the stored room place despite an unrelated parcel and unavailable world lookup', async () => {
+      const response = await makeRequest(components.localFetch, path, { method, metadata: worldMetadata }, owner)
+      expect(response.status).toBe(200)
+      expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenCalledWith(['previous-presenter-place'])
+      expect(spyComponents.worlds.resolveWorldSceneId).not.toHaveBeenCalled()
+    })
+
+    describe('and the caller is not an admin of the stored place', () => {
+      beforeEach(() => {
+        spyComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
+      })
+
+      it('should reject access to the selected room', async () => {
+        const response = await makeRequest(components.localFetch, path, { method, metadata: worldMetadata }, owner)
+        expect(response.status).toBe(403)
+        expect(spyComponents.livekit.appendToRoomMetadataArray).not.toHaveBeenCalled()
+        expect(spyComponents.livekit.removeFromRoomMetadataArray).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the scene ID is a legacy world name', () => {
+      beforeEach(() => {
+        worldMetadata.sceneId = 'presenters.eth'
+        spyComponents.worlds.resolveWorldSceneId.mockResolvedValue('previous-deployment')
+      })
+
+      it('should resolve the legacy identity before authorizing the stored room', async () => {
+        const response = await makeRequest(components.localFetch, path, { method, metadata: worldMetadata }, owner)
+        expect(response.status).toBe(200)
+        expect(spyComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
+          'presenters.eth',
+          'presenters.eth',
+          '99,99'
+        )
+        expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenCalledWith(['previous-presenter-place'])
+      })
     })
   })
 
