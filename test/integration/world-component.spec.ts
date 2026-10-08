@@ -100,7 +100,9 @@ describe('WorldComponent', () => {
 
     it('should lowercase the auth address in the lambdas users URL', async () => {
       await worldsComponent.hasWorldOwnerPermission('0xUserAddress', 'myworld.eth')
-      expect(mockFetch).toHaveBeenCalledWith('https://lambdas.test/users/0xuseraddress/names')
+      expect(mockFetch).toHaveBeenCalledWith('https://lambdas.test/users/0xuseraddress/names', {
+        forceRefresh: undefined
+      })
     })
   })
 
@@ -123,7 +125,9 @@ describe('WorldComponent', () => {
 
       const result = await worldsComponent.hasWorldStreamingPermission('0xuseraddress', 'test-world')
       expect(result).toBe(true)
-      expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+      expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions', {
+        forceRefresh: undefined
+      })
     })
 
     it('should return false when user is not in streaming allowlist', async () => {
@@ -307,7 +311,9 @@ describe('WorldComponent', () => {
       it('should return true (case insensitive)', async () => {
         const result = await worldsComponent.hasWorldAccessPermission('0xowneraddress', 'test-world')
         expect(result).toBe(true)
-        expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+        expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions', {
+          forceRefresh: undefined
+        })
       })
     })
 
@@ -332,7 +338,9 @@ describe('WorldComponent', () => {
       it('should return true', async () => {
         const result = await worldsComponent.hasWorldAccessPermission('0xanyuser', 'test-world')
         expect(result).toBe(true)
-        expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+        expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions', {
+          forceRefresh: undefined
+        })
       })
     })
 
@@ -359,7 +367,9 @@ describe('WorldComponent', () => {
         it('should return true', async () => {
           const result = await worldsComponent.hasWorldAccessPermission('0xuseRaddress', 'test-world')
           expect(result).toBe(true)
-          expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+          expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions', {
+            forceRefresh: undefined
+          })
         })
       })
 
@@ -385,7 +395,9 @@ describe('WorldComponent', () => {
         it('should return false', async () => {
           const result = await worldsComponent.hasWorldAccessPermission('0xuseraddress', 'test-world')
           expect(result).toBe(false)
-          expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+          expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions', {
+            forceRefresh: undefined
+          })
         })
       })
     })
@@ -412,7 +424,9 @@ describe('WorldComponent', () => {
       it('should return false', async () => {
         const result = await worldsComponent.hasWorldAccessPermission('0xUserAddress', 'test-world')
         expect(result).toBe(false)
-        expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+        expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions', {
+          forceRefresh: undefined
+        })
       })
     })
 
@@ -424,7 +438,9 @@ describe('WorldComponent', () => {
       it('should return false', async () => {
         const result = await worldsComponent.hasWorldAccessPermission('0xUserAddress', 'test-world')
         expect(result).toBe(false)
-        expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions')
+        expect(mockFetch).toHaveBeenCalledWith('https://world-content.test/world/test-world/permissions', {
+          forceRefresh: undefined
+        })
       })
     })
   })

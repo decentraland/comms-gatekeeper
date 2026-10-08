@@ -183,7 +183,9 @@ describe('when generating a stream link', () => {
         realmName: 'test-world.dcl.eth'
       })
 
-      expect(mockSceneManager.isSceneOwnerOrAdmin).toHaveBeenCalledWith(mockWorldScenePlace, '0xowner123')
+      expect(mockSceneManager.isSceneOwnerOrAdmin).toHaveBeenCalledWith(mockWorldScenePlace, '0xowner123', {
+        skipCache: true
+      })
     })
 
     it('should return the world scene place id', async () => {
