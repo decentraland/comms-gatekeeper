@@ -32,12 +32,10 @@ export async function createContentClientComponent(
       ?.split(',')
       .map((url) => url.trim())
       .filter(Boolean) ?? []
-  const entityClients = [
-    client,
-    ...fallbackUrls
-      .filter((url) => url !== catalystContentUrl)
-      .map((url) => createContentClient({ url, fetcher: fetch }))
-  ]
+  const trustedUrls = [catalystContentUrl, ...fallbackUrls.filter((url) => url !== catalystContentUrl)]
+  const entityClients = trustedUrls.map((url) =>
+    url === catalystContentUrl ? client : createContentClient({ url, fetcher: fetch })
+  )
 
   async function fetchEntityFromTrustedServers(sceneId: string): Promise<Entity> {
     let unavailable = false
@@ -99,15 +97,25 @@ export async function createContentClientComponent(
         const firstMatch = new Promise<Entity[]>((resolve) => {
           resolveMatch = resolve
         })
-        const lookups = entityClients.map(async (entityClient) => {
-          const entities = await entityClient.fetchEntitiesByPointers(pointers, {
-            timeout: requestTimeout,
-            attempts: 1
-          })
-          if (!options.expectedEntityId || entities.some((entity) => entity.id === options.expectedEntityId)) {
-            resolveMatch(entities)
+        const lookups = entityClients.map(async (entityClient, index) => {
+          try {
+            const entities = await entityClient.fetchEntitiesByPointers(pointers, {
+              timeout: requestTimeout,
+              attempts: 1
+            })
+            if (!options.expectedEntityId || entities.some((entity) => entity.id === options.expectedEntityId)) {
+              resolveMatch(entities)
+            }
+            return entities
+          } catch (error) {
+            logger.warn('Trusted active scene lookup failed', {
+              server: trustedUrls[index],
+              pointers: pointers.join(','),
+              sceneId: options.expectedEntityId ?? '',
+              error: getErrorMessage(error)
+            })
+            throw error
           }
-          return entities
         })
         // A matching response wins immediately. Observe every rejection even after an early success.
         const completed = Promise.allSettled(lookups).then((results) => {

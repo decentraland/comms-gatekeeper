@@ -9,6 +9,11 @@ info:
 
     The Comms Gatekeeper API is a comprehensive service that manages communications, voice chats, scene administration, and streaming access for the Decentraland metaverse. It provides the infrastructure for real-time voice communication, scene management, user moderation, and content streaming capabilities.
 
+    Ban-list permission lookups may reuse upstream permissions for 10 seconds; database bans
+    and scene-admin memberships are read on each request. Caller authorization for sensitive
+    mutations bypasses permission caches. Ban-target lease protection may use a previously
+    fetched document up to five minutes old during an outage; missing or older documents fail closed.
+
     ### Core Features
 
     **Scene Management**
@@ -545,6 +550,17 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/AddSceneAdminRequest'
       responses:
+        '429':
+          description: Shared scene permission quota exceeded (default 60 requests per minute per verified wallet per instance)
+          headers:
+            Retry-After:
+              description: Seconds until the quota resets
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
           description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           headers:
@@ -603,6 +619,17 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/RemoveSceneAdminRequest'
       responses:
+        '429':
+          description: Shared scene permission quota exceeded (default 60 requests per minute per verified wallet per instance)
+          headers:
+            Retry-After:
+              description: Seconds until the quota resets
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
           description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           headers:
@@ -675,6 +702,17 @@ paths:
             default: 0
           description: 'Number of bans to skip'
       responses:
+        '429':
+          description: Shared scene permission quota exceeded (default 60 requests per minute per verified wallet per instance)
+          headers:
+            Retry-After:
+              description: Seconds until the quota resets
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
           description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           headers:
@@ -737,6 +775,17 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/AddSceneBanRequest'
       responses:
+        '429':
+          description: Shared scene permission quota exceeded (default 60 requests per minute per verified wallet per instance)
+          headers:
+            Retry-After:
+              description: Seconds until the quota resets
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
           description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           headers:
@@ -795,6 +844,17 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/AddSceneBanRequest'
       responses:
+        '429':
+          description: Shared scene permission quota exceeded (default 60 requests per minute per verified wallet per instance)
+          headers:
+            Retry-After:
+              description: Seconds until the quota resets
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
           description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           headers:
@@ -848,6 +908,17 @@ paths:
       security:
         - SignedFetch: []
       responses:
+        '429':
+          description: Shared scene permission quota exceeded (default 60 requests per minute per verified wallet per instance)
+          headers:
+            Retry-After:
+              description: Seconds until the quota resets
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
           description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           headers:
@@ -980,6 +1051,17 @@ paths:
             schema:
               $ref: './schemas.yaml#/components/schemas/AddSceneStreamAccessRequest'
       responses:
+        '429':
+          description: Shared scene permission quota exceeded (default 60 requests per minute per verified wallet per instance)
+          headers:
+            Retry-After:
+              description: Seconds until the quota resets
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '404':
           description: Scene, place or active stream not found; the deployment may have been superseded
           content:
@@ -1101,6 +1183,17 @@ paths:
       security:
         - SignedFetch: []
       responses:
+        '429':
+          description: Shared scene permission quota exceeded (default 60 requests per minute per verified wallet per instance)
+          headers:
+            Retry-After:
+              description: Seconds until the quota resets
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '200':
           description: Stream access reset successfully
         '400':
@@ -2038,6 +2131,17 @@ paths:
       security:
         - SignedFetch: []
       responses:
+        '429':
+          description: Shared scene permission quota exceeded (default 60 requests per minute per verified wallet per instance)
+          headers:
+            Retry-After:
+              description: Seconds until the quota resets
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '503':
           description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           headers:

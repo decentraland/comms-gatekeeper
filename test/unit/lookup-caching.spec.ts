@@ -1,3 +1,4 @@
+import { createLandsComponent, ILandComponent } from '../../src/adapters/lands'
 import { STOP_COMPONENT } from '@well-known-components/interfaces'
 import { createWorldsComponent } from '../../src/adapters/worlds'
 import { createPlacesComponent } from '../../src/adapters/places'
@@ -12,6 +13,7 @@ import { createContentClientMockedComponent } from '../mocks/content-client-mock
 import { createMockedPlace } from '../mocks/places-mock'
 
 describe('when upstream lookups use short-lived shared caches', () => {
+  let lands: ILandComponent
   let worlds: IWorldComponent
   let places: IPlacesComponent
   let fetch: ReturnType<typeof createFetchMockedComponent>
@@ -25,6 +27,7 @@ describe('when upstream lookups use short-lived shared caches', () => {
     const logs = createLoggerMockedComponent()
     fetch = createFetchMockedComponent()
     const cachedFetch = await cachedFetchComponent({ fetch, logs })
+    lands = await createLandsComponent({ config, logs, fetch, cachedFetch })
     worlds = await createWorldsComponent({ config, logs, fetch, cachedFetch })
     places = await createPlacesComponent({
       config,
@@ -209,6 +212,52 @@ describe('when upstream lookups use short-lived shared caches', () => {
         worlds.getWorldParcelPermissions('0xabc', 'name.eth', 'deployment', { skipCache: true })
       ).resolves.toBeUndefined()
       expect(fetch.fetch).toHaveBeenCalledTimes(2)
+    })
+  })
+  describe('and ban-list permissions use a short cache', () => {
+    describe('and the place is LAND', () => {
+      beforeEach(() => {
+        fetch.fetch.mockImplementation(async () => new Response(JSON.stringify({ owner: true })))
+      })
+      it('should refresh after ten seconds and bypass the cache for mutations', async () => {
+        await lands.getLandPermissions('0xabc', ['1,2'], { shortCache: true })
+        await lands.getLandPermissions('0xABC', ['1,2'], { shortCache: true })
+        expect(fetch.fetch).toHaveBeenCalledTimes(1)
+        await lands.getLandPermissions('0xabc', ['1,2'], { skipCache: true })
+        expect(fetch.fetch).toHaveBeenCalledTimes(2)
+        now += 10001
+        jest.advanceTimersByTime(2)
+        await lands.getLandPermissions('0xabc', ['1,2'], { shortCache: true })
+        expect(fetch.fetch).toHaveBeenCalledTimes(3)
+      })
+      it('should report a permission provider outage as retryable', async () => {
+        fetch.fetch.mockRejectedValueOnce(new Error('Lambdas offline'))
+        await expect(lands.getLandPermissions('0xabc', ['1,2'], { shortCache: true })).rejects.toThrow(
+          ServiceUnavailableError
+        )
+      })
+    })
+    describe('and the place is a world', () => {
+      beforeEach(() => {
+        fetch.fetch.mockImplementation(async () => new Response(JSON.stringify({ elements: [{ name: 'name' }] })))
+      })
+      it('should refresh name ownership after ten seconds and bypass it for mutations', async () => {
+        await worlds.hasWorldOwnerPermission('0xabc', 'name.eth', { shortCache: true })
+        await worlds.hasWorldOwnerPermission('0xABC', 'NAME.ETH', { shortCache: true })
+        expect(fetch.fetch).toHaveBeenCalledTimes(1)
+        await worlds.hasWorldOwnerPermission('0xabc', 'name.eth', { skipCache: true })
+        expect(fetch.fetch).toHaveBeenCalledTimes(2)
+        now += 10001
+        jest.advanceTimersByTime(2)
+        await worlds.hasWorldOwnerPermission('0xabc', 'name.eth', { shortCache: true })
+        expect(fetch.fetch).toHaveBeenCalledTimes(3)
+      })
+      it('should report a name provider outage as retryable', async () => {
+        fetch.fetch.mockResolvedValueOnce(new Response('', { status: 503 }))
+        await expect(worlds.hasWorldOwnerPermission('0xabc', 'name.eth', { shortCache: true })).rejects.toThrow(
+          ServiceUnavailableError
+        )
+      })
     })
   })
 })

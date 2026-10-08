@@ -1,3 +1,4 @@
+import { ScenePermissionOptions } from '../types/scene-manager.type'
 import { STOP_COMPONENT } from '@well-known-components/interfaces'
 import { LRUCache } from 'lru-cache'
 import { SceneParcels } from '@dcl/schemas'
@@ -64,10 +65,11 @@ export async function createWorldsComponent(
     }
   }
   const namesCache = cachedFetch.cache<NamesResponse>()
+  const shortNamesCache = cachedFetch.cache<NamesResponse>({ ttl: 10000 })
 
   async function fetchWorldActionPermissions(
     worldName: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<PermissionsOverWorld | undefined> {
     const response = await permissionsCache.fetch(
       `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions`,
@@ -130,7 +132,7 @@ export async function createWorldsComponent(
   async function hasWorldOwnerPermission(
     authAddress: string,
     worldName: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<boolean> {
     let nameToValidate = worldName.toLowerCase()
 
@@ -148,7 +150,7 @@ export async function createWorldsComponent(
       throw new Error('Lambdas URL is not set')
     }
 
-    const namesResponse = await namesCache.fetch(
+    const namesResponse = await (options?.shortCache ? shortNamesCache : namesCache).fetch(
       `${baseUrl}users/${encodeURIComponent(authAddress.toLowerCase())}/names`,
       { forceRefresh: options?.skipCache }
     )
@@ -161,7 +163,7 @@ export async function createWorldsComponent(
   async function hasWorldStreamingPermission(
     authAddress: string,
     worldName: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<boolean> {
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName, options)
     const lowerAuthAddress = authAddress.toLowerCase()
@@ -175,7 +177,7 @@ export async function createWorldsComponent(
   async function hasWorldDeployPermission(
     authAddress: string,
     worldName: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<boolean> {
     const permissionsOverWorld = await fetchWorldActionPermissions(worldName, options)
     const lowerAuthAddress = authAddress.toLowerCase()
@@ -190,7 +192,7 @@ export async function createWorldsComponent(
     address: string,
     worldName: string,
     permissionName: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<string[] | undefined> {
     return parcelPermissionsCache.fetch(
       JSON.stringify([worldName.toLowerCase(), address.toLowerCase(), permissionName]),

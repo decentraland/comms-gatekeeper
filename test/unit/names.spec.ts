@@ -59,7 +59,7 @@ describe('names adapter', () => {
       })
 
       it('should call the lambdas owner endpoint with the name in the URL', () => {
-        expect(mockFetch).toHaveBeenCalledWith(`${lambdasUrl}names/${name}/owner`)
+        expect(mockFetch).toHaveBeenCalledWith(`${lambdasUrl}names/${name}/owner`, { signal: expect.any(AbortSignal) })
       })
 
       it('should return the owner address as-returned by the upstream', () => {
@@ -94,7 +94,9 @@ describe('names adapter', () => {
       })
 
       it('should percent-encode the name in the URL path', () => {
-        expect(mockFetch).toHaveBeenCalledWith(`${lambdasUrl}names/${encodeURIComponent(sneakyName)}/owner`)
+        expect(mockFetch).toHaveBeenCalledWith(`${lambdasUrl}names/${encodeURIComponent(sneakyName)}/owner`, {
+          signal: expect.any(AbortSignal)
+        })
       })
     })
 

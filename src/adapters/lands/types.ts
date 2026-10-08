@@ -1,3 +1,4 @@
+import { ScenePermissionOptions } from '../../types/scene-manager.type'
 import { IBaseComponent } from '@well-known-components/interfaces'
 
 export type LandsParcelPermissionsResponse = {
@@ -33,11 +34,12 @@ export type ILandComponent = IBaseComponent & {
    * Returns the caller's permissions on the first of the given parcels.
    * Throws `LandPermissionsNotFoundError` when the lambdas service has no
    * record for the parcel. skipCache refreshes upstream permissions before a sensitive operation.
+   * shortCache limits cached LAND permissions to ten seconds.
    */
   getLandPermissions(
     authAddress: string,
     placePositions: string[],
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<LandsParcelPermissionsResponse>
 
   /**
@@ -52,9 +54,10 @@ export type ILandComponent = IBaseComponent & {
    * Returns whether `address` is authorized to lease any of `parcels`.
    * Off-chain lease authorizations are sourced from a static linker-server
    * JSON, cached locally for ~5 minutes. Failures are logged and degrade
-   * to `false` rather than propagating, except with skipCache: fresh checks propagate failures.
+   * to `false` rather than propagating for ordinary metadata reads. skipCache and shortCache
+   * checks propagate failures; only target protection may use allowStaleLease (at most five minutes).
    */
-  hasLandLease(address: string, parcels: string[], options?: { skipCache?: boolean }): Promise<boolean>
+  hasLandLease(address: string, parcels: string[], options?: ScenePermissionOptions): Promise<boolean>
 
   /**
    * Returns the lowercase addresses authorized to lease any of the given
@@ -67,9 +70,11 @@ export type ILandComponent = IBaseComponent & {
 
   /**
    * Returns the raw lease-authorization document. Cached for ~5 minutes;
-   * concurrent callers share a single in-flight fetch. skipCache bypasses cached data and stale fallback.
+   * concurrent callers share a single in-flight fetch. shortCache limits reuse to ten seconds;
+   * allowStaleLease permits a known document up to five minutes old on refresh failure.
+   * skipCache always bypasses cached data and stale fallback.
    */
-  getAuthorizations(options?: { skipCache?: boolean }): Promise<LandLeaseAuthorizations>
+  getAuthorizations(options?: ScenePermissionOptions): Promise<LandLeaseAuthorizations>
 
   /**
    * Drops the cached lease-authorization document and triggers a fresh

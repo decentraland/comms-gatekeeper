@@ -172,7 +172,8 @@ export function createSceneBansComponent(
     // must be protected here too — otherwise a lease tenant could be simultaneously banned and
     // listed as an admin.
     const userToBanScenePermissions = await sceneManager.getUserScenePermissions(place, userAddressToBan, {
-      skipCache: true
+      shortCache: true,
+      allowStaleLease: true
     })
     if (
       userToBanScenePermissions.owner ||
@@ -371,7 +372,7 @@ export function createSceneBansComponent(
     const place = isWorld ? await places.getWorldScenePlace(realmName, parcel) : await places.getPlaceByParcel(parcel)
 
     // Check if the user requesting the list has permission
-    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, lowercasedRequestedBy, { skipCache: true })
+    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, lowercasedRequestedBy, { shortCache: true })
     if (!isOwnerOrAdmin) {
       throw new UnauthorizedError('User does not have permission to list scene bans')
     }

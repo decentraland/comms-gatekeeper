@@ -99,7 +99,10 @@ export async function createLivekitComponent(
     secret: previewSecret
   }
 
-  const roomClient = new RoomServiceClient(prodEndpoints.apiHost, prodApiKey, prodSecret, { requestTimeout: 5 })
+  const roomClient = new RoomServiceClient(prodEndpoints.apiHost, prodApiKey, prodSecret)
+  const moderationRoomClient = new RoomServiceClient(prodEndpoints.apiHost, prodApiKey, prodSecret, {
+    requestTimeout: 5
+  })
   const ingressClient = new IngressClient(prodEndpoints.apiHost, prodApiKey, prodSecret)
   const ingressStateClient = new IngressClient(prodEndpoints.apiHost, prodApiKey, prodSecret, { requestTimeout: 5 })
   const receiver = new WebhookReceiver(prodApiKey, prodSecret)
@@ -400,7 +403,7 @@ export async function createLivekitComponent(
 
   /** Lists existing scene rooms in one world, excluding other worlds and voice rooms. */
   async function listWorldSceneRooms(worldName: string): Promise<string[]> {
-    const rooms = await roomClient.listRooms()
+    const rooms = await moderationRoomClient.listRooms()
     return rooms
       .filter((room) => {
         const metadata = getRoomMetadataFromRoomName(room.name)

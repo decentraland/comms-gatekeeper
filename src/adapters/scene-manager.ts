@@ -1,5 +1,5 @@
 import { AppComponents } from '../types'
-import { ISceneManager, UserScenePermissions } from '../types/scene-manager.type'
+import { ISceneManager, ScenePermissionOptions, UserScenePermissions } from '../types/scene-manager.type'
 import { PlaceAttributes } from '../types/places.type'
 
 export async function createSceneManagerComponent(
@@ -14,7 +14,7 @@ export async function createSceneManagerComponent(
   async function isSceneOwner(
     place: PlaceAttributes,
     address: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<boolean> {
     const isWorld = place.world
     if (isWorld) {
@@ -27,7 +27,7 @@ export async function createSceneManagerComponent(
   async function getUserScenePermissions(
     place: PlaceAttributes,
     address: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<UserScenePermissions> {
     const landParcelPermission = place.world ? undefined : await getLandPermissions(address, place.positions, options)
     const isOwner = place.world ? await isSceneOwner(place, address, options) : landParcelPermission?.owner
@@ -81,7 +81,7 @@ export async function createSceneManagerComponent(
   async function isSceneOwnerOrAdmin(
     place: PlaceAttributes,
     authenticatedAddress: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<boolean> {
     const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress, options)
 

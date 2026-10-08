@@ -1,3 +1,4 @@
+import { ScenePermissionOptions } from './scene-manager.type'
 import { IBaseComponent } from '@well-known-components/interfaces'
 
 // Shortened version of the WorldScene type from the worlds content server
@@ -33,7 +34,7 @@ export type IWorldComponent = IBaseComponent & {
   fetchWorldSceneByEntityId(worldName: string, entityId: string): Promise<WorldScene | undefined>
   fetchWorldActionPermissions(
     worldName: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<PermissionsOverWorld | undefined>
   fetchWorldSceneByPointer(worldName: string, pointer: string): Promise<WorldScene | undefined>
   fetchWorldSceneEntityMetadataById(entityId: string): Promise<WorldSceneEntityMetadata | undefined>
@@ -45,19 +46,19 @@ export type IWorldComponent = IBaseComponent & {
     options?: { allowPreviousDeployment?: boolean }
   ): Promise<string>
   fetchWorldSceneId(worldName: string): Promise<string>
-  hasWorldOwnerPermission(authAddress: string, worldName: string, options?: { skipCache?: boolean }): Promise<boolean>
+  hasWorldOwnerPermission(authAddress: string, worldName: string, options?: ScenePermissionOptions): Promise<boolean>
   hasWorldStreamingPermission(
     authAddress: string,
     worldName: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<boolean>
-  hasWorldDeployPermission(authAddress: string, worldName: string, options?: { skipCache?: boolean }): Promise<boolean>
+  hasWorldDeployPermission(authAddress: string, worldName: string, options?: ScenePermissionOptions): Promise<boolean>
   hasWorldAccessPermission(authAddress: string, worldName: string): Promise<boolean>
   getWorldParcelPermissions(
     address: string,
     worldName: string,
     permissionName: string,
-    options?: { skipCache?: boolean }
+    options?: ScenePermissionOptions
   ): Promise<string[] | undefined>
   getWorldParcelPermissionAddresses(worldName: string, permissionName: string, parcels: string[]): Promise<string[]>
 }

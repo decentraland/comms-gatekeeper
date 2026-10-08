@@ -34,7 +34,7 @@ describe('when fetching a URL for the first time', () => {
   it('should resolve with the fetched response data and call the underlying fetch function', async () => {
     const result = await cachedFunction.fetch(fetchingUrl)
     expect(result).toEqual(mockedResponseBody)
-    expect(mockNodeFetch).toHaveBeenCalledWith(fetchingUrl)
+    expect(mockNodeFetch).toHaveBeenCalledWith(fetchingUrl, { signal: expect.any(AbortSignal) })
   })
 })
 
@@ -59,7 +59,7 @@ describe('when fetching the same URL multiple times', () => {
     await cachedFunction.fetch(fetchingUrl)
 
     expect(mockNodeFetch).toHaveBeenCalledTimes(1)
-    expect(mockNodeFetch).toHaveBeenCalledWith(fetchingUrl)
+    expect(mockNodeFetch).toHaveBeenCalledWith(fetchingUrl, { signal: expect.any(AbortSignal) })
   })
 })
 
@@ -71,7 +71,7 @@ describe('when the fetch operation fails', () => {
 
   describe('and the stale value on rejection flag is set to false', () => {
     it('should reject with the fetch error', async () => {
-      await expect(cachedFunction.fetch(fetchingUrl)).rejects.toThrow('Fetch error')
+      await expect(cachedFunction.fetch(fetchingUrl)).rejects.toThrow('Upstream data is temporarily unavailable')
     })
   })
 
@@ -107,8 +107,8 @@ describe('when the response is not ok', () => {
   })
 
   describe('and the stale value on rejection flag is set to false', () => {
-    it('should throw an error with the URL in the message', async () => {
-      await expect(cachedFunction.fetch(fetchingUrl)).rejects.toThrow(`Error getting ${fetchingUrl}`)
+    it('should throw a retryable upstream error', async () => {
+      await expect(cachedFunction.fetch(fetchingUrl)).rejects.toThrow('Upstream data is temporarily unavailable')
     })
   })
 
@@ -151,7 +151,7 @@ describe('when the response is not ok and exposes a cancellable body', () => {
   })
 
   it('should release the response body before throwing', async () => {
-    await expect(cachedFunction.fetch(fetchingUrl)).rejects.toThrow(`Error getting ${fetchingUrl}`)
+    await expect(cachedFunction.fetch(fetchingUrl)).rejects.toThrow('Upstream data is temporarily unavailable')
 
     expect(cancelMock).toHaveBeenCalledTimes(1)
   })

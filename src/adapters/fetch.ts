@@ -1,4 +1,5 @@
 import { LRUCache } from 'lru-cache'
+import { ServiceUnavailableError } from '../types/errors'
 import { AppComponents } from '../types'
 import { CachedFetchLoader, ICachedFetchComponent } from '../types/fetch.type'
 
@@ -25,7 +26,7 @@ export async function cachedFetchComponent(
       fetchMethod: async function (url, _staleValue, { context }): Promise<T | undefined> {
         if (context) return context()
         try {
-          const response = await fetch.fetch(url)
+          const response = await fetch.fetch(url, { signal: AbortSignal.timeout(5000) })
 
           if (!response.ok) {
             // Release the undici response body before discarding it on the error path,
@@ -34,10 +35,10 @@ export async function cachedFetchComponent(
             throw new Error(`Error getting ${url}, status: ${response.status}`)
           }
 
-          return response.json()
+          return await response.json()
         } catch (err: any) {
           logger.warn(err)
-          throw err
+          throw new ServiceUnavailableError('Upstream data is temporarily unavailable')
         }
       }
     })

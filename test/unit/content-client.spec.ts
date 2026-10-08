@@ -6,16 +6,18 @@ import { PlaceNotFoundError, ServiceUnavailableError } from '../../src/types/err
 describe('when looking up an entity across trusted content servers', () => {
   let component: Awaited<ReturnType<typeof createContentClientComponent>>
   let fetch: jest.Mock
+  let warn: jest.Mock
 
   beforeEach(async () => {
     fetch = jest.fn()
+    warn = jest.fn()
     component = await createContentClientComponent({
       config: createConfigMockedComponent({
         requireString: jest.fn().mockResolvedValue('https://primary.example/content'),
         getString: jest.fn().mockResolvedValue('https://fallback.example/content')
       }),
       fetch: { fetch },
-      logs: createLoggerMockedComponent()
+      logs: createLoggerMockedComponent({ warn })
     })
   })
 
@@ -116,6 +118,17 @@ describe('when looking up an entity across trusted content servers', () => {
   describe('and a pointer lookup has a failed server and a confirmed miss', () => {
     beforeEach(() => {
       fetch.mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce(new Response('[]'))
+    })
+    it('should log the failed trusted source with scene and pointer context', async () => {
+      await expect(
+        component.fetchEntitiesByPointers(['1,2'], { skipCache: true, expectedEntityId: 'old' })
+      ).rejects.toThrow(ServiceUnavailableError)
+      expect(warn).toHaveBeenCalledWith('Trusted active scene lookup failed', {
+        server: 'https://primary.example/content',
+        pointers: '1,2',
+        sceneId: 'old',
+        error: expect.any(String)
+      })
     })
     it('should report an inconclusive lookup as retryable', async () => {
       await expect(

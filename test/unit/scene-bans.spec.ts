@@ -862,7 +862,7 @@ describe('SceneBanComponent', () => {
         expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
           mockPlace,
           '0x0987654321098765432109876543210987654321',
-          { skipCache: true }
+          { shortCache: true }
         )
       })
 
@@ -1056,7 +1056,7 @@ describe('SceneBanComponent', () => {
         expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
           mockPlace,
           '0x0987654321098765432109876543210987654321',
-          { skipCache: true }
+          { shortCache: true }
         )
       })
 
@@ -1236,7 +1236,7 @@ describe('SceneBanComponent', () => {
         expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
           mockPlace,
           '0x0987654321098765432109876543210987654321',
-          { skipCache: true }
+          { shortCache: true }
         )
       })
 
@@ -1430,7 +1430,7 @@ describe('SceneBanComponent', () => {
         expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
           mockPlace,
           '0x0987654321098765432109876543210987654321',
-          { skipCache: true }
+          { shortCache: true }
         )
       })
 
@@ -2076,6 +2076,10 @@ describe('SceneBanComponent', () => {
       })
       expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(mockWorldPlace, '0x456', {
         skipCache: true
+      })
+      expect(sceneManagerMockedComponent.getUserScenePermissions).toHaveBeenCalledWith(mockWorldPlace, '0x123', {
+        shortCache: true,
+        allowStaleLease: true
       })
       expect(livekitMockedComponent.removeParticipant.mock.calls).toEqual([
         ['current-room', '0x123'],

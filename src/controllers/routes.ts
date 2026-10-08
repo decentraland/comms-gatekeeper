@@ -1,3 +1,4 @@
+import { createScenePermissionRateLimit } from './middlewares/scene-permission-rate-limit'
 import { Router } from '@dcl/http-server'
 import { bearerTokenMiddleware } from '@dcl/http-commons'
 import {
@@ -87,6 +88,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   const socialServiceInteractionsToken = await config.requireString('COMMS_GATEKEEPER_AUTH_TOKEN')
   const tokenAuthMiddleware = bearerTokenMiddleware(socialServiceInteractionsToken)
 
+  const permissionRateLimit = await createScenePermissionRateLimit({ config })
   const router = new Router<GlobalContext>()
   router.use(errorHandler)
 
@@ -141,19 +143,21 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post(
     '/scene-admin',
     auth,
+    permissionRateLimit,
     schemaValidator.withSchemaValidatorMiddleware(AddSceneAdminRequestSchema),
     addSceneAdminHandler
   )
   router.delete(
     '/scene-admin',
     auth,
+    permissionRateLimit,
     schemaValidator.withSchemaValidatorMiddleware(RemoveSceneAdminRequestSchema),
     removeSceneAdminHandler
   )
 
   // Scene ban routes
-  router.get('/scene-bans', auth, listSceneBansHandler)
-  router.get('/scene-bans/addresses', auth, listSceneBansAddressesHandler)
+  router.get('/scene-bans', auth, permissionRateLimit, listSceneBansHandler)
+  router.get('/scene-bans/addresses', auth, permissionRateLimit, listSceneBansAddressesHandler)
 
   // World ban check endpoint (service-to-service, used by worlds-content-server)
   router.get(
@@ -164,16 +168,17 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   router.post(
     '/scene-bans',
     auth,
+    permissionRateLimit,
     schemaValidator.withSchemaValidatorMiddleware(AddSceneBanRequestSchema),
     addSceneBanHandler
   )
-  router.delete('/scene-bans', auth, removeSceneBanHandler)
+  router.delete('/scene-bans', auth, permissionRateLimit, removeSceneBanHandler)
 
   // Scene stream access routes
   router.get('/scene-stream-access', auth, listSceneStreamAccessHandler)
-  router.post('/scene-stream-access', auth, addSceneStreamAccessHandler)
+  router.post('/scene-stream-access', auth, permissionRateLimit, addSceneStreamAccessHandler)
   router.delete('/scene-stream-access', auth, removeSceneStreamAccessHandler)
-  router.put('/scene-stream-access', auth, resetSceneStreamAccessHandler)
+  router.put('/scene-stream-access', auth, permissionRateLimit, resetSceneStreamAccessHandler)
 
   // Livekit webhook routes
   router.post('/livekit-webhook', livekitWebhookHandler)
@@ -249,7 +254,7 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
     schemaValidator.withSchemaValidatorMiddleware(WatcherTokenRequestSchema),
     watcherTokenHandler
   )
-  router.get('/cast/generate-stream-link', auth, generateStreamLinkHandler)
+  router.get('/cast/generate-stream-link', auth, permissionRateLimit, generateStreamLinkHandler)
   router.get('/cast/stream-info/:streamingKey', getStreamInfoHandler)
 
   // User moderation routes. Also deliberately strict: these are called by dapps and internal
