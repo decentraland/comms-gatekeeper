@@ -1949,8 +1949,7 @@ describe('SceneBanComponent', () => {
             disabled_reason: 'opt_out',
             world: true,
             world_name: 'lantern.dcl.eth',
-            base_position: '0,0',
-            positions: ['0,0']
+            base_position: '0,0'
           },
           {
             id: 'place2',
@@ -1958,8 +1957,7 @@ describe('SceneBanComponent', () => {
             disabled_reason: 'moderation',
             world: true,
             world_name: 'lantern.dcl.eth',
-            base_position: '5,5',
-            positions: ['5,5']
+            base_position: '5,5'
           }
         ])
         sceneBanManagerMockedComponent.removeBansByPlaceIds.mockResolvedValue(undefined)
@@ -1981,8 +1979,7 @@ describe('SceneBanComponent', () => {
             disabled_reason: 'opt_out',
             world: true,
             world_name: 'lantern.dcl.eth',
-            base_position: '0,0',
-            positions: ['0,0']
+            base_position: '0,0'
           }
         ])
         await sceneBanComponent.removeBansFromDisabledPlaces()

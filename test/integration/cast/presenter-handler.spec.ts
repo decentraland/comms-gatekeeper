@@ -47,9 +47,9 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
         streaming_url: 'rtmp://test',
         expiration_time: Date.now() + 60000
       })
-      spyComponents.places.getPlaceStatusByIds.mockResolvedValueOnce([
+      spyComponents.places.getPlaceById.mockResolvedValueOnce(
         createMockedWorldPlace({ id: 'test-presenter-world', world_name: 'myworld.eth' })
-      ])
+      )
       spyComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValueOnce(true)
       spyComponents.livekit.getRoomInfo.mockResolvedValueOnce(
         new Room({ metadata: JSON.stringify({ presenters: [validAddress] }) })
@@ -97,9 +97,9 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
         expiration_time: Date.now() + 60000
       })
       spyComponents.worlds.resolveWorldSceneId.mockRejectedValue(new ServiceUnavailableError('Worlds unavailable'))
-      spyComponents.places.getPlaceStatusByIds.mockResolvedValue([
+      spyComponents.places.getPlaceById.mockResolvedValue(
         createMockedWorldPlace({ id: 'previous-presenter-place', world_name: 'presenters.eth' })
-      ])
+      )
       spyComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
       spyComponents.livekit.getRoomInfo.mockResolvedValue(new Room({ metadata: '{"presenters":[]}' }))
       spyComponents.livekit.getRoom.mockResolvedValue(new Room())
@@ -114,7 +114,7 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
     it('should use the stored room place despite an unrelated parcel and unavailable world lookup', async () => {
       const response = await makeRequest(components.localFetch, path, { method, metadata: worldMetadata }, owner)
       expect(response.status).toBe(200)
-      expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenCalledWith(['previous-presenter-place'])
+      expect(spyComponents.places.getPlaceById).toHaveBeenCalledWith('previous-presenter-place')
       expect(spyComponents.worlds.resolveWorldSceneId).not.toHaveBeenCalled()
     })
 
@@ -145,7 +145,7 @@ test('Cast: Presenter Handlers', function ({ components, spyComponents }) {
           'presenters.eth',
           '99,99'
         )
-        expect(spyComponents.places.getPlaceStatusByIds).toHaveBeenCalledWith(['previous-presenter-place'])
+        expect(spyComponents.places.getPlaceById).toHaveBeenCalledWith('previous-presenter-place')
       })
     })
   })
