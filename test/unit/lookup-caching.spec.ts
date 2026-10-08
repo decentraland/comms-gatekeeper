@@ -134,7 +134,7 @@ describe('when upstream lookups use short-lived shared caches', () => {
       await worlds.getWorldParcelPermissions('0xabc', 'name.eth', 'deployment')
       await worlds.getWorldParcelPermissions('0xdef', 'name.eth', 'streaming')
       expect(fetch.fetch).toHaveBeenCalledTimes(3)
-      now += 10001
+      now += 30001
       jest.advanceTimersByTime(2)
       await worlds.getWorldParcelPermissions('0xabc', 'name.eth', 'streaming')
       expect(fetch.fetch).toHaveBeenCalledTimes(4)
@@ -155,7 +155,7 @@ describe('when upstream lookups use short-lived shared caches', () => {
     })
   })
 
-  describe('and a place changes after ten seconds', () => {
+  describe('and a place changes after thirty seconds', () => {
     beforeEach(() => {
       fetch.fetch
         .mockResolvedValueOnce(
@@ -169,7 +169,7 @@ describe('when upstream lookups use short-lived shared caches', () => {
     it('should reuse concurrent lookups and observe the changed place after expiration', async () => {
       await Promise.all([places.getPlaceByParcel('1,2'), places.getPlaceByParcel('1,2')])
       expect(fetch.fetch).toHaveBeenCalledTimes(1)
-      now += 10001
+      now += 30001
       jest.advanceTimersByTime(2)
       await expect(places.getPlaceByParcel('1,2')).resolves.toMatchObject({ id: 'new-place' })
     })
@@ -219,13 +219,13 @@ describe('when upstream lookups use short-lived shared caches', () => {
       beforeEach(() => {
         fetch.fetch.mockImplementation(async () => new Response(JSON.stringify({ owner: true })))
       })
-      it('should refresh after ten seconds and bypass the cache for mutations', async () => {
+      it('should refresh after thirty seconds and bypass the cache for mutations', async () => {
         await lands.getLandPermissions('0xabc', ['1,2'], { shortCache: true })
         await lands.getLandPermissions('0xABC', ['1,2'], { shortCache: true })
         expect(fetch.fetch).toHaveBeenCalledTimes(1)
         await lands.getLandPermissions('0xabc', ['1,2'], { skipCache: true })
         expect(fetch.fetch).toHaveBeenCalledTimes(2)
-        now += 10001
+        now += 30001
         jest.advanceTimersByTime(2)
         await lands.getLandPermissions('0xabc', ['1,2'], { shortCache: true })
         expect(fetch.fetch).toHaveBeenCalledTimes(3)
@@ -241,13 +241,13 @@ describe('when upstream lookups use short-lived shared caches', () => {
       beforeEach(() => {
         fetch.fetch.mockImplementation(async () => new Response(JSON.stringify({ elements: [{ name: 'name' }] })))
       })
-      it('should refresh name ownership after ten seconds and bypass it for mutations', async () => {
+      it('should refresh name ownership after thirty seconds and bypass it for mutations', async () => {
         await worlds.hasWorldOwnerPermission('0xabc', 'name.eth', { shortCache: true })
         await worlds.hasWorldOwnerPermission('0xABC', 'NAME.ETH', { shortCache: true })
         expect(fetch.fetch).toHaveBeenCalledTimes(1)
         await worlds.hasWorldOwnerPermission('0xabc', 'name.eth', { skipCache: true })
         expect(fetch.fetch).toHaveBeenCalledTimes(2)
-        now += 10001
+        now += 30001
         jest.advanceTimersByTime(2)
         await worlds.hasWorldOwnerPermission('0xabc', 'name.eth', { shortCache: true })
         expect(fetch.fetch).toHaveBeenCalledTimes(3)
