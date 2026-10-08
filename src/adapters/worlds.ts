@@ -29,7 +29,7 @@ export async function createWorldsComponent(
   const sceneEntityMetadataCache = new LRUCache<string, WorldSceneEntityMetadata>({ max: 1000, ttl: 300000 })
   const requestTimeout = (await config.getNumber('WORLD_SCENE_REQUEST_TIMEOUT_MS')) ?? 5000
   const sceneCacheTtl = (await config.getNumber('WORLD_SCENE_CACHE_TTL_MS')) ?? 5000
-  const parcelPermissionsCacheTtl = (await config.getNumber('WORLD_PARCEL_PERMISSIONS_CACHE_TTL_MS')) ?? 10000
+  const parcelPermissionsCacheTtl = (await config.getNumber('WORLD_PARCEL_PERMISSIONS_CACHE_TTL_MS')) ?? 30000
   const permissionsCache = cachedFetch.cache<PermissionsOverWorld>({
     ttl: parcelPermissionsCacheTtl,
     allowStaleOnFetchRejection: false
@@ -65,7 +65,7 @@ export async function createWorldsComponent(
     }
   }
   const namesCache = cachedFetch.cache<NamesResponse>()
-  const shortNamesCache = cachedFetch.cache<NamesResponse>({ ttl: 10000 })
+  const shortNamesCache = cachedFetch.cache<NamesResponse>({ ttl: 30000 })
 
   async function fetchWorldActionPermissions(
     worldName: string,

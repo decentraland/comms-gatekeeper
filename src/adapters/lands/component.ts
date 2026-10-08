@@ -23,7 +23,7 @@ export async function createLandsComponent(
   const lambdasUrl = await config.requireString('LAMBDAS_URL')
 
   const parcelPermissionsCache = cachedFetch.cache<LandsParcelPermissionsResponse>()
-  const shortPermissionsCache = cachedFetch.cache<LandsParcelPermissionsResponse>({ ttl: 10000 })
+  const shortPermissionsCache = cachedFetch.cache<LandsParcelPermissionsResponse>({ ttl: 30000 })
   const parcelOperatorsCache = cachedFetch.cache<LandsParcelOperatorsResponse>()
 
   // Lease-authorization cache state. Single in-flight fetch is deduped so

@@ -14,7 +14,7 @@ export async function createPlacesComponent(
 
   const placesApiUrl = await config.requireString('PLACES_API_URL')
   const requestTimeout = (await config.getNumber('PLACES_REQUEST_TIMEOUT_MS')) ?? 5000
-  const ttl = (await config.getNumber('PLACES_CACHE_TTL_MS')) ?? 10000
+  const ttl = (await config.getNumber('PLACES_CACHE_TTL_MS')) ?? 30000
   const placesCache = cachedFetch.cache<PlaceResponse>({ ttl, allowStaleOnFetchRejection: false })
 
   async function fetchPlaces(url: string, options: RequestInit = {}): Promise<PlaceResponse> {
