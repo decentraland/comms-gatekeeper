@@ -69,7 +69,10 @@ export type IPlacesComponent = IBaseComponent & {
 
 export type PlaceDisabledReason = 'opt_out' | 'undeployment' | 'overwritten' | 'moderation'
 
-export type PlaceStatus = Pick<PlaceAttributes, 'id' | 'disabled' | 'disabled_reason' | 'world' | 'world_name' | 'base_position'>
+export type PlaceStatus = Pick<
+  PlaceAttributes,
+  'id' | 'disabled' | 'disabled_reason' | 'world' | 'world_name' | 'base_position'
+>
 
 export type PlaceSummary = Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position'> &
   Partial<Pick<PlaceAttributes, 'positions'>>
