@@ -1,3 +1,4 @@
+import { ServiceUnavailableError } from '../../src/types/errors'
 import {
   createLandsComponent,
   ILandComponent,
@@ -61,7 +62,8 @@ describe('LandsComponent', () => {
       it('should call the lambdas endpoint with the lowercased address and the first parcel', async () => {
         await lands.getLandPermissions('0xUserAddress', ['10,20', '99,99'])
         expect(mockLambdasFetch).toHaveBeenCalledWith(
-          'https://lambdas.decentraland.org/api/users/0xuseraddress/parcels/10/20/permissions'
+          'https://lambdas.decentraland.org/api/users/0xuseraddress/parcels/10/20/permissions',
+          { forceRefresh: undefined }
         )
       })
     })
@@ -242,6 +244,20 @@ describe('LandsComponent', () => {
       })
     })
 
+    describe('and a LAND operator is revoked before cache expiry', () => {
+      beforeEach(() => {
+        cachedFetchFetch
+          .mockResolvedValueOnce(new Response(JSON.stringify({ owner: false, operator: true })))
+          .mockResolvedValueOnce(new Response(JSON.stringify({ owner: false, operator: false })))
+      })
+      it('should refresh permissions for a sensitive operation', async () => {
+        await expect(cachedLands.getLandPermissions('0xabc', ['1,2'])).resolves.toMatchObject({ operator: true })
+        await expect(cachedLands.getLandPermissions('0xabc', ['1,2'], { skipCache: true })).resolves.toMatchObject({
+          operator: false
+        })
+        expect(cachedFetchFetch).toHaveBeenCalledTimes(2)
+      })
+    })
     describe('and getLandPermissions is called twice with the same address and parcel', () => {
       beforeEach(async () => {
         cachedFetchFetch.mockResolvedValueOnce({
@@ -634,6 +650,30 @@ describe('LandsComponent', () => {
 
       it('should swallow the error and return an empty array', () => {
         expect(result).toEqual([])
+      })
+    })
+  })
+  describe('when a cached land lease is checked for a sensitive operation', () => {
+    beforeEach(async () => {
+      mockLeaseFetch.fetch.mockResolvedValueOnce(
+        new Response(JSON.stringify([{ addresses: ['0xabc'], plots: ['1,2'] }]))
+      )
+      await lands.hasLandLease('0xabc', ['1,2'])
+    })
+    describe('and the lease has been revoked', () => {
+      beforeEach(() => {
+        mockLeaseFetch.fetch.mockResolvedValueOnce(new Response('[]'))
+      })
+      it('should observe the revocation without waiting for cache expiry', async () => {
+        await expect(lands.hasLandLease('0xabc', ['1,2'], { skipCache: true })).resolves.toBe(false)
+      })
+    })
+    describe('and lease verification is unavailable', () => {
+      beforeEach(() => {
+        mockLeaseFetch.fetch.mockRejectedValueOnce(new Error('unavailable'))
+      })
+      it('should reject instead of using a stale lease grant', async () => {
+        await expect(lands.hasLandLease('0xabc', ['1,2'], { skipCache: true })).rejects.toThrow(ServiceUnavailableError)
       })
     })
   })

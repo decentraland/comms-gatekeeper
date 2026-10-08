@@ -678,6 +678,20 @@ describe('PlacesComponent', () => {
       expect(mockFetch).not.toHaveBeenCalled()
     })
 
+    describe('and a gateway returns HTTP 404', () => {
+      beforeEach(() => {
+        mockFetch.mockResolvedValue({ ok: false, status: 404 })
+      })
+      it('should reject the join instead of skipping place bans', async () => {
+        await expect(
+          placesComponent.resolveScenePlace('genesis', undefined, undefined, {
+            allowPreviousDeployment: true,
+            allowMissingPlace: true
+          })
+        ).rejects.toThrow(ServiceUnavailableError)
+      })
+    })
+
     describe('and Places is unavailable', () => {
       beforeEach(() => {
         mockFetch.mockRejectedValue(new Error('outage'))

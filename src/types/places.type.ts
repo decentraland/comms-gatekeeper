@@ -44,7 +44,7 @@ export type IPlacesComponent = IBaseComponent & {
     worldName?: string,
     parcel?: string,
     options?: { allowPreviousDeployment?: boolean; allowMissingPlace?: boolean }
-  ): Promise<PlaceAttributes>
+  ): Promise<PlaceAttributes | undefined>
   /**
    * @deprecated Use getWorldScenePlace instead. Kept only for backwards compatibility
    * with legacy rooms that lack a sceneId.

@@ -99,7 +99,7 @@ export async function createLivekitComponent(
     secret: previewSecret
   }
 
-  const roomClient = new RoomServiceClient(prodEndpoints.apiHost, prodApiKey, prodSecret)
+  const roomClient = new RoomServiceClient(prodEndpoints.apiHost, prodApiKey, prodSecret, { requestTimeout: 5 })
   const ingressClient = new IngressClient(prodEndpoints.apiHost, prodApiKey, prodSecret)
   const ingressStateClient = new IngressClient(prodEndpoints.apiHost, prodApiKey, prodSecret, { requestTimeout: 5 })
   const receiver = new WebhookReceiver(prodApiKey, prodSecret)

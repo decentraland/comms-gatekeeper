@@ -20,7 +20,7 @@ export async function createSceneManagerComponent(
     if (isWorld) {
       return await hasWorldOwnerPermission(address, place.world_name!, options)
     }
-    const landParcelPermission = await getLandPermissions(address, place.positions)
+    const landParcelPermission = await getLandPermissions(address, place.positions, options)
     return landParcelPermission?.owner
   }
 
@@ -29,7 +29,8 @@ export async function createSceneManagerComponent(
     address: string,
     options?: { skipCache?: boolean }
   ): Promise<UserScenePermissions> {
-    const isOwner = await isSceneOwner(place, address, options)
+    const landParcelPermission = place.world ? undefined : await getLandPermissions(address, place.positions, options)
+    const isOwner = place.world ? await isSceneOwner(place, address, options) : landParcelPermission?.owner
     const isAdmin = await sceneAdminManager.isAdmin(place.id, address)
     let hasExtendedPermissions = false
     let hasLandLease = false
@@ -57,7 +58,6 @@ export async function createSceneManagerComponent(
 
       hasExtendedPermissions = hasWorldWideStreaming || hasWorldWideDeploy || hasParcelStreaming || hasParcelDeploy
     } else if (!isAdmin && !place.world) {
-      const landParcelPermission = await getLandPermissions(address, place.positions)
       hasExtendedPermissions =
         landParcelPermission.operator ||
         landParcelPermission.updateOperator ||
@@ -66,7 +66,7 @@ export async function createSceneManagerComponent(
 
       // Check for land lease permissions for Genesis City scenes
       if (!isOwner && !hasExtendedPermissions) {
-        hasLandLease = await lands.hasLandLease(address, place.positions)
+        hasLandLease = await lands.hasLandLease(address, place.positions, options)
       }
     }
 

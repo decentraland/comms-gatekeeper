@@ -328,4 +328,16 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       )
     })
   })
+  describe('when checking fresh Genesis permissions', () => {
+    it('should refresh LAND and lease permissions and reuse the single LAND result', async () => {
+      await sceneManager.isSceneOwnerOrAdmin(scenePlace, testAddress, { skipCache: true })
+      expect(stubComponents.lands.getLandPermissions).toHaveBeenCalledWith(testAddress, scenePlace.positions, {
+        skipCache: true
+      })
+      expect(stubComponents.lands.getLandPermissions).toHaveBeenCalledTimes(1)
+      expect(stubComponents.lands.hasLandLease).toHaveBeenCalledWith(testAddress, scenePlace.positions, {
+        skipCache: true
+      })
+    })
+  })
 })

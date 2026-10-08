@@ -76,7 +76,11 @@ info:
     lookups, world permission allowlists and world parcel permissions are cached for 10 seconds. Changes can take these
     intervals to become visible. Expired data is not served when a refresh fails. Database ban
     checks remain uncached. Creating admins or stream access and generating stream links bypass
-    world permission caches. A missing parcel-permission record never grants world-wide access.
+    permission caches, including Genesis LAND and leases. Ban/unban, ban listing and admin removal
+    also refresh permissions. A missing parcel-permission record never grants world-wide access.
+    Historical-room discovery has a five-second deadline and runs after the current-room kick.
+    HTTP failures from Places never count as a confirmed missing place; only successful lookup
+    responses can allow the Genesis missing-place fallback.
     Cache lifetimes are configurable through the service environment.
     Upstream verification failures return `503` with `Retry-After: 1`, rather than `400`.
 
@@ -504,7 +508,7 @@ paths:
                 items:
                   $ref: './schemas.yaml#/components/schemas/SceneAdmin'
         '400':
-          description: Invalid request format or ambiguous legacy world identity
+          description: Missing required parcel, invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -696,7 +700,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ListSceneBansResponse'
         '400':
-          description: Invalid request format or ambiguous legacy world identity
+          description: Missing required parcel, invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -863,7 +867,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '400':
-          description: Invalid request format or ambiguous legacy world identity
+          description: Missing required parcel, invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -903,7 +907,7 @@ paths:
         - SignedFetch: []
       responses:
         '400':
-          description: Invalid request format or ambiguous legacy world identity
+          description: Missing required parcel, invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -1045,7 +1049,7 @@ paths:
         - SignedFetch: []
       responses:
         '400':
-          description: Invalid request format or ambiguous legacy world identity
+          description: Missing required parcel, invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -2654,7 +2658,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/ErrorResponse'
         '400':
-          description: Invalid request format or ambiguous legacy world identity
+          description: Missing required parcel, invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -2726,7 +2730,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
         '400':
-          description: Invalid request format or ambiguous legacy world identity
+          description: Missing required parcel, invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:
@@ -2790,7 +2794,7 @@ paths:
               schema:
                 $ref: './schemas.yaml#/components/schemas/PresenterActionResponse'
         '400':
-          description: Invalid request format or ambiguous legacy world identity
+          description: Missing required parcel, invalid request format or ambiguous legacy world identity
           content:
             application/json:
               schema:

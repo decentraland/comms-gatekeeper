@@ -24,7 +24,6 @@ export async function createPlacesComponent(
           const response = await fetch.fetch(url, { ...options, signal: AbortSignal.timeout(requestTimeout) })
           if (!response.ok) {
             await response.body?.cancel().catch(() => undefined)
-            if (response.status === 404) throw new PlaceNotFoundError('Place not found')
             throw new ServiceUnavailableError('Place verification is temporarily unavailable')
           }
           return await response.json()
@@ -164,7 +163,7 @@ export async function createPlacesComponent(
     worldName?: string,
     parcel?: string,
     options?: { allowPreviousDeployment?: boolean; allowMissingPlace?: boolean }
-  ): Promise<PlaceAttributes> {
+  ): Promise<PlaceAttributes | undefined> {
     if (worldName) {
       if (!parcel) return getWorldScenePlaceByEntityId(worldName, sceneId, options)
       const scene = await worlds.fetchWorldSceneByPointer(worldName, parcel)

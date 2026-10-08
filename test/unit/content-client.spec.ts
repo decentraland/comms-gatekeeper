@@ -117,10 +117,10 @@ describe('when looking up an entity across trusted content servers', () => {
     beforeEach(() => {
       fetch.mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce(new Response('[]'))
     })
-    it('should return the confirmed miss instead of making the failure permanent', async () => {
+    it('should report an inconclusive lookup as retryable', async () => {
       await expect(
         component.fetchEntitiesByPointers(['1,2'], { skipCache: true, expectedEntityId: 'old' })
-      ).resolves.toEqual([])
+      ).rejects.toThrow(ServiceUnavailableError)
     })
   })
   describe('and trusted pointer lookups overlap', () => {
@@ -142,6 +142,37 @@ describe('when looking up an entity across trusted content servers', () => {
       await expect(
         component.fetchEntitiesByPointers(['1,2'], { skipCache: true, expectedEntityId: 'current' })
       ).resolves.toEqual([{ id: 'current' }])
+    })
+  })
+  describe('and a matching Catalyst responds before another server', () => {
+    let release: () => void
+    beforeEach(() => {
+      fetch
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              release = () => resolve(new Response('[]'))
+            })
+        )
+        .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 'current' }])))
+    })
+    afterEach(() => {
+      release()
+    })
+    it('should return the matching deployment without waiting for the slow server', async () => {
+      await expect(
+        component.fetchEntitiesByPointers(['1,2'], { skipCache: true, expectedEntityId: 'current' })
+      ).resolves.toEqual([{ id: 'current' }])
+    })
+  })
+  describe('and all Catalysts confirm the deployment is absent', () => {
+    beforeEach(() => {
+      fetch.mockImplementation(async () => new Response('[]'))
+    })
+    it('should return a confirmed miss', async () => {
+      await expect(
+        component.fetchEntitiesByPointers(['1,2'], { skipCache: true, expectedEntityId: 'missing' })
+      ).resolves.toEqual([])
     })
   })
 })

@@ -95,24 +95,28 @@ export async function createContentClientComponent(
     },
     fetchEntitiesByPointers: async (pointers, options) => {
       if (options?.skipCache) {
-        const results = await Promise.allSettled(
-          entityClients.map((entityClient) =>
-            entityClient.fetchEntitiesByPointers(pointers, { timeout: requestTimeout, attempts: 1 })
-          )
-        )
-        for (const result of results) {
-          if (
-            result.status === 'fulfilled' &&
-            (!options.expectedEntityId || result.value.some((entity) => entity.id === options.expectedEntityId))
-          ) {
-            return result.value
+        let resolveMatch: (entities: Entity[]) => void
+        const firstMatch = new Promise<Entity[]>((resolve) => {
+          resolveMatch = resolve
+        })
+        const lookups = entityClients.map(async (entityClient) => {
+          const entities = await entityClient.fetchEntitiesByPointers(pointers, {
+            timeout: requestTimeout,
+            attempts: 1
+          })
+          if (!options.expectedEntityId || entities.some((entity) => entity.id === options.expectedEntityId)) {
+            resolveMatch(entities)
           }
-        }
-        // A successful trusted response confirms absence; an outage of every server is retryable.
-        if (results.every((result) => result.status === 'rejected')) {
-          throw new ServiceUnavailableError('Active scene verification is temporarily unavailable')
-        }
-        return []
+          return entities
+        })
+        // A matching response wins immediately. Observe every rejection even after an early success.
+        const completed = Promise.allSettled(lookups).then((results) => {
+          if (results.some((result) => result.status === 'rejected')) {
+            throw new ServiceUnavailableError('Active scene verification is temporarily unavailable')
+          }
+          return []
+        })
+        return Promise.race([firstMatch, completed])
       }
       const result = await cache.fetch(`ptr:${pointers[0]}`)
       return (result as Entity[]) ?? []

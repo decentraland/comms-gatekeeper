@@ -861,7 +861,8 @@ describe('SceneBanComponent', () => {
 
         expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
           mockPlace,
-          '0x0987654321098765432109876543210987654321'
+          '0x0987654321098765432109876543210987654321',
+          { skipCache: true }
         )
       })
 
@@ -1054,7 +1055,8 @@ describe('SceneBanComponent', () => {
 
         expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
           mockPlace,
-          '0x0987654321098765432109876543210987654321'
+          '0x0987654321098765432109876543210987654321',
+          { skipCache: true }
         )
       })
 
@@ -1233,7 +1235,8 @@ describe('SceneBanComponent', () => {
 
         expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
           mockPlace,
-          '0x0987654321098765432109876543210987654321'
+          '0x0987654321098765432109876543210987654321',
+          { skipCache: true }
         )
       })
 
@@ -1426,7 +1429,8 @@ describe('SceneBanComponent', () => {
 
         expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(
           mockPlace,
-          '0x0987654321098765432109876543210987654321'
+          '0x0987654321098765432109876543210987654321',
+          { skipCache: true }
         )
       })
 
@@ -2070,6 +2074,9 @@ describe('SceneBanComponent', () => {
       expect(placesMockedComponent.resolveScenePlace).toHaveBeenCalledWith('old', 'name.eth', '1,2', {
         allowPreviousDeployment: true
       })
+      expect(sceneManagerMockedComponent.isSceneOwnerOrAdmin).toHaveBeenCalledWith(mockWorldPlace, '0x456', {
+        skipCache: true
+      })
       expect(livekitMockedComponent.removeParticipant.mock.calls).toEqual([
         ['current-room', '0x123'],
         ['old-room', '0x123']
@@ -2091,6 +2098,36 @@ describe('SceneBanComponent', () => {
         ['current-room', '0x123'],
         ['old-room', '0x123']
       ])
+    })
+    describe('and historical-room discovery stalls', () => {
+      let release: (rooms: string[]) => void
+      beforeEach(() => {
+        jest.useFakeTimers()
+        livekitMockedComponent.listWorldSceneRooms.mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              release = resolve
+            })
+        )
+      })
+      afterEach(() => {
+        jest.useRealTimers()
+      })
+      it('should kick the current room first and stop discovery at the deadline', async () => {
+        const banning = sceneBanComponent.addSceneBan('0x123', '0x456', {
+          sceneId: 'current',
+          realmName: 'name.eth',
+          parcel: '1,2',
+          isWorld: true
+        })
+        await jest.advanceTimersByTimeAsync(0)
+        expect(livekitMockedComponent.removeParticipant).toHaveBeenCalledWith('current-room', '0x123')
+        await jest.advanceTimersByTimeAsync(5000)
+        await banning
+        release(['old-room'])
+        await jest.advanceTimersByTimeAsync(0)
+        expect(placesMockedComponent.getWorldScenePlaceByEntityId).not.toHaveBeenCalled()
+      })
     })
   })
 })
