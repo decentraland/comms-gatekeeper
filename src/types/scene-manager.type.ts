@@ -1,14 +1,12 @@
 import { IBaseComponent } from '@well-known-components/interfaces'
 import { PlaceAttributes } from './places.type'
 
-/** Permission reads can use a short cache; mutations bypass it. Stale leases are only for target protection. */
+/** Permission reads can use cached data; mutation callers bypass it. */
 export type ScenePermissionOptions = {
-  /** Refresh upstream data for a mutation; never use stale lease fallback. */
+  /** Refresh upstream data for a mutation; never use stale lease data. */
   skipCache?: boolean
-  /** Limit permission reads to ten seconds; database scene-admin checks remain fresh. */
+  /** Cache permission reads for ten seconds, or five minutes for leases; database scene-admin checks remain fresh. */
   shortCache?: boolean
-  /** Only protect ban targets: allow a previously verified lease document up to five minutes old on failure. */
-  allowStaleLease?: boolean
 }
 
 export type UserScenePermissions = {

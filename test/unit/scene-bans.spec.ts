@@ -2078,8 +2078,7 @@ describe('SceneBanComponent', () => {
         skipCache: true
       })
       expect(sceneManagerMockedComponent.getUserScenePermissions).toHaveBeenCalledWith(mockWorldPlace, '0x123', {
-        shortCache: true,
-        allowStaleLease: true
+        shortCache: true
       })
       expect(livekitMockedComponent.removeParticipant.mock.calls).toEqual([
         ['current-room', '0x123'],

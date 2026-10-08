@@ -172,8 +172,7 @@ export function createSceneBansComponent(
     // must be protected here too — otherwise a lease tenant could be simultaneously banned and
     // listed as an admin.
     const userToBanScenePermissions = await sceneManager.getUserScenePermissions(place, userAddressToBan, {
-      shortCache: true,
-      allowStaleLease: true
+      shortCache: true
     })
     if (
       userToBanScenePermissions.owner ||

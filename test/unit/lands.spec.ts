@@ -677,7 +677,7 @@ describe('LandsComponent', () => {
       })
     })
   })
-  describe('when short-cache lease verification is requested', () => {
+  describe('when cached lease verification is requested', () => {
     beforeEach(() => {
       jest.useFakeTimers()
       mockLeaseFetch.fetch.mockImplementation(
@@ -687,44 +687,42 @@ describe('LandsComponent', () => {
     afterEach(() => {
       jest.useRealTimers()
     })
-    it('should reuse a document for ten seconds and then refresh it', async () => {
+    it('should reuse a document for five minutes and then refresh it', async () => {
       await lands.hasLandLease('0xabc', ['1,2'], { shortCache: true })
       await lands.hasLandLease('0xabc', ['1,2'], { shortCache: true })
       expect(mockLeaseFetch.fetch).toHaveBeenCalledTimes(1)
-      jest.advanceTimersByTime(10001)
+      jest.advanceTimersByTime(240000)
+      await lands.hasLandLease('0xabc', ['1,2'], { shortCache: true })
+      expect(mockLeaseFetch.fetch).toHaveBeenCalledTimes(1)
+      jest.advanceTimersByTime(60001)
       await lands.hasLandLease('0xabc', ['1,2'], { shortCache: true })
       expect(mockLeaseFetch.fetch).toHaveBeenCalledTimes(2)
     })
     it('should fail closed on a cold-cache outage even for target protection', async () => {
       mockLeaseFetch.fetch.mockRejectedValueOnce(new Error('offline'))
-      await expect(lands.hasLandLease('0xabc', ['1,2'], { shortCache: true, allowStaleLease: true })).rejects.toThrow(
-        ServiceUnavailableError
-      )
+      await expect(lands.hasLandLease('0xabc', ['1,2'], { shortCache: true })).rejects.toThrow(ServiceUnavailableError)
     })
-    describe('and a known lease document is older than ten seconds', () => {
+    describe('and a known lease document is four minutes old', () => {
       beforeEach(async () => {
         await lands.hasLandLease('0xabc', ['1,2'], { shortCache: true })
-        jest.advanceTimersByTime(10001)
+        jest.advanceTimersByTime(240000)
         mockLeaseFetch.fetch.mockRejectedValue(new Error('offline'))
       })
       it('should retain known leaseholder protection during an outage', async () => {
-        await expect(lands.hasLandLease('0xabc', ['1,2'], { shortCache: true, allowStaleLease: true })).resolves.toBe(
-          true
-        )
+        await expect(lands.hasLandLease('0xabc', ['1,2'], { shortCache: true })).resolves.toBe(true)
       })
-      it('should reject expired permission reads without the target-protection policy', async () => {
+      it('should reject expired permission reads during an outage', async () => {
+        jest.advanceTimersByTime(60001)
         await expect(lands.hasLandLease('0xabc', ['1,2'], { shortCache: true })).rejects.toThrow(
           ServiceUnavailableError
         )
       })
-      it('should never apply stale fallback to a fresh caller check', async () => {
-        await expect(lands.hasLandLease('0xabc', ['1,2'], { skipCache: true, allowStaleLease: true })).rejects.toThrow(
-          ServiceUnavailableError
-        )
+      it('should refresh caller authorization even with a cached lease', async () => {
+        await expect(lands.hasLandLease('0xabc', ['1,2'], { skipCache: true })).rejects.toThrow(ServiceUnavailableError)
       })
       it('should stop using a target-protection document after five minutes', async () => {
         jest.advanceTimersByTime(300000)
-        await expect(lands.hasLandLease('0xabc', ['1,2'], { shortCache: true, allowStaleLease: true })).rejects.toThrow(
+        await expect(lands.hasLandLease('0xabc', ['1,2'], { shortCache: true })).rejects.toThrow(
           ServiceUnavailableError
         )
       })

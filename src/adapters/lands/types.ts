@@ -55,7 +55,7 @@ export type ILandComponent = IBaseComponent & {
    * Off-chain lease authorizations are sourced from a static linker-server
    * JSON, cached locally for ~5 minutes. Failures are logged and degrade
    * to `false` rather than propagating for ordinary metadata reads. skipCache and shortCache
-   * checks propagate failures; only target protection may use allowStaleLease (at most five minutes).
+   * checks propagate failures. Cached checks reuse a document for five minutes.
    */
   hasLandLease(address: string, parcels: string[], options?: ScenePermissionOptions): Promise<boolean>
 
@@ -70,8 +70,8 @@ export type ILandComponent = IBaseComponent & {
 
   /**
    * Returns the raw lease-authorization document. Cached for ~5 minutes;
-   * concurrent callers share a single in-flight fetch. shortCache limits reuse to ten seconds;
-   * allowStaleLease permits a known document up to five minutes old on refresh failure.
+   * concurrent callers share a single in-flight fetch. shortCache keeps the five-minute lease TTL
+   * but rejects refresh failures instead of using expired data or an empty fallback.
    * skipCache always bypasses cached data and stale fallback.
    */
   getAuthorizations(options?: ScenePermissionOptions): Promise<LandLeaseAuthorizations>

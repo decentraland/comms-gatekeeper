@@ -109,7 +109,7 @@ export async function createLandsComponent(
     if (
       !options?.skipCache &&
       cachedAuthorizations &&
-      now - lastAuthorizationsFetchTime < (options?.shortCache ? 10000 : LEASE_AUTHORIZATIONS_CACHE_TTL_MS)
+      now - lastAuthorizationsFetchTime < LEASE_AUTHORIZATIONS_CACHE_TTL_MS
     ) {
       return cachedAuthorizations
     }
@@ -134,15 +134,6 @@ export async function createLandsComponent(
         error: isErrorWithMessage(error) ? error.message : String(error)
       })
       if (options?.skipCache || options?.shortCache) {
-        // Only target protection may use a known document during an outage, for at most five minutes.
-        if (
-          !options.skipCache &&
-          options.allowStaleLease &&
-          cachedAuthorizations &&
-          Date.now() - lastAuthorizationsFetchTime < LEASE_AUTHORIZATIONS_CACHE_TTL_MS
-        ) {
-          return cachedAuthorizations
-        }
         throw new ServiceUnavailableError('Land lease verification is temporarily unavailable')
       }
       // Serve stale data on transient failures rather than propagating; if we

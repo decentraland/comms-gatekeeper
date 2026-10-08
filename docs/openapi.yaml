@@ -9,10 +9,10 @@ info:
 
     The Comms Gatekeeper API is a comprehensive service that manages communications, voice chats, scene administration, and streaming access for the Decentraland metaverse. It provides the infrastructure for real-time voice communication, scene management, user moderation, and content streaming capabilities.
 
-    Ban-list permission lookups may reuse upstream permissions for 10 seconds; database bans
+    Ban-list permission lookups may reuse upstream permissions for 10 seconds (five minutes for leases); database bans
     and scene-admin memberships are read on each request. Caller authorization for sensitive
-    mutations bypasses permission caches. Ban-target lease protection may use a previously
-    fetched document up to five minutes old during an outage; missing or older documents fail closed.
+    mutations bypasses permission caches. Ban-target lease protection reuses the
+    lease document for five minutes; missing or expired documents fail closed when refresh fails.
 
     ### Core Features
 
@@ -81,8 +81,8 @@ info:
     lookups, world permission allowlists and world parcel permissions are cached for 10 seconds. Changes can take these
     intervals to become visible. Expired data is not served when a refresh fails. Database ban
     checks remain uncached. Creating admins or stream access and generating stream links bypass
-    permission caches, including Genesis LAND and leases. Ban/unban, ban listing and admin removal
-    also refresh permissions. A missing parcel-permission record never grants world-wide access.
+    permission caches, including Genesis LAND and leases. Ban/unban callers and admin removal
+    also refresh permissions. Ban listing and ban-target checks cache lease documents for five minutes. A missing parcel-permission record never grants world-wide access.
     Historical-room discovery has a five-second deadline and runs after the current-room kick.
     HTTP failures from Places never count as a confirmed missing place; only successful lookup
     responses can allow the Genesis missing-place fallback.
