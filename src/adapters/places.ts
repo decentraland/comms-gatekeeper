@@ -2,7 +2,7 @@ import { STOP_COMPONENT } from '@well-known-components/interfaces'
 import { SceneParcels } from '@dcl/schemas'
 import { isPlaceRemoved } from '../logic/utils'
 import { AppComponents } from '../types'
-import { PlaceNotFoundError, ServiceUnavailableError } from '../types/errors'
+import { InvalidRequestError, PlaceNotFoundError, ServiceUnavailableError } from '../types/errors'
 import { IPlacesComponent, PlaceAttributes, PlaceResponse } from '../types/places.type'
 
 export async function createPlacesComponent(
@@ -13,6 +13,7 @@ export async function createPlacesComponent(
   const logger = logs.getLogger('places-component')
 
   const placesApiUrl = await config.requireString('PLACES_API_URL')
+  const requestTimeout = (await config.getNumber('PLACES_REQUEST_TIMEOUT_MS')) ?? 5000
   const ttl = (await config.getNumber('PLACES_CACHE_TTL_MS')) ?? 10000
   const placesCache = cachedFetch.cache<PlaceResponse>({ ttl, allowStaleOnFetchRejection: false })
 
@@ -20,7 +21,7 @@ export async function createPlacesComponent(
     return placesCache.fetch(JSON.stringify([url, options.method ?? 'GET', options.body ?? null]), {
       context: async () => {
         try {
-          const response = await fetch.fetch(url, { ...options, signal: AbortSignal.timeout(5000) })
+          const response = await fetch.fetch(url, { ...options, signal: AbortSignal.timeout(requestTimeout) })
           if (!response.ok) {
             await response.body?.cancel().catch(() => undefined)
             if (response.status === 404) throw new PlaceNotFoundError('Place not found')
@@ -36,6 +37,7 @@ export async function createPlacesComponent(
   }
 
   async function getPlaceByParcel(parcel: string): Promise<PlaceAttributes> {
+    if (!parcel) throw new InvalidRequestError('A parcel is required')
     const response = await fetchPlaces(`${placesApiUrl}/places?positions=${encodeURIComponent(parcel)}`)
 
     const place = response?.data?.find(
@@ -161,7 +163,7 @@ export async function createPlacesComponent(
     sceneId: string,
     worldName?: string,
     parcel?: string,
-    options?: { allowPreviousDeployment?: boolean }
+    options?: { allowPreviousDeployment?: boolean; allowMissingPlace?: boolean }
   ): Promise<PlaceAttributes> {
     if (worldName) {
       if (!parcel) return getWorldScenePlaceByEntityId(worldName, sceneId, options)
@@ -173,6 +175,7 @@ export async function createPlacesComponent(
     }
 
     const entity = await contentClient.fetchEntityById(sceneId)
+    if (entity?.id !== sceneId) throw new PlaceNotFoundError(`Scene identity does not match ${sceneId}`)
     const scene = entity?.metadata?.scene
     const pointers = entity?.pointers
     const validPointers =
@@ -200,7 +203,13 @@ export async function createPlacesComponent(
         throw new PlaceNotFoundError(`Scene ${sceneId} is no longer active at ${scene.base}`)
       }
     }
-    return getPlaceByParcel(scene.base)
+    try {
+      return await getPlaceByParcel(scene.base)
+    } catch (error) {
+      // Only joins may lack a Places entry, after the entity itself has been verified.
+      if (options?.allowMissingPlace && error instanceof PlaceNotFoundError) return undefined
+      throw error
+    }
   }
 
   /**
@@ -216,8 +225,8 @@ export async function createPlacesComponent(
     sceneId: string,
     worldName?: string,
     parcel?: string,
-    options?: { allowPreviousDeployment?: boolean }
-  ): Promise<{ sceneId: string; place: PlaceAttributes }> {
+    options?: { allowPreviousDeployment?: boolean; allowMissingPlace?: boolean }
+  ): Promise<{ sceneId: string; place: PlaceAttributes | undefined }> {
     if (worldName) {
       const scene = await worlds.resolveWorldScene(worldName, sceneId, parcel, options)
       return { sceneId: scene.sceneId, place: await getWorldScenePlace(worldName, scene.parcel) }

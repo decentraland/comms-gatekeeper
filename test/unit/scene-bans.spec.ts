@@ -1,5 +1,5 @@
 import { IAnalyticsComponent } from '@dcl/analytics-component'
-import { Events } from '@dcl/schemas'
+import { Events, RoomType } from '@dcl/schemas'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createSceneBansComponent, ISceneBansComponent } from '../../src/logic/scene-bans'
@@ -923,20 +923,20 @@ describe('SceneBanComponent', () => {
         await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
         })
 
-        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', undefined)
+        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', '1,2')
       })
 
       it('should call the scene ban manager to list bans with pagination', async () => {
         await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
@@ -952,7 +952,7 @@ describe('SceneBanComponent', () => {
         const result = await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
@@ -1104,20 +1104,20 @@ describe('SceneBanComponent', () => {
         await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
         })
 
-        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', undefined)
+        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', '1,2')
       })
 
       it('should call the scene ban manager to list banned addresses with pagination', async () => {
         await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
@@ -1133,7 +1133,7 @@ describe('SceneBanComponent', () => {
         const result = await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
@@ -1295,20 +1295,20 @@ describe('SceneBanComponent', () => {
         await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
         })
 
-        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', undefined)
+        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', '1,2')
       })
 
       it('should call the scene ban manager to list bans with pagination', async () => {
         await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
@@ -1324,7 +1324,7 @@ describe('SceneBanComponent', () => {
         const result = await sceneBanComponent.listSceneBans('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
@@ -1476,20 +1476,20 @@ describe('SceneBanComponent', () => {
         await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
         })
 
-        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', undefined)
+        expect(placesMockedComponent.getWorldScenePlace).toHaveBeenCalledWith('test-world.dcl.eth', '1,2')
       })
 
       it('should call the scene ban manager to list banned addresses with pagination', async () => {
         await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
@@ -1505,7 +1505,7 @@ describe('SceneBanComponent', () => {
         const result = await sceneBanComponent.listSceneBannedAddresses('0x0987654321098765432109876543210987654321', {
           sceneId: undefined,
           realmName: 'test-world.dcl.eth',
-          parcel: undefined,
+          parcel: '1,2',
           isWorld: true,
           page: 1,
           limit: 20
@@ -2037,6 +2037,60 @@ describe('SceneBanComponent', () => {
       it('should propagate the error', async () => {
         await expect(sceneBanComponent.removeBansFromDisabledPlaces()).rejects.toThrow('Database error')
       })
+    })
+  })
+  describe('when moderating a world place with multiple deployment rooms', () => {
+    beforeEach(() => {
+      mockWorldPlace = createMockedWorldPlace({ id: 'place', world_name: 'name.eth', positions: ['1,2'] })
+      placesMockedComponent.resolveScenePlace.mockResolvedValue({ sceneId: 'current', place: mockWorldPlace })
+      sceneManagerMockedComponent.isSceneOwnerOrAdmin.mockResolvedValue(true)
+      sceneManagerMockedComponent.getUserScenePermissions.mockResolvedValue(userScenePermissions)
+      livekitMockedComponent.getRoomName.mockReturnValue('current-room')
+      livekitMockedComponent.listWorldSceneRooms.mockResolvedValue(['current-room', 'old-room', 'other-room'])
+      livekitMockedComponent.getRoomMetadataFromRoomName.mockImplementation((name) => ({
+        roomType: RoomType.WORLD,
+        sceneId: name,
+        worldName: 'name.eth'
+      }))
+      placesMockedComponent.getWorldScenePlaceByEntityId.mockImplementation(async (_world, id) =>
+        id === 'old-room' ? mockWorldPlace : createMockedWorldPlace({ id: 'other-place' })
+      )
+      livekitMockedComponent.removeParticipant.mockResolvedValue(undefined)
+      sceneBanManagerMockedComponent.addBan.mockResolvedValue(undefined)
+      sceneBanManagerMockedComponent.removeBan.mockResolvedValue(undefined)
+    })
+
+    it('should kick and update both deployments without touching a different place', async () => {
+      await sceneBanComponent.addSceneBan('0x123', '0x456', {
+        sceneId: 'old',
+        realmName: 'name.eth',
+        parcel: '1,2',
+        isWorld: true
+      })
+      expect(placesMockedComponent.resolveScenePlace).toHaveBeenCalledWith('old', 'name.eth', '1,2', {
+        allowPreviousDeployment: true
+      })
+      expect(livekitMockedComponent.removeParticipant.mock.calls).toEqual([
+        ['current-room', '0x123'],
+        ['old-room', '0x123']
+      ])
+      expect(roomMetadataSyncMockedComponent.addBan.mock.calls).toEqual([
+        ['current-room', '0x123'],
+        ['old-room', '0x123']
+      ])
+    })
+
+    it('should clear ban metadata from both deployments', async () => {
+      await sceneBanComponent.removeSceneBan('0x123', '0x456', {
+        sceneId: 'old',
+        realmName: 'name.eth',
+        parcel: '1,2',
+        isWorld: true
+      })
+      expect(roomMetadataSyncMockedComponent.removeBan.mock.calls).toEqual([
+        ['current-room', '0x123'],
+        ['old-room', '0x123']
+      ])
     })
   })
 })

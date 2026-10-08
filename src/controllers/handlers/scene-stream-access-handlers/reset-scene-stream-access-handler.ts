@@ -79,7 +79,8 @@ export async function resetSceneStreamAccessHandler(
     const placeId = place?.id ?? roomName
 
     const isOwnerOrAdmin =
-      isPreview || (place !== undefined && (await isSceneOwnerOrAdmin(place, authenticatedAddress)))
+      isPreview ||
+      (place !== undefined && (await isSceneOwnerOrAdmin(place, authenticatedAddress, { skipCache: true })))
     if (!isOwnerOrAdmin) {
       logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${placeId}`)
       throw new UnauthorizedError('Access denied, you are not authorized to access this scene')

@@ -193,7 +193,7 @@ export function createCastComponent(
       ? livekit.getWorldSceneRoomName(worldName, sceneId)
       : livekit.getSceneRoomName(realmName, sceneId)
 
-    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
+    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress, { skipCache: true })
     if (!isAdmin) {
       logger.warn(
         `User ${walletAddress} attempted to generate stream link without admin permissions for place ${place.id}`

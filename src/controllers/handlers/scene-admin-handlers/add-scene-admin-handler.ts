@@ -48,7 +48,7 @@ export async function addSceneAdminHandler(
   if (!sceneId) throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
   const { sceneId: resolvedSceneId, place } = await resolveScenePlace(sceneId, isWorld ? serverName : undefined, parcel)
 
-  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress)
+  const isOwnerOrAdmin = await isSceneOwnerOrAdmin(place, authenticatedAddress, { skipCache: true })
 
   if (!isOwnerOrAdmin) {
     throw new UnauthorizedError('You do not have permission to add admins to this place')

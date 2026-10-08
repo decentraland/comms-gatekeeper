@@ -11,27 +11,35 @@ export async function createSceneManagerComponent(
     worlds
   const { getLandPermissions } = lands
 
-  async function isSceneOwner(place: PlaceAttributes, address: string): Promise<boolean> {
+  async function isSceneOwner(
+    place: PlaceAttributes,
+    address: string,
+    options?: { skipCache?: boolean }
+  ): Promise<boolean> {
     const isWorld = place.world
     if (isWorld) {
-      return await hasWorldOwnerPermission(address, place.world_name!)
+      return await hasWorldOwnerPermission(address, place.world_name!, options)
     }
     const landParcelPermission = await getLandPermissions(address, place.positions)
     return landParcelPermission?.owner
   }
 
-  async function getUserScenePermissions(place: PlaceAttributes, address: string): Promise<UserScenePermissions> {
-    const isOwner = await isSceneOwner(place, address)
+  async function getUserScenePermissions(
+    place: PlaceAttributes,
+    address: string,
+    options?: { skipCache?: boolean }
+  ): Promise<UserScenePermissions> {
+    const isOwner = await isSceneOwner(place, address, options)
     const isAdmin = await sceneAdminManager.isAdmin(place.id, address)
     let hasExtendedPermissions = false
     let hasLandLease = false
 
     if (!isAdmin && place.world) {
       const [hasWorldStreaming, hasWorldDeploy, streamingParcels, deployParcels] = await Promise.all([
-        hasWorldStreamingPermission(address, place.world_name!),
-        hasWorldDeployPermission(address, place.world_name!),
-        getWorldParcelPermissions(address, place.world_name!, 'streaming'),
-        getWorldParcelPermissions(address, place.world_name!, 'deployment')
+        hasWorldStreamingPermission(address, place.world_name!, options),
+        hasWorldDeployPermission(address, place.world_name!, options),
+        getWorldParcelPermissions(address, place.world_name!, 'streaming', options),
+        getWorldParcelPermissions(address, place.world_name!, 'deployment', options)
       ])
       const streamingParcelList = streamingParcels ?? []
       const deployParcelList = deployParcels ?? []
@@ -39,8 +47,9 @@ export async function createSceneManagerComponent(
       const sceneParcels = new Set(place.positions)
 
       // World-wide permission: in allow list + no specific parcels = applies to all scenes
-      const hasWorldWideStreaming = hasWorldStreaming && streamingParcelList.length === 0
-      const hasWorldWideDeploy = hasWorldDeploy && deployParcelList.length === 0
+      const hasWorldWideStreaming =
+        hasWorldStreaming && streamingParcels !== undefined && streamingParcelList.length === 0
+      const hasWorldWideDeploy = hasWorldDeploy && deployParcels !== undefined && deployParcelList.length === 0
 
       // Parcel-specific permission: parcels overlap with this scene's positions
       const hasParcelStreaming = streamingParcelList.some((p) => sceneParcels.has(p))
@@ -69,8 +78,12 @@ export async function createSceneManagerComponent(
     }
   }
 
-  async function isSceneOwnerOrAdmin(place: PlaceAttributes, authenticatedAddress: string): Promise<boolean> {
-    const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress)
+  async function isSceneOwnerOrAdmin(
+    place: PlaceAttributes,
+    authenticatedAddress: string,
+    options?: { skipCache?: boolean }
+  ): Promise<boolean> {
+    const authenticatedUserScenePermissions = await getUserScenePermissions(place, authenticatedAddress, options)
 
     return (
       authenticatedUserScenePermissions.owner ||

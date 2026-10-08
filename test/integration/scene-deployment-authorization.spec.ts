@@ -70,6 +70,7 @@ test('Scene deployment authorization', ({ components, spyComponents }) => {
     ['DELETE', '/scene-stream-access', 204]
   ])('when %s %s operates on a place after redeployment', (method, path, expectedStatus) => {
     beforeEach(() => {
+      metadata.sceneId = undefined
       spyComponents.worlds.resolveWorldSceneId.mockRejectedValue(new ServiceUnavailableError('Worlds unavailable'))
       spyComponents.contentClient.fetchEntityById.mockRejectedValue(new ServiceUnavailableError('Catalyst unavailable'))
       spyComponents.places.getPlaceBySceneId.mockRejectedValue(new ServiceUnavailableError('Deployment unavailable'))
@@ -137,6 +138,23 @@ test('Scene deployment authorization', ({ components, spyComponents }) => {
           })
         })
       }
+    })
+  })
+  describe.each([
+    ['GET', '/scene-admin'],
+    ['GET', '/scene-bans'],
+    ['GET', '/scene-bans/addresses'],
+    ['GET', '/scene-stream-access'],
+    ['DELETE', '/scene-stream-access']
+  ])('when %s %s omits the parcel', (method, path) => {
+    beforeEach(() => {
+      metadata.parcel = undefined
+    })
+    it('should reject before resolving a place', async () => {
+      const response = await makeRequest(components.localFetch, path, { method, metadata }, owner)
+      expect(response.status).toBe(400)
+      expect(spyComponents.places.getPlaceByParcel).not.toHaveBeenCalled()
+      expect(spyComponents.places.getWorldScenePlace).not.toHaveBeenCalled()
     })
   })
 })

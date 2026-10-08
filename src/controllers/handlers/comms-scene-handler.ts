@@ -84,24 +84,27 @@ export async function commsSceneHandler(
   // Check if user is banned from the scene (skip for local preview)
   if (!isLocalPreview) {
     try {
-      // Old world deployments may reconnect only at the same current footprint. Enforce
-      // today's place bans, and reuse this fresh place for the presenter check below.
+      // Old world deployments reconnect to the current room at the same footprint. Enforce
+      // today's place bans, and reuse this verified place for the presenter check below.
       const resolved = await places.resolveScenePlace(
         sceneId,
         isWorld ? realmName : undefined,
         isWorld ? parcel : undefined,
         {
-          allowPreviousDeployment: true
+          allowPreviousDeployment: true,
+          allowMissingPlace: !isWorld
         }
       )
       resolvedSceneId = resolved.sceneId
       verifiedPlace = resolved.place
-      const isBanned = await sceneBans.isUserBanned(identity, {
-        verifiedPlaceId: verifiedPlace.id,
-        sceneId: resolvedSceneId,
-        realmName,
-        isWorld
-      })
+      const isBanned =
+        verifiedPlace &&
+        (await sceneBans.isUserBanned(identity, {
+          verifiedPlaceId: verifiedPlace.id,
+          sceneId: resolvedSceneId,
+          realmName,
+          isWorld
+        }))
 
       if (isBanned) {
         logger.warn(`Rejected connection from banned user: ${identity}`, {
@@ -156,7 +159,7 @@ export async function commsSceneHandler(
       // Reuse the same verified place used for the ban check, including old-world joins
       // whose deployment footprint has been checked against the current world scene.
       const place = verifiedPlace
-      const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, identity)
+      const isAdmin = place && (await sceneManager.isSceneOwnerOrAdmin(place, identity))
       if (isAdmin) {
         await cast.addPresenter(room, identity)
       }

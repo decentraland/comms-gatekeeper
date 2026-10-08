@@ -25,11 +25,14 @@ export async function createWorldsComponent(
     config.requireString('LAMBDAS_URL')
   ])
 
-  const permissionsCache = cachedFetch.cache<PermissionsOverWorld>()
   const sceneEntityMetadataCache = new LRUCache<string, WorldSceneEntityMetadata>({ max: 1000, ttl: 300000 })
   const requestTimeout = (await config.getNumber('WORLD_SCENE_REQUEST_TIMEOUT_MS')) ?? 5000
   const sceneCacheTtl = (await config.getNumber('WORLD_SCENE_CACHE_TTL_MS')) ?? 5000
   const parcelPermissionsCacheTtl = (await config.getNumber('WORLD_PARCEL_PERMISSIONS_CACHE_TTL_MS')) ?? 10000
+  const permissionsCache = cachedFetch.cache<PermissionsOverWorld>({
+    ttl: parcelPermissionsCacheTtl,
+    allowStaleOnFetchRejection: false
+  })
   const scenesCache = cachedFetch.cache<WorldScene>({ ttl: sceneCacheTtl, allowStaleOnFetchRejection: false })
   const aboutCache = cachedFetch.cache<{ configurations?: { scenesUrn?: string[] } }>({
     ttl: sceneCacheTtl,
@@ -62,9 +65,13 @@ export async function createWorldsComponent(
   }
   const namesCache = cachedFetch.cache<NamesResponse>()
 
-  async function fetchWorldActionPermissions(worldName: string): Promise<PermissionsOverWorld | undefined> {
+  async function fetchWorldActionPermissions(
+    worldName: string,
+    options?: { skipCache?: boolean }
+  ): Promise<PermissionsOverWorld | undefined> {
     const response = await permissionsCache.fetch(
-      `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions`
+      `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions`,
+      { forceRefresh: options?.skipCache }
     )
     return response
   }
@@ -120,7 +127,11 @@ export async function createWorldsComponent(
     })
   }
 
-  async function hasWorldOwnerPermission(authAddress: string, worldName: string): Promise<boolean> {
+  async function hasWorldOwnerPermission(
+    authAddress: string,
+    worldName: string,
+    options?: { skipCache?: boolean }
+  ): Promise<boolean> {
     let nameToValidate = worldName.toLowerCase()
 
     if (nameToValidate.endsWith('.dcl.eth')) {
@@ -138,7 +149,8 @@ export async function createWorldsComponent(
     }
 
     const namesResponse = await namesCache.fetch(
-      `${baseUrl}users/${encodeURIComponent(authAddress.toLowerCase())}/names`
+      `${baseUrl}users/${encodeURIComponent(authAddress.toLowerCase())}/names`,
+      { forceRefresh: options?.skipCache }
     )
 
     if (!namesResponse?.elements?.length) return false
@@ -146,8 +158,12 @@ export async function createWorldsComponent(
     return namesResponse.elements.some((element) => element.name.toLowerCase() === nameToValidate)
   }
 
-  async function hasWorldStreamingPermission(authAddress: string, worldName: string): Promise<boolean> {
-    const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
+  async function hasWorldStreamingPermission(
+    authAddress: string,
+    worldName: string,
+    options?: { skipCache?: boolean }
+  ): Promise<boolean> {
+    const permissionsOverWorld = await fetchWorldActionPermissions(worldName, options)
     const lowerAuthAddress = authAddress.toLowerCase()
 
     return (
@@ -156,8 +172,12 @@ export async function createWorldsComponent(
     )
   }
 
-  async function hasWorldDeployPermission(authAddress: string, worldName: string): Promise<boolean> {
-    const permissionsOverWorld = await fetchWorldActionPermissions(worldName)
+  async function hasWorldDeployPermission(
+    authAddress: string,
+    worldName: string,
+    options?: { skipCache?: boolean }
+  ): Promise<boolean> {
+    const permissionsOverWorld = await fetchWorldActionPermissions(worldName, options)
     const lowerAuthAddress = authAddress.toLowerCase()
 
     return (
@@ -169,11 +189,13 @@ export async function createWorldsComponent(
   async function getWorldParcelPermissions(
     address: string,
     worldName: string,
-    permissionName: string
+    permissionName: string,
+    options?: { skipCache?: boolean }
   ): Promise<string[] | undefined> {
     return parcelPermissionsCache.fetch(
       JSON.stringify([worldName.toLowerCase(), address.toLowerCase(), permissionName]),
       {
+        forceRefresh: options?.skipCache,
         context: async () => {
           const url = `${worldContentUrl}/world/${encodeURIComponent(worldName.toLowerCase())}/permissions/${encodeURIComponent(permissionName)}/address/${encodeURIComponent(address.toLowerCase())}/parcels`
           const response = await fetch.fetch(url)
@@ -271,7 +293,7 @@ export async function createWorldsComponent(
    * @param worldName - World whose scene is requested.
    * @param sceneId - Content ID or legacy world name.
    * @param parcel - Requested parcel, required to disambiguate multi-scene worlds.
-   * @param options - Joins may retain an old ID whose metadata proves the same world and current footprint.
+   * @param options - Joins may use old metadata to locate the current deployment with the same world and footprint.
    * @returns The canonical scene ID and verified parcel, reusable for place authorization without another scene lookup.
    * @throws InvalidRequestError when the scene does not belong to the requested world or parcel.
    * @throws ServiceUnavailableError when the upstream cannot verify the scene.
@@ -298,12 +320,22 @@ export async function createWorldsComponent(
               metadata.scene.parcels.length === scene.parcels.length &&
               metadata.scene.parcels.every((value) => scene.parcels.includes(value))
             ) {
-              return { sceneId: sceneId.toLowerCase(), parcel }
+              // Metadata is only a location hint, never proof that the requested old ID was deployed.
+              return { sceneId: scene.entityId.toLowerCase(), parcel }
             }
           }
           throw new InvalidRequestError(`Scene ${sceneId} is not active at ${parcel} in world ${worldName}`)
         }
         return { sceneId: scene.entityId.toLowerCase(), parcel }
+      }
+      if (!isLegacyName && options?.allowPreviousDeployment) {
+        const active = await fetchWorldSceneByEntityId(worldName, sceneId)
+        if (active?.baseParcel) return { sceneId: active.entityId.toLowerCase(), parcel: active.baseParcel }
+        const metadata = await fetchWorldSceneEntityMetadataById(sceneId.toLowerCase())
+        if (SceneParcels.validate(metadata?.scene)) {
+          return resolveWorldScene(worldName, sceneId, metadata.scene.base, options)
+        }
+        throw new InvalidRequestError(`Scene ${sceneId} cannot be resolved in world ${worldName}`)
       }
       const entityId = isLegacyName ? await fetchWorldSceneId(worldName) : sceneId
       const scene = await fetchWorldSceneByEntityId(worldName, entityId)
@@ -337,6 +369,7 @@ export async function createWorldsComponent(
     resolveWorldSceneId,
     resolveWorldScene,
     [STOP_COMPONENT]: async () => {
+      permissionsCache.clear()
       sceneEntityMetadataCache.clear()
       scenesCache.clear()
       aboutCache.clear()

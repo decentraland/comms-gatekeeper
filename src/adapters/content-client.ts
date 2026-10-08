@@ -16,6 +16,7 @@ export async function createContentClientComponent(
   const max = (await config.getNumber('CONTENT_CLIENT_CACHE_MAX')) ?? 1000
   const ttl = (await config.getNumber('CONTENT_CLIENT_CACHE_TTL')) ?? 1000 * 60 * 5 // 5 minutes default
 
+  const requestTimeout = (await config.getNumber('CATALYST_REQUEST_TIMEOUT_MS')) ?? 5000
   const negativeTtl = (await config.getNumber('CONTENT_CLIENT_NEGATIVE_CACHE_TTL')) ?? 5000
   // Cache confirmed misses briefly so a newly synced deployment can be retried promptly.
   // Transient upstream failures are never negative-cached.
@@ -42,7 +43,7 @@ export async function createContentClientComponent(
     let unavailable = false
     for (const entityClient of entityClients) {
       try {
-        const entities = await entityClient.fetchEntitiesByIds([sceneId], { attempts: 1, timeout: 5000 })
+        const entities = await entityClient.fetchEntitiesByIds([sceneId], { attempts: 1, timeout: requestTimeout })
         const entity = entities.find((candidate) => candidate.id === sceneId)
         if (entity) return entity
       } catch (error) {
@@ -94,19 +95,23 @@ export async function createContentClientComponent(
     },
     fetchEntitiesByPointers: async (pointers, options) => {
       if (options?.skipCache) {
-        let unavailable = false
-        for (const entityClient of entityClients) {
-          try {
-            const entities = await entityClient.fetchEntitiesByPointers(pointers, { timeout: 5000, attempts: 1 })
-            if (!options.expectedEntityId || entities.some((entity) => entity.id === options.expectedEntityId)) {
-              return entities
-            }
-          } catch (error) {
-            unavailable = true
-            logger.warn('Active scene verification failed', { error: getErrorMessage(error) })
+        const results = await Promise.allSettled(
+          entityClients.map((entityClient) =>
+            entityClient.fetchEntitiesByPointers(pointers, { timeout: requestTimeout, attempts: 1 })
+          )
+        )
+        for (const result of results) {
+          if (
+            result.status === 'fulfilled' &&
+            (!options.expectedEntityId || result.value.some((entity) => entity.id === options.expectedEntityId))
+          ) {
+            return result.value
           }
         }
-        if (unavailable) throw new ServiceUnavailableError('Active scene verification is temporarily unavailable')
+        // A successful trusted response confirms absence; an outage of every server is retryable.
+        if (results.every((result) => result.status === 'rejected')) {
+          throw new ServiceUnavailableError('Active scene verification is temporarily unavailable')
+        }
         return []
       }
       const result = await cache.fetch(`ptr:${pointers[0]}`)

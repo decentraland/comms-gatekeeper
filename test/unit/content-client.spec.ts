@@ -113,4 +113,35 @@ describe('when looking up an entity across trusted content servers', () => {
       expect(fetch).toHaveBeenCalledTimes(2)
     })
   })
+  describe('and a pointer lookup has a failed server and a confirmed miss', () => {
+    beforeEach(() => {
+      fetch.mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce(new Response('[]'))
+    })
+    it('should return the confirmed miss instead of making the failure permanent', async () => {
+      await expect(
+        component.fetchEntitiesByPointers(['1,2'], { skipCache: true, expectedEntityId: 'old' })
+      ).resolves.toEqual([])
+    })
+  })
+  describe('and trusted pointer lookups overlap', () => {
+    let release: () => void
+    beforeEach(() => {
+      fetch
+        .mockImplementationOnce(
+          () =>
+            new Promise<Response>((resolve) => {
+              release = () => resolve(new Response('[]'))
+            })
+        )
+        .mockImplementationOnce(async () => {
+          release()
+          return new Response(JSON.stringify([{ id: 'current' }]))
+        })
+    })
+    it('should start the fallback before the primary finishes', async () => {
+      await expect(
+        component.fetchEntitiesByPointers(['1,2'], { skipCache: true, expectedEntityId: 'current' })
+      ).resolves.toEqual([{ id: 'current' }])
+    })
+  })
 })

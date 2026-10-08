@@ -240,10 +240,10 @@ describe('worlds adapter', () => {
         })
       })
 
-      it('should preserve the previous room for joins', async () => {
+      it('should select the verified current room instead of creating a caller-chosen old room', async () => {
         await expect(
           worldsComponent.resolveWorldSceneId('name.eth', 'old-id', '1,2', { allowPreviousDeployment: true })
-        ).resolves.toBe('old-id')
+        ).resolves.toBe('new-id')
       })
 
       it('should still reject a mutation against the previous deployment', async () => {
@@ -858,6 +858,30 @@ describe('worlds adapter', () => {
       it('should call the upstream only once', () => {
         expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
       })
+    })
+  })
+  describe('when an old world client reconnects without a parcel', () => {
+    beforeEach(() => {
+      mockFetch.fetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ scenes: [] }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            metadata: {
+              worldConfiguration: { name: 'name.eth' },
+              scene: { base: '1,2', parcels: ['1,2'] }
+            }
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ scenes: [{ entityId: 'current', parcels: ['1,2'] }] })
+        })
+    })
+    it('should derive the parcel from metadata but select only the current indexed room', async () => {
+      await expect(
+        worldsComponent.resolveWorldScene('name.eth', 'old', undefined, { allowPreviousDeployment: true })
+      ).resolves.toEqual({ sceneId: 'current', parcel: '1,2' })
     })
   })
 })

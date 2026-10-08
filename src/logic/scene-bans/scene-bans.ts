@@ -6,7 +6,7 @@ import {
   ISceneBansComponent,
   IsUserBannedParams
 } from './types'
-import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
+import { InvalidRequestError, NotFoundError, PlaceNotFoundError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
@@ -30,6 +30,40 @@ export function createSceneBansComponent(
   const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, publisher, roomMetadataSync } =
     components
   const logger = logs.getLogger('scene-bans')
+
+  /** Finds existing deployment rooms for the verified place, including pre-redeploy rooms. */
+  async function getModerationRooms(place: PlaceAttributes, roomName: string): Promise<string[]> {
+    const names = new Set([roomName])
+    if (!place.world || !place.world_name) return [...names]
+    try {
+      const rooms = await livekit.listWorldSceneRooms(place.world_name)
+      // Bound concurrent lookups when a world has many live scene rooms.
+      for (let offset = 0; offset < rooms.length; offset += 10) {
+        await Promise.all(
+          rooms.slice(offset, offset + 10).map(async (name) => {
+            if (names.has(name)) return
+            const { sceneId } = livekit.getRoomMetadataFromRoomName(name)
+            try {
+              const roomPlace = await places.getWorldScenePlaceByEntityId(place.world_name, sceneId, {
+                allowPreviousDeployment: true
+              })
+              if (roomPlace.id === place.id) names.add(name)
+            } catch (error) {
+              if (!(error instanceof InvalidRequestError || error instanceof PlaceNotFoundError)) {
+                logger.warn('Unable to resolve an existing room for moderation', {
+                  roomName: name,
+                  error: String(error)
+                })
+              }
+            }
+          })
+        )
+      }
+    } catch (error) {
+      logger.warn('Unable to list existing rooms for moderation', { placeId: place.id, error: String(error) })
+    }
+    return [...names]
+  }
 
   /**
    * Publishes a scene ban event without waiting for it to be published.
@@ -107,7 +141,8 @@ export function createSceneBansComponent(
     const { sceneId: resolvedSceneId, place } = await places.resolveScenePlace(
       sceneId,
       isWorld ? realmName : undefined,
-      parcel
+      parcel,
+      { allowPreviousDeployment: isWorld }
     )
 
     // Check if the user performing the ban has permission
@@ -147,12 +182,17 @@ export function createSceneBansComponent(
 
     // Best-effort LiveKit side effects in parallel; failures here are tolerable
     // because the DB ban has already been persisted and webhooks will reconcile.
-    await Promise.all([
-      livekit.removeParticipant(roomName, userAddressToBan).catch((err) => {
-        logger.warn(`Error removing participant ${userAddressToBan} from LiveKit room ${roomName}`, { err })
-      }),
-      roomMetadataSync.addBan(roomName, userAddressToBan)
-    ])
+    const roomNames = await getModerationRooms(place, roomName)
+    await Promise.all(
+      roomNames.map(async (name) => {
+        await Promise.all([
+          livekit.removeParticipant(name, userAddressToBan).catch((err) => {
+            logger.warn(`Error removing participant ${userAddressToBan} from LiveKit room ${name}`, { err })
+          }),
+          roomMetadataSync.addBan(name, userAddressToBan)
+        ])
+      })
+    )
 
     logger.info(
       `Successfully banned user ${userAddressToBan} for place ${place.id} and removed participant from LiveKit room ${roomName}`
@@ -206,7 +246,8 @@ export function createSceneBansComponent(
     const { sceneId: resolvedSceneId, place } = await places.resolveScenePlace(
       sceneId,
       isWorld ? realmName : undefined,
-      parcel
+      parcel,
+      { allowPreviousDeployment: isWorld }
     )
 
     // Check if the user performing the unban has permission
@@ -223,7 +264,8 @@ export function createSceneBansComponent(
 
     void publishSceneBanEvent(userAddressToUnban, place, false)
 
-    await roomMetadataSync.removeBan(roomName, userAddressToUnban)
+    const roomNames = await getModerationRooms(place, roomName)
+    await Promise.all(roomNames.map((name) => roomMetadataSync.removeBan(name, userAddressToUnban)))
 
     logger.info(`Successfully unbanned user ${userAddressToUnban} for place ${place.id}`)
 
@@ -300,6 +342,8 @@ export function createSceneBansComponent(
       page: page || 1,
       limit: limit || 20
     })
+
+    if (!parcel) throw new InvalidRequestError('A parcel is required')
 
     // Both authorization and results use this place; no room is selected by sceneId.
     const place = isWorld ? await places.getWorldScenePlace(realmName, parcel) : await places.getPlaceByParcel(parcel)

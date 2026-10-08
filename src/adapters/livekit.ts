@@ -398,6 +398,17 @@ export async function createLivekitComponent(
     }
   }
 
+  /** Lists existing scene rooms in one world, excluding other worlds and voice rooms. */
+  async function listWorldSceneRooms(worldName: string): Promise<string[]> {
+    const rooms = await roomClient.listRooms()
+    return rooms
+      .filter((room) => {
+        const metadata = getRoomMetadataFromRoomName(room.name)
+        return metadata.worldName?.toLowerCase() === worldName.toLowerCase() && !!metadata.sceneId
+      })
+      .map((room) => room.name)
+  }
+
   async function getRoom(roomName: string): Promise<Room> {
     const existingRoom = await roomClient.listRooms([roomName])
 
@@ -720,6 +731,7 @@ export async function createLivekitComponent(
     removeParticipantFromAllRooms,
     getRoom,
     getRoomInfo,
+    listWorldSceneRooms,
     createIngress,
     isIngressStreaming,
     removeIngress,

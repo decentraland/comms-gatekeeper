@@ -1,5 +1,5 @@
 import { createMockedPlace, createMockedWorldPlace } from '../mocks/places-mock'
-import { InvalidRequestError } from '../../src/types/errors'
+import { InvalidRequestError, ServiceUnavailableError } from '../../src/types/errors'
 import { cachedFetchComponent } from '../../src/adapters/fetch'
 import { createPlacesComponent } from '../../src/adapters/places'
 import { PlaceNotFoundError } from '../../src/types/errors'
@@ -320,6 +320,7 @@ describe('PlacesComponent', () => {
 
       beforeEach(async () => {
         mockContentClient.fetchEntityById.mockResolvedValue({
+          id: sceneId,
           pointers: ['10,20'],
           metadata: { scene: { base: '10,20', parcels: ['10,20'] } }
         })
@@ -357,6 +358,7 @@ describe('PlacesComponent', () => {
     describe('and the Genesis entity uses a non-canonical pointer', () => {
       beforeEach(() => {
         mockContentClient.fetchEntityById.mockResolvedValue({
+          id: sceneId,
           pointers: ['010,20'],
           metadata: { scene: { base: '10,20', parcels: ['10,20'] } }
         })
@@ -541,6 +543,7 @@ describe('PlacesComponent', () => {
   describe('when a Genesis request supplies a parcel outside the deployment', () => {
     beforeEach(() => {
       mockContentClient.fetchEntityById.mockResolvedValueOnce({
+        id: 'scene-id',
         pointers: ['1,2'],
         metadata: { scene: { base: '1,2', parcels: ['1,2'] } }
       })
@@ -586,6 +589,7 @@ describe('PlacesComponent', () => {
   describe('when a Genesis deployment has been superseded', () => {
     beforeEach(() => {
       mockContentClient.fetchEntityById.mockResolvedValue({
+        id: 'old-deployment',
         pointers: ['1,2'],
         metadata: { scene: { base: '1,2', parcels: ['1,2'] } }
       })
@@ -642,6 +646,49 @@ describe('PlacesComponent', () => {
       ).resolves.toMatchObject({ id: 'current-place' })
       expect(mockWorlds.resolveWorldSceneId).toHaveBeenCalledWith('name.eth', 'old-deployment', '1,2', {
         allowPreviousDeployment: true
+      })
+    })
+  })
+  describe('when a valid Genesis scene has no indexed Places entry', () => {
+    beforeEach(() => {
+      mockContentClient.fetchEntityById.mockResolvedValue({
+        id: 'genesis',
+        pointers: ['1,2'],
+        metadata: { scene: { base: '1,2', parcels: ['1,2'] } }
+      })
+      mockFetch.mockResolvedValue({ data: [] })
+    })
+
+    it('should allow a join without granting place permissions', async () => {
+      await expect(
+        placesComponent.resolveScenePlace('genesis', undefined, undefined, {
+          allowPreviousDeployment: true,
+          allowMissingPlace: true
+        })
+      ).resolves.toEqual({ sceneId: 'genesis', place: undefined })
+    })
+
+    it('should reject an entity with an unrelated identity even on the join path', async () => {
+      await expect(
+        placesComponent.resolveScenePlace('forged', undefined, undefined, {
+          allowPreviousDeployment: true,
+          allowMissingPlace: true
+        })
+      ).rejects.toThrow(PlaceNotFoundError)
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    describe('and Places is unavailable', () => {
+      beforeEach(() => {
+        mockFetch.mockRejectedValue(new Error('outage'))
+      })
+      it('should propagate the outage instead of treating it as an absent place', async () => {
+        await expect(
+          placesComponent.resolveScenePlace('genesis', undefined, undefined, {
+            allowPreviousDeployment: true,
+            allowMissingPlace: true
+          })
+        ).rejects.toThrow(ServiceUnavailableError)
       })
     })
   })

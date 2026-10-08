@@ -1618,3 +1618,21 @@ describe('when checking ingress streaming state', () => {
     })
   })
 })
+
+describe('when listing deployment rooms for world moderation', () => {
+  beforeEach(() => {
+    listRoomsSpy.mockResolvedValue([
+      new Room({ name: 'world-prod-scene-room-name.eth-bafkreia' }),
+      new Room({ name: 'world-prod-scene-room-NAME.ETH-bafkreib' }),
+      new Room({ name: 'world-prod-scene-room-other.eth-bafkreic' }),
+      new Room({ name: 'world-env-name.eth' }),
+      new Room({ name: 'scene-realm:bafkreia' })
+    ])
+  })
+  it('should include only the requested world deployment rooms', async () => {
+    await expect(livekitComponent.listWorldSceneRooms('name.eth')).resolves.toEqual([
+      'world-prod-scene-room-name.eth-bafkreia',
+      'world-prod-scene-room-NAME.ETH-bafkreib'
+    ])
+  })
+})

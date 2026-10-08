@@ -197,4 +197,18 @@ describe('when upstream lookups use short-lived shared caches', () => {
       expect(fetch.fetch).toHaveBeenCalledTimes(2)
     })
   })
+  describe('and a collaborator is revoked before the permission cache expires', () => {
+    beforeEach(() => {
+      fetch.fetch
+        .mockResolvedValueOnce(new Response(JSON.stringify({ parcels: ['1,2'] })))
+        .mockResolvedValueOnce(new Response('', { status: 404 }))
+    })
+    it('should observe the revocation immediately for a lasting-grant permission check', async () => {
+      await expect(worlds.getWorldParcelPermissions('0xabc', 'name.eth', 'deployment')).resolves.toEqual(['1,2'])
+      await expect(
+        worlds.getWorldParcelPermissions('0xabc', 'name.eth', 'deployment', { skipCache: true })
+      ).resolves.toBeUndefined()
+      expect(fetch.fetch).toHaveBeenCalledTimes(2)
+    })
+  })
 })

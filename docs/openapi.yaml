@@ -50,28 +50,34 @@ info:
 
     Most endpoints require Signed Fetch authentication with a complete identity header chain including scene metadata (sceneId, parcel, realmName).
 
-    Operations that add/remove admins or bans, create/reset streaming access, or generate
+    Operations that add/remove admins, create/reset streaming access, or generate
     stream links verify that the requested deployment and optional parcel identify the same place.
     These operations require an active deployment in Genesis or the requested world.
     Mismatched world IDs return `400`; an unresolved place returns `404`.
 
     Listing admins or bans and retrieving/revoking streaming access operate on the place selected
-    by parcel (and world name for worlds), without requiring the supplied deployment to remain active.
+    by required parcel (and world name for worlds). These place-only routes do not require sceneId.
     Presenter list/promote/demote operations use the scene ID to select an existing room and authorize
     against that room's stored stream-access place. A parcel is only needed to resolve legacy
     world-name scene IDs in multi-scene worlds; actual deployment IDs do not trigger a world lookup.
 
     Legacy world-name scene IDs remain supported: the parcel selects the deployment in a
     multi-scene world, while a single-scene world can be resolved without a parcel. Opted-out
-    world scenes remain accessible; removed scenes do not. Joins may reconnect to a previous
-    world deployment when its content-server metadata matches the world and the current parcel
-    footprint. Identifiable previous world rooms also refresh their ban/admin metadata using the
+    world scenes remain accessible; removed scenes do not. An old world deployment ID can locate
+    the current deployment when its metadata matches the world and current parcel footprint.
+    Reconnects receive credentials for the current verified room, never an arbitrary historical ID.
+    Ban/unban accepts the same location resolution and updates all identifiable existing rooms
+    for that place, including previous deployments. Identifiable previous world rooms also refresh their ban/admin metadata using the
     current place. Ambiguous legacy rooms retain their existing metadata. Genesis joins retain
-    previous deployment compatibility; operations requiring an active Genesis deployment bypass the pointer cache.
+    previous deployment compatibility. A verified Genesis scene with no Places entry can join
+    without place bans or presenter grants; upstream failures still return 503. Operations
+    requiring an active Genesis deployment bypass the pointer cache.
     Active world scene and world-about lookups are cached for 5 seconds by default; Places
-    lookups and world parcel permissions are cached for 10 seconds. Changes can take these
+    lookups, world permission allowlists and world parcel permissions are cached for 10 seconds. Changes can take these
     intervals to become visible. Expired data is not served when a refresh fails. Database ban
-    checks remain uncached. Cache lifetimes are configurable through the service environment.
+    checks remain uncached. Creating admins or stream access and generating stream links bypass
+    world permission caches. A missing parcel-permission record never grants world-wide access.
+    Cache lifetimes are configurable through the service environment.
     Upstream verification failures return `503` with `Retry-After: 1`, rather than `400`.
 
     ### Base URLs
@@ -319,8 +325,8 @@ paths:
       summary: Get authoritative server scene communication adapter
       description: |
         Issues scene-room credentials to the configured authoritative server identity.
-        Requires signed-fetch sceneId and realm metadata. World joins can retain a previous
-        deployment ID when its metadata matches the world and the current parcel footprint.
+        Requires signed-fetch sceneId and realm metadata. Old world deployment IDs can locate the current
+        deployment when metadata matches its world and footprint; credentials use the current room.
         Verification outages return 503 with Retry-After; mismatches return 400.
       security:
         - SignedFetch: []

@@ -382,7 +382,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
             'test-world.eth',
             'test-world.eth',
             '10,20',
-            { allowPreviousDeployment: true }
+            { allowPreviousDeployment: true, allowMissingPlace: false }
           )
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(
@@ -449,7 +449,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
             'test-world.eth',
             'test-world.eth',
             '10,20',
-            { allowPreviousDeployment: true }
+            { allowPreviousDeployment: true, allowMissingPlace: false }
           )
           expect(stubComponents.sceneBans.isUserBanned.mock.calls[0][1].sceneId).toBe('bafkreiabcdef123')
           expect(stubComponents.worlds.hasWorldAccessPermission).not.toHaveBeenCalled()
@@ -727,14 +727,14 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
       metadata.realmName = 'name.eth'
       metadata.sceneId = 'old-deployment'
       stubComponents.places.resolveScenePlace.mockResolvedValueOnce({
-        sceneId: 'old-deployment',
+        sceneId: 'current-deployment',
         place: { id: placeId, positions: ['10,20'] } as PlaceAttributes
       })
       stubComponents.worlds.hasWorldAccessPermission.mockResolvedValueOnce(true)
       stubComponents.sceneBans.isUserBanned.mockResolvedValue(true)
     })
 
-    it('should enforce the current place ban before issuing an old-room token', async () => {
+    it('should enforce the current place ban before issuing a current-room token', async () => {
       const response = await makeRequest(
         components.localFetch,
         '/get-scene-adapter',
@@ -746,7 +746,7 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
         expect.any(String),
         expect.objectContaining({
           verifiedPlaceId: placeId,
-          sceneId: 'old-deployment'
+          sceneId: 'current-deployment'
         })
       )
       expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
@@ -754,11 +754,11 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
     describe('and the user is not banned', () => {
       beforeEach(() => {
         stubComponents.sceneBans.isUserBanned.mockResolvedValue(false)
-        stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-room-old-deployment')
+        stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-room-current-deployment')
         stubComponents.livekit.generateCredentials.mockResolvedValue({ url: 'wss://livekit.example', token: 'token' })
       })
 
-      it('should issue credentials for the existing deployment room', async () => {
+      it('should issue credentials for the current deployment room', async () => {
         const response = await makeRequest(
           components.localFetch,
           '/get-scene-adapter',
@@ -766,14 +766,32 @@ test('POST /get-scene-adapter', ({ components, stubComponents }) => {
           owner
         )
         expect(response.status).toBe(200)
-        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith('name.eth', 'old-deployment')
+        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith('name.eth', 'current-deployment')
         expect(stubComponents.livekit.generateCredentials).toHaveBeenCalledWith(
           expect.any(String),
-          'world-room-old-deployment',
+          'world-room-current-deployment',
           expect.any(Object),
           false
         )
       })
+    })
+  })
+  describe('when a verified Genesis scene is opted out or not indexed in Places', () => {
+    beforeEach(() => {
+      stubComponents.places.resolveScenePlace.mockResolvedValue({ sceneId: 'test-scene', place: undefined })
+      stubComponents.livekit.generateCredentials.mockResolvedValue({ url: 'wss://livekit.example', token: 'token' })
+    })
+    it('should issue scene credentials without a place ban check or presenter grant', async () => {
+      const response = await makeRequest(
+        components.localFetch,
+        '/get-scene-adapter',
+        { method: 'POST', metadata },
+        owner
+      )
+      expect(response.status).toBe(200)
+      expect(stubComponents.sceneBans.isUserBanned).not.toHaveBeenCalled()
+      expect(stubComponents.sceneManager.isSceneOwnerOrAdmin).not.toHaveBeenCalled()
+      expect(stubComponents.cast.addPresenter).not.toHaveBeenCalled()
     })
   })
 })
