@@ -49,7 +49,7 @@ test('GET /scene-bans/addresses', ({ components, stubComponents }) => {
 
     metadataWorld = {
       identity: owner.authChain[0].payload,
-      parcel: '',
+      parcel: '0,0',
       sceneId: 'test-world-scene-id',
       realm: {
         serverName: 'test-world.dcl.eth',

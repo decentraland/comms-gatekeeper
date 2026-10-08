@@ -4,10 +4,10 @@ import { InvalidRequestError } from '../../../types/errors'
 import { validate } from '../../../logic/utils'
 
 export async function generateStreamLinkHandler(
-  context: HandlerContextWithPath<'cast' | 'fetch' | 'config' | 'livekit' | 'worlds', '/cast/generate-stream-link'>
+  context: HandlerContextWithPath<'cast' | 'fetch' | 'config' | 'livekit', '/cast/generate-stream-link'>
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { cast, livekit, worlds }
+    components: { cast, livekit }
   } = context
 
   // Validate signed fetch and extract auth data
@@ -21,19 +21,18 @@ export async function generateStreamLinkHandler(
     throw new InvalidRequestError('sceneId is required in authMetadata for Cast2 chat functionality')
   }
 
-  const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(realmName, sceneId, parcel) : sceneId
-
   const result = isPreview
     ? await cast.generatePreviewStreamLink({
-        sceneId: resolvedSceneId,
+        sceneId,
         realmName,
         walletAddress: identity,
         deviceIdentifier
       })
     : await cast.generateStreamLink({
         walletAddress: identity,
+        parcel,
         worldName: isWorld ? realm.serverName : undefined,
-        sceneId: resolvedSceneId,
+        sceneId,
         realmName,
         deviceIdentifier
       })

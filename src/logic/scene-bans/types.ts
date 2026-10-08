@@ -20,7 +20,11 @@ export type ListSceneBansParams = BaseParams & {
 // The ban check accepts an optional parcel: callers that issue a room token (get-scene-adapter)
 // pass only the sceneId so the ban is evaluated against the exact scene whose room is joined,
 // while service-to-service callers (world ban check) pass only a parcel.
-export type IsUserBannedParams = Omit<BaseParams, 'parcel'> & { parcel?: string }
+export type IsUserBannedParams = Omit<BaseParams, 'parcel'> & {
+  parcel?: string
+  /** Internal only: a place already verified for this request. Never populate from request metadata. */
+  verifiedPlaceId?: string
+}
 
 export interface ISceneBansComponent {
   /**

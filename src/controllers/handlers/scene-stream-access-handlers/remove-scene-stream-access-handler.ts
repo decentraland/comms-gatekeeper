@@ -35,16 +35,13 @@ export async function removeSceneStreamAccessHandler(
 
   const {
     parcel,
-    realm: { hostname, serverName },
-    sceneId
+    realm: { hostname, serverName }
   } = await validate(ctx)
   const isWorld = !!hostname?.includes('worlds-content-server')
 
-  // sceneId is required for all requests
-  if (!sceneId) {
-    throw new InvalidRequestError('Access denied, invalid signed-fetch request, no sceneId')
-  }
+  if (!parcel) throw new InvalidRequestError('A parcel is required')
 
+  // This operation targets a place (or its stored access), not a room chosen by sceneId.
   let place: PlaceAttributes
   if (isWorld) {
     place = await getWorldScenePlace(serverName, parcel)

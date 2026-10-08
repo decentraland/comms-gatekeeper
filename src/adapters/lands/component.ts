@@ -1,7 +1,9 @@
+import { ScenePermissionOptions } from '../../types/scene-manager.type'
 import { ensureSlashAtTheEnd } from '../../logic/utils'
 import { isErrorWithMessage } from '../../logic/errors'
 import { AppComponents } from '../../types'
 import { LandPermissionsNotFoundError } from './errors'
+import { ServiceUnavailableError } from '../../types/errors'
 import {
   ILandComponent,
   LandLeaseAuthorizations,
@@ -21,6 +23,7 @@ export async function createLandsComponent(
   const lambdasUrl = await config.requireString('LAMBDAS_URL')
 
   const parcelPermissionsCache = cachedFetch.cache<LandsParcelPermissionsResponse>()
+  const shortPermissionsCache = cachedFetch.cache<LandsParcelPermissionsResponse>({ ttl: 30000 })
   const parcelOperatorsCache = cachedFetch.cache<LandsParcelOperatorsResponse>()
 
   // Lease-authorization cache state. Single in-flight fetch is deduped so
@@ -31,7 +34,8 @@ export async function createLandsComponent(
 
   async function getLandPermissions(
     authAddress: string,
-    placePositions: string[]
+    placePositions: string[],
+    options?: ScenePermissionOptions
   ): Promise<LandsParcelPermissionsResponse> {
     const baseUrl = ensureSlashAtTheEnd(lambdasUrl)
     if (!baseUrl) {
@@ -40,8 +44,11 @@ export async function createLandsComponent(
     }
 
     const position = placePositions[0].split(',')
-    const parcelPermissionsResponse = await parcelPermissionsCache.fetch(
-      `${baseUrl}users/${encodeURIComponent(authAddress.toLowerCase())}/parcels/${encodeURIComponent(position[0])}/${encodeURIComponent(position[1])}/permissions`
+    const parcelPermissionsResponse = await (
+      options?.shortCache ? shortPermissionsCache : parcelPermissionsCache
+    ).fetch(
+      `${baseUrl}users/${encodeURIComponent(authAddress.toLowerCase())}/parcels/${encodeURIComponent(position[0])}/${encodeURIComponent(position[1])}/permissions`,
+      { forceRefresh: options?.skipCache }
     )
 
     if (!parcelPermissionsResponse) {
@@ -74,7 +81,7 @@ export async function createLandsComponent(
   }
 
   async function fetchAuthorizationsFromUpstream(): Promise<LandLeaseAuthorizations> {
-    const response = await fetch.fetch(LEASE_AUTHORIZATIONS_URL)
+    const response = await fetch.fetch(LEASE_AUTHORIZATIONS_URL, { signal: AbortSignal.timeout(5000) })
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined)
       throw new Error(`Failed to fetch authorizations: ${response.status} ${response.statusText}`)
@@ -96,10 +103,14 @@ export async function createLandsComponent(
     }
   }
 
-  async function getAuthorizations(): Promise<LandLeaseAuthorizations> {
+  async function getAuthorizations(options?: ScenePermissionOptions): Promise<LandLeaseAuthorizations> {
     const now = Date.now()
 
-    if (cachedAuthorizations && now - lastAuthorizationsFetchTime < LEASE_AUTHORIZATIONS_CACHE_TTL_MS) {
+    if (
+      !options?.skipCache &&
+      cachedAuthorizations &&
+      now - lastAuthorizationsFetchTime < LEASE_AUTHORIZATIONS_CACHE_TTL_MS
+    ) {
       return cachedAuthorizations
     }
 
@@ -122,6 +133,9 @@ export async function createLandsComponent(
       logger.error('Failed to fetch land lease authorizations', {
         error: isErrorWithMessage(error) ? error.message : String(error)
       })
+      if (options?.skipCache || options?.shortCache) {
+        throw new ServiceUnavailableError('Land lease verification is temporarily unavailable')
+      }
       // Serve stale data on transient failures rather than propagating; if we
       // never had a successful fetch, callers see an empty list and degrade.
       if (cachedAuthorizations) {
@@ -131,9 +145,9 @@ export async function createLandsComponent(
     }
   }
 
-  async function hasLandLease(address: string, parcels: string[]): Promise<boolean> {
+  async function hasLandLease(address: string, parcels: string[], options?: ScenePermissionOptions): Promise<boolean> {
     try {
-      const { authorizations } = await getAuthorizations()
+      const { authorizations } = await getAuthorizations(options)
       if (!authorizations) return false
 
       const normalizedAddress = address.toLowerCase()
@@ -148,6 +162,7 @@ export async function createLandsComponent(
       }
       return hasAccess
     } catch (error) {
+      if (options?.skipCache || options?.shortCache) throw error
       logger.error('Error checking land lease permissions', {
         error: isErrorWithMessage(error) ? error.message : String(error)
       })

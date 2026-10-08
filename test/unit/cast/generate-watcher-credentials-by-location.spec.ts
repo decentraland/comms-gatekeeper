@@ -83,7 +83,6 @@ describe('when generating watcher credentials by location', () => {
 
     mockPlaces = createPlacesMockedComponent({
       getWorldScenePlace: jest.fn().mockResolvedValue(mockWorldPlace),
-      getWorldByName: jest.fn().mockResolvedValue(mockWorldPlace),
       getPlaceByParcel: jest.fn().mockResolvedValue(mockPlace)
     })
 
@@ -128,14 +127,14 @@ describe('when generating watcher credentials by location', () => {
         expiration_time: String(Date.now() + 2 * 24 * 60 * 60 * 1000)
       }
 
-      mockPlaces.getWorldByName.mockResolvedValue(mockWorldPlace)
+      mockPlaces.getWorldScenePlace.mockResolvedValue(mockWorldPlace)
       mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(worldStreamAccess)
     })
 
     it('should look up the world by name and stream access by place id', async () => {
       await castComponent.generateWatcherCredentialsByLocation(worldLocation, identity, WATCHER_ADDRESS)
 
-      expect(mockPlaces.getWorldByName).toHaveBeenCalledWith(worldLocation)
+      expect(mockPlaces.getWorldScenePlace).toHaveBeenCalledWith(worldLocation, undefined)
       expect(mockPlaces.getPlaceByParcel).not.toHaveBeenCalled()
       expect(mockSceneStreamAccessManager.getLatestAccessByPlaceId).toHaveBeenCalledWith('world-place-123')
     })
@@ -174,7 +173,7 @@ describe('when generating watcher credentials by location', () => {
       await castComponent.generateWatcherCredentialsByLocation(parcelLocation, identity, WATCHER_ADDRESS)
 
       expect(mockPlaces.getPlaceByParcel).toHaveBeenCalledWith(parcelLocation)
-      expect(mockPlaces.getWorldByName).not.toHaveBeenCalled()
+      expect(mockPlaces.getWorldScenePlace).not.toHaveBeenCalled()
       expect(mockSceneStreamAccessManager.getLatestAccessByPlaceId).toHaveBeenCalledWith('place-123')
     })
 
@@ -333,7 +332,7 @@ describe('when generating watcher credentials by location', () => {
         expiration_time: String(Date.now() + 2 * 24 * 60 * 60 * 1000)
       }
 
-      mockPlaces.getWorldByName.mockResolvedValue(placeWithoutTitle)
+      mockPlaces.getWorldScenePlace.mockResolvedValue(placeWithoutTitle)
       mockSceneStreamAccessManager.getLatestAccessByPlaceId.mockResolvedValue(streamAccess)
     })
 

@@ -1,3 +1,4 @@
+import { InvalidRequestError, ServiceUnavailableError } from '../../src/types/errors'
 import { ILoggerComponent } from '@well-known-components/interfaces'
 import { createWorldsComponent } from '../../src/adapters/worlds'
 import { cachedFetchComponent } from '../../src/adapters/fetch'
@@ -18,6 +19,7 @@ describe('worlds adapter', () => {
 
   beforeEach(async () => {
     mockConfig = createConfigMockedComponent({
+      getNumber: jest.fn().mockImplementation(async (key) => (key === 'WORLD_SCENE_CACHE_TTL_MS' ? 20 : undefined)),
       requireString: jest.fn().mockImplementation((key) => {
         switch (key) {
           case 'WORLD_CONTENT_URL':
@@ -40,6 +42,11 @@ describe('worlds adapter', () => {
 
     mockFetch = { fetch: jest.fn() }
     mockCachedFetch = createCachedFetchMockedComponent()
+    const realCache = await cachedFetchComponent({
+      fetch: mockFetch,
+      logs: { getLogger: jest.fn().mockReturnValue(mockLogger) }
+    })
+    mockCachedFetch.cache.mockImplementation(realCache.cache)
 
     worldsComponent = await createWorldsComponent({
       config: mockConfig,
@@ -52,9 +59,34 @@ describe('worlds adapter', () => {
   })
 
   describe('when resolving a world scene ID', () => {
-    it('should lowercase a content ID without an upstream request', async () => {
-      expect(await worldsComponent.resolveWorldSceneId('name.eth', 'BAFKREISCENE')).toBe('bafkreiscene')
-      expect(mockFetch.fetch).not.toHaveBeenCalled()
+    describe('and a content ID belongs to the signed parcel', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValueOnce({ scenes: [{ entityId: 'bafkreiscene', parcels: ['1,2'] }] })
+        })
+      })
+
+      it('should verify and lowercase the deployment ID', async () => {
+        await expect(worldsComponent.resolveWorldSceneId('name.eth', 'BAFKREISCENE', '1,2')).resolves.toBe(
+          'bafkreiscene'
+        )
+      })
+    })
+
+    describe('and a supplied content ID belongs to another deployment', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValueOnce({ scenes: [{ entityId: 'other-scene', parcels: ['1,2'] }] })
+        })
+      })
+
+      it('should reject the mismatched room identity', async () => {
+        await expect(worldsComponent.resolveWorldSceneId('name.eth', 'bafkreiscene', '1,2')).rejects.toThrow(
+          InvalidRequestError
+        )
+      })
     })
 
     describe('and the caller supplies an uppercase legacy world name', () => {
@@ -79,8 +111,165 @@ describe('worlds adapter', () => {
 
       it('should reject with the resolution error', async () => {
         await expect(worldsComponent.resolveWorldSceneId('name.eth', 'name.eth')).rejects.toThrow(
-          'Failed to resolve scene ID for world name.eth'
+          ServiceUnavailableError
         )
+      })
+    })
+  })
+
+  describe('when verifying world deployment membership', () => {
+    describe('and the exact world-scoped index contains the deployment', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValueOnce({
+            scenes: [{ entityId: 'scene-id', parcels: ['1,2'] }]
+          })
+        })
+      })
+
+      it('should resolve legacy entities without requiring worldConfiguration', async () => {
+        await expect(worldsComponent.fetchWorldSceneByEntityId('name.eth', 'scene-id')).resolves.toMatchObject({
+          entityId: 'scene-id',
+          baseParcel: '1,2'
+        })
+        expect(mockFetch.fetch).toHaveBeenCalledWith(
+          `${worldContentUrl}/world/name.eth/scenes?entity_id=scene-id&limit=1`,
+          expect.objectContaining({ signal: expect.any(AbortSignal) })
+        )
+      })
+    })
+
+    describe('and an unknown entity is requested in a large world', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ scenes: [], total: 100000 })
+        })
+      })
+
+      it('should reject after one exact lookup without scanning pages', async () => {
+        await expect(worldsComponent.resolveWorldSceneId('name.eth', 'missing-id')).rejects.toThrow(InvalidRequestError)
+        expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
+      })
+    })
+  })
+
+  describe('when the worlds content server is unavailable', () => {
+    describe.each([429, 500, 503])('and the upstream returns %s', (status) => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({ ok: false, status })
+      })
+
+      it('should report a retryable failure instead of a scene mismatch', async () => {
+        await expect(worldsComponent.resolveWorldSceneId('name.eth', 'scene-id', '1,2')).rejects.toThrow(
+          ServiceUnavailableError
+        )
+      })
+    })
+
+    describe('and the upstream does not respond', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockImplementationOnce(
+          (_url, options) =>
+            new Promise((_resolve, reject) => {
+              options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+            })
+        )
+      })
+
+      it('should time out the lookup and report a retryable failure', async () => {
+        await expect(worldsComponent.resolveWorldSceneId('name.eth', 'scene-id', '1,2')).rejects.toThrow(
+          ServiceUnavailableError
+        )
+      })
+    })
+  })
+
+  describe('when resolving a scene for place authorization', () => {
+    beforeEach(() => {
+      mockFetch.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValueOnce({
+            scenes: [{ entityId: 'scene-id', parcels: ['1,2'] }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValueOnce({
+            scenes: [{ entityId: 'replacement-id', parcels: ['1,2'] }]
+          })
+        })
+    })
+
+    it('should reuse the verified scene briefly, then revalidate after expiration', async () => {
+      await expect(worldsComponent.resolveWorldScene('name.eth', 'scene-id', '1,2')).resolves.toEqual({
+        sceneId: 'scene-id',
+        parcel: '1,2'
+      })
+      expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      await expect(worldsComponent.resolveWorldScene('name.eth', 'scene-id', '1,2')).rejects.toThrow(
+        InvalidRequestError
+      )
+      expect(mockFetch.fetch).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('when reconnecting after a world redeployment', () => {
+    beforeEach(() => {
+      mockFetch.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValueOnce({
+          scenes: [{ entityId: 'new-id', parcels: ['1,2'] }]
+        })
+      })
+    })
+
+    describe('and the previous deployment has the same world and footprint', () => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValueOnce({
+            metadata: {
+              worldConfiguration: { name: 'NAME.ETH' },
+              scene: { base: '1,2', parcels: ['1,2'] }
+            }
+          })
+        })
+      })
+
+      it('should select the verified current room instead of creating a caller-chosen old room', async () => {
+        await expect(
+          worldsComponent.resolveWorldSceneId('name.eth', 'old-id', '1,2', { allowPreviousDeployment: true })
+        ).resolves.toBe('new-id')
+      })
+
+      it('should still reject a mutation against the previous deployment', async () => {
+        await expect(worldsComponent.resolveWorldSceneId('name.eth', 'old-id', '1,2')).rejects.toThrow(
+          InvalidRequestError
+        )
+        expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    describe.each([
+      ['another world', { worldConfiguration: { name: 'other.eth' }, scene: { base: '1,2', parcels: ['1,2'] } }],
+      [
+        'another footprint',
+        { worldConfiguration: { name: 'name.eth' }, scene: { base: '1,2', parcels: ['1,2', '1,3'] } }
+      ],
+      ['no world attribution', { scene: { base: '1,2', parcels: ['1,2'] } }]
+    ])('and the previous entity has %s', (_label, metadata) => {
+      beforeEach(() => {
+        mockFetch.fetch.mockResolvedValueOnce({ ok: true, json: jest.fn().mockResolvedValueOnce({ metadata }) })
+      })
+
+      it('should reject the unrelated or unverifiable deployment', async () => {
+        await expect(
+          worldsComponent.resolveWorldSceneId('name.eth', 'old-id', '1,2', { allowPreviousDeployment: true })
+        ).rejects.toThrow(InvalidRequestError)
       })
     })
   })
@@ -120,7 +309,7 @@ describe('worlds adapter', () => {
     })
 
     it('should reject ambiguity and log its underlying cause', async () => {
-      await expect(worldsComponent.resolveWorldSceneId('name.eth', 'name.eth')).rejects.toThrow('Failed to resolve')
+      await expect(worldsComponent.resolveWorldScene('name.eth', 'name.eth')).rejects.toThrow(InvalidRequestError)
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Failed to resolve world scene',
         expect.objectContaining({
@@ -142,7 +331,7 @@ describe('worlds adapter', () => {
 
     it('should reject instead of choosing an unrelated scene', async () => {
       await expect(worldsComponent.resolveWorldSceneId('name.eth', 'name.eth', '10,20')).rejects.toThrow(
-        'Failed to resolve'
+        InvalidRequestError
       )
     })
   })
@@ -179,7 +368,8 @@ describe('worlds adapter', () => {
           expect(mockFetch.fetch).toHaveBeenCalledWith(`${worldContentUrl}/world/${worldName.toLowerCase()}/scenes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ coordinates: [pointer] })
+            body: JSON.stringify({ coordinates: [pointer] }),
+            signal: expect.any(AbortSignal)
           })
           expect(result).toEqual(mockScene)
         })
@@ -226,7 +416,6 @@ describe('worlds adapter', () => {
     })
 
     describe('and the request fails', () => {
-      let result: WorldScene | undefined
       let cancelMock: jest.Mock
 
       beforeEach(async () => {
@@ -237,11 +426,9 @@ describe('worlds adapter', () => {
           body: { cancel: cancelMock }
         })
 
-        result = await worldsComponent.fetchWorldSceneByPointer(worldName, pointer)
-      })
-
-      it('should return undefined', () => {
-        expect(result).toBeUndefined()
+        await expect(worldsComponent.fetchWorldSceneByPointer(worldName, pointer)).rejects.toThrow(
+          ServiceUnavailableError
+        )
       })
 
       it('should release the undici response body', () => {
@@ -511,7 +698,9 @@ describe('worlds adapter', () => {
       })
 
       it('should call the about endpoint with the lowercased world name', () => {
-        expect(mockFetch.fetch).toHaveBeenCalledWith(`${worldContentUrl}/world/${worldName.toLowerCase()}/about`)
+        expect(mockFetch.fetch).toHaveBeenCalledWith(`${worldContentUrl}/world/${worldName.toLowerCase()}/about`, {
+          signal: expect.any(AbortSignal)
+        })
       })
 
       it('should return the extracted scene entity ID', () => {
@@ -529,7 +718,7 @@ describe('worlds adapter', () => {
 
       it('should throw an InvalidRequestError', async () => {
         await expect(worldsComponent.fetchWorldSceneId(worldName)).rejects.toThrow(
-          `Failed to fetch world about for ${worldName}: HTTP 404`
+          `No scenes found for world ${worldName}`
         )
       })
     })
@@ -609,7 +798,8 @@ describe('worlds adapter', () => {
 
       it('should lowercase the world name in the URL', () => {
         expect(mockFetch.fetch).toHaveBeenCalledWith(
-          `${worldContentUrl}/world/${uppercaseWorldName.toLowerCase()}/about`
+          `${worldContentUrl}/world/${uppercaseWorldName.toLowerCase()}/about`,
+          { signal: expect.any(AbortSignal) }
         )
       })
     })
@@ -656,7 +846,7 @@ describe('worlds adapter', () => {
       const entityId = 'bafkreiabc123'
 
       beforeEach(async () => {
-        cachedFetchFetch.mockResolvedValueOnce({
+        mockFetch.fetch.mockResolvedValueOnce({
           ok: true,
           json: jest.fn().mockResolvedValue({ metadata: { scene: { base: '0,0' } } })
         })
@@ -666,8 +856,32 @@ describe('worlds adapter', () => {
       })
 
       it('should call the upstream only once', () => {
-        expect(cachedFetchFetch).toHaveBeenCalledTimes(1)
+        expect(mockFetch.fetch).toHaveBeenCalledTimes(1)
       })
+    })
+  })
+  describe('when an old world client reconnects without a parcel', () => {
+    beforeEach(() => {
+      mockFetch.fetch
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ scenes: [] }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            metadata: {
+              worldConfiguration: { name: 'name.eth' },
+              scene: { base: '1,2', parcels: ['1,2'] }
+            }
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ scenes: [{ entityId: 'current', parcels: ['1,2'] }] })
+        })
+    })
+    it('should derive the parcel from metadata but select only the current indexed room', async () => {
+      await expect(
+        worldsComponent.resolveWorldScene('name.eth', 'old', undefined, { allowPreviousDeployment: true })
+      ).resolves.toEqual({ sceneId: 'current', parcel: '1,2' })
     })
   })
 })

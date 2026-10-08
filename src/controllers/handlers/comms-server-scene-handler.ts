@@ -27,7 +27,7 @@ export async function commsServerSceneHandler(
     throw new UnauthorizedError('Access denied, deny-listed wallet')
   }
   const realmName = realm.serverName
-  const isWorld = realmName.endsWith('.eth')
+  const isWorld = realmName.toLowerCase().endsWith('.eth')
 
   // Required on every realm, preview included: the room name is derived from it, and the
   // preview branch used to accept its absence and build a room containing `undefined`.
@@ -46,7 +46,7 @@ export async function commsServerSceneHandler(
   // through to the scene-room name below — which is what `/get-scene-adapter` mints for it.
   // Any other name lands the authoritative server in a different room than its own clients.
   if (isWorld) {
-    const worldSceneId = await worlds.resolveWorldSceneId(realmName, sceneId, parcel)
+    const worldSceneId = await worlds.resolveWorldSceneId(realmName, sceneId, parcel, { allowPreviousDeployment: true })
     room = livekit.getWorldSceneRoomName(realmName, worldSceneId)
   } else {
     room = livekit.getSceneRoomName(realmName, sceneId)

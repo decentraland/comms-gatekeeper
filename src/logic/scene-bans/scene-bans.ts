@@ -6,7 +6,7 @@ import {
   ISceneBansComponent,
   IsUserBannedParams
 } from './types'
-import { InvalidRequestError, NotFoundError, UnauthorizedError } from '../../types/errors'
+import { InvalidRequestError, NotFoundError, PlaceNotFoundError, UnauthorizedError } from '../../types/errors'
 import { PlaceAttributes } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
@@ -30,6 +30,56 @@ export function createSceneBansComponent(
   const { sceneBanManager, livekit, logs, sceneManager, places, analytics, names, publisher, roomMetadataSync } =
     components
   const logger = logs.getLogger('scene-bans')
+
+  /** Finds existing deployment rooms for the verified place, including pre-redeploy rooms. */
+  async function getModerationRooms(place: PlaceAttributes, roomName: string): Promise<string[]> {
+    const names = new Set([roomName])
+    if (!place.world || !place.world_name) return [...names]
+    let stopped = false
+    let deadline: ReturnType<typeof setTimeout>
+    async function discoverRooms(): Promise<void> {
+      const rooms = await livekit.listWorldSceneRooms(place.world_name)
+      // Stop scheduling lookups after the overall deadline, even if a dependency settles later.
+      for (let offset = 0; offset < rooms.length && !stopped; offset += 10) {
+        await Promise.all(
+          rooms.slice(offset, offset + 10).map(async (name) => {
+            if (names.has(name)) return
+            const { sceneId } = livekit.getRoomMetadataFromRoomName(name)
+            try {
+              const roomPlace = await places.getWorldScenePlaceByEntityId(place.world_name, sceneId, {
+                allowPreviousDeployment: true
+              })
+              if (!stopped && roomPlace.id === place.id) names.add(name)
+            } catch (error) {
+              if (!(error instanceof InvalidRequestError || error instanceof PlaceNotFoundError)) {
+                logger.warn('Unable to resolve an existing room for moderation', {
+                  roomName: name,
+                  error: String(error)
+                })
+              }
+            }
+          })
+        )
+      }
+    }
+    try {
+      await Promise.race([
+        discoverRooms(),
+        new Promise<void>((resolve) => {
+          deadline = setTimeout(() => {
+            logger.warn('Additional moderation room discovery timed out', { placeId: place.id })
+            resolve()
+          }, 5000)
+        })
+      ])
+    } catch (error) {
+      logger.warn('Unable to list existing rooms for moderation', { placeId: place.id, error: String(error) })
+    } finally {
+      stopped = true
+      clearTimeout(deadline)
+    }
+    return [...names]
+  }
 
   /**
    * Publishes a scene ban event without waiting for it to be published.
@@ -103,16 +153,16 @@ export function createSceneBansComponent(
       isWorld: String(isWorld)
     })
 
-    let place: PlaceAttributes
-
-    if (isWorld) {
-      place = await places.getWorldScenePlace(realmName, parcel)
-    } else {
-      place = await places.getPlaceByParcel(parcel)
-    }
+    if (!sceneId) throw new InvalidRequestError('A scene ID is required')
+    const { sceneId: resolvedSceneId, place } = await places.resolveScenePlace(
+      sceneId,
+      isWorld ? realmName : undefined,
+      parcel,
+      { allowPreviousDeployment: isWorld }
+    )
 
     // Check if the user performing the ban has permission
-    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, bannedBy)
+    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, bannedBy, { skipCache: true })
     if (!isOwnerOrAdmin) {
       throw new UnauthorizedError('You do not have permission to ban users from this place')
     }
@@ -121,7 +171,9 @@ export function createSceneBansComponent(
     // admins by isSceneOwnerOrAdmin (and written into the room's sceneAdmins metadata), so they
     // must be protected here too — otherwise a lease tenant could be simultaneously banned and
     // listed as an admin.
-    const userToBanScenePermissions = await sceneManager.getUserScenePermissions(place, userAddressToBan)
+    const userToBanScenePermissions = await sceneManager.getUserScenePermissions(place, userAddressToBan, {
+      shortCache: true
+    })
     if (
       userToBanScenePermissions.owner ||
       userToBanScenePermissions.admin ||
@@ -133,7 +185,7 @@ export function createSceneBansComponent(
 
     // Compute the room name up front so a malformed-params throw cannot leave the
     // DB and LiveKit metadata in a partially-mutated state.
-    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
+    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId: resolvedSceneId })
 
     // Persist the ban first — it is the source of truth. If this fails, no
     // LiveKit-side effects run, so we never end up with a participant kicked
@@ -148,12 +200,18 @@ export function createSceneBansComponent(
 
     // Best-effort LiveKit side effects in parallel; failures here are tolerable
     // because the DB ban has already been persisted and webhooks will reconcile.
-    await Promise.all([
-      livekit.removeParticipant(roomName, userAddressToBan).catch((err) => {
-        logger.warn(`Error removing participant ${userAddressToBan} from LiveKit room ${roomName}`, { err })
-      }),
-      roomMetadataSync.addBan(roomName, userAddressToBan)
-    ])
+    async function applyBanToRoom(name: string): Promise<void> {
+      await Promise.all([
+        livekit.removeParticipant(name, userAddressToBan).catch((err) => {
+          logger.warn(`Error removing participant ${userAddressToBan} from LiveKit room ${name}`, { err })
+        }),
+        roomMetadataSync.addBan(name, userAddressToBan)
+      ])
+    }
+    // Kick immediately; discovery of historical rooms must not delay the primary room.
+    await applyBanToRoom(roomName)
+    const roomNames = await getModerationRooms(place, roomName)
+    await Promise.all(roomNames.filter((name) => name !== roomName).map(applyBanToRoom))
 
     logger.info(
       `Successfully banned user ${userAddressToBan} for place ${place.id} and removed participant from LiveKit room ${roomName}`
@@ -203,29 +261,33 @@ export function createSceneBansComponent(
       isWorld: String(isWorld)
     })
 
-    let place: PlaceAttributes
-
-    if (isWorld) {
-      place = await places.getWorldScenePlace(realmName, parcel)
-    } else {
-      place = await places.getPlaceByParcel(parcel)
-    }
+    if (!sceneId) throw new InvalidRequestError('A scene ID is required')
+    const { sceneId: resolvedSceneId, place } = await places.resolveScenePlace(
+      sceneId,
+      isWorld ? realmName : undefined,
+      parcel,
+      { allowPreviousDeployment: isWorld }
+    )
 
     // Check if the user performing the unban has permission
-    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, unbannedBy)
+    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, unbannedBy, { skipCache: true })
     if (!isOwnerOrAdmin) {
       throw new UnauthorizedError('You do not have permission to unban users from this place')
     }
 
     // Compute the room name up front so a malformed-params throw cannot leave
     // the DB and LiveKit metadata in a partially-mutated state.
-    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId })
+    const roomName = livekit.getRoomName(realmName, { isWorld, sceneId: resolvedSceneId })
 
     await sceneBanManager.removeBan(place.id, userAddressToUnban)
 
     void publishSceneBanEvent(userAddressToUnban, place, false)
 
     await roomMetadataSync.removeBan(roomName, userAddressToUnban)
+    const roomNames = await getModerationRooms(place, roomName)
+    await Promise.all(
+      roomNames.filter((name) => name !== roomName).map((name) => roomMetadataSync.removeBan(name, userAddressToUnban))
+    )
 
     logger.info(`Successfully unbanned user ${userAddressToUnban} for place ${place.id}`)
 
@@ -303,16 +365,13 @@ export function createSceneBansComponent(
       limit: limit || 20
     })
 
-    let place: PlaceAttributes
+    if (!parcel) throw new InvalidRequestError('A parcel is required')
 
-    if (isWorld) {
-      place = await places.getWorldScenePlace(realmName, parcel)
-    } else {
-      place = await places.getPlaceByParcel(parcel)
-    }
+    // Both authorization and results use this place; no room is selected by sceneId.
+    const place = isWorld ? await places.getWorldScenePlace(realmName, parcel) : await places.getPlaceByParcel(parcel)
 
     // Check if the user requesting the list has permission
-    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, lowercasedRequestedBy)
+    const isOwnerOrAdmin = await sceneManager.isSceneOwnerOrAdmin(place, lowercasedRequestedBy, { shortCache: true })
     if (!isOwnerOrAdmin) {
       throw new UnauthorizedError('User does not have permission to list scene bans')
     }
@@ -349,10 +408,15 @@ export function createSceneBansComponent(
 
     let place: PlaceAttributes
 
-    // Callers decide which identifier is authoritative by which they pass. get-scene-adapter
-    // passes only sceneId (so the ban is checked against the exact scene whose room is joined,
-    // closing the parcel/sceneId mismatch bypass); world-ban-check and admin flows pass a parcel.
-    if (isWorld && parcel) {
+    // Only internal callers may reuse a place already verified for this request.
+    if (params.verifiedPlaceId) {
+      return sceneBanManager.isBanned(params.verifiedPlaceId, address.toLowerCase())
+    }
+    // When both are supplied, the parcel must belong to the same deployment as the room.
+    if (sceneId && parcel) {
+      const resolved = await places.resolveScenePlace(sceneId, isWorld ? realmName : undefined, parcel)
+      place = resolved.place
+    } else if (isWorld && parcel) {
       place = await places.getWorldScenePlace(realmName, parcel)
     } else if (isWorld && sceneId) {
       place = await places.getPlaceBySceneId(sceneId, realmName)

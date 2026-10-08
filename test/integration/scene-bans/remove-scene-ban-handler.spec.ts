@@ -73,8 +73,10 @@ test('DELETE /scene-bans', ({ components, stubComponents }) => {
       owner: owner.authChain[0].payload
     })
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
+    stubComponents.places.resolveScenePlace.mockImplementation(async (_sceneId, worldName) => ({
+      sceneId: _sceneId,
+      place: await (worldName ? mockedWorldPlace : mockedPlace)
+    }))
     stubComponents.sceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
     stubComponents.sceneBanManager.removeBan.mockResolvedValue(undefined)
     stubComponents.livekit.getRoomName.mockReturnValue('test-room-name')

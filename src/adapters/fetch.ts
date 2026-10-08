@@ -1,6 +1,7 @@
 import { LRUCache } from 'lru-cache'
+import { ServiceUnavailableError } from '../types/errors'
 import { AppComponents } from '../types'
-import { ICachedFetchComponent } from '../types/fetch.type'
+import { CachedFetchLoader, ICachedFetchComponent } from '../types/fetch.type'
 
 export async function cachedFetchComponent(
   components: Pick<AppComponents, 'fetch' | 'logs'>,
@@ -17,14 +18,15 @@ export async function cachedFetchComponent(
 
   const logger = logs.getLogger('cached-fetch-component')
 
-  function cache<T extends object>() {
-    return new LRUCache<string, T>({
+  function cache<T extends object>(cacheOptions?: { ttl?: number; allowStaleOnFetchRejection?: boolean }) {
+    return new LRUCache<string, T, CachedFetchLoader<T>>({
       max,
-      ttl,
-      allowStaleOnFetchRejection,
-      fetchMethod: async function (url: string, _staleValue: T | void): Promise<T> {
+      ttl: cacheOptions?.ttl ?? ttl,
+      allowStaleOnFetchRejection: cacheOptions?.allowStaleOnFetchRejection ?? allowStaleOnFetchRejection,
+      fetchMethod: async function (url, _staleValue, { context }): Promise<T | undefined> {
+        if (context) return context()
         try {
-          const response = await fetch.fetch(url)
+          const response = await fetch.fetch(url, { signal: AbortSignal.timeout(5000) })
 
           if (!response.ok) {
             // Release the undici response body before discarding it on the error path,
@@ -33,10 +35,10 @@ export async function cachedFetchComponent(
             throw new Error(`Error getting ${url}, status: ${response.status}`)
           }
 
-          return response.json()
+          return await response.json()
         } catch (err: any) {
           logger.warn(err)
-          throw err
+          throw new ServiceUnavailableError('Upstream data is temporarily unavailable')
         }
       }
     })
