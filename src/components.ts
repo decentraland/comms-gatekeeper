@@ -156,7 +156,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
 
   const sceneStreamAccessManager = await createSceneStreamAccessManagerComponent({ database, logs })
 
-  const sceneAdmins = await createSceneAdminsComponent({ worlds, lands, sceneAdminManager })
+  const sceneAdmins = await createSceneAdminsComponent({ worlds, lands, sceneAdminManager, places })
 
   const notifications = await createNotificationsComponent({ config, logs, fetch: tracedFetch, sceneAdmins })
 

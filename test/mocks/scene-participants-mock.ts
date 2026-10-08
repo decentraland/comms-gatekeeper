@@ -8,4 +8,3 @@ export const createSceneParticipantsMockedComponent = (
     ...overrides
   } as jest.Mocked<ISceneParticipantsComponent>
 }
-

@@ -2,7 +2,7 @@ import { AppComponents } from '../types'
 import { IPlaceChecker } from '../types/checker.type'
 import { CronJob } from 'cron'
 import { NotificationStreamingType } from '../types/notification.type'
-import { PlaceAttributes } from '../types/places.type'
+import { PlaceStatus } from '../types/places.type'
 import { isPlaceRemoved } from '../logic/utils'
 
 export async function createPlaceChecker(
@@ -16,7 +16,7 @@ export async function createPlaceChecker(
   let job: CronJob
   async function start(): Promise<void> {
     job = new CronJob(
-      '0 0 0 * * 1', // Every monday at 00:00
+      '0 0 0 * * 1',
       async function () {
         try {
           logger.info(`Looking into active places.`)
@@ -27,12 +27,7 @@ export async function createPlaceChecker(
             return
           }
 
-          let placesFromIds: Array<
-            Pick<
-              PlaceAttributes,
-              'id' | 'disabled' | 'disabled_reason' | 'world' | 'world_name' | 'base_position' | 'positions'
-            >
-          > = []
+          let placesFromIds: PlaceStatus[] = []
           const batchSize = 100
 
           for (let i = 0; i < placesIdWithActiveAdmins.length; i += batchSize) {
@@ -49,7 +44,6 @@ export async function createPlaceChecker(
 
           const disabledPlaceIds = placesDisabled.map((place) => place.id)
 
-          // Clean up ingresses from LiveKit before deactivating DB records
           const placesWithFailedIngress = new Set<string>()
           for (const placeId of disabledPlaceIds) {
             const ingressIds = await sceneStreamAccessManager.getActiveIngressIds(placeId)

@@ -1,0 +1,14 @@
+{
+  "specs": "external",
+  "automation": {
+    "enabled": true,
+    "base_branch": "main",
+    "required_checks": [
+      { "id": "format", "command": ["yarn", "format:check"] },
+      { "id": "lint", "command": ["yarn", "lint:check"] },
+      { "id": "typecheck", "command": ["yarn", "typecheck"] },
+      { "id": "tests", "command": ["yarn", "test"], "timeout_seconds": 1800, "fail_on_output": ["No tests found"] }
+    ],
+    "protected_paths": [".eslintrc.json", ".eslintignore", "jest.config.js", "tsconfig.json", "test/tsconfig.json"]
+  }
+}

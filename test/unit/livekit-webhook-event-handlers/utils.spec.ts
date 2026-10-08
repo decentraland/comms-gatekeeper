@@ -92,5 +92,4 @@ describe('webhook event handler utils', () => {
       })
     })
   })
-
 })

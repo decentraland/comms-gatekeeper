@@ -28,6 +28,7 @@ Fix lint issues before committing: `yarn lint:fix`
 
 - **Unit tests** (`test/unit/`): Required for all business logic components
 - **Integration tests** (`test/integration/`): Required for all DB adapters and HTTP endpoints
+- Integration tests need Postgres: run `docker-compose up -d` first (port `5450`). Without it every DB suite fails with `An error occurred trying to open the database. Error: ''`
 - Load the `dcl-testing` skill for full testing standards
 
 ## Development Commands
