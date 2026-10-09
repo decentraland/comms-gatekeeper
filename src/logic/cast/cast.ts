@@ -183,21 +183,17 @@ export function createCastComponent(
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function generateStreamLink(params: GenerateStreamLinkParams): Promise<GenerateStreamLinkResult> {
-    const { walletAddress, worldName, sceneId, realmName, deviceIdentifier } = params
+    const { walletAddress, worldName, sceneId: requestedSceneId, realmName, deviceIdentifier } = params
 
     // Before the admin lookup, so the rejection can't double as an admin-status oracle.
     await assertNoActivePlatformBan(walletAddress.toLowerCase(), deviceIdentifier)
 
+    const { sceneId, place } = await places.resolveScenePlace(requestedSceneId, worldName, params.parcel)
     const roomId = worldName
       ? livekit.getWorldSceneRoomName(worldName, sceneId)
       : livekit.getSceneRoomName(realmName, sceneId)
 
-    // Resolve the place from the SAME sceneId that the room is derived from. Using the
-    // caller-supplied `parcel` here (as before) would let an admin of any one place mint a
-    // streamer key for a different scene's room.
-    const place = await places.getPlaceBySceneId(sceneId, worldName)
-
-    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress)
+    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, walletAddress, { skipCache: true })
     if (!isAdmin) {
       logger.warn(
         `User ${walletAddress} attempted to generate stream link without admin permissions for place ${place.id}`
@@ -267,7 +263,7 @@ export function createCastComponent(
     const roomId = streamAccess.room_id
 
     // Generate unique internal ID for LiveKit identity (prevents collisions)
-    // Format: stream:{placeId}:{timestamp}
+    // Format: stream:{placeId}:{uuid}
     const internalId = `stream:${streamAccess.place_id}:${randomUUID()}`
 
     // Create LiveKit credentials with publish permissions for the scene room
@@ -379,14 +375,12 @@ export function createCastComponent(
     // Before resolving the location, so an unresolvable place still rejects.
     await assertNoActivePlatformBan(watcherAddress.toLowerCase(), deviceIdentifier)
 
-    const isWorldName = location.endsWith('.eth')
+    const isWorldName = location.toLowerCase().endsWith('.eth')
 
     let place: PlaceAttributes
-    if (isWorldName && parcel) {
+    if (isWorldName) {
+      // A missing parcel is supported only when the world has one unambiguous scene.
       place = await places.getWorldScenePlace(location, parcel)
-    } else if (isWorldName) {
-      // Backwards compatibility: fall back to world-level lookup when no parcel is provided
-      place = await places.getWorldByName(location)
     } else {
       place = await places.getPlaceByParcel(location)
     }

@@ -1,4 +1,10 @@
-import { validateFilters, ensureSlashAtTheEnd, getExplorerUrl, isPlaceRemoved } from '../../src/logic/utils'
+import {
+  validateFilters,
+  ensureSlashAtTheEnd,
+  getExplorerUrl,
+  isPlaceRemoved,
+  isValidPresenterIdentity
+} from '../../src/logic/utils'
 
 describe('ensureSlashAtTheEnd', () => {
   it('should add a trailing slash if not present', () => {
@@ -91,6 +97,31 @@ describe('isPlaceRemoved', () => {
   describe('when the place is disabled and Places sent no reason', () => {
     it('should return true', () => {
       expect(isPlaceRemoved({ disabled: true })).toBe(true)
+    })
+  })
+})
+
+describe('when validating presenter identities', () => {
+  describe.each([
+    ['wallet', '0x1234567890abcdef1234567890abcdef12345678', true],
+    ['preview streamer', 'stream:scene:localpreview:id:a1b2c3d4-e5f6-7890-abcd-ef1234567890', true],
+    ['base64 preview', 'stream:scene:localpreview:b64-Ab+/==:a1b2c3d4-e5f6-7890-abcd-ef1234567890', true],
+    ['whitespace', 'stream:bad place:a1b2c3d4-e5f6-7890-abcd-ef1234567890', false],
+    ['control character', 'stream:bad\tplace:a1b2c3d4-e5f6-7890-abcd-ef1234567890', false],
+    ['markup', 'stream:<place>:a1b2c3d4-e5f6-7890-abcd-ef1234567890', false],
+    ['missing place', 'stream::a1b2c3d4-e5f6-7890-abcd-ef1234567890', false],
+    ['watcher', 'watch:place:a1b2c3d4-e5f6-7890-abcd-ef1234567890', false],
+    ['invalid UUID', 'stream:place:not-a-uuid', false],
+    ['oversized identity', `stream:${'p'.repeat(512)}:a1b2c3d4-e5f6-7890-abcd-ef1234567890`, false]
+  ])('and the identity is a %s', (_label, value, expected) => {
+    let identity: string
+
+    beforeEach(() => {
+      identity = String(value)
+    })
+
+    it('should enforce the bounded presenter identity format', () => {
+      expect(isValidPresenterIdentity(identity)).toBe(expected)
     })
   })
 })

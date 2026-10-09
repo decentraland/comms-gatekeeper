@@ -98,6 +98,7 @@ export interface ICastComponent {
 }
 
 export interface GenerateStreamLinkParams {
+  parcel?: string
   walletAddress: string
   worldName?: string
   sceneId: string

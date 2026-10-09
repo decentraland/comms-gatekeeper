@@ -306,4 +306,38 @@ test('SceneManagerComponent', ({ stubComponents }) => {
       expect(result).toBe(false)
     })
   })
+  describe('when an allowlist still contains a revoked wallet', () => {
+    beforeEach(() => {
+      stubComponents.worlds.hasWorldStreamingPermission.mockResolvedValue(true)
+      stubComponents.worlds.hasWorldDeployPermission.mockResolvedValue(true)
+      stubComponents.worlds.getWorldParcelPermissions.mockResolvedValue(undefined)
+    })
+    it('should not convert missing permission records into world-wide access', async () => {
+      await expect(sceneManager.isSceneOwnerOrAdmin(worldPlace, testAddress)).resolves.toBe(false)
+    })
+    it('should bypass world permission caches for lasting grants', async () => {
+      await sceneManager.isSceneOwnerOrAdmin(worldPlace, testAddress, { skipCache: true })
+      expect(stubComponents.worlds.hasWorldOwnerPermission).toHaveBeenCalledWith(testAddress, worldPlace.world_name, {
+        skipCache: true
+      })
+      expect(stubComponents.worlds.getWorldParcelPermissions).toHaveBeenCalledWith(
+        testAddress,
+        worldPlace.world_name,
+        'deployment',
+        { skipCache: true }
+      )
+    })
+  })
+  describe('when checking fresh Genesis permissions', () => {
+    it('should refresh LAND and lease permissions and reuse the single LAND result', async () => {
+      await sceneManager.isSceneOwnerOrAdmin(scenePlace, testAddress, { skipCache: true })
+      expect(stubComponents.lands.getLandPermissions).toHaveBeenCalledWith(testAddress, scenePlace.positions, {
+        skipCache: true
+      })
+      expect(stubComponents.lands.getLandPermissions).toHaveBeenCalledTimes(1)
+      expect(stubComponents.lands.hasLandLease).toHaveBeenCalledWith(testAddress, scenePlace.positions, {
+        skipCache: true
+      })
+    })
+  })
 })

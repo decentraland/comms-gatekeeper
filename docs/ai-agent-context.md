@@ -172,8 +172,9 @@ no distributed lock or zero-downtime guarantee is added.
 
 This backend contract requires coordinated Pulse/Gatekeeper activation under no admission.
 An old Gatekeeper ignores additive recovery fields and cannot safely coexist with the new
-producer. The local `vendor` protocol archive is a reproducible development pin; immutable release
-publication and consumer pins remain rollout gates. Real-broker tests use local PostgreSQL and
+producer. The exact published protocol CI artifact is pinned in the manifest and lockfile;
+[dependency provenance](protocol-dependency.md) records its source and integrity. Promotion to
+the reviewed main release remains a rollout gate. Real-broker tests use local PostgreSQL and
 JWT signing with mocked Cloud removal. LiveKit Cloud cutoff enforcement, clock skew bounds,
 absent-room behavior and latency margins require separate controlled
 acceptance; unit tests do not establish those guarantees.

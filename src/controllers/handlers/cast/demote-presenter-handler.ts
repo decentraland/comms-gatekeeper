@@ -1,14 +1,7 @@
 import { IHttpServerComponent } from '@dcl/core-commons'
 import { HandlerContextWithPath } from '../../../types'
 import { InvalidRequestError } from '../../../types/errors'
-import { validate } from '../../../logic/utils'
-
-const ETH_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/
-const STREAMER_IDENTITY_REGEX = /^stream:[^:]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-
-function isValidPresenterIdentity(identity: string): boolean {
-  return ETH_ADDRESS_REGEX.test(identity) || STREAMER_IDENTITY_REGEX.test(identity)
-}
+import { validate, isValidPresenterIdentity } from '../../../logic/utils'
 
 /**
  * Demotes a presenter back to watcher role in a cast room.
@@ -20,12 +13,12 @@ function isValidPresenterIdentity(identity: string): boolean {
  */
 export async function demotePresenterHandler(
   context: HandlerContextWithPath<
-    'logs' | 'cast' | 'fetch' | 'config' | 'livekit',
+    'logs' | 'cast' | 'fetch' | 'config' | 'livekit' | 'worlds',
     '/cast/presenters/:participantIdentity'
   >
 ): Promise<IHttpServerComponent.IResponse> {
   const {
-    components: { logs, cast, livekit },
+    components: { logs, cast, livekit, worlds },
     params
   } = context
 
@@ -36,14 +29,20 @@ export async function demotePresenterHandler(
     throw new InvalidRequestError('participantIdentity must be a valid Ethereum address or streamer identity')
   }
 
-  const { identity: callerAddress, sceneId, realm, isWorld } = await validate(context)
+  const { identity: callerAddress, sceneId, parcel, realm, isWorld } = await validate(context)
 
   if (!sceneId) {
     throw new InvalidRequestError('sceneId is required in authMetadata')
   }
 
+  // Content IDs identify an existing room whose stored place controls authorization.
+  // Only legacy world-name IDs need a parcel lookup to select a scene.
+  const resolvedSceneId =
+    isWorld && sceneId.toLowerCase().endsWith('.eth')
+      ? await worlds.resolveWorldSceneId(realm.serverName, sceneId, parcel)
+      : sceneId
   const roomId = isWorld
-    ? livekit.getWorldSceneRoomName(realm.serverName, sceneId)
+    ? livekit.getWorldSceneRoomName(realm.serverName, resolvedSceneId)
     : livekit.getSceneRoomName(realm.serverName, sceneId)
 
   await cast.demotePresenter(roomId, participantIdentity, callerAddress)

@@ -36,6 +36,9 @@ export async function listSceneAdminsHandler(
 
   const isWorld = hostname.includes('worlds-content-server')
 
+  if (!parcel) throw new InvalidRequestError('A parcel is required')
+
+  // This operation targets a place (or its stored access), not a room chosen by sceneId.
   let place: PlaceAttributes
   if (isWorld) {
     place = await getWorldScenePlace(serverName, parcel)

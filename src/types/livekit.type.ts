@@ -86,6 +86,8 @@ export type ILivekitComponent = IBaseComponent & {
   getRoomMetadataFromRoomName: (roomName: string) => RoomMetadata
   getRoomName: (realmName: string, params: GetRoomNameParams) => string
   getRoom: (roomName: string) => Promise<Room>
+  /** Lists only existing deployment rooms belonging to the specified world. */
+  listWorldSceneRooms: (worldName: string) => Promise<string[]>
   getRoomInfo: (roomName: string) => Promise<Room | null>
   /** Creates a new ingress instead of reusing an existing RTMP credential. */
   createIngress: (roomName: string, participantIdentity: string) => Promise<IngressInfo>

@@ -24,28 +24,18 @@ export async function resetSceneStreamAccessHandler(
       | 'logs'
       | 'config'
       | 'notifications'
-      | 'userModeration'
-      | 'worlds',
+      | 'userModeration',
       '/scene-stream-access/reset'
     >,
     'components' | 'request' | 'verification' | 'url' | 'params'
   >
 ) {
   const {
-    components: {
-      logs,
-      sceneStreamAccessManager,
-      sceneManager,
-      places,
-      livekit,
-      notifications,
-      userModeration,
-      worlds
-    },
+    components: { logs, sceneStreamAccessManager, sceneManager, places, livekit, notifications, userModeration },
     verification
   } = ctx
   const logger = logs.getLogger('reset-scene-stream-access-handler')
-  const { getPlaceBySceneId } = places
+  const { resolveScenePlace } = places
   const { isSceneOwnerOrAdmin } = sceneManager
 
   if (!verification?.auth) {
@@ -80,15 +70,17 @@ export async function resetSceneStreamAccessHandler(
   }
 
   try {
-    const resolvedSceneId = isWorld ? await worlds.resolveWorldSceneId(serverName, sceneId, parcel) : sceneId
+    const { sceneId: resolvedSceneId, place } = isPreview
+      ? { sceneId, place: undefined }
+      : await resolveScenePlace(sceneId, isWorld ? serverName : undefined, parcel)
     const roomName = isWorld
       ? livekit.getWorldSceneRoomName(serverName, resolvedSceneId)
       : livekit.getSceneRoomName(serverName, resolvedSceneId)
-    const place = isPreview ? undefined : await getPlaceBySceneId(resolvedSceneId, isWorld ? serverName : undefined)
     const placeId = place?.id ?? roomName
 
     const isOwnerOrAdmin =
-      isPreview || (place !== undefined && (await isSceneOwnerOrAdmin(place, authenticatedAddress)))
+      isPreview ||
+      (place !== undefined && (await isSceneOwnerOrAdmin(place, authenticatedAddress, { skipCache: true })))
     if (!isOwnerOrAdmin) {
       logger.info(`Wallet ${authenticatedAddress} is not authorized to access this scene. Place ${placeId}`)
       throw new UnauthorizedError('Access denied, you are not authorized to access this scene')
@@ -146,7 +138,8 @@ export async function resetSceneStreamAccessHandler(
         }
       }
     }
-    if (error instanceof ServiceUnavailableError) return { status: 503, body: { error: error.message } }
+    if (error instanceof ServiceUnavailableError)
+      return { status: 503, headers: { 'Retry-After': '1' }, body: { error: error.message } }
     if (
       error instanceof InvalidRequestError ||
       error instanceof PlaceNotFoundError ||

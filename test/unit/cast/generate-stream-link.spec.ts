@@ -76,11 +76,9 @@ describe('when generating a stream link', () => {
       isSceneOwnerOrAdmin: jest.fn().mockResolvedValue(true)
     })
 
-    // The place is resolved from the sceneId via places.getPlaceBySceneId, which internally uses
-    // the content entity's base parcel (genesis) or the world content server (worlds). The cast
-    // component only calls getPlaceBySceneId, so stub that; it defaults to the genesis place.
+    // Scene identity and place are resolved together before authorization and room selection.
     mockPlaces = createPlacesMockedComponent({
-      getPlaceBySceneId: jest.fn().mockResolvedValue(mockPlace),
+      resolveScenePlace: jest.fn().mockImplementation(async (sceneId) => ({ sceneId, place: mockPlace })),
       getPlaceByParcel: jest.fn().mockResolvedValue(mockPlace)
     })
 
@@ -152,7 +150,7 @@ describe('when generating a stream link', () => {
   describe('and the request is for a world', () => {
     beforeEach(() => {
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
-      mockPlaces.getPlaceBySceneId.mockResolvedValue(mockWorldScenePlace)
+      mockPlaces.resolveScenePlace.mockImplementation(async (sceneId) => ({ sceneId, place: mockWorldScenePlace }))
     })
 
     it('should get the world scene room with the scene id', async () => {
@@ -174,7 +172,7 @@ describe('when generating a stream link', () => {
         realmName: 'test-world.dcl.eth'
       })
 
-      expect(mockPlaces.getPlaceBySceneId).toHaveBeenCalledWith('bafkreiscene123', 'test-world.dcl.eth')
+      expect(mockPlaces.resolveScenePlace).toHaveBeenCalledWith('bafkreiscene123', 'test-world.dcl.eth', undefined)
     })
 
     it('should check admin permissions using the world scene place', async () => {
@@ -185,7 +183,9 @@ describe('when generating a stream link', () => {
         realmName: 'test-world.dcl.eth'
       })
 
-      expect(mockSceneManager.isSceneOwnerOrAdmin).toHaveBeenCalledWith(mockWorldScenePlace, '0xowner123')
+      expect(mockSceneManager.isSceneOwnerOrAdmin).toHaveBeenCalledWith(mockWorldScenePlace, '0xowner123', {
+        skipCache: true
+      })
     })
 
     it('should return the world scene place id', async () => {
@@ -203,7 +203,7 @@ describe('when generating a stream link', () => {
   describe('and the user is not an admin', () => {
     beforeEach(() => {
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(false)
-      mockPlaces.getPlaceBySceneId.mockResolvedValue(mockWorldScenePlace)
+      mockPlaces.resolveScenePlace.mockImplementation(async (sceneId) => ({ sceneId, place: mockWorldScenePlace }))
     })
 
     it('should throw a NotSceneAdminError', async () => {
@@ -452,7 +452,7 @@ describe('when generating a stream link', () => {
   describe('and the stream link is successfully generated', () => {
     beforeEach(() => {
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
-      mockPlaces.getPlaceBySceneId.mockResolvedValue(mockWorldScenePlace)
+      mockPlaces.resolveScenePlace.mockImplementation(async (sceneId) => ({ sceneId, place: mockWorldScenePlace }))
     })
 
     it('should return the stream link details with place name and expiration information', async () => {
@@ -610,7 +610,7 @@ describe('when generating a stream link', () => {
     beforeEach(() => {
       params = { walletAddress: '0xowner123', sceneId: 'bafkreiscene123', realmName: 'test-realm' }
       mockSceneManager.isSceneOwnerOrAdmin.mockResolvedValue(true)
-      mockPlaces.getPlaceBySceneId.mockResolvedValue(mockPlace)
+      mockPlaces.resolveScenePlace.mockImplementation(async (sceneId) => ({ sceneId, place: mockPlace }))
       mockUserModeration.getActiveBanForConnection.mockResolvedValue({ isBanned: false })
     })
 

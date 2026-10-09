@@ -81,8 +81,10 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
 
     jest.spyOn(handlersUtils, 'validate').mockResolvedValue(metadataLand)
 
-    stubComponents.places.getPlaceByParcel.mockResolvedValue(mockedPlace)
-    stubComponents.places.getWorldScenePlace.mockResolvedValue(mockedWorldPlace)
+    stubComponents.places.resolveScenePlace.mockImplementation(async (_sceneId, worldName) => ({
+      sceneId: _sceneId,
+      place: await (worldName ? mockedWorldPlace : mockedPlace)
+    }))
 
     stubComponents.lands.getLandPermissions.mockResolvedValue({
       owner: true,
@@ -633,6 +635,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledWith(admin.authChain[0].payload.toLowerCase(), {
+        verifiedPlaceId: mockedPlace.id,
         sceneId: metadataLand.sceneId,
         parcel: metadataLand.parcel,
         realmName: metadataLand.realm.serverName,
@@ -659,6 +662,7 @@ test('POST /scene-admin - adds administrator access for a scene who can add othe
       )
 
       expect(stubComponents.sceneBans.isUserBanned).toHaveBeenCalledWith(admin.authChain[0].payload.toLowerCase(), {
+        verifiedPlaceId: mockedWorldPlace.id,
         sceneId: metadataWorld.sceneId,
         parcel: metadataWorld.parcel,
         realmName: metadataWorld.realm.serverName,

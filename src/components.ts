@@ -131,7 +131,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   )
   const worlds = await createWorldsComponent({ config, logs, cachedFetch, fetch: tracedFetch })
   const contentClient = await createContentClientComponent({ config, fetch: tracedFetch, logs })
-  const places = await createPlacesComponent({ config, logs, cachedFetch, fetch: tracedFetch, worlds, contentClient })
+  const places = await createPlacesComponent({ config, logs, fetch: tracedFetch, worlds, contentClient, cachedFetch })
   const names = await createNamesComponent({ config, logs, fetch: tracedFetch, cachedFetch })
   const lands = await createLandsComponent({ config, logs, cachedFetch, fetch: tracedFetch })
   const sceneManager = await createSceneManagerComponent({ worlds, lands, sceneAdminManager })
@@ -221,7 +221,6 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     sceneAdmins,
     livekit,
     places,
-    contentClient,
     lands,
     cache,
     logs

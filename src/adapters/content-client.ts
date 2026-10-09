@@ -16,6 +16,7 @@ export async function createContentClientComponent(
   const max = (await config.getNumber('CONTENT_CLIENT_CACHE_MAX')) ?? 1000
   const ttl = (await config.getNumber('CONTENT_CLIENT_CACHE_TTL')) ?? 1000 * 60 * 5 // 5 minutes default
 
+  const requestTimeout = (await config.getNumber('CATALYST_REQUEST_TIMEOUT_MS')) ?? 5000
   const negativeTtl = (await config.getNumber('CONTENT_CLIENT_NEGATIVE_CACHE_TTL')) ?? 5000
   // Cache confirmed misses briefly so a newly synced deployment can be retried promptly.
   // Transient upstream failures are never negative-cached.
@@ -31,18 +32,16 @@ export async function createContentClientComponent(
       ?.split(',')
       .map((url) => url.trim())
       .filter(Boolean) ?? []
-  const entityClients = [
-    client,
-    ...fallbackUrls
-      .filter((url) => url !== catalystContentUrl)
-      .map((url) => createContentClient({ url, fetcher: fetch }))
-  ]
+  const trustedUrls = [catalystContentUrl, ...fallbackUrls.filter((url) => url !== catalystContentUrl)]
+  const entityClients = trustedUrls.map((url) =>
+    url === catalystContentUrl ? client : createContentClient({ url, fetcher: fetch })
+  )
 
   async function fetchEntityFromTrustedServers(sceneId: string): Promise<Entity> {
     let unavailable = false
     for (const entityClient of entityClients) {
       try {
-        const entities = await entityClient.fetchEntitiesByIds([sceneId], { attempts: 1, timeout: 5000 })
+        const entities = await entityClient.fetchEntitiesByIds([sceneId], { attempts: 1, timeout: requestTimeout })
         const entity = entities.find((candidate) => candidate.id === sceneId)
         if (entity) return entity
       } catch (error) {
@@ -92,7 +91,41 @@ export async function createContentClientComponent(
       }
       return cache.fetch(`id:${sceneId}`) as Promise<Entity | undefined>
     },
-    fetchEntitiesByPointers: async (pointers: string[]) => {
+    fetchEntitiesByPointers: async (pointers, options) => {
+      if (options?.skipCache) {
+        let resolveMatch: (entities: Entity[]) => void
+        const firstMatch = new Promise<Entity[]>((resolve) => {
+          resolveMatch = resolve
+        })
+        const lookups = entityClients.map(async (entityClient, index) => {
+          try {
+            const entities = await entityClient.fetchEntitiesByPointers(pointers, {
+              timeout: requestTimeout,
+              attempts: 1
+            })
+            if (!options.expectedEntityId || entities.some((entity) => entity.id === options.expectedEntityId)) {
+              resolveMatch(entities)
+            }
+            return entities
+          } catch (error) {
+            logger.warn('Trusted active scene lookup failed', {
+              server: trustedUrls[index],
+              pointers: pointers.join(','),
+              sceneId: options.expectedEntityId ?? '',
+              error: getErrorMessage(error)
+            })
+            throw error
+          }
+        })
+        // A matching response wins immediately. Observe every rejection even after an early success.
+        const completed = Promise.allSettled(lookups).then((results) => {
+          if (results.some((result) => result.status === 'rejected')) {
+            throw new ServiceUnavailableError('Active scene verification is temporarily unavailable')
+          }
+          return []
+        })
+        return Promise.race([firstMatch, completed])
+      }
       const result = await cache.fetch(`ptr:${pointers[0]}`)
       return (result as Entity[]) ?? []
     }

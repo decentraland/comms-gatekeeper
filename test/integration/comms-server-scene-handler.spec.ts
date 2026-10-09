@@ -1,3 +1,4 @@
+import { InvalidRequestError } from '../../src/types/errors'
 import { test } from '../components'
 import { makeRequest } from '../utils'
 import * as handlersUtils from '../../src/logic/utils'
@@ -15,6 +16,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
   let validateResult: ValidateResult
 
   beforeEach(async () => {
+    stubComponents.worlds.resolveWorldSceneId.mockImplementation(async (_world, sceneId) => sceneId.toLowerCase())
     // Set up default validate result
     validateResult = {
       identity: mockServerPublicKey,
@@ -97,20 +99,54 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
       validateResult.realm.hostname = 'worlds-content-server.decentraland.org'
       validateResult.isWorld = true
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
+      stubComponents.worlds.resolveWorldSceneId.mockResolvedValue('active-world-scene')
+      stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-room-active-world-scene')
     })
 
-    it('should generate credentials for world room and return connection details', async () => {
-      const response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({})
+    describe('and the deployment has been validated', () => {
+      it('should generate credentials for the active scene at the signed parcel', async () => {
+        const response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        })
+
+        expect(response.status).toBe(200)
+        expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
+          mockWorldRealm,
+          mockSceneId,
+          mockParcel,
+          { allowPreviousDeployment: true }
+        )
+        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(mockWorldRealm, 'active-world-scene')
+        expect(stubComponents.livekit.generateCredentials).toHaveBeenCalledWith(
+          'authoritative-server',
+          'world-room-active-world-scene',
+          { cast: [], mute: [] },
+          false
+        )
+      })
+    })
+
+    describe('and the active scene cannot be resolved', () => {
+      beforeEach(() => {
+        stubComponents.worlds.resolveWorldSceneId.mockRejectedValue(new InvalidRequestError('HTTP 404'))
       })
 
-      expect(response.status).toBe(200)
-      const body = await response.json()
-      expect(body.adapter).toBe('wss://livekit.example.com?token=mock-token')
+      it('should respond with 400 without minting credentials', async () => {
+        const response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        })
+
+        expect(response.status).toBe(400)
+        expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
+      })
     })
   })
 

@@ -202,25 +202,25 @@ test('DELETE /scene-stream-access - removes streaming access for scenes', ({ com
     expect(body.error).toBe('Access denied, you are not authorized to access this scene')
   })
 
-  it('returns 400 if no sceneId in a land request', async () => {
+  it('returns 400 if no parcel in a land request', async () => {
     const { localFetch } = components
 
-    const metadataNoSceneId = { ...metadataLand, sceneId: '' }
-    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataNoSceneId)
+    const metadataNoParcel = { ...metadataLand, parcel: '' }
+    jest.spyOn(handlersUtils, 'validate').mockResolvedValueOnce(metadataNoParcel)
 
     const response = await makeRequest(
       localFetch,
       '/scene-stream-access',
       {
         method: 'DELETE',
-        metadata: metadataNoSceneId
+        metadata: metadataNoParcel
       },
       owner
     )
 
     expect(response.status).toBe(400)
     const body = await response.json()
-    expect(body.error).toBe('Access denied, invalid signed-fetch request, no sceneId')
+    expect(body.error).toBe('A parcel is required')
   })
 
   it('returns 400 when no authentication is provided', async () => {

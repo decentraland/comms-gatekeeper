@@ -60,6 +60,7 @@ export async function errorHandler(
     if (error instanceof ServiceUnavailableError) {
       return {
         status: 503,
+        headers: { 'Retry-After': '1' },
         body: {
           error: error.message
         }
