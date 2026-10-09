@@ -1257,10 +1257,9 @@
   dependencies:
     prom-client "^15.1.0"
 
-"@dcl/protocol@1.0.0-35089025179.commit-5810768":
-  version "1.0.0-35089025179.commit-5810768"
-  resolved "https://registry.yarnpkg.com/@dcl/protocol/-/protocol-1.0.0-35089025179.commit-5810768.tgz#faa0d71c7ac0185bd8df1ebf6a3490f4609c179e"
-  integrity sha512-ze9jjVXn58mcU52I8/lJdoPDpZL7TRJ8JNYB2FlCcRtKiMt+41ja7Hwm/HzeZt3auyv/CMLdjOjPxjZJOxCV0w==
+"@dcl/protocol@https://sdk-team-cdn.decentraland.org/@dcl/protocol/branch//dcl-protocol-1.0.0-37907573378.commit-c4acba0.tgz":
+  version "1.0.0-37907573378.commit-c4acba0"
+  resolved "https://sdk-team-cdn.decentraland.org/@dcl/protocol/branch//dcl-protocol-1.0.0-37907573378.commit-c4acba0.tgz#0210238b54237e8bf6deaee9cc6031a9df5bad73"
   dependencies:
     "@dcl/ts-proto" "1.154.0"
     protobufjs "7.2.4"
