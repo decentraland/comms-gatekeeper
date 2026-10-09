@@ -664,8 +664,8 @@ describe('when generating credentials', () => {
         expect(payload.nbf).toBe(1_000_001)
       })
 
-      it('should keep every other claim as the SDK minted it', () => {
-        expect(payload).toEqual({ ...MINTED_CLAIMS, nbf: 1_000_001 })
+      it('should preserve the token lifetime and all grants across a future nbf', () => {
+        expect(payload).toEqual({ ...MINTED_CLAIMS, nbf: 1_000_001, exp: 1_000_301 })
       })
 
       it('should sign it with the API secret, as the SDK does', () => {

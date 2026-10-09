@@ -402,8 +402,8 @@ describe('nats-adapter', () => {
         beforeEach(() => {
           connection.flush.mockRejectedValueOnce(new Error('closed'))
         })
-        it('should report the write dropped', async () => {
-          expect(await nats.publishConfirmed('a.b', new Uint8Array([1]))).toBe('dropped')
+        it('should report the dispatched write unconfirmed', async () => {
+          expect(await nats.publishConfirmed('a.b', new Uint8Array([1]))).toBe('unconfirmed')
         })
       })
 

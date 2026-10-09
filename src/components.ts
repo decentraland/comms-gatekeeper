@@ -63,6 +63,7 @@ import { createKeyedQueueComponent } from './adapters/keyed-queue'
 import { createBanRegistryComponent, withBanRegistry } from './adapters/ban-registry'
 import { createAccessGateComponent } from './logic/access-gate'
 import { createClusterSubscriberComponent } from './logic/cluster-subscriber'
+import { createRoomCleanupJournalComponent } from './adapters/room-cleanup-journal'
 
 // Initialize all the components of the app
 export async function initComponents(isProduction: boolean = true): Promise<AppComponents> {
@@ -291,6 +292,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
   })
 
   const clusterWalletQueue = await createKeyedQueueComponent({ config, logs })
+  const roomCleanupJournal = await createRoomCleanupJournalComponent({ database, config })
   const clusterSubscriber = await createClusterSubscriberComponent({
     config,
     logs,
@@ -299,7 +301,8 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     livekit,
     accessGate,
     peerState,
-    clusterWalletQueue
+    clusterWalletQueue,
+    roomCleanupJournal
   })
 
   const livekitWebhook = createLivekitWebhookComponent()
@@ -362,6 +365,7 @@ export async function initComponents(isProduction: boolean = true): Promise<AppC
     banRegistry,
     accessGate,
     clusterWalletQueue,
-    clusterSubscriber
+    clusterSubscriber,
+    roomCleanupJournal
   }
 }

@@ -42,12 +42,13 @@ jobs:
       - run: >-
           yarn test --runInBand --no-coverage --json --outputFile=cluster-recovery-results.json
           test/integration/cluster-subscriber.spec.ts
+          test/integration/room-cleanup-journal.spec.ts
       # The suite skips itself unless NATS_INTEGRATION_REQUIRED is 'true', so a drift between this
       # workflow and the spec would leave the required job green with nothing asserted.
       - name: Fail unless the broker suite ran
         run: >-
           node -e "const r = require('./cluster-recovery-results.json');
-          if (r.numPassedTests === 0 || r.numPendingTests > 0) {
-            console.error('broker suite did not run: passed', r.numPassedTests, 'pending', r.numPendingTests);
+          if (r.numPassedTestSuites !== 2 || r.numPassedTests === 0 || r.numPendingTests > 0) {
+            console.error('recovery suites did not run: suites', r.numPassedTestSuites, 'passed', r.numPassedTests, 'pending', r.numPendingTests);
             process.exit(1)
           }"

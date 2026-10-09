@@ -43,6 +43,7 @@ import { IKeyedQueueComponent } from './adapters/keyed-queue'
 import { IBanRegistryComponent } from './adapters/ban-registry'
 import { IAccessGateComponent } from './logic/access-gate'
 import { IClusterSubscriberComponent } from './logic/cluster-subscriber/types'
+import { IRoomCleanupJournalComponent } from './adapters/room-cleanup-journal'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -106,6 +107,7 @@ export type BaseComponents = {
   /** Serializes the cluster subscriber's work per wallet, cluster changes and connects alike. */
   clusterWalletQueue: IKeyedQueueComponent
   clusterSubscriber: IClusterSubscriberComponent
+  roomCleanupJournal: IRoomCleanupJournalComponent
 }
 
 export type AppComponents = BaseComponents & {

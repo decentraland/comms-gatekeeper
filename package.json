@@ -67,7 +67,7 @@
     "@dcl/http-tracer-component": "^2.0.1",
     "@dcl/memory-cache-component": "^2.4.3",
     "@dcl/metrics": "^1.0.1",
-    "@dcl/protocol": "1.0.0-35089025179.commit-5810768",
+    "@dcl/protocol": "https://sdk-team-cdn.decentraland.org/@dcl/protocol/branch//dcl-protocol-1.0.0-37907573378.commit-c4acba0.tgz",
     "@dcl/schema-validator-component": "^1.0.1",
     "@dcl/schemas": "25.2.0",
     "@dcl/sns-component": "^3.1.5",

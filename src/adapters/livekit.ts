@@ -32,10 +32,10 @@ export const ISLAND_ROOM_PREFIX = 'island-'
 const DEFAULT_TOKEN_TTL_SECONDS = 5 * 60
 
 /**
- * Re-signs a token the SDK built, replacing only its `nbf`.
+ * Re-signs a token the SDK built with a revocation-safe `nbf` and the same token lifetime.
  *
  * The SDK stamps `nbf` with the mint instant and offers no way to set it, so the payload is kept
- * exactly as built (issuer, subject, expiry, grants) and signed the way the SDK signs: HS256 over
+ * exactly as built (issuer, subject, grants) and signed the way the SDK signs: HS256 over
  * the same header and payload with the API secret.
  *
  * @param jwt - The token as the SDK minted it.
@@ -46,7 +46,14 @@ const DEFAULT_TOKEN_TTL_SECONDS = 5 * 60
 function withNotBefore(jwt: string, secret: string, notBefore: Date): string {
   const [header, payload] = jwt.split('.')
   const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>
-  claims.nbf = Math.floor(notBefore.getTime() / 1000)
+  const previousNbf = Number(claims.nbf)
+  const previousExp = Number(claims.exp)
+  const nbf = Math.floor(notBefore.getTime() / 1000)
+  if (!Number.isSafeInteger(nbf) || nbf <= 0 || !Number.isFinite(previousExp - previousNbf)) {
+    throw new Error('Invalid credential not-before boundary')
+  }
+  claims.nbf = nbf
+  claims.exp = Math.max(previousExp, nbf + (previousExp - previousNbf))
   const body = `${header}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`
   const signature = createHmac('sha256', secret).update(body).digest('base64url')
   return `${body}.${signature}`
