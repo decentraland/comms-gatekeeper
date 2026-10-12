@@ -97,88 +97,45 @@ Both paths enforce bans synchronously in this service, before a token is issued.
 - Explorer-based requests use different identity header format
 - Service-to-service communication uses Bearer tokens
 
-## Pulse-owned island-room recovery
+## Pulse-owned island-room takeover recovery
 
-Pulse owns the desired wallet/session assignment, retained room cleanup operations, admission
-readiness and revocation floors. Gatekeeper is the LiveKit actuator. Explorer receives ordinary
-island tokens and metadata; client-provided metadata is never recovery authority.
+Pulse owns the pending takeover barrier. Gatekeeper always requests `peer.{wallet}.cluster_assignment`
+for the exact authenticated session; `cluster_change`, `cluster_snapshot` and `connect` only trigger
+that lookup. Missing `tokenNotBefore` means unsupported authority and blocks admission; explicit
+zero is valid for a first assignment. Legacy displaced fields are informational.
 
-The subscriber consumes `peer.*.cluster_change`, `peer.*.cluster_snapshot` and authenticated
-session-bearing `peer.*.connect`. Each message triggers the existing positive
-`peer.{wallet}.cluster_assignment` lookup. A reply must carry a valid `roomRecovery` plan with an
-epoch, decimal revision, pending/ready admission, cleanup operations and token not-before floor.
-Transport silence, missing/default recovery fields, mismatched sessions, malformed state and
-unavailable access checks defer work. Every credential path follows this barrier; the former
-`CLUSTER_AUTHORITY_LOOKUP_ENABLED` bypass is removed.
+Every `pendingTakeovers` entry names a stable takeover ID, displaced session and displaced room.
+Gatekeeper serializes wallet work, positively verifies each pending tuple, removes/revokes the
+wallet from that displaced room, and saves a bounded in-memory confirmed receipt before publishing
+`TakeoverCompleted` on `peer.{wallet}.takeover_completed`. Lost completions resend the same receipt
+without repeating confirmed removal. A positive assignment with zero pending takeovers is required
+before minting. Confirmed receipts are pruned only after a positive read proves their IDs absent.
 
-Pending room cleanup is serialized per wallet. Before each destructive call, Gatekeeper inserts
-`room_cleanup_dispatches` in PostgreSQL. Dispatched rows block that wallet across Gatekeeper and
-Pulse restarts, regardless of epoch. The final cutoff is calculated immediately before Cloud
-execution, after database and authority awaits: the maximum of Pulse's required floor and local
-current whole second plus `CLUSTER_CLEANUP_CUTOFF_MARGIN_SECONDS` (default 5, maximum 30).
-A cutoff at least 60 seconds in the future, including the clock skew reserve, defers. Definite no-side-effect application rejections
-may retry with a fresh cutoff; transport failures, `not_found`, uncertain server errors and a
-success received at or after its cutoff keep the durable dispatch blocked. There is no automatic
-retry or expiry for that uncertainty. Controlled operator reconciliation is required.
+Revocation cutoff strictly exceeds the maximum previous token floor and process receipts, including
+same-second A -> B -> A. It is computed immediately before Cloud handoff from local whole seconds
+plus `CLUSTER_CLEANUP_CUTOFF_MARGIN_SECONDS` (default 5, maximum 30). The margin includes at least
+`ceil(clockSkewAllowance/1000)+1`; clock allowance defaults to 1000ms and accepts integer 0..5000.
+A boundary 60 seconds or more away defers. Success must arrive strictly before cutoff minus skew.
+Definite no-side-effect rejections may retry; unknown outcomes and late success permanently block
+the wallet in this process. Unknown receipts are never evicted to admit more work.
 
-A Cloud success arriving before the boundary is durably confirmed with its actual cutoff before
-Gatekeeper publishes `RoomCleanupCompleted` on `peer.{wallet}.room_cleanup_completed`.
-A successful broker flush proves no application acknowledgement. Gatekeeper positively rereads
-Pulse readiness for the exact epoch/revision before signing or publishing credentials. Lost
-completion reports reuse the confirmed operation receipt, including after restart, without
-another removal. If confirmation persistence fails, only the original process may retry its
-positively known result; a new process treats the durable dispatch as unresolved.
+Ready assignments wait until the floor plus skew reserve, then revalidate exact session, room,
+realm, floor and pending tuples around presence/access checks and token signing. Tokens use
+`nbf = max(floor((localNow-skewAllowance)/1000), tokenNotBefore)`. Credentials are delivered only
+while that ready authority still holds and nbf is valid. Delivery failure is retried by later hints.
+Bans/deny lists apply to issuance. Existing room membership suppresses unnecessary credentials.
 
-Ready assignments wait for a future Pulse token boundary before checking presence or access.
-The wait includes the configured Cloud clock skew reserve, is bounded below 60 seconds, cancelled on shutdown, and followed by fresh exact ready
-authority and unfinished-journal checks. A newer future floor defers to another hint. When absent, Gatekeeper
-checks bans and the deny list, rereads exact ready authority, signs with
-`nbf = max(floor((localNow - skewAllowance)/1000), Pulse tokenNotBefore)`, and rereads authority after signing.
-Credentials are delivered only once `nbf` is valid with the skew reserve; rollback during signing defers delivery.
-The clock reserve defaults to 1000ms; invalid values outside integer 0..5000 use that default.
-The removal margin is at least `ceil(skewAllowance/1000)+1` seconds. Positive removal must arrive strictly
-before cutoff minus the reserve. Cloud/Gatekeeper skew must be measured to remain within the configured bound;
-the code does not cover arbitrary skew. Admission does not rely on future-token leeway. The ordinary
-`engine.peer.{wallet}.island_changed.{session}` message has empty peers and no recovery metadata.
-No legacy wallet-only subject is emitted. `peerState` supplies only `fromIslandId` and cannot
-authorize revocation or credentials. Banned and departed wallets can still complete cleanup;
-access checks apply to issuance.
+`CLUSTER_TAKEOVER_RECEIPT_MAX` bounds receipts (default 10000). Snapshot concurrency/backlog and
+connect concurrency bound queued work; capacity exhaustion fails closed. Shutdown cancels waiting
+boundaries and defers further side effects. One active Gatekeeper is required; release overlap is
+an accepted limitation. In-memory receipts do not survive Gatekeeper restart: uncertain Cloud
+outcomes across a process crash, Pulse state loss and old room maintenance are outside this narrow
+runtime guarantee. There is no durable journal or automatic restart/bootstrap protocol.
 
-Confirmed journal receipts are pruned only after a positive current plan no longer references
-them. Completed departures remain queryable in Pulse as `cleanupOnly + ready`, with empty desired
-cluster/realm and the retained last session selector. Gatekeeper prunes confirmed rows, rereads
-that exact ready departure and publishes an `observedReady` completion with empty operation/room
-and zero cutoff. Pulse retains the tombstone until it observes that acknowledgement and its
-clock strictly passes the cutoff plus a 15-second grace (maximum 5-second Gatekeeper backdating
-plus maximum 10-second Pulse/Gatekeeper offset). Returning wallets inherit the retained cutoff.
-Cloud, Pulse and Gatekeeper clocks must satisfy those measured bounds before release.
-Lost observation reports repeat through hints. No timer infers an
-acknowledgement and dispatched rows are never pruned. `CLUSTER_CLEANUP_JOURNAL_MAX` bounds journal
-retention globally; a full journal blocks new cleanup and exposes a metric.
-
-Pulse uses boot-scoped room IDs and starts each epoch requiring explicit controlled bootstrap.
-Gatekeeper defers all room work while `bootstrapRequired` is true. The manual
-`src/operations/room-recovery-bootstrap.ts` command requires an exact epoch and explicit operator
-assertions that old islands were reset and outstanding destructive requests settled; it makes no
-Cloud or database reset calls. Pulse state loss and bootstrap cannot be repaired through metadata
-or old acknowledgements. Unknown journal records still block after bootstrap.
-
-Recovery concurrency and backlog remain bounded by `CLUSTER_SNAPSHOT_CONCURRENCY`,
-`CLUSTER_SNAPSHOT_BACKLOG` and `CLUSTER_CONNECT_CONCURRENCY`; all operation types share the same
-wallet queue. Shutdown cancels subscriptions and blocks new side effects after awaits. It cannot
-cancel a dispatched Cloud request; the journal preserves that uncertainty across process exit.
-One active Gatekeeper is required. Rolling-release overlap remains an accepted limitation;
-no distributed lock or zero-downtime guarantee is added.
-
-This backend contract requires coordinated Pulse/Gatekeeper activation under no admission.
-An old Gatekeeper ignores additive recovery fields and cannot safely coexist with the new
-producer. The exact published protocol CI artifact is pinned in the manifest and lockfile;
-[dependency provenance](protocol-dependency.md) records its source and integrity. Promotion to
-the reviewed main release remains a rollout gate. Real-broker tests use local PostgreSQL and
-JWT signing with mocked Cloud removal. LiveKit Cloud cutoff enforcement, clock skew bounds,
-absent-room behavior and latency margins require separate controlled
-acceptance; unit tests do not establish those guarantees.
-
+Coordinated producer/consumer activation still requires controlled no admission. Real broker tests
+exercise request/reply, completion loss and JWT signing with mocked Cloud removal; measured clock
+skew, Cloud revocation enforcement and latency margins need separate controlled acceptance.
+See [takeover operations](room-recovery-operations.md) and [dependency provenance](protocol-dependency.md).
 
 ## Stream-access expiration and renewal
 

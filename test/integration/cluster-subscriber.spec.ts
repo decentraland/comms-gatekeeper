@@ -1,9 +1,5 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
-import {
-  PeerClusterChange,
-  RoomAdmissionState,
-  RoomCleanupCompleted
-} from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
+import { PeerClusterChange, TakeoverCompleted } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { RoomType } from '@dcl/schemas'
 import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { createHmac } from 'crypto'
@@ -62,7 +58,7 @@ function assignmentFor(clusterId: string, session = DEFAULT_SESSION): Uint8Array
     PeerClusterChange.fromPartial({
       clusterId,
       session,
-      roomRecovery: { epoch: 'integration-epoch', revision: '1', admission: RoomAdmissionState.READY }
+      tokenNotBefore: 0
     })
   ).finish()
 }
@@ -101,7 +97,7 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
   let nats: INatsComponent
   let subscriber: IClusterSubscriberComponent
   let received: { subject: string; message: IslandChangedMessage }[]
-  let completions: RoomCleanupCompleted[]
+  let completions: TakeoverCompleted[]
   let acceptCompletions: boolean
 
   beforeEach(async () => {
@@ -123,26 +119,20 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         if (assignment?.length && (owns || answerForAnySession)) message.respond(assignment)
       }
     })
-    publisher.subscribe(`peer.${RECOVERY_WALLET}.room_cleanup_completed`, {
+    publisher.subscribe(`peer.${RECOVERY_WALLET}.takeover_completed`, {
       callback: (error, message) => {
         if (error) return
-        const completion = RoomCleanupCompleted.decode(message.data)
+        const completion = TakeoverCompleted.decode(message.data)
         completions.push(completion)
-        if (!acceptCompletions || completion.observedReady) return
+        if (!acceptCompletions) return
         const data = assignments.get(RECOVERY_WALLET)
         if (!data) return
         const assignment = PeerClusterChange.decode(data)
-        if (
-          assignment.roomRecovery.epoch !== completion.epoch ||
-          assignment.roomRecovery.revision !== completion.revision
+        if (!assignment.pendingTakeovers.some((op) => op.takeoverId === completion.takeoverId)) return
+        assignment.pendingTakeovers = assignment.pendingTakeovers.filter(
+          (op) => op.takeoverId !== completion.takeoverId
         )
-          return
-        assignment.roomRecovery.operations = assignment.roomRecovery.operations.filter(
-          (op) => op.operationId !== completion.operationId
-        )
-        assignment.roomRecovery.tokenNotBefore = completion.revokeBefore
-        if (assignment.roomRecovery.operations.length === 0)
-          assignment.roomRecovery.admission = RoomAdmissionState.READY
+        assignment.tokenNotBefore = Math.max(assignment.tokenNotBefore!, completion.revokeBefore)
         assignments.set(RECOVERY_WALLET, PeerClusterChange.encode(assignment).finish())
       }
     })
@@ -176,7 +166,6 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     await subscriber[STOP_COMPONENT]!()
     await nats[STOP_COMPONENT]!()
     await publisher.drain()
-    await components.database.query(`DELETE FROM room_cleanup_dispatches WHERE wallet = '${RECOVERY_WALLET}'`)
     await components.database.query('DELETE FROM user_bans')
   })
 
@@ -216,7 +205,6 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         livekit: components.livekit,
         accessGate: components.accessGate,
         peerState: components.peerState,
-        roomCleanupJournal: components.roomCleanupJournal,
         // One per replica: the queue is process-local state.
         clusterWalletQueue: await createKeyedQueueTestComponent()
       })
@@ -249,12 +237,14 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
       assignment = PeerClusterChange.fromPartial({
         clusterId: 'recover-room',
         session: DEFAULT_SESSION,
-        roomRecovery: {
-          epoch: 'recovery-epoch',
-          revision: '42',
-          admission: RoomAdmissionState.PENDING,
-          operations: [{ operationId: 'retained-op', clusterId: 'recover-room', minimumRevokeBefore: 0 }]
-        }
+        tokenNotBefore: 0,
+        pendingTakeovers: [
+          {
+            takeoverId: 'retained-op',
+            displacedSession: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            displacedClusterId: 'recover-room'
+          }
+        ]
       })
       assignments.set(RECOVERY_WALLET, PeerClusterChange.encode(assignment).finish())
       removal = jest.spyOn(components.livekit, 'removeParticipant').mockResolvedValue(undefined)
@@ -262,7 +252,7 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     afterEach(() => {
       removal.mockRestore()
     })
-    it('should rereport durable cleanup over real NATS and mint only after a positive ready reply', async () => {
+    it('should rereport confirmed cleanup over real NATS and mint only after a positive ready reply', async () => {
       publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
       await waitForCompletions(1)
       expect(await nextIslandChanged(100)).toBeUndefined()
@@ -280,31 +270,6 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         completions[0].revokeBefore,
         completions[0].revokeBefore
       ])
-    })
-    describe('and the last Pulse selector belongs to a departed wallet', () => {
-      beforeEach(() => {
-        assignment.clusterId = ''
-        assignment.realm = ''
-        assignment.roomRecovery.cleanupOnly = true
-        assignments.set(RECOVERY_WALLET, PeerClusterChange.encode(assignment).finish())
-        acceptCompletions = true
-      })
-      it('should revoke retained rooms, observe the ready tombstone and prune confirmed storage without minting', async () => {
-        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
-        await waitForCompletions(2)
-        expect(completions[1]).toEqual({
-          epoch: 'recovery-epoch',
-          revision: '42',
-          operationId: '',
-          clusterId: '',
-          revokeBefore: 0,
-          observedReady: true
-        })
-        expect(
-          await components.roomCleanupJournal.get(RECOVERY_WALLET, 'recovery-epoch', 'retained-op')
-        ).toBeUndefined()
-        expect(await nextIslandChanged(100)).toBeUndefined()
-      })
     })
   })
 
@@ -328,7 +293,8 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         session,
         displacedSession: '',
         displacedClusterId: '',
-        roomRecovery: undefined
+        pendingTakeovers: [],
+        tokenNotBefore: undefined
       }).finish()
     )
   }

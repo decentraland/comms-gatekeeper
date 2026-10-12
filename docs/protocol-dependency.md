@@ -1,23 +1,22 @@
-# Room recovery protocol dependency
+# Takeover protocol dependency
 
-This PR pins the exact artifact published by
-[protocol #498 CI](https://github.com/decentraland/protocol/actions/runs/37907573378).
-It is a CI prerelease, served from the protocol project's CDN rather than the npm registry.
+Gatekeeper pins the CI artifact from [protocol #498](https://github.com/decentraland/protocol/pull/498).
+It carries retained pending takeovers and the completion event described in the
+[protocol contract](https://github.com/decentraland/protocol/blob/feat/pulse-room-recovery/docs/pulse-room-recovery.md).
 
 | Evidence | Value |
 | --- | --- |
-| Package version | `1.0.0-37907573378.commit-c4acba0` |
-| CI merge commit | `c4acba0921073fd71006e953b5cc4efce91497cd` |
-| Protocol PR head | `1e8a96749eb7696cd0ad173e0da615859b8589b9` |
-| Archive SHA256 | `c2d21ff388e51ab753ac1381ef8991356d852c88840e01dcd5097b1650549f11` |
+| CI run | [38237049328](https://github.com/decentraland/protocol/actions/runs/38237049328) |
+| Package version | `1.0.0-38237049328.commit-e2f9e48` |
+| Source PR head | `5ce0df947bc7d48c60449f5bad9cebf4c532d557` |
+| CI merge commit | `e2f9e485a0b51cff160c297e627eb6ab05f9ba65` |
+| Archive SHA256 | `be2412bd4f8de47334a55825c1799be8548f56418277c80853eca6fa7479f159` |
+| Wire checks | Nine passed; schema lint/build/released-main compatibility passed |
 
-The archive's room-recovery schema matches the tested source after CRLF/LF normalization;
-the generated TypeScript, JavaScript and declarations match the tested generation. Its version
-and archive hash differ from the earlier local candidate. `yarn.lock` pins the published bytes.
-No local archive or unpublished registry version is required to build this PR.
+The published schema and generated TypeScript, JavaScript and declarations match the reviewed
+source after normalizing line endings. `package.json` and `yarn.lock` pin the exact archive;
+validation uses a frozen install and the full consumer suite.
 
-For field semantics and consumer rules, read the
-[protocol contract](https://github.com/decentraland/protocol/blob/feat/pulse-room-recovery/docs/pulse-room-recovery.md).
-Promote the dependency to the reviewed main-release artifact after protocol #498 merges and
-revalidate the install. Coordinated backend activation, broker permissions, bootstrap and
-actual Cloud cutoff/clock acceptance remain deployment requirements.
+Production activation still requires the reviewed main-release artifact, coordinated backend
+activation, restricted completion publishing and actual Cloud cutoff/clock acceptance.
+There is no bootstrap message or database migration in the simplified implementation.

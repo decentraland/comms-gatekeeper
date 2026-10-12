@@ -7,11 +7,11 @@ export const metricDeclarations = {
   ...getDefaultHttpMetrics(),
   ...logsMetricsDeclarations,
   dcl_gatekeeper_cluster_cleanup_capacity_total: {
-    help: 'Room cleanup dispatches deferred because the durable journal could not admit work',
+    help: 'Room cleanup dispatches deferred because the bounded process receipt cache could not admit work',
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_cleanup_unfinished_total: {
-    help: 'Room plans blocked by an unfinished or ambiguous durable destructive dispatch',
+    help: 'Room plans blocked by an unfinished or ambiguous destructive dispatch in this process',
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_nats_connected: {

@@ -1,14 +1,12 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
 import {
   PeerClusterChange,
-  RoomAdmissionState,
-  RoomCleanupCompleted,
-  RoomCleanupOperation
+  TakeoverCompleted,
+  PendingTakeover
 } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { setMaxListeners } from 'events'
 import { NatsMessageHandler, NatsSubscription } from '../../adapters/nats'
-import { CleanupDispatch } from '../../adapters/room-cleanup-journal'
 import { getErrorMessage } from '../errors'
 import { AppComponents } from '../../types'
 import { positiveIntegerOr, positiveNumberOr } from '../../utils/config'
@@ -21,8 +19,13 @@ const TAKEOVER_ATTEMPTS = 3
 function safeLabel(value: string): boolean {
   return typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\s\x00-\x1f]/.test(value)
 }
-function safeSeconds(value: number): boolean {
-  return Number.isSafeInteger(value) && value >= 0 && value <= Math.floor(Number.MAX_SAFE_INTEGER / 1000)
+function safeSeconds(value: number | undefined): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= Math.floor(Number.MAX_SAFE_INTEGER / 1000)
+  )
 }
 /** Only affirmative application rejections with no destructive side effect permit retry. */
 function isDefiniteRejection(error: unknown): boolean {
@@ -35,31 +38,21 @@ function isDefiniteRejection(error: unknown): boolean {
 }
 
 /**
- * Executes Pulse-owned room recovery under the one-active-Gatekeeper contract.
- * 1. Positively read authority; changes and recovery messages are only hints.
- * 2. Journal dispatch before Cloud removal and persist the exact confirmed cutoff before reporting it.
- * 3. Read exact ready authority and revalidate around presence, access and token signing.
- * Unfinished journal rows block admission across process/epoch changes. Uncertain destructive calls
- * require controlled operator reconciliation; broker flush is never an application acknowledgement.
- * @param components - Pulse transport, access, LiveKit, wallet queue and durable dispatch journal.
- * @returns A lifecycle component; missing recovery authority always defers work.
+ * Executes Pulse-owned takeover recovery under the one-active-Gatekeeper contract.
+ * 1. Read positive exact-session authority; broker changes are only hints.
+ * 2. Retain bounded in-memory removal receipts before publishing completion.
+ * 3. Revalidate the ready assignment around access checks and credential signing.
+ * Unknown destructive outcomes block the wallet for this process lifetime.
+ * @param components - Pulse transport, access, LiveKit and serialized wallet work.
+ * @returns A lifecycle component; missing takeover authority always defers work.
  */
 export async function createClusterSubscriberComponent(
   components: Pick<
     AppComponents,
-    | 'config'
-    | 'logs'
-    | 'metrics'
-    | 'nats'
-    | 'livekit'
-    | 'accessGate'
-    | 'peerState'
-    | 'clusterWalletQueue'
-    | 'roomCleanupJournal'
+    'config' | 'logs' | 'metrics' | 'nats' | 'livekit' | 'accessGate' | 'peerState' | 'clusterWalletQueue'
   >
 ): Promise<IClusterSubscriberComponent> {
-  const { config, logs, metrics, nats, livekit, accessGate, peerState, clusterWalletQueue, roomCleanupJournal } =
-    components
+  const { config, logs, metrics, nats, livekit, accessGate, peerState, clusterWalletQueue } = components
   const logger = logs.getLogger('cluster-subscriber')
   const [
     enabledFlag,
@@ -70,7 +63,8 @@ export async function createClusterSubscriberComponent(
     backlogSetting,
     connectSetting,
     marginSetting,
-    skewSetting
+    skewSetting,
+    receiptSetting
   ] = await Promise.all([
     config.getString('CLUSTER_SUBSCRIBER_ENABLED'),
     config.getString('NATS_QUEUE_GROUP'),
@@ -80,7 +74,8 @@ export async function createClusterSubscriberComponent(
     config.getNumber('CLUSTER_SNAPSHOT_BACKLOG'),
     config.getNumber('CLUSTER_CONNECT_CONCURRENCY'),
     config.getNumber('CLUSTER_CLEANUP_CUTOFF_MARGIN_SECONDS'),
-    config.getNumber('CLUSTER_CLEANUP_CLOCK_SKEW_ALLOWANCE_MS')
+    config.getNumber('CLUSTER_CLEANUP_CLOCK_SKEW_ALLOWANCE_MS'),
+    config.getNumber('CLUSTER_TAKEOVER_RECEIPT_MAX')
   ])
   const enabled = enabledFlag === 'true'
   const queueGroup = queueSetting || 'comms-gatekeeper-cluster'
@@ -93,42 +88,37 @@ export async function createClusterSubscriberComponent(
   const clockSkewAllowanceMs =
     Number.isInteger(skewSetting) && skewSetting >= 0 && skewSetting <= 5000 ? skewSetting : 1000
   const cutoffMarginSeconds = Math.max(configuredMarginSeconds, Math.ceil(clockSkewAllowanceMs / 1000) + 1)
-  // Positive Cloud results known only to this process. They authorize nothing until persisted.
-  const unpersistedSuccesses = new Map<string, { dispatch: CleanupDispatch; revokeBefore: number }>()
+  const receiptMax = positiveIntegerOr(receiptSetting, 10_000)
+  type Receipt = PendingTakeover & { wallet: string; revokeBefore: number; state: 'dispatched' | 'confirmed' }
+  const receipts = new Map<string, Receipt>()
   const boundaryWait = new AbortController()
   setMaxListeners(0, boundaryWait.signal)
 
   function validPlan(entry: PeerClusterChange, session: string): boolean {
-    const plan = entry.roomRecovery
     if (
-      !plan ||
       entry.session !== session ||
       !SESSION_KEY.test(entry.session) ||
-      !safeLabel(plan.epoch) ||
-      !/^[1-9][0-9]{0,127}$/.test(plan.revision) ||
-      ![RoomAdmissionState.PENDING, RoomAdmissionState.READY].includes(plan.admission) ||
-      !safeSeconds(plan.tokenNotBefore) ||
-      (!plan.cleanupOnly && !safeLabel(entry.clusterId)) ||
-      (plan.cleanupOnly && !!entry.clusterId) ||
-      plan.operations.length > 256 ||
-      (plan.admission === RoomAdmissionState.READY && plan.operations.length > 0)
+      !safeLabel(entry.clusterId) ||
+      !safeSeconds(entry.tokenNotBefore) ||
+      entry.pendingTakeovers.length > 256
     )
       return false
     const ids = new Set<string>()
-    const rooms = new Set<string>()
-    for (const op of plan.operations) {
+    for (const op of entry.pendingTakeovers) {
       if (
-        !safeLabel(op.operationId) ||
-        !safeLabel(op.clusterId) ||
-        !safeSeconds(op.minimumRevokeBefore) ||
-        ids.has(op.operationId) ||
-        rooms.has(op.clusterId)
+        !safeLabel(op.takeoverId) ||
+        !SESSION_KEY.test(op.displacedSession) ||
+        !safeLabel(op.displacedClusterId) ||
+        ids.has(op.takeoverId)
       )
         return false
-      ids.add(op.operationId)
-      rooms.add(op.clusterId)
+      ids.add(op.takeoverId)
     }
-    return plan.admission !== RoomAdmissionState.PENDING || plan.operations.length > 0 || plan.bootstrapRequired
+    return true
+  }
+
+  function unfinished(wallet: string): boolean {
+    return [...receipts.values()].some((receipt) => receipt.wallet === wallet && receipt.state === 'dispatched')
   }
 
   async function resolveAssignment(wallet: string, session: string): Promise<PeerClusterChange | undefined> {
@@ -151,6 +141,15 @@ export async function createClusterSubscriberComponent(
         metrics.increment('dcl_gatekeeper_cluster_authority_unavailable_total')
         return undefined
       }
+      // Only a positive authoritative read proves confirmed receipts are no longer pending.
+      for (const [key, receipt] of receipts) {
+        if (
+          receipt.wallet === wallet &&
+          receipt.state === 'confirmed' &&
+          !entry.pendingTakeovers.some((op) => op.takeoverId === receipt.takeoverId)
+        )
+          receipts.delete(key)
+      }
       return entry
     } catch {
       metrics.increment('dcl_gatekeeper_cluster_authority_unavailable_total')
@@ -158,14 +157,21 @@ export async function createClusterSubscriberComponent(
     }
   }
 
+  function sameOperation(left: PendingTakeover, right: PendingTakeover): boolean {
+    return (
+      left.takeoverId === right.takeoverId &&
+      left.displacedSession === right.displacedSession &&
+      left.displacedClusterId === right.displacedClusterId
+    )
+  }
   function samePlan(left: PeerClusterChange, right: PeerClusterChange): boolean {
     return (
-      left.roomRecovery.epoch === right.roomRecovery.epoch &&
-      left.roomRecovery.revision === right.roomRecovery.revision &&
       left.session === right.session &&
       left.clusterId === right.clusterId &&
       left.realm === right.realm &&
-      left.roomRecovery.cleanupOnly === right.roomRecovery.cleanupOnly
+      left.tokenNotBefore === right.tokenNotBefore &&
+      left.pendingTakeovers.length === right.pendingTakeovers.length &&
+      left.pendingTakeovers.every((op) => right.pendingTakeovers.some((other) => sameOperation(op, other)))
     )
   }
   async function currentPlan(wallet: string, entry: PeerClusterChange): Promise<PeerClusterChange | undefined> {
@@ -173,151 +179,86 @@ export async function createClusterSubscriberComponent(
     return current && samePlan(entry, current) ? current : undefined
   }
   function ready(entry: PeerClusterChange): boolean {
-    return (
-      entry.roomRecovery.admission === RoomAdmissionState.READY &&
-      !entry.roomRecovery.bootstrapRequired &&
-      !entry.roomRecovery.cleanupOnly
-    )
+    return entry.pendingTakeovers.length === 0
   }
-  async function persistKnownSuccesses(wallet: string): Promise<void> {
-    for (const [key, receipt] of unpersistedSuccesses) {
-      if (receipt.dispatch.wallet !== wallet) continue
-      await roomCleanupJournal.confirm(receipt.dispatch, receipt.revokeBefore)
-      unpersistedSuccesses.delete(key)
-    }
-  }
-  async function reportCompletion(wallet: string, entry: PeerClusterChange, receipt: CleanupDispatch): Promise<void> {
+  async function reportCompletion(wallet: string, entry: PeerClusterChange, receipt: Receipt): Promise<void> {
     if (stopped) return
-    const current = await currentPlan(wallet, entry)
-    if (!current || current.roomRecovery.bootstrapRequired) return
-    const pending = current.roomRecovery.operations.find((op) => op.operationId === receipt.operationId)
-    if (
-      !pending ||
-      pending.clusterId !== receipt.clusterId ||
-      receipt.revokeBefore < pending.minimumRevokeBefore ||
-      receipt.epoch !== current.roomRecovery.epoch
-    )
-      return
+    const current = await resolveAssignment(wallet, entry.session)
+    if (!current || !current.pendingTakeovers.some((op) => sameOperation(op, receipt)) || unfinished(wallet)) return
     await nats.publishConfirmed(
-      `peer.${wallet}.room_cleanup_completed`,
-      RoomCleanupCompleted.encode({
-        epoch: receipt.epoch,
-        revision: current.roomRecovery.revision,
-        operationId: receipt.operationId,
-        clusterId: receipt.clusterId,
-        revokeBefore: receipt.revokeBefore,
-        observedReady: false
+      `peer.${wallet}.takeover_completed`,
+      TakeoverCompleted.encode({
+        takeoverId: receipt.takeoverId,
+        revokeBefore: receipt.revokeBefore
       }).finish()
     )
   }
 
-  async function cleanOperation(wallet: string, entry: PeerClusterChange, op: RoomCleanupOperation): Promise<boolean> {
-    const plan = entry.roomRecovery
-    const stored = await roomCleanupJournal.get(wallet, plan.epoch, op.operationId)
-    if (stopped) return false
+  async function cleanOperation(wallet: string, entry: PeerClusterChange, op: PendingTakeover): Promise<boolean> {
+    const key = JSON.stringify([wallet, op.takeoverId])
+    const stored = receipts.get(key)
     if (stored) {
-      if (
-        stored.state !== 'confirmed' ||
-        stored.clusterId !== op.clusterId ||
-        stored.revokeBefore < op.minimumRevokeBefore
-      )
-        return false
+      if (stored.state !== 'confirmed' || !sameOperation(stored, op)) return false
       await reportCompletion(wallet, entry, stored)
       return true
     }
     for (let attempt = 1; attempt <= TAKEOVER_ATTEMPTS; attempt++) {
-      const current = await currentPlan(wallet, entry)
-      const pending = current?.roomRecovery.operations.find((item) => item.operationId === op.operationId)
+      const current = await resolveAssignment(wallet, entry.session)
       if (
         !current ||
-        current.roomRecovery.bootstrapRequired ||
-        !pending ||
-        pending.clusterId !== op.clusterId ||
-        pending.minimumRevokeBefore !== op.minimumRevokeBefore ||
-        (await roomCleanupJournal.hasUnfinished(wallet)) ||
+        !current.pendingTakeovers.some((item) => sameOperation(item, op)) ||
+        unfinished(wallet) ||
         stopped
       )
         return false
-      const cutoff = Math.max(Math.floor(Date.now() / 1000) + cutoffMarginSeconds, op.minimumRevokeBefore)
-      if (cutoff * 1000 + clockSkewAllowanceMs - Date.now() >= 60_000) return false
-      const receipt: CleanupDispatch = {
-        wallet,
-        epoch: plan.epoch,
-        operationId: op.operationId,
-        clusterId: op.clusterId,
-        revokeBefore: cutoff
-      }
-      if (!(await roomCleanupJournal.dispatch(receipt))) {
+      if (receipts.size >= receiptMax) {
         metrics.increment('dcl_gatekeeper_cluster_cleanup_capacity_total')
         return false
       }
-      // No-call cancellation is safe only before Cloud handoff. A crash here leaves an honest unknown row.
-      const dispatchAuthority = await currentPlan(wallet, entry)
-      const dispatchOperation = dispatchAuthority?.roomRecovery.operations.find(
-        (item) => item.operationId === op.operationId
-      )
-      if (
-        !dispatchAuthority ||
-        dispatchAuthority.roomRecovery.bootstrapRequired ||
-        stopped ||
-        !dispatchOperation ||
-        dispatchOperation.clusterId !== op.clusterId ||
-        dispatchOperation.minimumRevokeBefore !== op.minimumRevokeBefore
-      ) {
-        await roomCleanupJournal.cancelDefiniteFailure(receipt)
-        return false
-      }
-      // Recompute AFTER the final authority/database await. The journal records a floor;
-      // a crash remains blocked regardless of the precise cutoff eventually sent to Cloud.
-      const effectiveCutoff = Math.max(
+      // Strictly exceed the previously completed floor, including same-second A -> B -> A.
+      const cutoff = Math.max(
         Math.floor(Date.now() / 1000) + cutoffMarginSeconds,
-        cutoff,
-        op.minimumRevokeBefore
+        current.tokenNotBefore + 1,
+        ...[...receipts.values()].filter((item) => item.wallet === wallet).map((item) => item.revokeBefore + 1)
       )
-      if (effectiveCutoff * 1000 + clockSkewAllowanceMs - Date.now() >= 60_000) {
-        await roomCleanupJournal.cancelDefiniteFailure(receipt)
-        return false
-      }
+      if (!safeSeconds(cutoff) || cutoff * 1000 + clockSkewAllowanceMs - Date.now() >= 60_000) return false
+      const receipt: Receipt = { ...op, wallet, revokeBefore: cutoff, state: 'dispatched' }
+      // No await between recording the dispatch and handing the removal to Cloud.
+      receipts.set(key, receipt)
       try {
         await livekit.removeParticipant(
-          livekit.getIslandRoomName(op.clusterId),
+          livekit.getIslandRoomName(op.displacedClusterId),
           wallet,
-          new Date(effectiveCutoff * 1000)
+          new Date(cutoff * 1000)
         )
       } catch (error) {
         metrics.increment('dcl_gatekeeper_cluster_takeover_failed_total')
         if (!isDefiniteRejection(error)) {
           metrics.increment('dcl_gatekeeper_cluster_cleanup_unfinished_total')
-          logger.error('Room removal outcome is unknown; durable admission block retained', {
+          logger.error('Room removal outcome is unknown; process admission block retained', {
             wallet,
-            operationId: op.operationId,
+            takeoverId: op.takeoverId,
             error: getErrorMessage(error)
           })
           return false
         }
-        await roomCleanupJournal.cancelDefiniteFailure(receipt)
+        receipts.delete(key)
         if (stopped || attempt === TAKEOVER_ATTEMPTS) return false
         if (retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt))
         continue
       }
-      if (Date.now() + clockSkewAllowanceMs >= effectiveCutoff * 1000) {
-        // Success after the boundary does not prove refreshed tokens were covered at execution.
-        // Keep the dispatch unresolved rather than issue a winner token across an uncertain cutoff.
+      if (Date.now() + clockSkewAllowanceMs >= cutoff * 1000) {
         metrics.increment('dcl_gatekeeper_cluster_cleanup_unfinished_total')
-        logger.error('Removal confirmation arrived after its revocation cutoff; reconciliation required', {
+        logger.error('Removal confirmed after revocation cutoff; wallet remains blocked in this process', {
           wallet,
-          operationId: op.operationId
+          takeoverId: op.takeoverId
         })
         return false
       }
-      // Capture confirmed success before any await. DB loss blocks admission; only this process may retry persistence.
-      const key = JSON.stringify([wallet, plan.epoch, op.operationId])
-      unpersistedSuccesses.set(key, { dispatch: receipt, revokeBefore: effectiveCutoff })
-      await roomCleanupJournal.confirm(receipt, effectiveCutoff)
-      unpersistedSuccesses.delete(key)
+      receipt.state = 'confirmed'
       metrics.increment('dcl_gatekeeper_cluster_takeover_evicted_total')
       if (stopped) return false
-      await reportCompletion(wallet, entry, { ...receipt, revokeBefore: effectiveCutoff })
+      await reportCompletion(wallet, entry, receipt)
       return true
     }
     return false
@@ -326,57 +267,18 @@ export async function createClusterSubscriberComponent(
   async function processPeerConnect(wallet: string, session: string): Promise<void> {
     let entry = await resolveAssignment(wallet, session)
     if (!entry || stopped) return
-    await persistKnownSuccesses(wallet)
-    if (stopped || (await roomCleanupJournal.hasUnfinished(wallet))) {
+    if (unfinished(wallet)) {
       metrics.increment('dcl_gatekeeper_cluster_cleanup_unfinished_total')
       return
     }
-    if (entry.roomRecovery.bootstrapRequired) return
-    await roomCleanupJournal.pruneConfirmed(
-      wallet,
-      entry.roomRecovery.epoch,
-      entry.roomRecovery.operations.map((op) => op.operationId)
-    )
-    if (stopped) return
-    if (entry.roomRecovery.admission === RoomAdmissionState.PENDING) {
-      for (const op of entry.roomRecovery.operations) if (!(await cleanOperation(wallet, entry, op))) return
-      // A flush says nothing about Pulse recording readiness.
-      entry = await currentPlan(wallet, entry)
+    if (entry.pendingTakeovers.length > 0) {
+      for (const op of entry.pendingTakeovers) if (!(await cleanOperation(wallet, entry, op))) return
+      // Broker flush is not acknowledgement; Pulse must positively report no pending takeovers.
+      entry = await resolveAssignment(wallet, session)
       if (!entry) return
     }
-    if (
-      entry.roomRecovery.cleanupOnly &&
-      entry.roomRecovery.admission === RoomAdmissionState.READY &&
-      !entry.roomRecovery.bootstrapRequired
-    ) {
-      // Pulse retains a completed departure until this process observes readiness AND prunes
-      // confirmed receipts. A lost observation is retried through the retained tombstone hints.
-      await roomCleanupJournal.pruneConfirmed(wallet, entry.roomRecovery.epoch, [])
-      const retired = await currentPlan(wallet, entry)
-      if (
-        !retired ||
-        retired.roomRecovery.admission !== RoomAdmissionState.READY ||
-        !retired.roomRecovery.cleanupOnly ||
-        retired.roomRecovery.bootstrapRequired ||
-        (await roomCleanupJournal.hasUnfinished(wallet)) ||
-        stopped
-      )
-        return
-      await nats.publishConfirmed(
-        `peer.${wallet}.room_cleanup_completed`,
-        RoomCleanupCompleted.encode({
-          epoch: retired.roomRecovery.epoch,
-          revision: retired.roomRecovery.revision,
-          operationId: '',
-          clusterId: '',
-          revokeBefore: 0,
-          observedReady: true
-        }).finish()
-      )
-      return
-    }
-    if (!ready(entry) || stopped || (await roomCleanupJournal.hasUnfinished(wallet)) || stopped) return
-    const boundary = entry.roomRecovery.tokenNotBefore * 1000 + clockSkewAllowanceMs
+    if (!ready(entry) || stopped || unfinished(wallet)) return
+    const boundary = entry.tokenNotBefore * 1000 + clockSkewAllowanceMs
     if (boundary - Date.now() >= 60_000) return
     if (boundary > Date.now()) {
       await waitUntil(boundary, boundaryWait.signal)
@@ -385,9 +287,9 @@ export async function createClusterSubscriberComponent(
       if (
         !afterWait ||
         !ready(afterWait) ||
-        afterWait.roomRecovery.tokenNotBefore * 1000 + clockSkewAllowanceMs > Date.now() ||
+        afterWait.tokenNotBefore * 1000 + clockSkewAllowanceMs > Date.now() ||
         stopped ||
-        (await roomCleanupJournal.hasUnfinished(wallet)) ||
+        unfinished(wallet) ||
         stopped
       )
         return
@@ -417,9 +319,8 @@ export async function createClusterSubscriberComponent(
       return
     }
     const beforeMint = await currentPlan(wallet, entry)
-    if (!beforeMint || !ready(beforeMint) || stopped || (await roomCleanupJournal.hasUnfinished(wallet)) || stopped)
-      return
-    const nbf = Math.max(Math.floor((Date.now() - clockSkewAllowanceMs) / 1000), beforeMint.roomRecovery.tokenNotBefore)
+    if (!beforeMint || !ready(beforeMint) || stopped || unfinished(wallet) || stopped) return
+    const nbf = Math.max(Math.floor((Date.now() - clockSkewAllowanceMs) / 1000), beforeMint.tokenNotBefore)
     // A higher floor arriving while checking access is retried on a later hint.
     if (nbf * 1000 + clockSkewAllowanceMs > Date.now()) return
     const credentials = await livekit.generateCredentials(wallet, room, { cast: [] }, false, undefined, {
@@ -431,10 +332,10 @@ export async function createClusterSubscriberComponent(
     if (
       !afterMint ||
       !ready(afterMint) ||
-      afterMint.roomRecovery.tokenNotBefore !== beforeMint.roomRecovery.tokenNotBefore ||
+      afterMint.tokenNotBefore !== beforeMint.tokenNotBefore ||
       nbf * 1000 + clockSkewAllowanceMs > Date.now() ||
       stopped ||
-      (await roomCleanupJournal.hasUnfinished(wallet))
+      unfinished(wallet)
     )
       return
     const previous = peerState.get(wallet)
@@ -456,6 +357,17 @@ export async function createClusterSubscriberComponent(
     }
     metrics.increment('dcl_gatekeeper_cluster_published_total')
     peerState.set(wallet, { clusterId: entry.clusterId, room, session: entry.session, lastSeen: Date.now() })
+  }
+  let queuedWalletWork = 0
+  function enqueueWallet(wallet: string, task: () => Promise<void>): Promise<void> {
+    if (stopped || queuedWalletWork >= snapshotBacklog + snapshotConcurrency + connectConcurrency) {
+      metrics.increment('dcl_gatekeeper_cluster_snapshot_overflow_total')
+      return Promise.resolve()
+    }
+    queuedWalletWork++
+    return clusterWalletQueue.enqueue(wallet, task).finally(() => {
+      queuedWalletWork--
+    })
   }
   async function processAuthoritativeChange(wallet: string, change: PeerClusterChange): Promise<void> {
     await processPeerConnect(wallet, change.session)
@@ -501,7 +413,7 @@ export async function createClusterSubscriberComponent(
     // After the received-counter: this is a payload problem, not a decode one. Protobuf
     // decodes a missing cluster_id as '', and unguarded that would dump every such peer into
     // one shared `island-` room.
-    if (!change.clusterId && !change.roomRecovery?.cleanupOnly) {
+    if (!change.clusterId) {
       logger.warn(`Cannot process cluster_change for ${wallet}: empty clusterId`)
       return
     }
@@ -513,11 +425,9 @@ export async function createClusterSubscriberComponent(
     // single replica; before scaling it out, two events for one wallet could land on different
     // replicas and publish out of order, so that step needs a per-wallet sequence from Pulse
     // or wallet-affine routing first.
-    void clusterWalletQueue
-      .enqueue(wallet, () => processAuthoritativeChange(wallet, change))
-      .catch((error) => {
-        logger.error(`Cannot process cluster_change for ${wallet}: ${getErrorMessage(error)}`)
-      })
+    void enqueueWallet(wallet, () => processAuthoritativeChange(wallet, change)).catch((error) => {
+      logger.error(`Cannot process cluster_change for ${wallet}: ${getErrorMessage(error)}`)
+    })
   }
 
   // Bounds how many connects are being resolved at once. A WS Connector deploy reconnects every
@@ -549,11 +459,11 @@ export async function createClusterSubscriberComponent(
 
     // Same queue as cluster changes, so within one process a reconnect cannot interleave with
     // a move for the same wallet.
-    void clusterWalletQueue
-      .enqueue(wallet, () => withConnectSlot(() => (stopped ? Promise.resolve() : processPeerConnect(wallet, session))))
-      .catch((error) => {
-        logger.error(`Cannot process connect for ${wallet}: ${getErrorMessage(error)}`)
-      })
+    void enqueueWallet(wallet, () =>
+      withConnectSlot(() => (stopped ? Promise.resolve() : processPeerConnect(wallet, session)))
+    ).catch((error) => {
+      logger.error(`Cannot process connect for ${wallet}: ${getErrorMessage(error)}`)
+    })
   }
 
   // Recovery is lower-priority background work. FIFO admission across wallets prevents one
@@ -575,10 +485,9 @@ export async function createClusterSubscriberComponent(
       activeSnapshots.add(wallet)
       // Fire-and-forget: each job releases its slot on success or failure; stop clears pending
       // work and the existing wallet queue lifecycle drains jobs already in flight.
-      void clusterWalletQueue
-        .enqueue(wallet, async () => {
-          if (!stopped) await processPeerConnect(wallet, session)
-        })
+      void enqueueWallet(wallet, async () => {
+        if (!stopped) await processPeerConnect(wallet, session)
+      })
         .catch((error) => {
           logger.warn('Cannot reconcile cluster snapshot', { wallet, error: getErrorMessage(error) })
         })
