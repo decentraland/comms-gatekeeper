@@ -37,6 +37,12 @@ function isDefiniteRejection(error: unknown): boolean {
   )
 }
 
+/** Cloud revokes departed participants' tokens even when this application error is returned. */
+function isCloudParticipantAbsent(error: unknown): boolean {
+  const failure = error as { code?: unknown; status?: unknown; message?: unknown } | undefined
+  return failure?.code === 'not_found' && failure.status === 404 && failure.message === 'participant does not exist'
+}
+
 /**
  * Executes Pulse-owned takeover recovery under the one-active-Gatekeeper contract.
  * 1. Read positive exact-session authority; broker changes are only hints.
@@ -202,6 +208,7 @@ export async function createClusterSubscriberComponent(
       await reportCompletion(wallet, entry, stored)
       return true
     }
+    let previousCutoff = 0
     for (let attempt = 1; attempt <= TAKEOVER_ATTEMPTS; attempt++) {
       const current = await resolveAssignment(wallet, entry.session)
       if (
@@ -212,6 +219,17 @@ export async function createClusterSubscriberComponent(
       )
         return false
       if (receipts.size >= receiptMax) {
+        // Settled removals can be repeated only after fresh authority validation above.
+        // Keep the receipt through its cutoff and token lifetime; a repeat cannot lower the floor.
+        for (const [receiptKey, receipt] of receipts) {
+          if (
+            receipt.state === 'confirmed' &&
+            Date.now() >= (receipt.revokeBefore + ttlSeconds) * 1000 + clockSkewAllowanceMs
+          )
+            receipts.delete(receiptKey)
+        }
+      }
+      if (receipts.size >= receiptMax) {
         metrics.increment('dcl_gatekeeper_cluster_cleanup_capacity_total')
         return false
       }
@@ -219,6 +237,7 @@ export async function createClusterSubscriberComponent(
       const cutoff = Math.max(
         Math.floor(Date.now() / 1000) + cutoffMarginSeconds,
         current.tokenNotBefore + 1,
+        previousCutoff + 1,
         ...[...receipts.values()].filter((item) => item.wallet === wallet).map((item) => item.revokeBefore + 1)
       )
       if (!safeSeconds(cutoff) || cutoff * 1000 + clockSkewAllowanceMs - Date.now() >= 60_000) return false
@@ -232,28 +251,36 @@ export async function createClusterSubscriberComponent(
           new Date(cutoff * 1000)
         )
       } catch (error) {
-        metrics.increment('dcl_gatekeeper_cluster_takeover_failed_total')
-        if (!isDefiniteRejection(error)) {
-          metrics.increment('dcl_gatekeeper_cluster_cleanup_unfinished_total')
-          logger.error('Room removal outcome is unknown; process admission block retained', {
-            wallet,
-            takeoverId: op.takeoverId,
-            error: getErrorMessage(error)
-          })
-          return false
+        // https://docs.livekit.io/intro/basics/rooms-participants-tracks/participants/
+        // This Cloud application result confirms revocation, unlike a generic/proxy 404.
+        if (!isCloudParticipantAbsent(error)) {
+          metrics.increment('dcl_gatekeeper_cluster_takeover_failed_total')
+          if (!isDefiniteRejection(error)) {
+            metrics.increment('dcl_gatekeeper_cluster_cleanup_unfinished_total')
+            logger.error('Room removal outcome is unknown; process admission block retained', {
+              wallet,
+              takeoverId: op.takeoverId,
+              error: getErrorMessage(error)
+            })
+            return false
+          }
+          receipts.delete(key)
+          if (stopped || attempt === TAKEOVER_ATTEMPTS) return false
+          if (retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt))
+          continue
         }
-        receipts.delete(key)
-        if (stopped || attempt === TAKEOVER_ATTEMPTS) return false
-        if (retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt))
-        continue
       }
       if (Date.now() + clockSkewAllowanceMs >= cutoff * 1000) {
-        metrics.increment('dcl_gatekeeper_cluster_cleanup_unfinished_total')
-        logger.error('Removal confirmed after revocation cutoff; wallet remains blocked in this process', {
+        // This RPC has positively settled: no delayed destructive request remains.
+        // Keep admission closed and retry with a higher cutoff after revalidating Pulse.
+        receipts.delete(key)
+        previousCutoff = cutoff
+        logger.warn('Removal confirmed after revocation cutoff; retrying with a fresh cutoff', {
           wallet,
           takeoverId: op.takeoverId
         })
-        return false
+        if (stopped || attempt === TAKEOVER_ATTEMPTS) return false
+        continue
       }
       receipt.state = 'confirmed'
       metrics.increment('dcl_gatekeeper_cluster_takeover_evicted_total')
@@ -308,6 +335,7 @@ export async function createClusterSubscriberComponent(
     }
     if (stopped) return
     try {
+      // Island credentials enforce bans at issuance; outage recovery uses a later hint.
       const access = await accessGate.getAccessState({ address: wallet })
       if (access.isBanned || access.isDenylisted) {
         metrics.increment('dcl_gatekeeper_cluster_banned_skipped_total')

@@ -109,26 +109,31 @@ Gatekeeper serializes wallet work, positively verifies each pending tuple, remov
 wallet from that displaced room, and saves a bounded in-memory confirmed receipt before publishing
 `TakeoverCompleted` on `peer.{wallet}.takeover_completed`. Lost completions resend the same receipt
 without repeating confirmed removal. A positive assignment with zero pending takeovers is required
-before minting. Confirmed receipts are pruned only after a positive read proves their IDs absent.
+before minting. Confirmed receipts are pruned after a positive read proves their IDs absent, or
+reclaimed at capacity after their cutoff plus admission-token lifetime and clock reserve.
 
 Revocation cutoff strictly exceeds the maximum previous token floor and process receipts, including
 same-second A -> B -> A. It is computed immediately before Cloud handoff from local whole seconds
 plus `CLUSTER_CLEANUP_CUTOFF_MARGIN_SECONDS` (default 5, maximum 30). The margin includes at least
 `ceil(clockSkewAllowance/1000)+1`; clock allowance defaults to 1000ms and accepts integer 0..5000.
 A boundary 60 seconds or more away defers. Success must arrive strictly before cutoff minus skew.
-Definite no-side-effect rejections may retry; unknown outcomes and late success permanently block
-the wallet in this process. Unknown receipts are never evicted to admit more work.
+Definite no-side-effect rejections may retry. A late successful removal has settled and retries
+with a fresh cutoff; the documented Cloud participant-missing response confirms revocation too.
+Unknown transport outcomes block the wallet in this process and are never evicted to admit more work.
 
 Ready assignments wait until the floor plus skew reserve, then revalidate exact session, room,
 realm, floor and pending tuples around presence/access checks and token signing. Tokens use
 `nbf = max(floor((localNow-skewAllowance)/1000), tokenNotBefore)`. Credentials are delivered only
 while that ready authority still holds and nbf is valid. Delivery failure is retried by later hints.
 Bans/deny lists apply to issuance. Existing room membership suppresses unnecessary credentials.
+Access-gate and membership-check outages intentionally defer credentials; later hints retry after
+recovery. This replaces the older fail-open behavior without retaining a failure block.
 
 `CLUSTER_TAKEOVER_RECEIPT_MAX` bounds receipts (default 10000). Snapshot concurrency/backlog and
 connect concurrency bound queued work; capacity exhaustion fails closed. Shutdown cancels waiting
-boundaries and defers further side effects. One active Gatekeeper is required; release overlap is
-an accepted limitation. In-memory receipts do not survive Gatekeeper restart: uncertain Cloud
+boundaries and defers further side effects. One active Gatekeeper is required; deployments must
+use the zero-task barrier in [takeover operations](room-recovery-operations.md#activation-and-rollback).
+In-memory receipts do not survive Gatekeeper restart: uncertain Cloud
 outcomes across a process crash, Pulse state loss and old room maintenance are outside this narrow
 runtime guarantee. There is no durable journal or automatic restart/bootstrap protocol.
 

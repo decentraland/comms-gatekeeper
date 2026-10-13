@@ -231,13 +231,84 @@ describe('when executing Pulse-owned takeover recovery', () => {
         expect(assignments()).toHaveLength(1)
       })
     })
-    describe.each(['transport-error', 'not-found', 'late-success'])('and removal produces %s', (outcome) => {
+    describe('and Cloud confirms a departed participant through its application error', () => {
+      beforeEach(() => {
+        livekit.removeParticipant.mockRejectedValue({
+          code: 'not_found',
+          status: 404,
+          message: 'participant does not exist'
+        })
+      })
+      it('should report revocation and admit after its cutoff without repeating removal', async () => {
+        await deliver()
+        expect([livekit.removeParticipant.mock.calls.length, reports(), assignments().length]).toEqual([
+          1,
+          [{ takeoverId: 'takeover-a', revokeBefore: 1_000_001 }],
+          1
+        ])
+      })
+    })
+    describe('and a settled removal succeeds after its cutoff', () => {
+      beforeEach(() => {
+        livekit.removeParticipant.mockImplementationOnce(async () => {
+          now = 1_000_001_000
+        })
+      })
+      it('should repeat with a strictly higher cutoff before reporting or issuing credentials', async () => {
+        await deliver()
+        expect([
+          livekit.removeParticipant.mock.calls.map(([, , cutoff]) => cutoff),
+          reports(),
+          assignments().length
+        ]).toEqual([
+          [new Date(1_000_001_000), new Date(1_000_002_000)],
+          [{ takeoverId: 'takeover-a', revokeBefore: 1_000_002 }],
+          1
+        ])
+      })
+      describe('and Pulse supersedes the operation before the settled response', () => {
+        beforeEach(() => {
+          livekit.removeParticipant.mockReset().mockImplementationOnce(async () => {
+            now = 1_000_001_000
+            authority.session = NEXT_SESSION
+            authority.pendingTakeovers = []
+          })
+        })
+        it('should leave the winner untouched and recover only from its fresh hint', async () => {
+          await deliver('connect', WALLET, SESSION)
+          expect([livekit.removeParticipant.mock.calls.length, reports(), assignments()]).toEqual([1, [], []])
+          await deliver('connect')
+          expect([livekit.removeParticipant.mock.calls.length, assignments().length]).toEqual([1, 1])
+        })
+      })
+    })
+    describe('and every settled removal misses its cutoff', () => {
+      beforeEach(() => {
+        livekit.removeParticipant.mockImplementation(async (_room, _wallet, cutoff) => {
+          now = cutoff!.getTime()
+        })
+      })
+      it('should bound the attempts and recover on a later hint without an unknown quarantine', async () => {
+        await deliver()
+        expect([livekit.removeParticipant.mock.calls.length, reports(), assignments()]).toEqual([3, [], []])
+        livekit.removeParticipant.mockResolvedValue(undefined)
+        await deliver('connect')
+        expect([livekit.removeParticipant.mock.calls.length, reports(), assignments().length]).toEqual([
+          4,
+          [{ takeoverId: 'takeover-a', revokeBefore: 1_000_004 }],
+          1
+        ])
+      })
+    })
+    describe.each(['transport-error', 'generic-404', 'other-not-found'])('and removal produces %s', (outcome) => {
       beforeEach(() => {
         if (outcome === 'transport-error') livekit.removeParticipant.mockRejectedValue(new Error('timeout'))
-        if (outcome === 'not-found') livekit.removeParticipant.mockRejectedValue({ code: 'not_found', status: 404 })
-        if (outcome === 'late-success')
-          livekit.removeParticipant.mockImplementation(async () => {
-            now = 1_000_001_000
+        if (outcome === 'generic-404') livekit.removeParticipant.mockRejectedValue({ status: 404 })
+        if (outcome === 'other-not-found')
+          livekit.removeParticipant.mockRejectedValue({
+            code: 'not_found',
+            status: 404,
+            message: 'wrong route'
           })
       })
       it('should retain an unknown outcome block across later assignments in this process', async () => {
@@ -308,6 +379,18 @@ describe('when executing Pulse-owned takeover recovery', () => {
     it('should deliver no credentials', async () => {
       await deliver()
       expect(assignments()).toEqual([])
+    })
+  })
+  describe.each(['presence', 'access'])('and a transient %s outage recovers', (failure) => {
+    beforeEach(() => {
+      if (failure === 'presence') livekit.holdsParticipant.mockRejectedValueOnce(new Error('unavailable'))
+      if (failure === 'access') accessGate.getAccessState.mockRejectedValueOnce(new Error('unavailable'))
+    })
+    it('should defer admission during the outage and issue after a later authoritative hint', async () => {
+      await deliver()
+      expect(livekit.generateCredentials).not.toHaveBeenCalled()
+      await deliver('cluster_snapshot')
+      expect(assignments()).toHaveLength(1)
     })
   })
   describe.each(['new-session', 'new-room', 'pending', 'higher-floor', 'aba'])(
@@ -425,14 +508,17 @@ describe('when a takeover receipt cache has capacity one', () => {
   let livekit: ReturnType<typeof createLivekitMockedComponent>
   let authority: PeerClusterChange
   let acceptReports: boolean
-  async function deliver(): Promise<void> {
+  let now: number
+  async function deliver(wallet = WALLET): Promise<void> {
     nats.subscribe.mock.calls.find(([subject]) => subject === 'peer.*.connect')[1](
-      `peer.${WALLET}.connect`,
+      `peer.${wallet}.connect`,
       Buffer.from(authority.session)
     )
     await flushMacrotask()
   }
   beforeEach(async () => {
+    now = 1_000_000_400
+    jest.spyOn(Date, 'now').mockImplementation(() => now)
     authority = plan()
     authority.pendingTakeovers = [{ takeoverId: 'first', displacedSession: OLD_SESSION, displacedClusterId: 'room-a' }]
     acceptReports = false
@@ -449,7 +535,10 @@ describe('when a takeover receipt cache has capacity one', () => {
       }
       return 'confirmed'
     })
-    livekit = createLivekitMockedComponent()
+    livekit = createLivekitMockedComponent({
+      generateCredentials: jest.fn().mockResolvedValue({ url: 'wss://livekit.example', token: 'jwt' }),
+      buildConnectionUrl: jest.fn().mockReturnValue('livekit:wss://livekit.example?access_token=jwt')
+    })
     component = await createClusterSubscriberComponent({
       config: createConfigMockedComponent({
         getString: jest
@@ -518,6 +607,30 @@ describe('when a takeover receipt cache has capacity one', () => {
       expect(nats.request).toHaveBeenCalledTimes(3)
     })
   })
+  describe('and the wallet with a confirmed receipt departs', () => {
+    beforeEach(async () => {
+      await deliver()
+      authority.pendingTakeovers = [{ takeoverId: 'second', displacedSession: SESSION, displacedClusterId: 'room-b' }]
+      acceptReports = true
+      now = 1_000_065_999
+    })
+    it('should reserve the receipt through its cutoff, token lifetime and skew allowance', async () => {
+      await deliver('0x2222222222222222222222222222222222222222')
+      expect(livekit.removeParticipant).toHaveBeenCalledTimes(1)
+    })
+    describe('and the receipt retention boundary has elapsed', () => {
+      beforeEach(() => {
+        now = 1_000_066_000
+      })
+      it('should reclaim capacity so an unrelated wallet can finish its takeover', async () => {
+        await deliver('0x2222222222222222222222222222222222222222')
+        expect([
+          livekit.removeParticipant.mock.calls.map(([room]) => room),
+          livekit.generateCredentials.mock.calls.length
+        ]).toEqual([['island-room-a', 'island-room-b'], 1])
+      })
+    })
+  })
   describe('and removal succeeds inside the clock skew reserve', () => {
     let timestamp: number
     beforeEach(() => {
@@ -527,10 +640,13 @@ describe('when a takeover receipt cache has capacity one', () => {
         timestamp = 1_000_004_000
       })
     })
-    it('should keep the wallet blocked despite success before the literal cutoff', async () => {
+    it('should repeat the settled removal with a higher cutoff outside the skew reserve', async () => {
       await deliver()
       await deliver()
-      expect([livekit.removeParticipant.mock.calls.length, nats.publishConfirmed.mock.calls]).toEqual([1, []])
+      expect([
+        livekit.removeParticipant.mock.calls.map(([, , cutoff]) => cutoff),
+        nats.publishConfirmed.mock.calls.length
+      ]).toEqual([[new Date(1_000_005_000), new Date(1_000_009_000)], 2])
     })
   })
   describe('and removal outcome is unknown', () => {

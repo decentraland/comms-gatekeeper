@@ -99,6 +99,7 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
   let received: { subject: string; message: IslandChangedMessage }[]
   let completions: TakeoverCompleted[]
   let acceptCompletions: boolean
+  let inactiveRecovery: boolean
 
   beforeEach(async () => {
     if (!(await probeBroker())) throw new Error(`Required NATS broker is not reachable at ${NATS_TEST_URL}`)
@@ -107,6 +108,7 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     assignments = new Map()
     completions = []
     acceptCompletions = false
+    inactiveRecovery = false
     answerForAnySession = false
     jest.spyOn(components.livekit, 'holdsParticipant').mockResolvedValue(false)
     publisher.subscribe('peer.*.cluster_assignment', {
@@ -133,6 +135,11 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
           (op) => op.takeoverId !== completion.takeoverId
         )
         assignment.tokenNotBefore = Math.max(assignment.tokenNotBefore!, completion.revokeBefore)
+        // Pulse's inactive ledger keeps cleanup authority only while pending IDs remain.
+        if (inactiveRecovery && assignment.pendingTakeovers.length === 0) {
+          assignments.delete(RECOVERY_WALLET)
+          return
+        }
         assignments.set(RECOVERY_WALLET, PeerClusterChange.encode(assignment).finish())
       }
     })
@@ -271,6 +278,65 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         completions[0].revokeBefore
       ])
     })
+    describe('and Cloud returns its departed-participant application response', () => {
+      beforeEach(() => {
+        removal.mockRejectedValue({ code: 'not_found', status: 404, message: 'participant does not exist' })
+        acceptCompletions = true
+      })
+      it('should report the confirmed revocation over NATS and issue only after Pulse clears it', async () => {
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        await waitForCompletions(1)
+        expect(await nextIslandChanged(5000)).toBeDefined()
+        expect(removal).toHaveBeenCalledTimes(1)
+      })
+    })
+    describe('and the retained winner has departed before cleanup', () => {
+      let credentials: jest.SpyInstance
+      let rejoinSession: string
+      beforeEach(() => {
+        inactiveRecovery = true
+        acceptCompletions = true
+        rejoinSession = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+        credentials = jest.spyOn(components.livekit, 'generateCredentials')
+        removal.mockRejectedValue({ code: 'not_found', status: 404, message: 'participant does not exist' })
+      })
+      afterEach(() => {
+        credentials.mockRestore()
+      })
+      // Producer blueprint: Pulse ClusterAssignmentRecoveryIntegrationTests.
+      // DepartedPendingTakeover_RepeatsHintsAndLookupThenBecomesSilent, plus
+      // ClusterAssignmentRecoveryTests.Lookup_DepartedPendingTakeover_ReturnsCleanupOnlyUntilCompletion.
+      it('should drain departed cleanup without minting and admit only a later active session', async () => {
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        await waitForCompletions(1)
+        expect(removal).toHaveBeenCalledWith('island-recover-room', RECOVERY_WALLET, expect.any(Date))
+        expect(assignments.has(RECOVERY_WALLET)).toBe(false)
+        expect(await nextIslandChanged(2500)).toBeUndefined()
+        expect(credentials).not.toHaveBeenCalled()
+
+        // A reconnect for the inactive retained session also finds no ready authority.
+        publisher.publish(`peer.${RECOVERY_WALLET}.connect`, Buffer.from(DEFAULT_SESSION))
+        expect(await nextIslandChanged(2500)).toBeUndefined()
+        expect(credentials).not.toHaveBeenCalled()
+
+        assignments.set(
+          RECOVERY_WALLET,
+          PeerClusterChange.encode(
+            PeerClusterChange.fromPartial({
+              clusterId: 'recover-room',
+              session: rejoinSession,
+              tokenNotBefore: completions[0].revokeBefore,
+              pendingTakeovers: []
+            })
+          ).finish()
+        )
+        publisher.publish(`peer.${RECOVERY_WALLET}.connect`, Buffer.from(rejoinSession))
+        expect((await nextIslandChanged(5000))?.subject).toBe(
+          `engine.peer.${RECOVERY_WALLET}.island_changed.${rejoinSession}`
+        )
+        expect([credentials.mock.calls.length, removal.mock.calls.length, completions.length]).toEqual([1, 1, 1])
+      })
+    })
   })
 
   async function waitForConnected(component: INatsComponent, timeoutMs: number): Promise<void> {
@@ -400,6 +466,29 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         islandName: clusterId,
         roomType: RoomType.ISLAND
       })
+    })
+  })
+
+  describe.each(['presence', 'access'])('when a transient %s outage delays a ready assignment', (failure) => {
+    let accessLookup: jest.SpyInstance | undefined
+    beforeEach(() => {
+      assignments.set(ALLOWED_WALLET, assignmentFor('outage-recovery'))
+      if (failure === 'presence')
+        jest.spyOn(components.livekit, 'holdsParticipant').mockRejectedValueOnce(new Error('unavailable'))
+      if (failure === 'access')
+        accessLookup = jest
+          .spyOn(components.accessGate, 'getAccessState')
+          .mockRejectedValueOnce(new Error('unavailable'))
+    })
+    afterEach(() => {
+      accessLookup?.mockRestore()
+      accessLookup = undefined
+    })
+    it('should withhold credentials during the outage and recover from a later snapshot', async () => {
+      publisher.publish(`peer.${ALLOWED_WALLET}.cluster_snapshot`, assignmentFor('outage-recovery'))
+      expect(await nextIslandChanged(1000)).toBeUndefined()
+      publisher.publish(`peer.${ALLOWED_WALLET}.cluster_snapshot`, assignmentFor('outage-recovery'))
+      expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-outage-recovery')
     })
   })
 
