@@ -20,6 +20,12 @@ fresh Pulse authority, within the configured attempt bound. The previous call ha
 LiveKit Cloud's documented participant-missing result also confirms revocation; a generic 404
 does not. See [LiveKit participant removal](https://docs.livekit.io/intro/basics/rooms-participants-tracks/participants/#remove-participant).
 
+Rate-limited responses (`resource_exhausted`, 429) and the exact application response
+`not_found`, 404, `requested room does not exist` release the dispatch receipt for bounded
+retry after fresh Pulse lookup. They do not confirm revocation: Pulse keeps the operation
+pending until a successful removal or documented participant-missing result. A later hint
+retries after the condition clears. Other server errors may still follow partial execution.
+
 Unknown transport outcomes block that wallet for this process lifetime. A client timeout does
 not prove server cancellation: the old removal could still disconnect a newly admitted winner.
 No retry, expiry or capacity eviction clears that uncertainty. Confirmed receipts are pruned
@@ -50,8 +56,7 @@ violates this even with desired count 1: a queue group does not serialize a wall
 The repository's deployment workflows delegate to the shared deploy action; they do not enforce
 the ECS service policy. Complete the following maintenance procedure before enabling this pair:
 
-1. Release protocol #498 from main, pin that release here, and verify the reviewed Pulse/Gatekeeper
-   images. The branch artifact is for draft integration testing only.
+1. Verify the pinned main-release protocol package and the reviewed Pulse/Gatekeeper images.
 2. Close island admission. Suspend scaling that can create another Gatekeeper task. Scale
    Gatekeeper to zero; wait for running and pending counts to reach zero and every previous task
    to reach `STOPPED`. Reconcile any uncertain removal before reopening admission.
@@ -60,7 +65,8 @@ the ECS service policy. Complete the following maintenance procedure before enab
    credentials must not have either authority. Verify assignment lookup with the new fields.
 4. Configure Gatekeeper desired count 1 and deployment minimum 0% / maximum 100%, then start the
    reviewed image. Verify exactly one task subscribes and run the takeover/reconnect smoke checks
-   before reopening admission. The zero-task barrier also applies to subsequent deployments;
+   before reopening admission. Enable the Pulse recovery-capacity alert before opening admission.
+   The zero-task barrier also applies to subsequent deployments;
    minimum/maximum percentages alone are not evidence that an old consumer has drained.
 
 Rollback closes admission and stops Gatekeeper through the same zero-task barrier before

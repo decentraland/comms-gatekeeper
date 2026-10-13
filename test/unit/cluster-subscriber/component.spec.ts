@@ -221,14 +221,52 @@ describe('when executing Pulse-owned takeover recovery', () => {
         expect(reports()[0].revokeBefore).toBe(1_000_002)
       })
     })
-    describe('and Cloud rejects without destructive side effects', () => {
+    describe.each(['permission-denied', 'rate-limited', 'room-not-found'])(
+      'and Cloud rejects without destructive side effects by %s',
+      (failure) => {
+        beforeEach(() => {
+          if (failure === 'permission-denied')
+            livekit.removeParticipant.mockRejectedValueOnce({ code: 'permission_denied', status: 403 })
+          if (failure === 'rate-limited')
+            livekit.removeParticipant.mockRejectedValueOnce({ code: 'resource_exhausted', status: 429 })
+          if (failure === 'room-not-found')
+            livekit.removeParticipant.mockRejectedValueOnce({
+              code: 'not_found',
+              status: 404,
+              message: 'requested room does not exist'
+            })
+        })
+        it('should retry definite rejection and issue after positive acknowledgement', async () => {
+          await deliver()
+          expect(livekit.removeParticipant).toHaveBeenCalledTimes(2)
+          expect(assignments()).toHaveLength(1)
+        })
+      }
+    )
+    describe.each(['rate-limited', 'room-not-found'])('and definite %s responses persist', (failure) => {
       beforeEach(() => {
-        livekit.removeParticipant.mockRejectedValueOnce({ code: 'permission_denied', status: 403 })
+        livekit.removeParticipant.mockRejectedValue(
+          failure === 'rate-limited'
+            ? { code: 'resource_exhausted', status: 429 }
+            : { code: 'not_found', status: 404, message: 'requested room does not exist' }
+        )
       })
-      it('should retry definite rejection and issue after positive acknowledgement', async () => {
+      it('should defer bounded attempts without confirming revocation and retry from later hints', async () => {
         await deliver()
-        expect(livekit.removeParticipant).toHaveBeenCalledTimes(2)
-        expect(assignments()).toHaveLength(1)
+        await deliver('cluster_snapshot')
+        expect([livekit.removeParticipant.mock.calls.length, reports(), assignments()]).toEqual([6, [], []])
+        livekit.removeParticipant.mockRejectedValue({
+          code: 'not_found',
+          status: 404,
+          message: 'participant does not exist'
+        })
+        now += 10_000
+        await deliver('connect')
+        expect([livekit.removeParticipant.mock.calls.length, reports(), assignments().length]).toEqual([
+          7,
+          [{ takeoverId: 'takeover-a', revokeBefore: 1_000_011 }],
+          1
+        ])
       })
     })
     describe('and Cloud confirms a departed participant through its application error', () => {
@@ -300,7 +338,14 @@ describe('when executing Pulse-owned takeover recovery', () => {
         ])
       })
     })
-    describe.each(['transport-error', 'generic-404', 'other-not-found'])('and removal produces %s', (outcome) => {
+    describe.each([
+      'transport-error',
+      'generic-404',
+      'other-not-found',
+      'bodyless-429',
+      'internal',
+      'deadline-exceeded'
+    ])('and removal produces %s', (outcome) => {
       beforeEach(() => {
         if (outcome === 'transport-error') livekit.removeParticipant.mockRejectedValue(new Error('timeout'))
         if (outcome === 'generic-404') livekit.removeParticipant.mockRejectedValue({ status: 404 })
@@ -310,6 +355,10 @@ describe('when executing Pulse-owned takeover recovery', () => {
             status: 404,
             message: 'wrong route'
           })
+        if (outcome === 'bodyless-429') livekit.removeParticipant.mockRejectedValue({ status: 429 })
+        if (outcome === 'internal') livekit.removeParticipant.mockRejectedValue({ code: 'internal', status: 500 })
+        if (outcome === 'deadline-exceeded')
+          livekit.removeParticipant.mockRejectedValue({ code: 'deadline_exceeded', status: 504 })
       })
       it('should retain an unknown outcome block across later assignments in this process', async () => {
         await deliver()
@@ -547,14 +596,16 @@ describe('when a takeover receipt cache has capacity one', () => {
         getNumber: jest
           .fn()
           .mockImplementation(async (key) =>
-            [
-              'CLUSTER_TAKEOVER_RECEIPT_MAX',
-              'CLUSTER_SNAPSHOT_CONCURRENCY',
-              'CLUSTER_SNAPSHOT_BACKLOG',
-              'CLUSTER_CONNECT_CONCURRENCY'
-            ].includes(key)
-              ? 1
-              : undefined
+            key === 'CLUSTER_TAKEOVER_RETRY_DELAY_MS'
+              ? 0
+              : [
+                    'CLUSTER_TAKEOVER_RECEIPT_MAX',
+                    'CLUSTER_SNAPSHOT_CONCURRENCY',
+                    'CLUSTER_SNAPSHOT_BACKLOG',
+                    'CLUSTER_CONNECT_CONCURRENCY'
+                  ].includes(key)
+                ? 1
+                : undefined
           )
       }),
       logs: createLoggerMockedComponent({}),
@@ -658,6 +709,25 @@ describe('when a takeover receipt cache has capacity one', () => {
       authority.pendingTakeovers = [{ takeoverId: 'second', displacedSession: SESSION, displacedClusterId: 'room-b' }]
       await deliver()
       expect([livekit.removeParticipant.mock.calls.length, livekit.generateCredentials.mock.calls]).toEqual([1, []])
+    })
+  })
+  describe.each(['rate-limited', 'room-not-found'])('and a settled %s rejection exhausts retries', (failure) => {
+    beforeEach(async () => {
+      livekit.removeParticipant.mockRejectedValue(
+        failure === 'rate-limited'
+          ? { code: 'resource_exhausted', status: 429 }
+          : { code: 'not_found', status: 404, message: 'requested room does not exist' }
+      )
+      await deliver()
+      authority.pendingTakeovers = [{ takeoverId: 'second', displacedSession: SESSION, displacedClusterId: 'room-b' }]
+      livekit.removeParticipant.mockResolvedValue(undefined)
+      acceptReports = true
+    })
+    it('should release its dispatch reservation so another wallet can complete cleanup', async () => {
+      await deliver('0x2222222222222222222222222222222222222222')
+      expect([livekit.removeParticipant.mock.calls.length, livekit.generateCredentials.mock.calls.length]).toEqual([
+        4, 1
+      ])
     })
   })
 })

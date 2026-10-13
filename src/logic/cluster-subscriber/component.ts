@@ -29,11 +29,15 @@ function safeSeconds(value: number | undefined): value is number {
 }
 /** Only affirmative application rejections with no destructive side effect permit retry. */
 function isDefiniteRejection(error: unknown): boolean {
-  const failure = error as { code?: unknown; status?: unknown } | undefined
+  const failure = error as { code?: unknown; status?: unknown; message?: unknown } | undefined
   return (
     !!failure &&
     typeof failure.status === 'number' &&
-    ['invalid_argument', 'permission_denied', 'unauthenticated', 'unimplemented'].includes(String(failure.code))
+    (['invalid_argument', 'permission_denied', 'unauthenticated', 'unimplemented'].includes(String(failure.code)) ||
+      // Cloud rejects new API operations when rate limited; no destructive RPC remains.
+      (failure.code === 'resource_exhausted' && failure.status === 429) ||
+      // LiveKit returns this before participant removal. Room absence does not confirm revocation.
+      (failure.code === 'not_found' && failure.status === 404 && failure.message === 'requested room does not exist'))
   )
 }
 

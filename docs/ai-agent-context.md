@@ -140,7 +140,7 @@ runtime guarantee. There is no durable journal or automatic restart/bootstrap pr
 Coordinated producer/consumer activation still requires controlled no admission. Real broker tests
 exercise request/reply, completion loss and JWT signing with mocked Cloud removal; measured clock
 skew, Cloud revocation enforcement and latency margins need separate controlled acceptance.
-See [takeover operations](room-recovery-operations.md) and [dependency provenance](protocol-dependency.md).
+See [takeover operations](room-recovery-operations.md) for activation and failure handling.
 
 ## Stream-access expiration and renewal
 

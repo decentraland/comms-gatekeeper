@@ -290,6 +290,31 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         expect(removal).toHaveBeenCalledTimes(1)
       })
     })
+    describe.each(['rate-limited', 'room-not-found'])('and removal returns a settled %s rejection', (failure) => {
+      beforeEach(() => {
+        removal.mockRejectedValue(
+          failure === 'rate-limited'
+            ? { code: 'resource_exhausted', status: 429 }
+            : { code: 'not_found', status: 404, message: 'requested room does not exist' }
+        )
+      })
+      it('should retain Pulse pending work without quarantine and recover only after confirmed revocation', async () => {
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        expect(await nextIslandChanged(1000)).toBeUndefined()
+        expect([
+          removal.mock.calls.length,
+          completions,
+          PeerClusterChange.decode(assignments.get(RECOVERY_WALLET)!).pendingTakeovers.length
+        ]).toEqual([3, [], 1])
+
+        removal.mockRejectedValue({ code: 'not_found', status: 404, message: 'participant does not exist' })
+        acceptCompletions = true
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        await waitForCompletions(1)
+        expect(await nextIslandChanged(5000)).toBeDefined()
+        expect(removal).toHaveBeenCalledTimes(4)
+      })
+    })
     describe('and the retained winner has departed before cleanup', () => {
       let credentials: jest.SpyInstance
       let rejoinSession: string
