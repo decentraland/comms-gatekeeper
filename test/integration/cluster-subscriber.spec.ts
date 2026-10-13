@@ -291,12 +291,17 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
       })
     })
     describe.each(['rate-limited', 'room-not-found'])('and removal returns a settled %s rejection', (failure) => {
+      let ensureRoom: jest.SpyInstance
       beforeEach(() => {
+        ensureRoom = jest.spyOn(components.livekit, 'getRoom').mockResolvedValue({} as any)
         removal.mockRejectedValue(
           failure === 'rate-limited'
             ? { code: 'resource_exhausted', status: 429 }
             : { code: 'not_found', status: 404, message: 'requested room does not exist' }
         )
+      })
+      afterEach(() => {
+        ensureRoom.mockRestore()
       })
       it('should retain Pulse pending work without quarantine and recover only after confirmed revocation', async () => {
         publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
@@ -305,14 +310,42 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
           removal.mock.calls.length,
           completions,
           PeerClusterChange.decode(assignments.get(RECOVERY_WALLET)!).pendingTakeovers.length
-        ]).toEqual([3, [], 1])
+        ]).toEqual([failure === 'room-not-found' ? 2 : 3, [], 1])
+        expect(ensureRoom).toHaveBeenCalledTimes(failure === 'room-not-found' ? 1 : 0)
 
         removal.mockRejectedValue({ code: 'not_found', status: 404, message: 'participant does not exist' })
         acceptCompletions = true
         publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
         await waitForCompletions(1)
         expect(await nextIslandChanged(5000)).toBeDefined()
-        expect(removal).toHaveBeenCalledTimes(4)
+        expect(removal).toHaveBeenCalledTimes(failure === 'room-not-found' ? 3 : 4)
+      })
+    })
+    describe('and a deleted displaced room needs autonomous revocation recovery', () => {
+      let ensureRoom: jest.SpyInstance
+      let roomExists: boolean
+      beforeEach(() => {
+        roomExists = false
+        acceptCompletions = true
+        removal.mockImplementation(async () => {
+          throw roomExists
+            ? { code: 'not_found', status: 404, message: 'participant does not exist' }
+            : { code: 'not_found', status: 404, message: 'requested room does not exist' }
+        })
+        ensureRoom = jest.spyOn(components.livekit, 'getRoom').mockImplementation(async () => {
+          roomExists = true
+          return {} as any
+        })
+      })
+      afterEach(() => {
+        ensureRoom.mockRestore()
+      })
+      it('should ensure the old room then revoke and admit through the unchanged Pulse contract', async () => {
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        await waitForCompletions(1)
+        expect(await nextIslandChanged(5000)).toBeDefined()
+        expect(ensureRoom).toHaveBeenCalledWith('island-recover-room', { emptyTimeout: 60 })
+        expect(removal).toHaveBeenCalledTimes(2)
       })
     })
     describe('and the retained winner has departed before cleanup', () => {

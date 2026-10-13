@@ -14,6 +14,10 @@ export const metricDeclarations = {
     help: 'Room plans blocked by an unfinished or ambiguous destructive dispatch in this process',
     type: IMetricsComponent.CounterType
   },
+  dcl_gatekeeper_cluster_cleanup_room_missing_total: {
+    help: 'Displaced-room removals that returned room-not-found and require room creation before confirmed revocation',
+    type: IMetricsComponent.CounterType
+  },
   dcl_gatekeeper_nats_connected: {
     help: '1 when the NATS connection is established, 0 otherwise',
     type: IMetricsComponent.GaugeType

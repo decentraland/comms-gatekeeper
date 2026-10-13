@@ -37,8 +37,13 @@ function isDefiniteRejection(error: unknown): boolean {
       // Cloud rejects new API operations when rate limited; no destructive RPC remains.
       (failure.code === 'resource_exhausted' && failure.status === 429) ||
       // LiveKit returns this before participant removal. Room absence does not confirm revocation.
-      (failure.code === 'not_found' && failure.status === 404 && failure.message === 'requested room does not exist'))
+      isRoomMissing(error))
   )
+}
+
+function isRoomMissing(error: unknown): boolean {
+  const failure = error as { code?: unknown; status?: unknown; message?: unknown } | undefined
+  return failure?.code === 'not_found' && failure.status === 404 && failure.message === 'requested room does not exist'
 }
 
 /** Cloud revokes departed participants' tokens even when this application error is returned. */
@@ -204,7 +209,12 @@ export async function createClusterSubscriberComponent(
     )
   }
 
-  async function cleanOperation(wallet: string, entry: PeerClusterChange, op: PendingTakeover): Promise<boolean> {
+  async function cleanOperation(
+    wallet: string,
+    entry: PeerClusterChange,
+    op: PendingTakeover,
+    roomCreationBudget: { available: boolean }
+  ): Promise<boolean> {
     const key = JSON.stringify([wallet, op.takeoverId])
     const stored = receipts.get(key)
     if (stored) {
@@ -269,6 +279,25 @@ export async function createClusterSubscriberComponent(
             return false
           }
           receipts.delete(key)
+          if (isRoomMissing(error)) {
+            metrics.increment('dcl_gatekeeper_cluster_cleanup_room_missing_total')
+            if (stopped || attempt === TAKEOVER_ATTEMPTS || !roomCreationBudget.available) return false
+            const beforeCreation = await resolveAssignment(wallet, entry.session)
+            if (!beforeCreation?.pendingTakeovers.some((item) => sameOperation(item, op)) || stopped) return false
+            roomCreationBudget.available = false
+            try {
+              // Creation itself proves nothing about revocation. Revalidate and remove again below.
+              // getRoom returns an existing room unchanged; it never deletes or replaces a room.
+              await livekit.getRoom(livekit.getIslandRoomName(op.displacedClusterId), { emptyTimeout: 60 })
+            } catch (creationError) {
+              logger.warn('Cannot ensure displaced room for token revocation; admission deferred', {
+                wallet,
+                takeoverId: op.takeoverId,
+                error: getErrorMessage(creationError)
+              })
+              return false
+            }
+          }
           if (stopped || attempt === TAKEOVER_ATTEMPTS) return false
           if (retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt))
           continue
@@ -303,7 +332,9 @@ export async function createClusterSubscriberComponent(
       return
     }
     if (entry.pendingTakeovers.length > 0) {
-      for (const op of entry.pendingTakeovers) if (!(await cleanOperation(wallet, entry, op))) return
+      const roomCreationBudget = { available: true }
+      for (const op of entry.pendingTakeovers)
+        if (!(await cleanOperation(wallet, entry, op, roomCreationBudget))) return
       // Broker flush is not acknowledgement; Pulse must positively report no pending takeovers.
       entry = await resolveAssignment(wallet, session)
       if (!entry) return

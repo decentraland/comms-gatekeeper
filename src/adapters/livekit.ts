@@ -419,7 +419,7 @@ export async function createLivekitComponent(
       .map((room) => room.name)
   }
 
-  async function getRoom(roomName: string): Promise<Room> {
+  async function getRoom(roomName: string, creationOptions?: { emptyTimeout?: number }): Promise<Room> {
     const existingRoom = await roomClient.listRooms([roomName])
 
     let room
@@ -427,7 +427,8 @@ export async function createLivekitComponent(
       room = existingRoom[0]
     } else {
       room = await roomClient.createRoom({
-        name: roomName
+        name: roomName,
+        ...creationOptions
       })
     }
 

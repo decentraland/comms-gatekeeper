@@ -191,6 +191,12 @@ describe('when getting or creating a room', () => {
       expect(listRoomsSpy).toHaveBeenCalledWith([roomName])
       expect(createRoomSpy).not.toHaveBeenCalled()
     })
+    describe('and recovery supplies a creation-only timeout', () => {
+      it('should leave the existing room settings unchanged', async () => {
+        await livekitComponent.getRoom(roomName, { emptyTimeout: 60 })
+        expect(createRoomSpy).not.toHaveBeenCalled()
+      })
+    })
   })
 
   describe('when the room does not exist', () => {
@@ -205,6 +211,12 @@ describe('when getting or creating a room', () => {
       expect(listRoomsSpy).toHaveBeenCalledWith([roomName])
       expect(createRoomSpy).toHaveBeenCalledWith({
         name: roomName
+      })
+    })
+    describe('and recovery supplies a creation-only timeout', () => {
+      it('should create the missing room with the bounded empty timeout', async () => {
+        await livekitComponent.getRoom(roomName, { emptyTimeout: 60 })
+        expect(createRoomSpy).toHaveBeenCalledWith({ name: roomName, emptyTimeout: 60 })
       })
     })
   })

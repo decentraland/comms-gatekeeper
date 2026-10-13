@@ -254,7 +254,21 @@ describe('when executing Pulse-owned takeover recovery', () => {
       it('should defer bounded attempts without confirming revocation and retry from later hints', async () => {
         await deliver()
         await deliver('cluster_snapshot')
-        expect([livekit.removeParticipant.mock.calls.length, reports(), assignments()]).toEqual([6, [], []])
+        expect([
+          livekit.removeParticipant.mock.calls.length,
+          livekit.getRoom.mock.calls.length,
+          metrics.increment.mock.calls.filter(
+            ([metric]) => metric === 'dcl_gatekeeper_cluster_cleanup_room_missing_total'
+          ).length,
+          reports(),
+          assignments()
+        ]).toEqual([
+          failure === 'room-not-found' ? 4 : 6,
+          failure === 'room-not-found' ? 2 : 0,
+          failure === 'room-not-found' ? 4 : 0,
+          [],
+          []
+        ])
         livekit.removeParticipant.mockRejectedValue({
           code: 'not_found',
           status: 404,
@@ -263,10 +277,92 @@ describe('when executing Pulse-owned takeover recovery', () => {
         now += 10_000
         await deliver('connect')
         expect([livekit.removeParticipant.mock.calls.length, reports(), assignments().length]).toEqual([
-          7,
+          failure === 'room-not-found' ? 5 : 7,
           [{ takeoverId: 'takeover-a', revokeBefore: 1_000_011 }],
           1
         ])
+      })
+    })
+    describe('and the displaced room was deleted before cleanup', () => {
+      let roomExists: boolean
+      beforeEach(() => {
+        roomExists = false
+        livekit.removeParticipant.mockImplementation(async () => {
+          throw roomExists
+            ? { code: 'not_found', status: 404, message: 'participant does not exist' }
+            : { code: 'not_found', status: 404, message: 'requested room does not exist' }
+        })
+        livekit.getRoom.mockImplementation(async () => {
+          roomExists = true
+          now += 5000
+          return {} as any
+        })
+      })
+      it('should ensure the displaced room and confirm a fresh cutoff before admitting the winner', async () => {
+        await deliver()
+        expect([
+          livekit.getRoom.mock.calls,
+          livekit.removeParticipant.mock.calls.map(([, , cutoff]) => cutoff),
+          reports(),
+          assignments().length
+        ]).toEqual([
+          [['island-room-a', { emptyTimeout: 60 }]],
+          [new Date(1_000_001_000), new Date(1_000_006_000)],
+          [{ takeoverId: 'takeover-a', revokeBefore: 1_000_006 }],
+          1
+        ])
+      })
+      describe('and room creation fails without a destructive removal in flight', () => {
+        beforeEach(() => {
+          livekit.getRoom.mockRejectedValueOnce(new Error('creation timeout'))
+        })
+        it('should leave pending work unconfirmed and retry creation on a later hint', async () => {
+          await deliver()
+          expect([reports(), assignments()]).toEqual([[], []])
+          await deliver('cluster_snapshot')
+          expect([
+            livekit.getRoom.mock.calls.length,
+            livekit.removeParticipant.mock.calls.length,
+            assignments().length
+          ]).toEqual([2, 3, 1])
+        })
+      })
+      describe('and Pulse supersedes the operation while the room is being ensured', () => {
+        beforeEach(() => {
+          livekit.getRoom.mockImplementation(async () => {
+            roomExists = true
+            authority.session = NEXT_SESSION
+            authority.pendingTakeovers = []
+            return {} as any
+          })
+        })
+        it('should leave the new winner untouched by the stale removal', async () => {
+          await deliver('connect', WALLET, SESSION)
+          expect([livekit.removeParticipant.mock.calls.length, reports(), assignments()]).toEqual([1, [], []])
+          await deliver('connect')
+          expect([livekit.removeParticipant.mock.calls.length, assignments().length]).toEqual([1, 1])
+        })
+      })
+      describe('and the removal after room creation times out', () => {
+        beforeEach(() => {
+          livekit.removeParticipant
+            .mockRejectedValueOnce({
+              code: 'not_found',
+              status: 404,
+              message: 'requested room does not exist'
+            })
+            .mockRejectedValue(new Error('removal timeout'))
+        })
+        it('should retain the genuine unknown dispatch and block subsequent admission', async () => {
+          await deliver()
+          await deliver('cluster_snapshot')
+          expect([
+            livekit.getRoom.mock.calls.length,
+            livekit.removeParticipant.mock.calls.length,
+            reports(),
+            assignments()
+          ]).toEqual([1, 2, [], []])
+        })
       })
     })
     describe('and Cloud confirms a departed participant through its application error', () => {
@@ -726,7 +822,8 @@ describe('when a takeover receipt cache has capacity one', () => {
     it('should release its dispatch reservation so another wallet can complete cleanup', async () => {
       await deliver('0x2222222222222222222222222222222222222222')
       expect([livekit.removeParticipant.mock.calls.length, livekit.generateCredentials.mock.calls.length]).toEqual([
-        4, 1
+        failure === 'room-not-found' ? 3 : 4,
+        1
       ])
     })
   })
