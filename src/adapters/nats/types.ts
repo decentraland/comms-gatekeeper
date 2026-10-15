@@ -20,15 +20,15 @@ export type NatsSubscription = {
 export type PublishOutcome =
   /** The broker answered a round trip issued after the write, so it has processed the message. */
   | 'confirmed'
-  /** The write reached a connected client, but the broker's answer did not arrive within the deadline. */
+  /** The write reached a connected client, but broker processing was not confirmed. */
   | 'unconfirmed'
-  /** The write never reached the broker: no connection, a failed flush, or a disconnect before the answer. */
+  /** The write was never handed to a connected client. */
   | 'dropped'
 
 /** How a request ended. */
 export type NatsRequestResult =
   | { status: 'replied'; data: Uint8Array }
-  /** The subject has subscribers, but none replied within the deadline. */
+  /** No reply arrived before the deadline. This says nothing about application ownership. */
   | { status: 'no_reply' }
   /** No connection, no subscriber for the subject, or the request itself failed. */
   | { status: 'unavailable' }

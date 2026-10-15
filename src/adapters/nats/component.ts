@@ -302,8 +302,8 @@ export async function createNatsComponent(
     let timer: NodeJS.Timeout | undefined
     try {
       // flush() resolves once the broker answers a ping sent after the write, and nats.js rejects
-      // every pending flush when the link drops, so a resolution means processed and a rejection
-      // means lost. It has no deadline of its own, hence the race. A flush that outlives the
+      // every pending flush when the link drops. Resolution proves broker processing; rejection
+      // leaves delivery unknown. It has no deadline of its own, hence the race. A flush that outlives the
       // deadline is left to settle on its own and reported as unconfirmed: closing the connection
       // to be rid of it would silence every subscription for a reconnect cycle, on a service with a
       // single replica, and a link that has genuinely stopped answering is the client's own ping
@@ -319,11 +319,12 @@ export async function createNatsComponent(
         })
       ])
     } catch (error) {
-      logger.warn('NATS publication was lost before the broker confirmed it', {
+      metrics.increment('dcl_gatekeeper_nats_publish_unconfirmed_total')
+      logger.warn('NATS publication outcome is unknown after confirmation failed', {
         subject,
         error: getErrorMessage(error)
       })
-      return 'dropped'
+      return 'unconfirmed'
     } finally {
       if (timer) clearTimeout(timer)
     }
@@ -335,8 +336,7 @@ export async function createNatsComponent(
       const reply = await connection.request(subject, data, { timeout: BROKER_ROUND_TRIP_DEADLINE_MS })
       return { status: 'replied', data: reply.data }
     } catch (error) {
-      // A timeout means the request reached a subscriber that chose not to answer. Every other
-      // failure - the broker reporting no subscriber at all included - means nobody was asked.
+      // Timeout, no responders and transport failure leave application authority unknown.
       if (error instanceof NatsError && error.code === ErrorCode.Timeout) return { status: 'no_reply' }
       logger.warn('NATS request failed', { subject, error: getErrorMessage(error) })
       return { status: 'unavailable' }

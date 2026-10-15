@@ -85,7 +85,8 @@ export type ILivekitComponent = IBaseComponent & {
   getIslandNameFromRoomName: (roomName: string) => string
   getRoomMetadataFromRoomName: (roomName: string) => RoomMetadata
   getRoomName: (realmName: string, params: GetRoomNameParams) => string
-  getRoom: (roomName: string) => Promise<Room>
+  /** Returns an existing room unchanged, or creates it using the optional creation-only timeout. */
+  getRoom: (roomName: string, creationOptions?: { emptyTimeout?: number }) => Promise<Room>
   /** Lists only existing deployment rooms belonging to the specified world. */
   listWorldSceneRooms: (worldName: string) => Promise<string[]>
   getRoomInfo: (roomName: string) => Promise<Room | null>

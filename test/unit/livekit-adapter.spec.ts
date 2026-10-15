@@ -191,6 +191,12 @@ describe('when getting or creating a room', () => {
       expect(listRoomsSpy).toHaveBeenCalledWith([roomName])
       expect(createRoomSpy).not.toHaveBeenCalled()
     })
+    describe('and recovery supplies a creation-only timeout', () => {
+      it('should leave the existing room settings unchanged', async () => {
+        await livekitComponent.getRoom(roomName, { emptyTimeout: 60 })
+        expect(createRoomSpy).not.toHaveBeenCalled()
+      })
+    })
   })
 
   describe('when the room does not exist', () => {
@@ -205,6 +211,12 @@ describe('when getting or creating a room', () => {
       expect(listRoomsSpy).toHaveBeenCalledWith([roomName])
       expect(createRoomSpy).toHaveBeenCalledWith({
         name: roomName
+      })
+    })
+    describe('and recovery supplies a creation-only timeout', () => {
+      it('should create the missing room with the bounded empty timeout', async () => {
+        await livekitComponent.getRoom(roomName, { emptyTimeout: 60 })
+        expect(createRoomSpy).toHaveBeenCalledWith({ name: roomName, emptyTimeout: 60 })
       })
     })
   })
@@ -664,8 +676,8 @@ describe('when generating credentials', () => {
         expect(payload.nbf).toBe(1_000_001)
       })
 
-      it('should keep every other claim as the SDK minted it', () => {
-        expect(payload).toEqual({ ...MINTED_CLAIMS, nbf: 1_000_001 })
+      it('should preserve the token lifetime and all grants across a future nbf', () => {
+        expect(payload).toEqual({ ...MINTED_CLAIMS, nbf: 1_000_001, exp: 1_000_301 })
       })
 
       it('should sign it with the API secret, as the SDK does', () => {

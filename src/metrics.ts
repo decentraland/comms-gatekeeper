@@ -6,6 +6,18 @@ import { IMetricsComponent } from '@well-known-components/interfaces'
 export const metricDeclarations = {
   ...getDefaultHttpMetrics(),
   ...logsMetricsDeclarations,
+  dcl_gatekeeper_cluster_cleanup_capacity_total: {
+    help: 'Room cleanup dispatches deferred because the bounded process receipt cache could not admit work',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_cleanup_unfinished_total: {
+    help: 'Room plans blocked by an unfinished or ambiguous destructive dispatch in this process',
+    type: IMetricsComponent.CounterType
+  },
+  dcl_gatekeeper_cluster_cleanup_room_missing_total: {
+    help: 'Displaced-room removals that returned room-not-found and require room creation before confirmed revocation',
+    type: IMetricsComponent.CounterType
+  },
   dcl_gatekeeper_nats_connected: {
     help: '1 when the NATS connection is established, 0 otherwise',
     type: IMetricsComponent.GaugeType
@@ -39,7 +51,7 @@ export const metricDeclarations = {
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_access_check_failed_total: {
-    help: 'Total cluster_change events let through because the access gate lookup failed (fail-open)',
+    help: 'Island admissions deferred because the access gate lookup failed',
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_connects_received_total: {
@@ -55,7 +67,7 @@ export const metricDeclarations = {
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_reannounce_unresolved_total: {
-    help: 'Total assignment lookups no Pulse instance answered: nothing is assigned to that wallet under that session (absent, departed or displaced)',
+    help: 'Assignment recovery hints that could not be resolved positively',
     type: IMetricsComponent.CounterType
   },
   dcl_gatekeeper_cluster_authority_unavailable_total: {

@@ -1,5 +1,5 @@
 import { IslandChangedMessage } from '@dcl/protocol/out-js/decentraland/kernel/comms/v3/archipelago.gen'
-import { PeerClusterChange } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
+import { PeerClusterChange, TakeoverCompleted } from '@dcl/protocol/out-js/decentraland/pulse/pulse_clusters.gen'
 import { RoomType } from '@dcl/schemas'
 import { START_COMPONENT, STOP_COMPONENT } from '@well-known-components/interfaces'
 import { createHmac } from 'crypto'
@@ -25,6 +25,7 @@ const QUEUE_GROUP_WALLET = '0x5555555555555555555555555555555555555555'
 const RECONNECT_WALLET = '0x7777777777777777777777777777777777777777'
 const DENYLISTED_WALLET = '0x6666666666666666666666666666666666666666'
 const REBANNED_WALLET = '0x8888888888888888888888888888888888888888'
+const RECOVERY_WALLET = '0x9999999999999999999999999999999999999999'
 // The session every event and connect names unless a test says otherwise.
 const DEFAULT_SESSION = '0xdd00000000000000000000000000000000000000'
 
@@ -53,7 +54,13 @@ async function probeBroker(attempts = 10): Promise<boolean> {
 
 /** An encoded Pulse assignment for the responder to hand out. */
 function assignmentFor(clusterId: string, session = DEFAULT_SESSION): Uint8Array {
-  return PeerClusterChange.encode(PeerClusterChange.fromPartial({ clusterId, session })).finish()
+  return PeerClusterChange.encode(
+    PeerClusterChange.fromPartial({
+      clusterId,
+      session,
+      tokenNotBefore: 0
+    })
+  ).finish()
 }
 
 /**
@@ -90,12 +97,18 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
   let nats: INatsComponent
   let subscriber: IClusterSubscriberComponent
   let received: { subject: string; message: IslandChangedMessage }[]
+  let completions: TakeoverCompleted[]
+  let acceptCompletions: boolean
+  let inactiveRecovery: boolean
 
   beforeEach(async () => {
     if (!(await probeBroker())) throw new Error(`Required NATS broker is not reachable at ${NATS_TEST_URL}`)
     publisher = await connect({ servers: NATS_TEST_URL })
     received = []
     assignments = new Map()
+    completions = []
+    acceptCompletions = false
+    inactiveRecovery = false
     answerForAnySession = false
     jest.spyOn(components.livekit, 'holdsParticipant').mockResolvedValue(false)
     publisher.subscribe('peer.*.cluster_assignment', {
@@ -108,11 +121,33 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         if (assignment?.length && (owns || answerForAnySession)) message.respond(assignment)
       }
     })
+    publisher.subscribe(`peer.${RECOVERY_WALLET}.takeover_completed`, {
+      callback: (error, message) => {
+        if (error) return
+        const completion = TakeoverCompleted.decode(message.data)
+        completions.push(completion)
+        if (!acceptCompletions) return
+        const data = assignments.get(RECOVERY_WALLET)
+        if (!data) return
+        const assignment = PeerClusterChange.decode(data)
+        if (!assignment.pendingTakeovers.some((op) => op.takeoverId === completion.takeoverId)) return
+        assignment.pendingTakeovers = assignment.pendingTakeovers.filter(
+          (op) => op.takeoverId !== completion.takeoverId
+        )
+        assignment.tokenNotBefore = Math.max(assignment.tokenNotBefore!, completion.revokeBefore)
+        // Pulse's inactive ledger keeps cleanup authority only while pending IDs remain.
+        if (inactiveRecovery && assignment.pendingTakeovers.length === 0) {
+          assignments.delete(RECOVERY_WALLET)
+          return
+        }
+        assignments.set(RECOVERY_WALLET, PeerClusterChange.encode(assignment).finish())
+      }
+    })
     // Callback-collected into an array rather than async-iterated: these assertions have
     // to prove a message did NOT arrive as well as that one did, and polling a plain
     // array makes both directions unambiguous. Both the session-addressed and the legacy
     // subject are collected, so a message landing on the wrong one is seen rather than lost.
-    const collect = (err: Error | null, message: { subject: string; data: Uint8Array }) => {
+    function collect(err: Error | null, message: { subject: string; data: Uint8Array }) {
       if (err) {
         return
       }
@@ -158,7 +193,9 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
       // (100ms takeover retry), which is not what this file means to exercise.
       getNumber: async (key: string) =>
         ({
-          CLUSTER_TAKEOVER_RETRY_DELAY_MS: 0
+          CLUSTER_TAKEOVER_RETRY_DELAY_MS: 0,
+          CLUSTER_CLEANUP_CUTOFF_MARGIN_SECONDS: 1,
+          CLUSTER_CLEANUP_CLOCK_SKEW_ALLOWANCE_MS: 0
         })[key],
       requireString: async () => '',
       requireNumber: async () => 0
@@ -194,6 +231,172 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
     return undefined
   }
 
+  async function waitForCompletions(count: number): Promise<void> {
+    const deadline = Date.now() + 5000
+    while (completions.length < count && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(completions).toHaveLength(count)
+  }
+
+  describe('when Pulse retains a same-room operation across lost completion acknowledgements', () => {
+    let assignment: PeerClusterChange
+    let removal: jest.SpyInstance
+    beforeEach(() => {
+      assignment = PeerClusterChange.fromPartial({
+        clusterId: 'recover-room',
+        session: DEFAULT_SESSION,
+        tokenNotBefore: 0,
+        pendingTakeovers: [
+          {
+            takeoverId: 'retained-op',
+            displacedSession: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            displacedClusterId: 'recover-room'
+          }
+        ]
+      })
+      assignments.set(RECOVERY_WALLET, PeerClusterChange.encode(assignment).finish())
+      removal = jest.spyOn(components.livekit, 'removeParticipant').mockResolvedValue(undefined)
+    })
+    afterEach(() => {
+      removal.mockRestore()
+    })
+    it('should rereport confirmed cleanup over real NATS and mint only after a positive ready reply', async () => {
+      publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+      await waitForCompletions(1)
+      expect(await nextIslandChanged(100)).toBeUndefined()
+      publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+      await waitForCompletions(2)
+      expect(removal).toHaveBeenCalledTimes(1)
+      expect(await nextIslandChanged(100)).toBeUndefined()
+      acceptCompletions = true
+      publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+      await waitForCompletions(3)
+      expect(await nextIslandChanged(5000)).toBeDefined()
+      expect(removal).toHaveBeenCalledTimes(1)
+      expect(completions.map((completion) => completion.revokeBefore)).toEqual([
+        completions[0].revokeBefore,
+        completions[0].revokeBefore,
+        completions[0].revokeBefore
+      ])
+    })
+    describe('and Cloud returns its departed-participant application response', () => {
+      beforeEach(() => {
+        removal.mockRejectedValue({ code: 'not_found', status: 404, message: 'participant does not exist' })
+        acceptCompletions = true
+      })
+      it('should report the confirmed revocation over NATS and issue only after Pulse clears it', async () => {
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        await waitForCompletions(1)
+        expect(await nextIslandChanged(5000)).toBeDefined()
+        expect(removal).toHaveBeenCalledTimes(1)
+      })
+    })
+    describe.each(['rate-limited', 'room-not-found'])('and removal returns a settled %s rejection', (failure) => {
+      let ensureRoom: jest.SpyInstance
+      beforeEach(() => {
+        ensureRoom = jest.spyOn(components.livekit, 'getRoom').mockResolvedValue({} as any)
+        removal.mockRejectedValue(
+          failure === 'rate-limited'
+            ? { code: 'resource_exhausted', status: 429 }
+            : { code: 'not_found', status: 404, message: 'requested room does not exist' }
+        )
+      })
+      afterEach(() => {
+        ensureRoom.mockRestore()
+      })
+      it('should retain Pulse pending work without quarantine and recover only after confirmed revocation', async () => {
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        expect(await nextIslandChanged(1000)).toBeUndefined()
+        expect([
+          removal.mock.calls.length,
+          completions,
+          PeerClusterChange.decode(assignments.get(RECOVERY_WALLET)!).pendingTakeovers.length
+        ]).toEqual([failure === 'room-not-found' ? 2 : 3, [], 1])
+        expect(ensureRoom).toHaveBeenCalledTimes(failure === 'room-not-found' ? 1 : 0)
+
+        removal.mockRejectedValue({ code: 'not_found', status: 404, message: 'participant does not exist' })
+        acceptCompletions = true
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        await waitForCompletions(1)
+        expect(await nextIslandChanged(5000)).toBeDefined()
+        expect(removal).toHaveBeenCalledTimes(failure === 'room-not-found' ? 3 : 4)
+      })
+    })
+    describe('and a deleted displaced room needs autonomous revocation recovery', () => {
+      let ensureRoom: jest.SpyInstance
+      let roomExists: boolean
+      beforeEach(() => {
+        roomExists = false
+        acceptCompletions = true
+        removal.mockImplementation(async () => {
+          throw roomExists
+            ? { code: 'not_found', status: 404, message: 'participant does not exist' }
+            : { code: 'not_found', status: 404, message: 'requested room does not exist' }
+        })
+        ensureRoom = jest.spyOn(components.livekit, 'getRoom').mockImplementation(async () => {
+          roomExists = true
+          return {} as any
+        })
+      })
+      afterEach(() => {
+        ensureRoom.mockRestore()
+      })
+      it('should ensure the old room then revoke and admit through the unchanged Pulse contract', async () => {
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        await waitForCompletions(1)
+        expect(await nextIslandChanged(5000)).toBeDefined()
+        expect(ensureRoom).toHaveBeenCalledWith('island-recover-room', { emptyTimeout: 60 })
+        expect(removal).toHaveBeenCalledTimes(2)
+      })
+    })
+    describe('and the retained winner has departed before cleanup', () => {
+      let credentials: jest.SpyInstance
+      let rejoinSession: string
+      beforeEach(() => {
+        inactiveRecovery = true
+        acceptCompletions = true
+        rejoinSession = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+        credentials = jest.spyOn(components.livekit, 'generateCredentials')
+        removal.mockRejectedValue({ code: 'not_found', status: 404, message: 'participant does not exist' })
+      })
+      afterEach(() => {
+        credentials.mockRestore()
+      })
+      // Producer blueprint: Pulse ClusterAssignmentRecoveryIntegrationTests.
+      // DepartedPendingTakeover_RepeatsHintsAndLookupThenBecomesSilent, plus
+      // ClusterAssignmentRecoveryTests.Lookup_DepartedPendingTakeover_ReturnsCleanupOnlyUntilCompletion.
+      it('should drain departed cleanup without minting and admit only a later active session', async () => {
+        publisher.publish(`peer.${RECOVERY_WALLET}.cluster_snapshot`, PeerClusterChange.encode(assignment).finish())
+        await waitForCompletions(1)
+        expect(removal).toHaveBeenCalledWith('island-recover-room', RECOVERY_WALLET, expect.any(Date))
+        expect(assignments.has(RECOVERY_WALLET)).toBe(false)
+        expect(await nextIslandChanged(2500)).toBeUndefined()
+        expect(credentials).not.toHaveBeenCalled()
+
+        // A reconnect for the inactive retained session also finds no ready authority.
+        publisher.publish(`peer.${RECOVERY_WALLET}.connect`, Buffer.from(DEFAULT_SESSION))
+        expect(await nextIslandChanged(2500)).toBeUndefined()
+        expect(credentials).not.toHaveBeenCalled()
+
+        assignments.set(
+          RECOVERY_WALLET,
+          PeerClusterChange.encode(
+            PeerClusterChange.fromPartial({
+              clusterId: 'recover-room',
+              session: rejoinSession,
+              tokenNotBefore: completions[0].revokeBefore,
+              pendingTakeovers: []
+            })
+          ).finish()
+        )
+        publisher.publish(`peer.${RECOVERY_WALLET}.connect`, Buffer.from(rejoinSession))
+        expect((await nextIslandChanged(5000))?.subject).toBe(
+          `engine.peer.${RECOVERY_WALLET}.island_changed.${rejoinSession}`
+        )
+        expect([credentials.mock.calls.length, removal.mock.calls.length, completions.length]).toEqual([1, 1, 1])
+      })
+    })
+  })
+
   async function waitForConnected(component: INatsComponent, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
@@ -213,7 +416,9 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         realm: 'main',
         session,
         displacedSession: '',
-        displacedClusterId: ''
+        displacedClusterId: '',
+        pendingTakeovers: [],
+        tokenNotBefore: undefined
       }).finish()
     )
   }
@@ -319,6 +524,29 @@ brokerTest('cluster subscriber against a real NATS broker', ({ components, stubC
         islandName: clusterId,
         roomType: RoomType.ISLAND
       })
+    })
+  })
+
+  describe.each(['presence', 'access'])('when a transient %s outage delays a ready assignment', (failure) => {
+    let accessLookup: jest.SpyInstance | undefined
+    beforeEach(() => {
+      assignments.set(ALLOWED_WALLET, assignmentFor('outage-recovery'))
+      if (failure === 'presence')
+        jest.spyOn(components.livekit, 'holdsParticipant').mockRejectedValueOnce(new Error('unavailable'))
+      if (failure === 'access')
+        accessLookup = jest
+          .spyOn(components.accessGate, 'getAccessState')
+          .mockRejectedValueOnce(new Error('unavailable'))
+    })
+    afterEach(() => {
+      accessLookup?.mockRestore()
+      accessLookup = undefined
+    })
+    it('should withhold credentials during the outage and recover from a later snapshot', async () => {
+      publisher.publish(`peer.${ALLOWED_WALLET}.cluster_snapshot`, assignmentFor('outage-recovery'))
+      expect(await nextIslandChanged(1000)).toBeUndefined()
+      publisher.publish(`peer.${ALLOWED_WALLET}.cluster_snapshot`, assignmentFor('outage-recovery'))
+      expect((await nextIslandChanged(5000))?.message.islandId).toBe('island-outage-recovery')
     })
   })
 
