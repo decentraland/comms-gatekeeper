@@ -1,5 +1,5 @@
 import { NotificationType } from '@dcl/schemas'
-import { PlaceAttributes } from './places.type'
+import { PlaceSummary } from './places.type'
 
 export type StreamingMetadata = {
   title: string
@@ -29,8 +29,5 @@ export type Notification = {
 }
 
 export type INotifications = {
-  sendNotificationType(
-    type: NotificationStreamingType,
-    place: Pick<PlaceAttributes, 'world' | 'world_name' | 'base_position' | 'positions'>
-  ): Promise<void>
+  sendNotificationType(type: NotificationStreamingType, place: PlaceSummary): Promise<void>
 }

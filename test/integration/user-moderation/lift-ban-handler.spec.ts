@@ -75,10 +75,7 @@ test('DELETE /users/:address/bans', ({ components }) => {
             )
             expect(response.status).toBe(204)
 
-            const statusResponse = await components.localFetch.fetch(
-              `/users/${targetAddress}/bans`,
-              { method: 'GET' }
-            )
+            const statusResponse = await components.localFetch.fetch(`/users/${targetAddress}/bans`, { method: 'GET' })
             expect(statusResponse.status).toBe(200)
             const statusBody = await statusResponse.json()
             expect(statusBody.data.isBanned).toBe(false)

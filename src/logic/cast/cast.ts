@@ -444,7 +444,8 @@ export function createCastComponent(
 
   /**
    * Generates a LiveKit token for the presentation bot participant.
-   * The bot joins the room with publish-only permissions to stream presentation slides.
+   * The bot joins the room able to publish, subscribe, and update its own metadata to stream presentation slides
+   * and publish its layout state.
    *
    * @param streamingKey - The streaming key used by the streamer
    * @returns LiveKit connection details for the presentation bot
@@ -476,7 +477,7 @@ export function createCastComponent(
       {
         canPublish: true,
         canSubscribe: true,
-        canUpdateOwnMetadata: false, // Only server can update metadata
+        canUpdateOwnMetadata: true,
         cast: [botIdentity]
       },
       false,
@@ -505,6 +506,7 @@ export function createCastComponent(
    * @param roomId - LiveKit room identifier
    * @param callerAddress - Ethereum address of the caller
    * @throws {NoActiveStreamError} If no active stream exists for the room
+   * @throws {PlaceNotFoundError} If the stream's place no longer exists
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function validatePresenterAdmin(roomId: string, callerAddress: string): Promise<void> {
@@ -521,12 +523,8 @@ export function createCastComponent(
       return
     }
 
-    const [place] = await places.getPlaceStatusByIds([streamAccess.place_id])
-    if (!place) {
-      throw new NoActiveStreamError(roomId)
-    }
-    // Safe cast: isSceneOwnerOrAdmin only accesses id, world, world_name, and positions — all in the Pick type
-    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place as PlaceAttributes, callerAddress)
+    const place = await places.getPlaceById(streamAccess.place_id)
+    const isAdmin = await sceneManager.isSceneOwnerOrAdmin(place, callerAddress)
     if (!isAdmin) {
       throw new NotSceneAdminError('Only scene administrators can manage presenters')
     }
@@ -569,6 +567,7 @@ export function createCastComponent(
    * @param participantIdentity - Ethereum address of the participant to promote
    * @param callerAddress - Ethereum address of the caller
    * @throws {NoActiveStreamError} If the room has no active stream
+   * @throws {PlaceNotFoundError} If the stream's place no longer exists
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function promotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
@@ -583,6 +582,7 @@ export function createCastComponent(
    * @param participantIdentity - Ethereum address of the participant to demote
    * @param callerAddress - Ethereum address of the caller
    * @throws {NoActiveStreamError} If the room has no active stream
+   * @throws {PlaceNotFoundError} If the stream's place no longer exists
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function demotePresenter(roomId: string, participantIdentity: string, callerAddress: string): Promise<void> {
@@ -598,6 +598,7 @@ export function createCastComponent(
    * @param callerAddress - Ethereum address of the caller
    * @returns Object containing an array of presenter identities
    * @throws {NoActiveStreamError} If the room has no active stream
+   * @throws {PlaceNotFoundError} If the stream's place no longer exists
    * @throws {NotSceneAdminError} If the caller is not a scene admin
    */
   async function getPresenters(roomId: string, callerAddress: string): Promise<GetPresentersResult> {

@@ -1,7 +1,7 @@
 import { getNotificationMetadata } from '../logic/utils'
 import { AppComponents } from '../types'
 import { INotifications, Notification, NotificationStreamingType } from '../types/notification.type'
-import { PlaceAttributes } from '../types/places.type'
+import { PlaceSummary } from '../types/places.type'
 
 export async function createNotificationsComponent({
   config,
@@ -32,10 +32,7 @@ export async function createNotificationsComponent({
     await response.body?.cancel().catch(() => undefined)
   }
 
-  async function sendNotificationType(
-    type: NotificationStreamingType,
-    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position' | 'positions'>
-  ): Promise<void> {
+  async function sendNotificationType(type: NotificationStreamingType, place: PlaceSummary): Promise<void> {
     const { getAdminsAndExtraAddresses } = sceneAdmins
 
     const { addresses } = await getAdminsAndExtraAddresses(place)

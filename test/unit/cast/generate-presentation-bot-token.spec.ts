@@ -57,7 +57,7 @@ describe('when generating a presentation bot token', () => {
   })
 
   describe('and the streaming key is valid', () => {
-    it('should generate LiveKit credentials with publish-only permissions and presentation role', async () => {
+    it('should generate LiveKit credentials that can publish and subscribe with the presentation role', async () => {
       await castComponent.generatePresentationBotToken('valid-stream-key')
 
       expect(mockLivekit.generateCredentials).toHaveBeenCalledWith(
@@ -81,6 +81,13 @@ describe('when generating a presentation bot token', () => {
       const botIdentity = callArgs[0]
       const permissions = callArgs[2]
       expect(permissions.cast).toEqual([botIdentity])
+    })
+
+    it('should allow the bot to update its own metadata', async () => {
+      await castComponent.generatePresentationBotToken('valid-stream-key')
+
+      const permissions = mockLivekit.generateCredentials.mock.calls[0][2]
+      expect(permissions.canUpdateOwnMetadata).toBe(true)
     })
 
     it('should return the LiveKit url, token, and roomId', async () => {

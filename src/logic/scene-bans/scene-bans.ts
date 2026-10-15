@@ -7,7 +7,7 @@ import {
   IsUserBannedParams
 } from './types'
 import { InvalidRequestError, NotFoundError, PlaceNotFoundError, UnauthorizedError } from '../../types/errors'
-import { PlaceAttributes } from '../../types/places.type'
+import { PlaceAttributes, PlaceStatus } from '../../types/places.type'
 import { AnalyticsEvent } from '../../types/analytics'
 import { isErrorWithMessage } from '../../logic/errors'
 import { isPlaceRemoved } from '../utils'
@@ -443,7 +443,6 @@ export function createSceneBansComponent(
     logger.info('Starting removal of bans from disabled places')
 
     try {
-      // Get all places with bans
       const placesIdWithBans = await sceneBanManager.getPlacesIdWithBans()
 
       if (placesIdWithBans.length === 0) {
@@ -451,10 +450,7 @@ export function createSceneBansComponent(
         return
       }
 
-      // Get place status for all places with bans
-      let placesFromIds: Array<
-        Pick<PlaceAttributes, 'id' | 'disabled' | 'disabled_reason' | 'world' | 'world_name' | 'base_position'>
-      > = []
+      let placesFromIds: PlaceStatus[] = []
       const batchSize = 100
 
       for (let i = 0; i < placesIdWithBans.length; i += batchSize) {
@@ -475,7 +471,6 @@ export function createSceneBansComponent(
         `Found ${placesDisabled.length} disabled places with bans: ${placesDisabled.map((place) => place.id).join(', ')}`
       )
 
-      // Remove bans for all disabled places
       const disabledPlaceIds = placesDisabled.map((place) => place.id)
       await sceneBanManager.removeBansByPlaceIds(disabledPlaceIds)
 

@@ -431,6 +431,59 @@ describe('PlacesComponent', () => {
     })
   })
 
+  describe('getPlaceById', () => {
+    describe('and the place exists', () => {
+      let result: PlaceAttributes
+
+      beforeEach(async () => {
+        mockFetch.mockResolvedValueOnce({ ok: true, data: { id: 'place-1', positions: ['20,2', '20,3'] } })
+
+        result = await placesComponent.getPlaceById('place-1')
+      })
+
+      it('should request the place by id from the Places API through the cache', () => {
+        expect(mockFetch).toHaveBeenCalledWith('https://places.decentraland.org/api/places/place-1')
+      })
+
+      it('should return the full place including all of its parcel positions', () => {
+        expect(result.positions).toEqual(['20,2', '20,3'])
+      })
+    })
+
+    describe('and the Places API does not know the place', () => {
+      beforeEach(() => {
+        mockFetch.mockResolvedValueOnce(new Response('', { status: 404 }))
+      })
+
+      it('should throw a PlaceNotFoundError', async () => {
+        await expect(placesComponent.getPlaceById('missing')).rejects.toThrow(PlaceNotFoundError)
+      })
+    })
+
+    describe('and the Places API responds with a server error', () => {
+      beforeEach(() => {
+        mockFetch.mockResolvedValueOnce(new Response('', { status: 503 }))
+      })
+
+      it('should report a retryable server error instead of reporting the place as missing', async () => {
+        await expect(placesComponent.getPlaceById('place-1')).rejects.toThrow(ServiceUnavailableError)
+      })
+    })
+
+    describe('and the request fails in transit', () => {
+      let transportError: Error
+
+      beforeEach(() => {
+        transportError = new Error('socket hang up')
+        mockFetch.mockRejectedValueOnce(transportError)
+      })
+
+      it('should report a retryable transport error instead of reporting the place as missing', async () => {
+        await expect(placesComponent.getPlaceById('place-1')).rejects.toThrow(ServiceUnavailableError)
+      })
+    })
+  })
+
   describe('getPlaceStatusByIds', () => {
     it('should return place statuses for given ids', async () => {
       const mockResponse = {

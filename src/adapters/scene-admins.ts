@@ -1,18 +1,18 @@
 import { AppComponents, SceneAdmin } from '../types'
 import { ISceneAdmins } from '../types/scene.type'
-import { PlaceAttributes } from '../types/places.type'
+import { PlaceSummary } from '../types/places.type'
 import { PermissionType } from '../types/worlds.type'
 import { LandsParcelOperatorsResponse } from './lands'
 
 export async function createSceneAdminsComponent(
-  components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager'>
+  components: Pick<AppComponents, 'worlds' | 'lands' | 'sceneAdminManager' | 'places'>
 ): Promise<ISceneAdmins> {
-  const { worlds, lands, sceneAdminManager } = components
+  const { worlds, lands, sceneAdminManager, places } = components
   const { fetchWorldActionPermissions, getWorldParcelPermissionAddresses } = worlds
   const { getLandOperators } = lands
 
   async function getAdminsAndExtraAddresses(
-    place: Pick<PlaceAttributes, 'id' | 'world' | 'world_name' | 'base_position' | 'positions'>,
+    place: PlaceSummary,
     admin?: string
   ): Promise<{
     admins: Set<SceneAdmin>
@@ -32,33 +32,31 @@ export async function createSceneAdminsComponent(
     if (place.world) {
       const worldName = place.world_name!
 
+      const [positions, worldPermissions] = await Promise.all([
+        place.positions ?? places.getPlaceById(place.id).then((fullPlace) => fullPlace.positions),
+        fetchWorldActionPermissions(worldName)
+      ])
+
+      if (worldPermissions?.owner) {
+        extraAddresses.add(worldPermissions.owner.toLowerCase())
+      }
+
       try {
-        const [deploymentAddresses, streamingAddresses, worldPermissions] = await Promise.all([
-          getWorldParcelPermissionAddresses(worldName, 'deployment', place.positions),
-          getWorldParcelPermissionAddresses(worldName, 'streaming', place.positions),
-          fetchWorldActionPermissions(worldName)
+        const [deploymentAddresses, streamingAddresses] = await Promise.all([
+          getWorldParcelPermissionAddresses(worldName, 'deployment', positions),
+          getWorldParcelPermissionAddresses(worldName, 'streaming', positions)
         ])
         for (const addr of deploymentAddresses) extraAddresses.add(addr.toLowerCase())
         for (const addr of streamingAddresses) extraAddresses.add(addr.toLowerCase())
-        if (worldPermissions?.owner) {
-          extraAddresses.add(worldPermissions.owner.toLowerCase())
-        }
       } catch {
-        // Bulk endpoint not available yet, fall back to all allow-listed wallets
-        const permissions = await fetchWorldActionPermissions(worldName)
-        if (permissions) {
-          if (permissions.permissions.deployment.type === PermissionType.AllowList) {
-            for (const wallet of permissions.permissions.deployment.wallets) {
-              extraAddresses.add(wallet.toLowerCase())
-            }
+        if (worldPermissions?.permissions.deployment.type === PermissionType.AllowList) {
+          for (const wallet of worldPermissions.permissions.deployment.wallets) {
+            extraAddresses.add(wallet.toLowerCase())
           }
-          if (permissions.permissions.streaming.type === PermissionType.AllowList) {
-            for (const wallet of permissions.permissions.streaming.wallets) {
-              extraAddresses.add(wallet.toLowerCase())
-            }
-          }
-          if (permissions.owner) {
-            extraAddresses.add(permissions.owner.toLowerCase())
+        }
+        if (worldPermissions?.permissions.streaming.type === PermissionType.AllowList) {
+          for (const wallet of worldPermissions.permissions.streaming.wallets) {
+            extraAddresses.add(wallet.toLowerCase())
           }
         }
       }

@@ -17,6 +17,9 @@ describe('SceneAdmins', () => {
       },
       sceneAdminManager: {
         listActiveAdmins: jest.fn()
+      },
+      places: {
+        getPlaceById: jest.fn()
       }
     }
 
@@ -118,6 +121,10 @@ describe('SceneAdmins', () => {
           expect(mockedComponents.worlds.fetchWorldActionPermissions).toHaveBeenCalledWith('test-world')
         })
 
+        it('should fetch the world action permissions only once', () => {
+          expect(mockedComponents.worlds.fetchWorldActionPermissions).toHaveBeenCalledTimes(1)
+        })
+
         it('should include all allow-listed deployment wallets in extraAddresses', () => {
           expect(result.extraAddresses.has('0xdeployer1')).toBe(true)
           expect(result.extraAddresses.has('0xdeployer2')).toBe(true)
@@ -141,6 +148,57 @@ describe('SceneAdmins', () => {
             )
           )
         })
+      })
+    })
+
+    describe('when the place is a world given without its parcel positions', () => {
+      const placeStatus = {
+        id: 'test-place',
+        world: true,
+        world_name: 'test-world',
+        base_position: '0,0'
+      }
+
+      beforeEach(async () => {
+        mockedComponents.sceneAdminManager.listActiveAdmins.mockResolvedValueOnce([])
+        mockedComponents.places.getPlaceById.mockResolvedValueOnce({ ...placeStatus, positions: ['0,0', '0,1'] })
+        mockedComponents.worlds.fetchWorldActionPermissions.mockResolvedValue({ owner: '0xowner1' })
+        mockedComponents.worlds.getWorldParcelPermissionAddresses.mockResolvedValue([])
+
+        await sceneAdmins.getAdminsAndExtraAddresses(placeStatus)
+      })
+
+      it('should resolve the full place to scope the parcel permission lookup to its parcels', () => {
+        expect(mockedComponents.worlds.getWorldParcelPermissionAddresses).toHaveBeenCalledWith(
+          'test-world',
+          'deployment',
+          ['0,0', '0,1']
+        )
+      })
+    })
+
+    describe('when the place is a world whose full place cannot be resolved', () => {
+      const placeStatus = {
+        id: 'test-place',
+        world: true,
+        world_name: 'test-world',
+        base_position: '0,0'
+      }
+
+      beforeEach(() => {
+        mockedComponents.sceneAdminManager.listActiveAdmins.mockResolvedValueOnce([])
+        mockedComponents.places.getPlaceById.mockRejectedValueOnce(new Error('Place lookup failed'))
+        mockedComponents.worlds.fetchWorldActionPermissions.mockResolvedValue({
+          owner: '0xowner1',
+          permissions: {
+            deployment: { type: PermissionType.AllowList, wallets: ['0xdeployer1'] },
+            streaming: { type: PermissionType.AllowList, wallets: ['0xstreamer1'] }
+          }
+        })
+      })
+
+      it('should propagate the error instead of falling back to every allow-listed wallet', async () => {
+        await expect(sceneAdmins.getAdminsAndExtraAddresses(placeStatus)).rejects.toThrow('Place lookup failed')
       })
     })
 

@@ -262,7 +262,13 @@ describe('when generating watcher credentials by location', () => {
       expect(result.identity).toMatch(/^watch:scene-test-realm:bafkreiscene123:[0-9a-f-]+$/)
     })
 
-    // Through the gated entry point: the minting helper is no longer on ICastComponent.
+    it('should not let the watcher update its own metadata', async () => {
+      await castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
+
+      const permissions = mockLivekit.generateCredentials.mock.calls[0][2]
+      expect(permissions.canUpdateOwnMetadata).toBe(false)
+    })
+
     it('should mint the credentials with watch-only permissions and the watcher role', async () => {
       await castComponent.generateWatcherCredentialsByLocation(location, identity, WATCHER_ADDRESS)
 
