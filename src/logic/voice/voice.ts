@@ -137,10 +137,22 @@ export function createVoiceComponent(
 
   /**
    * Publishes CommunityStreamingEnded event for a community voice chat room.
+   *
+   * This is the only signal consumers get that a community voice chat is over, so every teardown
+   * path must call it. A zero participant count means nothing was actually deleted (another path
+   * already tore the room down), which is the one case where staying quiet is correct.
+   *
    * @param roomName - The name of the room.
-   * @param participantCount - The number of active participants in the room.
+   * @param participantCount - The number of participants the room had when it was deleted.
+   * @param endedAt - When the teardown began, taken before the rows were deleted. A room the same
+   * community starts during the teardown is created after this instant, which is what lets the
+   * consumer tell the two apart.
    */
-  async function publishCommunityStreamingEndedEvent(roomName: string, participantCount: number): Promise<void> {
+  async function publishCommunityStreamingEndedEvent(
+    roomName: string,
+    participantCount: number,
+    endedAt: number
+  ): Promise<void> {
     if (participantCount === 0) {
       logger.debug(`Skipping event publication since voice chat was already deleted`)
       return
@@ -152,8 +164,8 @@ export function createVoiceComponent(
       const event: CommunityStreamingEndedEvent = {
         type: Events.Type.STREAMING,
         subType: Events.SubType.Streaming.COMMUNITY_STREAMING_ENDED,
-        key: `community-streaming-ended-${communityId}-${Date.now()}`,
-        timestamp: Date.now(),
+        key: `community-streaming-ended-${communityId}-${endedAt}`,
+        timestamp: endedAt,
         metadata: {
           communityId,
           totalParticipants: participantCount
@@ -195,10 +207,10 @@ export function createVoiceComponent(
     }
 
     if (disconnectReason === DisconnectReason.ROOM_DELETED) {
-      // Room was already deleted by LiveKit, get participant count before cleaning up DB
-      const participantCount = await voiceDB.getCommunityVoiceChatParticipantCount(roomName)
-      await voiceDB.deleteCommunityVoiceChat(roomName)
-      await publishCommunityStreamingEndedEvent(roomName, participantCount)
+      // LiveKit already closed the room. A zero count means another path deleted the rows first.
+      const endedAt = Date.now()
+      const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
+      await publishCommunityStreamingEndedEvent(roomName, participantCount, endedAt)
       return
     }
 
@@ -248,17 +260,19 @@ export function createVoiceComponent(
 
         if (remainingActiveModerators.length === 0) {
           logger.debug(`No active moderators left in community room ${roomName}, destroying room`)
-          // Get participant count before deletion
-          const participantCount = await voiceDB.getCommunityVoiceChatParticipantCount(roomName)
-          await Promise.all([livekit.deleteRoom(roomName), voiceDB.deleteCommunityVoiceChat(roomName)])
+          // LiveKit room first, then rows: a call the community starts meanwhile gets a fresh room
+          // instead of being kicked out of this one. The row delete decides who publishes: the
+          // ROOM_DELETED webhooks race it and only a delete that removed rows gets a non-zero count.
+          const endedAt = Date.now()
+          await livekit.deleteRoom(roomName)
+          const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
 
           const communityId = livekit.getCommunityIdFromRoomName(roomName)
           analytics.fireEvent(AnalyticsEvent.END_CALL, {
             call_id: communityId
           })
 
-          // Publish event after deletion
-          await publishCommunityStreamingEndedEvent(roomName, participantCount)
+          await publishCommunityStreamingEndedEvent(roomName, participantCount, endedAt)
         }
       }
     } else {
@@ -468,19 +482,17 @@ export function createVoiceComponent(
   async function expireCommunityVoiceChats(): Promise<void> {
     logger.debug('Running community voice chat expiration job')
 
-    // Get all active community rooms to get their IDs before deletion
-    const allCommunityRooms = await voiceDB.getAllActiveCommunityVoiceChats()
-    const communityIds = allCommunityRooms.map((room) => room.communityId)
+    // The delete reports the participant count of each room it removed. Deriving it from a prior
+    // read is not an option: a room is only expired once it has no active moderator, and every
+    // "active rooms" query filters exactly those rooms out, leaving each expiry with a count of 0
+    // and its ended event unpublished.
+    const endedAt = Date.now()
+    const expiredRooms = await voiceDB.deleteExpiredCommunityVoiceChats()
 
-    // Get participant counts for all rooms in a single bulk query before deletion
-    const roomCounts = await voiceDB.getBulkCommunityVoiceChatParticipantCount(communityIds)
-
-    const expiredRoomNames = await voiceDB.deleteExpiredCommunityVoiceChats()
-
-    logger.debug(`Found ${expiredRoomNames.length} expired community voice chat rooms`)
+    logger.debug(`Found ${expiredRooms.length} expired community voice chat rooms`)
 
     // Delete the expired rooms from LiveKit and publish events.
-    for (const roomName of expiredRoomNames) {
+    for (const { roomName, participantCount } of expiredRooms) {
       const communityId = livekit.getCommunityIdFromRoomName(roomName)
       logger.info(`Expiring community voice chat room: ${roomName} (community: ${communityId})`)
 
@@ -488,11 +500,17 @@ export function createVoiceComponent(
         call_id: communityId
       })
 
-      await livekit.deleteRoom(roomName)
+      // The rows had to go first here (the delete is what selects the expired rooms), so a new call
+      // may have claimed this room name meanwhile. Leave its LiveKit room alone if so; the ended
+      // event still goes out and the consumer tells the two rooms apart by time.
+      const reclaimed = (await voiceDB.getCommunityUsersInRoom(roomName)).length > 0
+      if (reclaimed) {
+        logger.info(`Community voice chat room ${roomName} was started again while expiring, keeping its LiveKit room`)
+      } else {
+        await livekit.deleteRoom(roomName)
+      }
 
-      // Publish event with participant count we got before deletion
-      const participantCount = roomCounts.get(roomName) || 0
-      await publishCommunityStreamingEndedEvent(roomName, participantCount)
+      await publishCommunityStreamingEndedEvent(roomName, participantCount, endedAt)
     }
   }
 
@@ -678,19 +696,17 @@ export function createVoiceComponent(
     logger.info(`Ending community voice chat for community ${communityId} by user ${userAddress}`)
 
     try {
-      // Get participant count before deletion
-      const participantCount = await voiceDB.getCommunityVoiceChatParticipantCount(roomName)
-
-      // Delete the room in LiveKit (this will disconnect all participants)
+      // LiveKit room first, then rows: a call the community starts meanwhile gets a fresh room instead
+      // of being kicked out of this one, and while the rows exist it cannot start one anyway. The row
+      // delete decides who publishes: the ROOM_DELETED webhooks race it and only a delete that removed
+      // rows gets a non-zero count.
+      const endedAt = Date.now()
       await livekit.deleteRoom(roomName)
-
-      // Remove all records from the database
-      await voiceDB.deleteCommunityVoiceChat(roomName)
+      const participantCount = await voiceDB.deleteCommunityVoiceChat(roomName)
 
       logger.info(`Successfully ended community voice chat for community ${communityId}`)
 
-      // Publish event after deletion
-      await publishCommunityStreamingEndedEvent(roomName, participantCount)
+      await publishCommunityStreamingEndedEvent(roomName, participantCount, endedAt)
     } catch (error) {
       logger.error(
         `Error ending community voice chat for community ${communityId}: ${isErrorWithMessage(error) ? error.message : 'Unknown error'}`
