@@ -1,6 +1,6 @@
 import { PrivateMessagesPrivacy } from '../../../src/types/social.type'
 import { test } from '../../components'
-import { makeRequest } from '../../utils'
+import { admin, makeRequest } from '../../utils'
 
 test('GET /private-messages/token', ({ components, spyComponents }) => {
   // The handler records connection info and checks device/IP bans on every request, both
@@ -51,7 +51,7 @@ test('GET /private-messages/token', ({ components, spyComponents }) => {
           adapter: 'livekit:wss://dcl.livekit.cloud?access_token=valid-token'
         })
         expect(spyComponents.livekit.generateCredentials).toHaveBeenCalledWith(
-          '0x5babd1869989570988b79b5f5086e17a9e96a235',
+          admin.authChain[0].payload,
           'private-messages',
           {
             cast: [],
@@ -106,7 +106,7 @@ test('GET /private-messages/token', ({ components, spyComponents }) => {
             adapter: 'livekit:wss://dcl.livekit.cloud?access_token=valid-token'
           })
           expect(spyComponents.livekit.generateCredentials).toHaveBeenCalledWith(
-            '0x5babd1869989570988b79b5f5086e17a9e96a235',
+            admin.authChain[0].payload,
             'private-messages',
             {
               cast: [],
@@ -124,7 +124,7 @@ test('GET /private-messages/token', ({ components, spyComponents }) => {
   })
 
   describe('when the request includes a device id and a Cloudflare IP header', () => {
-    const identityAddress = '0x5babd1869989570988b79b5f5086e17a9e96a235'
+    const identityAddress = admin.authChain[0].payload
 
     beforeEach(() => {
       spyComponents.denyList.isDenylisted.mockResolvedValueOnce(false)
