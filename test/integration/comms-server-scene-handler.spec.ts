@@ -1,4 +1,4 @@
-import { InvalidRequestError } from '../../src/types/errors'
+import { InvalidRequestError, ServiceUnavailableError } from '../../src/types/errors'
 import { test } from '../components'
 import { makeRequest } from '../utils'
 import * as handlersUtils from '../../src/logic/utils'
@@ -99,7 +99,7 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
       validateResult.realm.hostname = 'worlds-content-server.decentraland.org'
       validateResult.isWorld = true
       jest.spyOn(handlersUtils, 'validate').mockResolvedValue(validateResult)
-      stubComponents.worlds.resolveWorldSceneId.mockResolvedValue('active-world-scene')
+      stubComponents.worlds.resolveWorldSceneId.mockResolvedValue(mockSceneId)
       stubComponents.livekit.getWorldSceneRoomName.mockReturnValue('world-room-active-world-scene')
     })
 
@@ -114,13 +114,8 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
         })
 
         expect(response.status).toBe(200)
-        expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(
-          mockWorldRealm,
-          mockSceneId,
-          mockParcel,
-          { allowPreviousDeployment: true }
-        )
-        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(mockWorldRealm, 'active-world-scene')
+        expect(stubComponents.worlds.resolveWorldSceneId).toHaveBeenCalledWith(mockWorldRealm, mockSceneId, mockParcel)
+        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(mockWorldRealm, mockSceneId)
         expect(stubComponents.livekit.generateCredentials).toHaveBeenCalledWith(
           'authoritative-server',
           'world-room-active-world-scene',
@@ -130,12 +125,38 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
       })
     })
 
+    describe('and a resolver returns a different deployment', () => {
+      beforeEach(() => {
+        stubComponents.worlds.resolveWorldSceneId.mockResolvedValueOnce('new-deployment')
+      })
+
+      it('should refuse to put old code in the new server room', async () => {
+        expect(await makeRequest(components.localFetch, '/get-server-scene-adapter', { method: 'POST' })).toMatchObject(
+          { status: 409 }
+        )
+        expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and deployment verification is unavailable', () => {
+      beforeEach(() => {
+        stubComponents.worlds.resolveWorldSceneId.mockRejectedValueOnce(new ServiceUnavailableError('upstream down'))
+      })
+
+      it('should return a retryable 503 without minting credentials', async () => {
+        expect(await makeRequest(components.localFetch, '/get-server-scene-adapter', { method: 'POST' })).toMatchObject(
+          { status: 503 }
+        )
+        expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
+      })
+    })
+
     describe('and the active scene cannot be resolved', () => {
       beforeEach(() => {
         stubComponents.worlds.resolveWorldSceneId.mockRejectedValue(new InvalidRequestError('HTTP 404'))
       })
 
-      it('should respond with 400 without minting credentials', async () => {
+      it('should respond with a terminal 409 without minting credentials', async () => {
         const response = await makeRequest(components.localFetch, '/get-server-scene-adapter', {
           method: 'POST',
           headers: {
@@ -144,7 +165,8 @@ test('POST /get-server-scene-adapter', ({ components, stubComponents }) => {
           body: JSON.stringify({})
         })
 
-        expect(response.status).toBe(400)
+        expect(response.status).toBe(409)
+        expect(await response.json()).toMatchObject({ code: 'STALE_SCENE_DEPLOYMENT' })
         expect(stubComponents.livekit.generateCredentials).not.toHaveBeenCalled()
       })
     })
