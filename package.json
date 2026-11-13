@@ -70,7 +70,7 @@
     "@dcl/protocol": "1.0.0-38388253132.commit-8d2c084",
     "@dcl/schema-validator-component": "^1.0.1",
     "@dcl/schemas": "25.2.0",
-    "@dcl/sns-component": "^3.1.5",
+    "@dcl/sns-component": "^3.1.6",
     "@dcl/traced-fetch-component": "1.0.8",
     "@well-known-components/env-config-provider": "^1.1.1",
     "@well-known-components/interfaces": "^1.4.1",
