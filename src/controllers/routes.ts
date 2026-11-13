@@ -74,11 +74,13 @@ import {
   banPlayerHandler,
   liftBanHandler,
   banStatusHandler,
+  platformBanCheckHandler,
+  recordConnectionHandler,
   warnPlayerHandler,
   getWarningsHandler,
   listBansHandler
 } from './handlers/user-moderation'
-import { BanPlayerSchema, WarnPlayerSchema } from './handlers/user-moderation/schemas'
+import { BanPlayerSchema, RecordConnectionSchema, WarnPlayerSchema } from './handlers/user-moderation/schemas'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter({ components }: GlobalContext): Promise<Router<GlobalContext>> {
@@ -273,6 +275,18 @@ export async function setupRouter({ components }: GlobalContext): Promise<Router
   )
   router.delete('/users/:address/bans', signedFetch, moderatorWrite, liftBanHandler)
   router.get('/users/:address/bans', banStatusHandler)
+  // Platform ban check (service-to-service, used by worlds-content-server). Device-aware via the
+  // X-Device-Id header, unlike the public GET /users/:address/bans which matches on address only.
+  router.get('/users/:address/ban-status', tokenAuthMiddleware, platformBanCheckHandler)
+  // Connection info recording (service-to-service). This service records it inline on its own
+  // token paths; worlds-content-server issues world tokens without passing through them, so it
+  // reports here instead — otherwise a ban would snapshot no device for a worlds-only player.
+  router.post(
+    '/users/:address/connection-info',
+    tokenAuthMiddleware,
+    schemaValidator.withSchemaValidatorMiddleware(RecordConnectionSchema),
+    recordConnectionHandler
+  )
   router.post(
     '/users/:address/warnings',
     signedFetch,
