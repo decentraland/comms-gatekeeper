@@ -29,6 +29,13 @@ export interface CommunityVoiceChatUser {
   sid?: string | null
 }
 
+/** A community voice chat room that the expiration sweep tore down. */
+export interface ExpiredCommunityVoiceChat {
+  roomName: string
+  /** Participants the room held when it was deleted. Always at least one. */
+  participantCount: number
+}
+
 export interface PlayerConnectionInfo {
   address: string
   ipAddress: string | null
@@ -187,24 +194,17 @@ export interface IVoiceDBComponent {
   isCommunityRoomActive: (roomName: string) => Promise<boolean>
 
   /**
-   * Gets the total participant count for a community voice chat room.
-   * This is optimized to only return the count without loading all user data.
-   * @param roomName - The name of the community room.
-   * @returns The total number of participants in the room.
-   */
-  getCommunityVoiceChatParticipantCount: (roomName: string) => Promise<number>
-
-  /**
    * Deletes a community voice chat room.
    * @param roomName - The name of the community room.
+   * @returns The participants the room had when it was deleted, or 0 when another path already removed it.
    */
-  deleteCommunityVoiceChat: (roomName: string) => Promise<void>
+  deleteCommunityVoiceChat: (roomName: string) => Promise<number>
 
   /**
-   * Deletes expired community voice chats and returns the names of the rooms that were deleted.
-   * @returns The names of the rooms that were deleted.
+   * Deletes expired community voice chats and returns the rooms that were deleted.
+   * @returns The deleted rooms, each with the number of participants it had when it was deleted.
    */
-  deleteExpiredCommunityVoiceChats: () => Promise<string[]>
+  deleteExpiredCommunityVoiceChats: () => Promise<ExpiredCommunityVoiceChat[]>
 
   /**
    * Gets all active community voice chat rooms with their community IDs.
@@ -246,12 +246,4 @@ export interface IVoiceDBComponent {
       moderatorCount: number
     }>
   >
-
-  /**
-   * Gets the total participant count (all participants, not just active) for a batch of community voice chats.
-   * This is optimized for bulk queries and counts all participants regardless of their status.
-   * @param communityIds - Array of community IDs to get participant counts for.
-   * @returns Map of room name to total participant count.
-   */
-  getBulkCommunityVoiceChatParticipantCount: (communityIds: string[]) => Promise<Map<string, number>>
 }
