@@ -8,7 +8,7 @@ test('GET /community-voice-chats/active', ({ components, spyComponents }) => {
   let roomName2: string
   const communityId1 = 'test-1'
   const communityId2 = 'test-2'
-  const moderatorAddress = '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd'
+  const moderatorAddress = '0x1111111111111111111111111111111111111111'
   const userAddress = '0x1234567890123456789012345678901234567890'
 
   beforeEach(() => {
