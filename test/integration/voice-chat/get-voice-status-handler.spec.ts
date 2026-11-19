@@ -4,7 +4,7 @@ import { makeRequest } from '../../utils'
 
 test('GET /users/:address/voice-chat-status', ({ components, spyComponents }) => {
   let token: string
-  const anAddress = '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd'
+  const anAddress = '0x1111111111111111111111111111111111111111'
   const anotherAddress = '0x1234567890123456789012345678901234567890'
   const roomName = 'voice-chat-123'
 
