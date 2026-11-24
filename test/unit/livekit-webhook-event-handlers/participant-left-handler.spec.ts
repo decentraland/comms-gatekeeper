@@ -122,9 +122,19 @@ describe('Participant Left Handler', () => {
       describe('and room is a genesis city scene room', () => {
         beforeEach(() => {
           webhookEvent.room!.name = 'genesis-city-prd-scene-room-a-realm-name:scene-id-123'
+          webhookEvent.createdAt = 1_795_541_193n
 
           roomMetadata.realmName = 'a-realm-name'
           roomMetadata.sceneId = 'scene-id-123'
+        })
+
+        it('should omit the session ID when LiveKit provides an empty SID', async () => {
+          webhookEvent.participant!.sid = ''
+
+          await handler.handle(webhookEvent)
+
+          expect(publishMessagesMock).toHaveBeenCalledTimes(1)
+          expect(publishMessagesMock.mock.calls[0][0][0].metadata).not.toHaveProperty('sessionId')
         })
 
         it('should publish the user left room event', async () => {
@@ -135,10 +145,11 @@ describe('Participant Left Handler', () => {
               type: Events.Type.COMMS,
               subType: Events.SubType.Comms.USER_LEFT_ROOM,
               key: `user-left-room-${webhookEvent.room!.name}-${userAddress.slice(0, 42)}`,
-              timestamp: expect.any(Number),
+              timestamp: 1_795_541_193_000,
               metadata: {
                 sceneId: 'scene-id-123',
                 userAddress: userAddress,
+                sessionId: 'PA_left_session',
                 isWorld: false,
                 realmName: 'a-realm-name',
                 roomType: RoomType.VOICE_CHAT,

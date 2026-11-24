@@ -402,6 +402,7 @@ paths:
 
         **Query Parameters:**
         - `pointer` + `realm_name`: For scene rooms (pointer is the base parcel, e.g., "-7,-2"). The scene ID is resolved from the catalyst. realm_name defaults to "main".
+        - `scene_id` + `realm_name`: Queries the exact scene room in Genesis City or a World.
         - `realm_name` alone: Treated as a world name (e.g., "mycoolworld.dcl.eth")
 
         **Response:**
@@ -416,11 +417,18 @@ paths:
           schema:
             type: string
             pattern: '^-?\d{1,3},-?\d{1,3}$'
+        - name: scene_id
+          in: query
+          description: Exact scene entity ID. Requires realm_name and cannot be combined with pointer.
+          required: false
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{1,128}$'
         - name: realm_name
           in: query
           description: |
-            When used with pointer: identifies the realm for scene rooms (default: "main").
-            When used alone (without pointer): treated as a world name (must end with .dcl.eth).
+            Identifies the realm for scene rooms, defaulting to "main" for a pointer lookup.
+            Used alone, it is treated as a World name and must end with .eth.
           required: false
           schema:
             type: string
@@ -445,8 +453,11 @@ paths:
                           pattern: '^0x[a-fA-F0-9]{40}$'
                         description: List of participant wallet addresses (lowercase)
                         example: ['0x1234567890abcdef1234567890abcdef12345678']
+                      sceneId:
+                        type: string
+                        description: Scene entity ID echoed when scene_id was supplied.
         '400':
-          description: Invalid request - must provide either world_name or (pointer + realm_name)
+          description: Missing or conflicting room query parameters
           content:
             application/json:
               schema:

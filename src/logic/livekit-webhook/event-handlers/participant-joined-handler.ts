@@ -2,9 +2,8 @@ import { Room, WebhookEvent } from 'livekit-server-sdk'
 import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
-import { Events, RoomType } from '@dcl/schemas'
-import { isRoomEventValid, isVoiceChatRoom } from './utils'
-import { UserJoinedRoomEvent } from '@dcl/schemas'
+import { Events, RoomType, UserJoinedRoomEvent } from '@dcl/schemas'
+import { getWebhookTimestamp, isRoomEventValid, isVoiceChatRoom } from './utils'
 
 export function createParticipantJoinedHandler(
   components: Pick<AppComponents, 'voice' | 'analytics' | 'logs' | 'livekit' | 'publisher' | 'roomMetadataSync'>
@@ -12,7 +11,12 @@ export function createParticipantJoinedHandler(
   const { livekit, logs, publisher, analytics, voice, roomMetadataSync } = components
   const logger = logs.getLogger('participant-joined-handler')
 
-  async function publishUserJoinedRoomEvent(room: Room, userAddress: string): Promise<void> {
+  async function publishUserJoinedRoomEvent(
+    room: Room,
+    userAddress: string,
+    timestamp: number,
+    sessionId: string
+  ): Promise<void> {
     const { sceneId, worldName, realmName, roomType, communityId, voiceChatId, islandName } =
       livekit.getRoomMetadataFromRoomName(room.name)
 
@@ -34,7 +38,7 @@ export function createParticipantJoinedHandler(
       type: Events.Type.COMMS,
       subType: Events.SubType.Comms.USER_JOINED_ROOM,
       key: `user-joined-room-${room.name}-${userAddress}`,
-      timestamp: Date.now(),
+      timestamp,
       metadata: {
         sceneId: sceneId ?? '',
         userAddress,
@@ -44,7 +48,8 @@ export function createParticipantJoinedHandler(
         voiceChatId,
         communityId,
         islandName,
-        roomType
+        roomType,
+        ...(sessionId ? { sessionId } : {})
       }
     }
 
@@ -84,7 +89,7 @@ export function createParticipantJoinedHandler(
       const address = participant.identity.toLowerCase().slice(0, 42)
 
       await Promise.all([
-        publishUserJoinedRoomEvent(room, address),
+        publishUserJoinedRoomEvent(room, address, getWebhookTimestamp(webhookEvent), participant.sid),
         roomMetadataSync.updateRoomMetadataForRoom(room),
         analytics.fireEvent(AnalyticsEvent.PARTICIPANT_JOINED_ROOM, {
           room: room.name,

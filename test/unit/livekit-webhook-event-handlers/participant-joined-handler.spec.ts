@@ -132,6 +132,7 @@ describe('Participant Joined Handler', () => {
             metadata: {
               sceneId: '',
               userAddress: userAddress,
+              sessionId: 'PA_joined_session',
               parcel: '',
               realmName: '',
               isWorld: false,
@@ -197,6 +198,7 @@ describe('Participant Joined Handler', () => {
       let expectedEvent: UserJoinedRoomEvent
 
       beforeEach(() => {
+        webhookEvent.createdAt = 1_795_541_193n
         sceneId = 'scene-123'
         realmName = 'realm-456'
         webhookEvent.room!.name = 'scene-room-name'
@@ -210,16 +212,26 @@ describe('Participant Joined Handler', () => {
           type: Events.Type.COMMS,
           subType: Events.SubType.Comms.USER_JOINED_ROOM,
           key: `user-joined-room-${webhookEvent.room!.name}-${userAddress.slice(0, 42)}`,
-          timestamp: expect.any(Number),
+          timestamp: 1_795_541_193_000,
           metadata: {
             sceneId,
             userAddress: userAddress,
+            sessionId: 'PA_joined_session',
             parcel: '',
             realmName,
             isWorld: false,
             roomType: RoomType.SCENE
           }
         }
+      })
+
+      it('should omit the session ID when LiveKit provides an empty SID', async () => {
+        webhookEvent.participant!.sid = ''
+
+        await handler.handle(webhookEvent)
+
+        expect(publishMessagesMock).toHaveBeenCalledTimes(1)
+        expect(publishMessagesMock.mock.calls[0][0][0].metadata).not.toHaveProperty('sessionId')
       })
 
       it('should publish UserJoinedRoomEvent message with scene metadata', async () => {
@@ -271,6 +283,7 @@ describe('Participant Joined Handler', () => {
           metadata: {
             sceneId: '',
             userAddress: userAddress,
+            sessionId: 'PA_joined_session',
             parcel: '',
             realmName: worldName,
             isWorld: true,
@@ -329,6 +342,7 @@ describe('Participant Joined Handler', () => {
           metadata: {
             sceneId: '',
             userAddress: userAddress,
+            sessionId: 'PA_joined_session',
             parcel: '',
             realmName: '',
             isWorld: false,
@@ -392,6 +406,7 @@ describe('Participant Joined Handler', () => {
           metadata: {
             sceneId: '',
             userAddress: userAddress,
+            sessionId: 'PA_joined_session',
             parcel: '',
             realmName: '',
             isWorld: false,
