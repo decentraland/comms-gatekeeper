@@ -121,6 +121,81 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
     })
   })
 
+  describe('when requesting an exact scene room by entity ID', () => {
+    let sceneId: string
+
+    beforeEach(() => {
+      sceneId = 'QmHistoricalScene'
+    })
+
+    describe('and the realm is in Genesis City', () => {
+      let realmName: string
+      let roomName: string
+
+      beforeEach(() => {
+        realmName = 'main'
+        roomName = `scene-${realmName}:${sceneId}`
+        stubComponents.livekit.getSceneRoomName.mockReturnValueOnce(roomName)
+        stubComponents.livekit.getRoomInfo.mockResolvedValueOnce({ name: roomName } as any)
+        stubComponents.livekit.listRoomParticipants.mockResolvedValueOnce(mockParticipants)
+      })
+
+      it('should query the supplied scene room and echo its entity ID', async () => {
+        const response = await components.localFetch.fetch(
+          `/scene-participants?scene_id=${sceneId}&realm_name=${realmName}`
+        )
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({
+          ok: true,
+          data: { addresses: mockParticipants.map(({ identity }) => identity), sceneId }
+        })
+        expect(stubComponents.livekit.getSceneRoomName).toHaveBeenCalledWith(realmName, sceneId)
+        expect(stubComponents.livekit.listRoomParticipants).toHaveBeenCalledWith(roomName)
+        expect(spyComponents.contentClient.fetchEntitiesByPointers).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and the realm is a World', () => {
+      let realmName: string
+      let roomName: string
+
+      beforeEach(() => {
+        sceneId = 'bafkreihistoricalworldscene'
+        realmName = 'example.dcl.eth'
+        roomName = `world-${realmName}-${sceneId}`
+        stubComponents.livekit.getWorldSceneRoomName.mockReturnValueOnce(roomName)
+        stubComponents.livekit.getRoomInfo.mockResolvedValueOnce({ name: roomName } as any)
+        stubComponents.livekit.listRoomParticipants.mockResolvedValueOnce(mockParticipants)
+      })
+
+      it('should query the specified World scene and echo its entity ID', async () => {
+        const response = await components.localFetch.fetch(
+          `/scene-participants?scene_id=${sceneId}&realm_name=${realmName}`
+        )
+
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({
+          ok: true,
+          data: { addresses: mockParticipants.map(({ identity }) => identity), sceneId }
+        })
+        expect(stubComponents.livekit.getWorldSceneRoomName).toHaveBeenCalledWith(realmName, sceneId)
+        expect(stubComponents.livekit.listRoomParticipants).toHaveBeenCalledWith(roomName)
+        expect(spyComponents.worlds.fetchWorldSceneByPointer).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('and a pointer is also supplied', () => {
+      it('should reject the ambiguous query', async () => {
+        const response = await components.localFetch.fetch(
+          `/scene-participants?scene_id=${sceneId}&pointer=0,0&realm_name=main`
+        )
+
+        expect(response.status).toBe(400)
+      })
+    })
+  })
+
   describe('when request is missing required parameters', () => {
     it('should return 400 error when no parameters provided', async () => {
       const response = await components.localFetch.fetch('/scene-participants')

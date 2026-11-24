@@ -5,10 +5,17 @@ import { InvalidRequestError, NotFoundError } from '../types/errors'
 
 export type SceneParticipantsParams = {
   pointer?: string | null
+  sceneId?: string | null
   realmName?: string | null
 }
 
 export interface ISceneParticipantsComponent extends IBaseComponent {
+  /**
+   * Reads wallet addresses in the specified LiveKit room.
+   * @param params - A realm and scene ID, a parcel pointer, or a World name.
+   * @returns The connected wallet addresses in the resolved room.
+   * @throws An invalid request error for an incomplete target or a not found error for an unresolved parcel.
+   */
   getParticipantAddresses(params: SceneParticipantsParams): Promise<string[]>
 }
 
@@ -16,6 +23,11 @@ function isWorldName(name: string): boolean {
   return name.endsWith('.eth')
 }
 
+/**
+ * Creates the participant lookup adapter, resolving parcels through content only when a scene ID is unavailable.
+ * @param components - The clients used to resolve the room and list its participants.
+ * @returns The scene participants component.
+ */
 export async function createSceneParticipantsComponent(
   components: Pick<AppComponents, 'livekit' | 'contentClient' | 'worlds' | 'logs'>
 ): Promise<ISceneParticipantsComponent> {
@@ -23,11 +35,15 @@ export async function createSceneParticipantsComponent(
   const logger = logs.getLogger('scene-participants')
 
   async function getParticipantAddresses(params: SceneParticipantsParams): Promise<string[]> {
-    const { pointer, realmName } = params
+    const { pointer, realmName, sceneId } = params
 
     let roomName: string
 
-    if (realmName && isWorldName(realmName) && pointer) {
+    if (realmName && sceneId) {
+      roomName = isWorldName(realmName)
+        ? livekit.getWorldSceneRoomName(realmName, sceneId)
+        : livekit.getSceneRoomName(realmName, sceneId)
+    } else if (realmName && isWorldName(realmName) && pointer) {
       // World scene room: fetch the scene ID from the world content server
       const worldScene = await worlds.fetchWorldSceneByPointer(realmName, pointer)
 

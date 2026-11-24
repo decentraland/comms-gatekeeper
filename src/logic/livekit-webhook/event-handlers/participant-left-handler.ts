@@ -1,9 +1,9 @@
 import { Events, RoomType, UserLeftRoomEvent } from '@dcl/schemas'
 import { WebhookEvent } from 'livekit-server-sdk'
-import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
+import { ILivekitWebhookEventHandler, RoomEventWithSession, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
-import { isRoomEventValid, isVoiceChatRoom } from './utils'
+import { getWebhookTimestamp, isRoomEventValid, isVoiceChatRoom } from './utils'
 
 export function createParticipantLeftHandler(
   components: Pick<AppComponents, 'voice' | 'analytics' | 'logs' | 'livekit' | 'publisher'>
@@ -38,11 +38,13 @@ export function createParticipantLeftHandler(
 
       const userAddress = participant.identity.toLowerCase().slice(0, 42)
 
-      const event: UserLeftRoomEvent = {
+      const timestamp = getWebhookTimestamp(webhookEvent)
+      const sessionId = participant.sid
+      const event: RoomEventWithSession<UserLeftRoomEvent> = {
         type: Events.Type.COMMS,
         subType: Events.SubType.Comms.USER_LEFT_ROOM,
         key: `user-left-room-${room.name}-${userAddress}`,
-        timestamp: Date.now(),
+        timestamp,
         metadata: {
           sceneId: sceneId,
           userAddress,
@@ -51,7 +53,8 @@ export function createParticipantLeftHandler(
           roomType,
           islandName,
           communityId,
-          voiceChatId
+          voiceChatId,
+          ...(sessionId ? { sessionId } : {})
         }
       }
 
@@ -74,11 +77,6 @@ export function createParticipantLeftHandler(
 
       if (isVoiceChatRoom(webhookEvent)) {
         const disconnectReason = webhookEvent.participant.disconnectReason
-        const sid = webhookEvent.participant.sid
-        // LiveKit sends the event timestamp as unix seconds (bigint); normalize it to ms.
-        // Fall back to "now" when it is missing so the timestamp guard simply does nothing.
-        const createdAt = webhookEvent.createdAt ? Number(webhookEvent.createdAt) : 0
-        const leaveEventTimeMs = createdAt > 0 ? (createdAt < 1e12 ? createdAt * 1000 : createdAt) : Date.now()
         logger.debug(
           `Participant ${userAddress} left voice chat room ${webhookEvent.room.name} with reason ${disconnectReason}`
         )
@@ -86,8 +84,8 @@ export function createParticipantLeftHandler(
           userAddress,
           webhookEvent.room.name,
           disconnectReason,
-          sid,
-          leaveEventTimeMs
+          sessionId,
+          timestamp
         )
       }
     }
