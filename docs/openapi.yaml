@@ -428,7 +428,7 @@ paths:
           in: query
           description: |
             Identifies the realm for scene rooms, defaulting to "main" for a pointer lookup.
-            A World realm ends with .eth.
+            Used alone, it is treated as a World name and must end with .eth.
           required: false
           schema:
             type: string

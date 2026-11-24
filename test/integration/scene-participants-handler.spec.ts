@@ -185,6 +185,16 @@ test('GET /scene-participants', ({ components, stubComponents, spyComponents }) 
       })
     })
 
+    it.each(['scene_id=scene123', 'scene_id=&realm_name=main', 'scene_id=invalid-scene&realm_name=main'])(
+      'should reject an invalid exact-room query %s',
+      async (query) => {
+        const response = await components.localFetch.fetch(`/scene-participants?${query}`)
+
+        expect(response.status).toBe(400)
+        expect(stubComponents.livekit.listRoomParticipants).not.toHaveBeenCalled()
+      }
+    )
+
     describe('and a pointer is also supplied', () => {
       it('should reject the ambiguous query', async () => {
         const response = await components.localFetch.fetch(

@@ -128,6 +128,15 @@ describe('Participant Left Handler', () => {
           roomMetadata.sceneId = 'scene-id-123'
         })
 
+        it('should omit the session ID when LiveKit provides an empty SID', async () => {
+          webhookEvent.participant!.sid = ''
+
+          await handler.handle(webhookEvent)
+
+          expect(publishMessagesMock).toHaveBeenCalledTimes(1)
+          expect(publishMessagesMock.mock.calls[0][0][0].metadata).not.toHaveProperty('sessionId')
+        })
+
         it('should publish the user left room event', async () => {
           await handler.handle(webhookEvent)
 

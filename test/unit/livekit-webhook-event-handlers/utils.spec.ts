@@ -1,7 +1,20 @@
-import { isRoomEventValid, isVoiceChatRoom } from '../../../src/logic/livekit-webhook/event-handlers/utils'
+import {
+  getWebhookTimestamp,
+  isRoomEventValid,
+  isVoiceChatRoom
+} from '../../../src/logic/livekit-webhook/event-handlers/utils'
 import { WebhookEvent } from 'livekit-server-sdk'
 
 describe('webhook event handler utils', () => {
+  it.each([0n, undefined])('should use the current time when createdAt is %s', (createdAt) => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_795_541_193_456)
+    try {
+      expect(getWebhookTimestamp({ createdAt } as WebhookEvent)).toBe(1_795_541_193_456)
+    } finally {
+      now.mockRestore()
+    }
+  })
+
   describe('when calling isVoiceChatRoom', () => {
     describe('and the room name starts with voice-chat', () => {
       let webhookEvent: WebhookEvent
