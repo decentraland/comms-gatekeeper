@@ -1275,10 +1275,10 @@
     ajv "^8.17.1"
     ajv-formats "^3.0.1"
 
-"@dcl/schemas@25.2.0":
-  version "25.2.0"
-  resolved "https://registry.yarnpkg.com/@dcl/schemas/-/schemas-25.2.0.tgz#57eb89aa99074b686d71244b2d37e61ac00a7510"
-  integrity sha512-t8s955qxM2/SWLIL4bOtkGR+UWNLZUCvKp6FNa+R7pLcU7Bc3xgoEQ0WcZolBJVyDypV+nFV/60TBcujYbx/fg==
+"@dcl/schemas@27.5.0":
+  version "27.5.0"
+  resolved "https://registry.npmjs.org/@dcl/schemas/-/schemas-27.5.0.tgz#9ee68c703099179ae14de2cae1e32aa6695560cb"
+  integrity sha512-B4HG4Yo8FqyxWAYSLF9i1hv4esnduXAUe71jBS9cxIjZHMKr9Ssm/JtQsg4b5Ok2R6Q6PmS7Yuhd/iVquVl1ZA==
   dependencies:
     ajv "^8.11.0"
     ajv-errors "^3.0.0"

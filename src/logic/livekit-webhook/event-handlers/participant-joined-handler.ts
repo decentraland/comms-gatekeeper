@@ -1,5 +1,5 @@
 import { Room, WebhookEvent } from 'livekit-server-sdk'
-import { ILivekitWebhookEventHandler, RoomEventWithSession, WebhookEventName } from './types'
+import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
 import { Events, RoomType, UserJoinedRoomEvent } from '@dcl/schemas'
@@ -34,7 +34,7 @@ export function createParticipantJoinedHandler(
       return
     }
 
-    const event: RoomEventWithSession<UserJoinedRoomEvent> = {
+    const event: UserJoinedRoomEvent = {
       type: Events.Type.COMMS,
       subType: Events.SubType.Comms.USER_JOINED_ROOM,
       key: `user-joined-room-${room.name}-${userAddress}`,

@@ -3,7 +3,6 @@ import { IAnalyticsComponent } from '@dcl/analytics-component'
 import { Events, RoomType, UserJoinedRoomEvent } from '@dcl/schemas'
 import { IPublisherComponent } from '@dcl/sns-component'
 import { ILoggerComponent } from '@well-known-components/interfaces'
-import type { RoomEventWithSession } from '../../../src/logic/livekit-webhook/event-handlers/types'
 import { createParticipantJoinedHandler } from '../../../src/logic/livekit-webhook/event-handlers/participant-joined-handler'
 import { IVoiceComponent } from '../../../src/logic/voice/types'
 import { createLoggerMockedComponent } from '../../mocks/logger-mock'
@@ -196,7 +195,7 @@ describe('Participant Joined Handler', () => {
     describe('and room is a scene room', () => {
       let sceneId: string
       let realmName: string
-      let expectedEvent: RoomEventWithSession<UserJoinedRoomEvent>
+      let expectedEvent: UserJoinedRoomEvent
 
       beforeEach(() => {
         webhookEvent.createdAt = 1_795_541_193n
@@ -265,7 +264,7 @@ describe('Participant Joined Handler', () => {
 
     describe('and room is a world room', () => {
       let worldName: string
-      let expectedEvent: RoomEventWithSession<UserJoinedRoomEvent>
+      let expectedEvent: UserJoinedRoomEvent
 
       beforeEach(() => {
         worldName = 'world-789'
@@ -323,7 +322,7 @@ describe('Participant Joined Handler', () => {
 
     describe('and room is a community voice chat room', () => {
       let communityId: string
-      let expectedEvent: RoomEventWithSession<UserJoinedRoomEvent>
+      let expectedEvent: UserJoinedRoomEvent
 
       beforeEach(() => {
         communityId = 'community-123'
@@ -387,7 +386,7 @@ describe('Participant Joined Handler', () => {
 
     describe('and room is an island room', () => {
       let islandName: string
-      let expectedEvent: RoomEventWithSession<UserJoinedRoomEvent>
+      let expectedEvent: UserJoinedRoomEvent
 
       beforeEach(() => {
         islandName = 'island-123'

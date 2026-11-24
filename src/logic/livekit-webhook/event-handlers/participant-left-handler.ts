@@ -1,6 +1,6 @@
 import { Events, RoomType, UserLeftRoomEvent } from '@dcl/schemas'
 import { WebhookEvent } from 'livekit-server-sdk'
-import { ILivekitWebhookEventHandler, RoomEventWithSession, WebhookEventName } from './types'
+import { ILivekitWebhookEventHandler, WebhookEventName } from './types'
 import { AppComponents } from '../../../types'
 import { AnalyticsEvent } from '../../../types/analytics'
 import { getWebhookTimestamp, isRoomEventValid, isVoiceChatRoom } from './utils'
@@ -40,7 +40,7 @@ export function createParticipantLeftHandler(
 
       const timestamp = getWebhookTimestamp(webhookEvent)
       const sessionId = participant.sid
-      const event: RoomEventWithSession<UserLeftRoomEvent> = {
+      const event: UserLeftRoomEvent = {
         type: Events.Type.COMMS,
         subType: Events.SubType.Comms.USER_LEFT_ROOM,
         key: `user-left-room-${room.name}-${userAddress}`,
