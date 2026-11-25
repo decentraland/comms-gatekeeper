@@ -5,7 +5,7 @@ import { createMockedWorldPlace } from '../mocks/places-mock'
 import { AddSceneBanInput } from '../../src/types'
 
 test('GET /worlds/:worldName/parcels/:baseParcel/users/:address/ban-status', ({ components, stubComponents }) => {
-  const address = '0xd9b96b5dc720fc52bede1ec3b40a930e15f70ddd'
+  const address = '0x1234567890123456789012345678901234567890'
   const worldName = 'my-world.eth'
   const baseParcel = '0,0'
   const endpoint = `/worlds/${worldName}/parcels/${baseParcel}/users/${address}/ban-status`
