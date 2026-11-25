@@ -334,9 +334,10 @@ paths:
       summary: Get authoritative server scene communication adapter
       description: |
         Issues scene-room credentials to the configured authoritative server identity.
-        Requires signed-fetch sceneId and realm metadata. Old world deployment IDs can locate the current
-        deployment when metadata matches its world and footprint; credentials use the current room.
-        Verification outages return 503 with Retry-After; mismatches return 400.
+        Requires signed-fetch entity sceneId and realm metadata. Authoritative servers must request
+        the active entity; old deployment IDs are never remapped into another server room.
+        Inactive world entities return 409 with code STALE_SCENE_DEPLOYMENT; stop that runtime.
+        Verification outages return 503 with Retry-After and must remain retryable.
       security:
         - SignedFetch: []
       requestBody:
@@ -347,6 +348,19 @@ paths:
               type: object
               description: 'Signed fetch request with scene and user information'
       responses:
+        '409':
+          description: Inactive world scene; the caller must stop this scene runtime
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message]
+                properties:
+                  code:
+                    type: string
+                    enum: [STALE_SCENE_DEPLOYMENT]
+                  message:
+                    type: string
         '503':
           description: Scene or ban verification temporarily unavailable; retry after the indicated delay
           headers:

@@ -46,8 +46,23 @@ export async function commsServerSceneHandler(
   // through to the scene-room name below — which is what `/get-scene-adapter` mints for it.
   // Any other name lands the authoritative server in a different room than its own clients.
   if (isWorld) {
-    const worldSceneId = await worlds.resolveWorldSceneId(realmName, sceneId, parcel, { allowPreviousDeployment: true })
-    room = livekit.getWorldSceneRoomName(realmName, worldSceneId)
+    try {
+      // A server runs a concrete entity. Client compatibility remapping would put
+      // old code in the new server's room under the same authoritative identity.
+      if (sceneId.toLowerCase().endsWith('.eth')) {
+        throw new InvalidRequestError('Authoritative servers must identify a scene entity')
+      }
+      const worldSceneId = await worlds.resolveWorldSceneId(realmName, sceneId, parcel)
+      if (worldSceneId.toLowerCase() !== sceneId.toLowerCase()) {
+        throw new InvalidRequestError('Requested scene is not the active deployment')
+      }
+      room = livekit.getWorldSceneRoomName(realmName, worldSceneId)
+    } catch (error) {
+      // Upstream failures remain 503/retryable; only a verified refusal is terminal.
+      if (!(error instanceof InvalidRequestError)) throw error
+      logger.warn('Rejected inactive authoritative scene', { realmName, sceneId, parcel: parcel ?? '' })
+      return { status: 409, body: { code: 'STALE_SCENE_DEPLOYMENT', message: error.message } }
+    }
   } else {
     room = livekit.getSceneRoomName(realmName, sceneId)
   }
